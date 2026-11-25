@@ -49,7 +49,7 @@ export interface ApplyReportHost<P> {
  * @complexity O(1).
  */
 function capitalize({ value }: { value: string }, _optional = {}): string {
-  return value.length === 0 ? value : value[0].toUpperCase() + value.slice(1);
+  return value.length === 0 ? value : value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 /**
@@ -144,7 +144,10 @@ async function abandonRefusedRun<P>(
 
 /** Send by hand: records the pending audit row (with each item's hash before the run) and puts the
  *  backstop metadata on the report. Only a run whose bundle carries that metadata has one. */
-async function prepareRunAudit<P>({ run }: { run: ApplyRun<P> }, _optional = {}): Promise<void> {
+async function prepareRunAudit<P>(
+  { run, readBackstopMetadata }: { run: ApplyRun<P>; readBackstopMetadata: ApplyReportHost<P>["readBackstopMetadata"] },
+  _optional = {}
+): Promise<void> {
   const { progress, handlerDeps, handlerByType, input, runId, startedAt, entities } = run;
   const metadata = readBackstopMetadata({ entities });
   const backstopAudit = handlerDeps.backstop?.audit;
@@ -191,8 +194,9 @@ function initializeRunItems<P>({ run }: { run: ApplyRun<P> }, _optional = {}): v
 /** Opens the run: reads the registry fresh, prepares the audit, and persists the run and every
  *  pending item before the first content write. */
 async function openRun<P>(
-  { input, identity, staged, report, authorize, backstop }: {
+  { input, identity, staged, report, authorize, backstop, host }: {
     input: CreatePublishContentApplyPortInput<P>;
+    host: ApplyReportHost<P>;
     identity: ApplyRunIdentity;
     staged: { entitiesJson: string };
     report: PublishContentReport;
@@ -213,7 +217,7 @@ async function openRun<P>(
     ...input.publishContentDeps,
     ...(authorize === undefined ? {} : { authorize }), ...(backstop === undefined ? {} : { backstop })
   };
-  const { handlerByType } = buildPublishContentCatalog(handlerDeps);
+  const { handlerByType } = host.catalog.build(handlerDeps);
   const run: ApplyRun<P> = {
     ...identity,
     input,
@@ -224,7 +228,7 @@ async function openRun<P>(
     transactional: entities.some((entity) => entity.entityType === "raw-row" || entity.entityType === "raw-file"),
     progress: { report, effectiveRowsByKey: new Map(), itemByKey: new Map(), auditRecord: undefined, activeItemKey: null },
   };
-  await prepareRunAudit({ run });
+  await prepareRunAudit({ run, readBackstopMetadata: host.readBackstopMetadata });
   for (const row of run.progress.report.rows) {
     run.progress.effectiveRowsByKey.set(entityKey({ entityType: row.entityType, entityId: row.entityId }), row);
   }
@@ -476,7 +480,10 @@ async function saveFailureAudit<P>(
   });
 }
 
-async function failRun<P>({ run, error }: { run: ApplyRun<P>; error: unknown }, _optional = {}): Promise<never> {
+async function failRun<P>(
+  { run, error, pluginHooks }: { run: ApplyRun<P>; error: unknown; pluginHooks: ApplyReportHost<P>["pluginHooks"] },
+  _optional = {}
+): Promise<never> {
   const { progress, transactional } = run;
   const rollbackErrors: string[] = [];
   if (transactional) await rollbackRawRun({ run, error, rollbackErrors });
@@ -489,12 +496,15 @@ async function failRun<P>({ run, error }: { run: ApplyRun<P>; error: unknown }, 
   throw transactional ? error : withRefusedItem({
     error,
     itemKey: progress.activeItemKey,
-    isPluginHookFailure: (candidate): candidate is PluginHookFailedError => candidate instanceof PluginHookFailedError,
-    attachRefusedItem: (failure, refusedItemRef) => new PluginHookFailedError(failure.pluginId, failure.message, { cause: failure, refusedItemRef }),
+    isPluginHookFailure: pluginHooks.isPluginHookFailure,
+    attachRefusedItem: pluginHooks.attachRefusedItem,
   });
 }
 
-async function executeRows<P>({ run, ctx }: { run: ApplyRun<P>; ctx: ApplyRowContext }, _optional = {}): Promise<void> {
+async function executeRows<P>(
+  { run, ctx, pluginHooks }: { run: ApplyRun<P>; ctx: ApplyRowContext; pluginHooks: ApplyReportHost<P>["pluginHooks"] },
+  _optional = {}
+): Promise<void> {
   const { handlerDeps } = run;
   try {
     if (run.transactional) {
@@ -502,7 +512,7 @@ async function executeRows<P>({ run, ctx }: { run: ApplyRun<P>; ctx: ApplyRowCon
       await handlerDeps.backstop.rows.transaction({ work: () => applyRows({ run, ctx }) });
     } else await applyRows({ run, ctx });
   } catch (error) {
-    await failRun({ run, error });
+    await failRun({ run, error, pluginHooks });
   }
 }
 
@@ -528,7 +538,10 @@ async function closeRun<P>({ run }: { run: ApplyRun<P> }, _optional = {}): Promi
 /** Applies a report: loads its bundle, opens the run row, writes row by row (or in one transaction for
  *  a send by hand), and closes the run with the repoint and verification passes. */
 export async function applyPublishContentReport<P>(
-  { input, report, principalId, bundleId, restorePointId, authorize, backstop }: { input: CreatePublishContentApplyPortInput<P> } & ApplyReportInput,
+  { input, host, report, principalId, bundleId, restorePointId, authorize, backstop }: {
+    input: CreatePublishContentApplyPortInput<P>;
+    host: ApplyReportHost<P>;
+  } & ApplyReportInput,
   _optional = {}
 ): Promise<ApplyReportResult> {
   const startedAt = clockNowIso({ clock: input.clock });
@@ -536,8 +549,8 @@ export async function applyPublishContentReport<P>(
   const identity: ApplyRunIdentity = { runId: input.idGen.newId(), startedAt, sourcePrincipalId: staged.sourcePrincipalId, principalId, restorePointId };
   if (report.refused) return abandonRefusedRun({ input, identity, report });
 
-  const run = await openRun({ input, identity, staged, report, authorize, backstop });
-  await executeRows({ run, ctx: applyRowContext({ run }) });
+  const run = await openRun({ input, identity, staged, report, authorize, backstop, host });
+  await executeRows({ run, ctx: applyRowContext({ run }), pluginHooks: host.pluginHooks });
   return closeRun({ run });
 }
 

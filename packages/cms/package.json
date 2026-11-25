@@ -525,6 +525,8 @@
       "./publish/content/apply-retire": "universal",
       "./publish/content/apply-failure": "universal",
       "./publish/content/apply-row": "node",
+      "./publish/content/apply-report": "node",
+      "./publish/content/push-plan": "node",
       "./publish/content/backstop-service": "universal",
       "./publish/content/composite-blob-source": "node",
       "./publish/content/gated-hooks": "node",
@@ -3513,6 +3515,16 @@
       "types": "./dist/publish/content/apply-row.d.ts",
       "import": "./dist/publish/content/apply-row.js",
       "default": "./dist/publish/content/apply-row.js"
+    },
+    "./publish/content/apply-report": {
+      "types": "./dist/publish/content/apply-report.d.ts",
+      "import": "./dist/publish/content/apply-report.js",
+      "default": "./dist/publish/content/apply-report.js"
+    },
+    "./publish/content/push-plan": {
+      "types": "./dist/publish/content/push-plan.d.ts",
+      "import": "./dist/publish/content/push-plan.js",
+      "default": "./dist/publish/content/push-plan.js"
     },
     "./publish/content/backstop-service": {
       "types": "./dist/publish/content/backstop-service.d.ts",

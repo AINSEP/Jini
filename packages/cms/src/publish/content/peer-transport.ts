@@ -52,7 +52,7 @@ export interface PeerEgressRefusal {
 }
 
 /** Everything host-specific the transport needs, bound once by {@link createPeerTransport}. */
-export interface PeerTransportHost {
+export interface PeerTransportHost<K extends string = string> {
   /** Applied to every operator-facing message this module produces. */
   readonly redact: PeerTextRedactor;
   /** Recognises the host egress guard's refusal (else `undefined`), see {@link describePeerEgressRefusal}. */
@@ -62,7 +62,7 @@ export interface PeerTransportHost {
   /** The product name a peer is expected to run, used in "is this a ... instance?" diagnostics. */
   readonly productName: string;
   /** The history row kind recorded for a completed peer apply. */
-  readonly history: { readonly kind: string };
+  readonly history: { readonly kind: K };
 }
 
 /** The guarded HTTP client seam (the host's ADR-038 `HttpClientPort`, structurally). */
@@ -264,24 +264,30 @@ export interface PeerBlobSource {
 export type PeerPublishTrigger = "admin_ui" | "agent_tool";
 
 /** The one history call a peer publish makes (executePeerImport). Composition passes the deployments
- *  history store, and `tsc` checks it against this shape where it is assigned. */
-export interface PublishHistoryRecorder {
+ *  history store, and `tsc` checks it against this shape where it is assigned.
+ *
+ *  `K` is the host's row kind ({@link PeerTransportHost.history}). It defaults to `never` so a host
+ *  store whose `recordSuccess` accepts its own closed kind union stays assignable where the kind is
+ *  not named (method parameters are compared bivariantly); a bound transport narrows it to the
+ *  host's literal. */
+export interface PublishHistoryRecorder<K extends string = never> {
   recordSuccess(input: { workspaceId: string; entry: {
-    readonly kind: string; readonly target: string; readonly projectName: string; readonly url: string;
+    readonly kind: K; readonly target: string; readonly projectName: string; readonly url: string;
     readonly configFields: Readonly<Record<string, string>>; readonly reachable: boolean; readonly status: string;
     readonly publishedAt: string; readonly triggeredBy: PeerPublishTrigger;
   } }): Promise<void>;
 }
 
-export interface PeerCallDeps {
+/** `K`: the host history row kind; see {@link PublishHistoryRecorder}. */
+export interface PeerCallDeps<K extends string = never> {
   readonly httpClient: PeerHttpClient;
   readonly credential: PeerTransportCredential;
   /** Local source scope, never the peer's remote workspace. Optional for transport-only consumers. */
-  readonly publishHistory?: { store: PublishHistoryRecorder; workspaceId: string; clock: Clock; triggeredBy?: PeerPublishTrigger };
+  readonly publishHistory?: { store: PublishHistoryRecorder<K>; workspaceId: string; clock: Clock; triggeredBy?: PeerPublishTrigger };
 }
 
 /** Internal: {@link PeerCallDeps} once {@link createPeerTransport} has bound the host. */
-type HostedPeerDeps = PeerCallDeps & { readonly host: PeerTransportHost };
+type HostedPeerDeps = PeerCallDeps<string> & { readonly host: PeerTransportHost };
 
 /** One request to a peer route; see {@link callPeer}. */
 export interface PeerRequest {
@@ -981,25 +987,25 @@ async function fetchVerifiedPeerBlob(deps: HostedPeerDeps, { sha256 }: { sha256:
  * @param required.host - The host values; see {@link PeerTransportHost}. All REQUIRED.
  * @complexity O(1); each returned function costs what its unbound implementation documents.
  */
-export function createPeerTransport({ host }: { host: PeerTransportHost }, _optional = {}) {
-  const hosted = <D extends PeerCallDeps>(deps: D): D & { readonly host: PeerTransportHost } => ({ ...deps, host });
+export function createPeerTransport<K extends string>({ host }: { host: PeerTransportHost<K> }, _optional = {}) {
+  const hosted = <D extends PeerCallDeps<K>>(deps: D): D & { readonly host: PeerTransportHost<K> } => ({ ...deps, host });
   return {
     describePeerEgressRefusal: ({ err, baseUrl }: { err: PeerEgressRefusal; baseUrl: string }, _o = {}) =>
       describePeerEgressRefusal({ err, baseUrl, host }),
-    callPeer: ({ deps, request }: { deps: PeerCallDeps; request: PeerRequest }, _o = {}) =>
+    callPeer: ({ deps, request }: { deps: PeerCallDeps<K>; request: PeerRequest }, _o = {}) =>
       callPeer({ deps: hosted(deps), request }),
     pushBundleToPeer: (
-      { deps, required }: { deps: PeerCallDeps & PeerPushSources; required: { bundle: PublishContentExportEnvelope; overwriteEntityKeys?: readonly string[] } },
+      { deps, required }: { deps: PeerCallDeps<K> & PeerPushSources; required: { bundle: PublishContentExportEnvelope; overwriteEntityKeys?: readonly string[] } },
       _o = {}
     ) => pushBundleToPeer({ deps: hosted(deps), required }),
-    confirmPeerImport: ({ deps, required }: { deps: PeerCallDeps; required: { planId: string; planHash: string } }, _o = {}) =>
+    confirmPeerImport: ({ deps, required }: { deps: PeerCallDeps<K>; required: { planId: string; planHash: string } }, _o = {}) =>
       confirmPeerImport({ deps: hosted(deps), required }),
     executePeerImport: (
-      { deps, required }: { deps: PeerCallDeps; required: { bundleId: string; confirmationToken: string; overwriteEntityKeys?: readonly string[] } },
+      { deps, required }: { deps: PeerCallDeps<K>; required: { bundleId: string; confirmationToken: string; overwriteEntityKeys?: readonly string[] } },
       _o = {}
     ) => executePeerImport({ deps: hosted(deps), required }),
-    pullBundleFromPeer: (deps: PeerCallDeps, _o = {}) => pullBundleFromPeer(hosted(deps)),
-    pullBlobsFromPeer: ({ deps, required }: { deps: PeerCallDeps & PeerPullSinks; required: { blobManifest: readonly string[] } }, _o = {}) =>
+    pullBundleFromPeer: (deps: PeerCallDeps<K>, _o = {}) => pullBundleFromPeer(hosted(deps)),
+    pullBlobsFromPeer: ({ deps, required }: { deps: PeerCallDeps<K> & PeerPullSinks; required: { blobManifest: readonly string[] } }, _o = {}) =>
       pullBlobsFromPeer({ deps: hosted(deps), required }),
   };
 }

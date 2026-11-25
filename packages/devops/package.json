@@ -73,11 +73,15 @@
       "./backup/site/static-download-html": "universal",
       "./backup/site/credential-warnings": "universal",
       "./backup/site/share-refusal": "universal",
+      "./backup/site/share-backend": "node",
+      "./backup/site/share-file-policy": "node",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
       "./backup/site/import-verifier-projection": "universal",
       "./backup/site/import-plugin-state": "node",
       "./backup/site/import-restore-placement": "node",
+      "./backup/site/share-preparation-steps": "node",
+      "./backup/site/share-preparation": "node",
       "./backup/site/static-download-landing": "universal",
       "./backup/site/static-copy": "node",
       "./backup/site/static-download-layout": "node",
@@ -406,6 +410,16 @@
       "import": "./dist/backup/site/share-refusal.js",
       "default": "./dist/backup/site/share-refusal.js"
     },
+    "./backup/site/share-backend": {
+      "types": "./dist/backup/site/share-backend.d.ts",
+      "import": "./dist/backup/site/share-backend.js",
+      "default": "./dist/backup/site/share-backend.js"
+    },
+    "./backup/site/share-file-policy": {
+      "types": "./dist/backup/site/share-file-policy.d.ts",
+      "import": "./dist/backup/site/share-file-policy.js",
+      "default": "./dist/backup/site/share-file-policy.js"
+    },
     "./backup/site/archive-media": {
       "types": "./dist/backup/site/archive-media.d.ts",
       "import": "./dist/backup/site/archive-media.js",
@@ -430,6 +444,16 @@
       "types": "./dist/backup/site/import-restore-placement.d.ts",
       "import": "./dist/backup/site/import-restore-placement.js",
       "default": "./dist/backup/site/import-restore-placement.js"
+    },
+    "./backup/site/share-preparation-steps": {
+      "types": "./dist/backup/site/share-preparation-steps.d.ts",
+      "import": "./dist/backup/site/share-preparation-steps.js",
+      "default": "./dist/backup/site/share-preparation-steps.js"
+    },
+    "./backup/site/share-preparation": {
+      "types": "./dist/backup/site/share-preparation.d.ts",
+      "import": "./dist/backup/site/share-preparation.js",
+      "default": "./dist/backup/site/share-preparation.js"
     },
     "./backup/site/static-download-landing": {
       "types": "./dist/backup/site/static-download-landing.d.ts",
