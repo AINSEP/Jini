@@ -22,7 +22,8 @@ export interface PartitionPassReport {
   kept: Array<{ partition: string; reason: string }>; skipped: Array<{ name: string; reason: string }>;
 }
 /** Boot cache work (one-time and update clears) for unheld partitions; runs under the target fence. */
-export type PartitionMaintenance = (required: { partition: string; path: string; classification: 'tracked' | 'ambiguous' }) => Promise<void>;
+/** `writer` is the pass's writer context, so cache-only renames can recheck holders and assert the lock. */
+export type PartitionMaintenance = (required: { partition: string; path: string; classification: 'tracked' | 'ambiguous'; writer: PartitionWriterContext }) => Promise<void>;
 export interface PartitionPassRequired {
   interlock: PartitionPassInterlock; ledger: PartitionPassLedger; fs: PartitionPassFsPort; root: PartitionPassRoot;
   maintenance: PartitionMaintenance; report: (required: { report: PartitionPassReport }) => void;
@@ -183,7 +184,7 @@ async function runMaintenance(S: Pass, partition: string, classification: 'track
   if (S.others.length > 0) return;
   await S.ctx.setTarget({ target: partition });
   if (await heldNow(S, partition)) return;
-  try { await maintenance({ partition, path: path.join(S.root, partition), classification }); }
+  try { await maintenance({ partition, path: path.join(S.root, partition), classification, writer: S.ctx }); }
   catch (error) { S.report.skipped.push({ name: partition, reason: `maintenance-failed (${describe(error)})` }); }
 }
 
