@@ -29,7 +29,7 @@ interface ApiKeysTable {
 }
 
 import type { ApiKeyRecord, ApiKeyRepoPort } from "./api-key-types.js";
-import type { SessionRepoPort, SessionRecord } from "../index.js";
+import type { SessionRepoPort, SessionRecord } from "../core/index.js";
 import { createIdentityTransactions } from "./repo.js";
 
 function toSessionRecord(row: Selectable<SessionsTable>): SessionRecord {
@@ -40,9 +40,9 @@ function toSessionRecord(row: Selectable<SessionsTable>): SessionRecord {
     tokenHash: row.token_hash,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
-    revokedAt: row.revoked_at ?? undefined,
-    ip: row.ip ?? undefined,
-    userAgent: row.user_agent ?? undefined,
+    ...(row.revoked_at == null ? {} : { revokedAt: row.revoked_at }),
+    ...(row.ip == null ? {} : { ip: row.ip }),
+    ...(row.user_agent == null ? {} : { userAgent: row.user_agent }),
   };
 }
 
@@ -141,11 +141,11 @@ function toApiKeyRecord(row: Selectable<ApiKeysTable>): ApiKeyRecord {
     label: row.label,
     keyHash: row.key_hash,
     prefix: row.prefix,
-    issuedPolicyId: row.issued_policy_id ?? undefined,
+    ...(row.issued_policy_id == null ? {} : { issuedPolicyId: row.issued_policy_id }),
     createdAt: row.created_at,
-    lastUsedAt: row.last_used_at ?? undefined,
-    expiresAt: row.expires_at ?? undefined,
-    revokedAt: row.revoked_at ?? undefined,
+    ...(row.last_used_at == null ? {} : { lastUsedAt: row.last_used_at }),
+    ...(row.expires_at == null ? {} : { expiresAt: row.expires_at }),
+    ...(row.revoked_at == null ? {} : { revokedAt: row.revoked_at }),
   };
 }
 

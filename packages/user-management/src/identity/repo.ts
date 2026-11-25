@@ -22,9 +22,9 @@ interface IdentityUsersTable {
   version: number;
 }
 
-import type { IdentityTransactionPort } from "../index.js";
+import type { IdentityTransactionPort } from "../core/index.js";
 import type { PrincipalRepoPort, UserRepoPort, PrincipalRecord, UserRecord } from "@jini-ai/core/contracts/site/user-management";
-import type { PrincipalKind, PrincipalStatus } from "../index.js";
+import type { PrincipalKind, PrincipalStatus } from "../core/index.js";
 import type { AssertVersionedWritePort } from "@jini-ai/core/optimistic-concurrency";
 
 /**

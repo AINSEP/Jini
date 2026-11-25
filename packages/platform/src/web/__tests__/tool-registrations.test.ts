@@ -26,11 +26,11 @@ function fixture() {
 
 it("deny causes no fetch and a site-specific client retains the contributor limiter", async () => {
   const f = fixture();
-  const denied = buildWebRegistrations({ routeDeps: { workspaceId: "ws", authorize: async () => false }, ports: f.ports, host: f.host })[0]!;
+  const denied = buildWebRegistrations({ routeDeps: { workspaceId: "ws", authorize: async () => ({ allowed: false, reason: "denied" }) }, ports: f.ports, host: f.host })[0]!;
   await expect(denied.handler(f.ctx)).rejects.toThrow();
   expect(f.host.fetchPage).not.toHaveBeenCalled();
   const contributor = contributeWebTools({ ports: f.ports, host: f.host }, { portsForSite: ({ deps }) => ({ client: deps.workspaceId }) });
-  for (const workspaceId of ["one", "two"]) await contributor.build({ workspaceId, authorize: async () => true }, undefined)[0]!.handler(f.ctx);
+  for (const workspaceId of ["one", "two"]) await contributor.build({ workspaceId, authorize: async () => ({ allowed: true, reason: "granted" }) }, undefined)[0]!.handler(f.ctx);
   expect(f.ports.budget.used).toBe(2);
   expect(f.host.fetchPage.mock.calls.map(([input]) => input.ports.client)).toEqual(["one", "two"]);
   expect(f.host.fetchPage.mock.calls.every(([input]) => input.ports.budget === f.ports.budget)).toBe(true);
@@ -38,7 +38,7 @@ it("deny causes no fetch and a site-specific client retains the contributor limi
 
 it("find can see a match beyond the output window", async () => {
   const f = fixture();
-  const tool = buildWebRegistrations({ routeDeps: { workspaceId: "ws", authorize: async () => true }, ports: f.ports, host: f.host })[0]!;
+  const tool = buildWebRegistrations({ routeDeps: { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "granted" }) }, ports: f.ports, host: f.host })[0]!;
   const result = await tool.handler({ ...f.ctx, input: { ...f.ctx.input, find: "needle" } });
   expect(result).toMatchObject({ matchCount: 1, matches: [{ offset: 700, snippet: "needle" }] });
 });

@@ -4,7 +4,7 @@ import { buildDomainRegistrations, indexCatalogById, requireInputRecord, type De
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { ToolContributor } from "@jini-ai/core";
-import type { PolicyRepoPort, PolicyPermissionRepoPort } from "../index.js";
+import type { PolicyRepoPort, PolicyPermissionRepoPort } from "../core/index.js";
 
 /** Read ports only; no permission grants or user credentials. */
 export interface Deps { workspaceId: string; authorize: AuthorizeFn; policyRepo: Pick<PolicyRepoPort, "findById">; policyPermissionRepo: Pick<PolicyPermissionRepoPort, "listByPolicyId">; }

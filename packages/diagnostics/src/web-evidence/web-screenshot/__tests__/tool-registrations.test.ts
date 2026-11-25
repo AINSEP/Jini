@@ -11,11 +11,11 @@ it("denied callers do not reach the service and both site factories share one se
   const contributor = contributeWebScreenshotTools({ service: { screenshot }, catalog, permission: "host.capture",
     readInput: () => ({ target: { kind: "url", url: "https://example.test" }, viewport: "desktop", fullPage: false, waitMs: 0 }) },
     { openOwnSiteFor, saveCaptureFilesFor });
-  const first = contributor.build({ workspaceId: "one", authorize: async () => false }, undefined)[0]!;
+  const first = contributor.build({ workspaceId: "one", authorize: async () => ({ allowed: false, reason: "denied" }) }, undefined)[0]!;
   const ctx = { executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: {}, signal: new AbortController().signal };
   await expect(first.handler(ctx)).rejects.toThrow();
   expect(screenshot).not.toHaveBeenCalled();
-  const second = contributor.build({ workspaceId: "two", authorize: async () => true }, undefined)[0]!;
+  const second = contributor.build({ workspaceId: "two", authorize: async () => ({ allowed: true, reason: "granted" }) }, undefined)[0]!;
   await second.handler(ctx);
   expect(screenshot).toHaveBeenCalledTimes(1);
   expect(screenshot.mock.calls[0]?.[0]).toMatchObject({ openOwnSite: expect.any(Function), saveCaptureFiles: expect.any(Function) });

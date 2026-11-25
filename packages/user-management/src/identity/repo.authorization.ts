@@ -29,8 +29,8 @@ interface PolicyPermissionsTable {
   constraint_json: string | null;
 }
 
-import type { PolicyPermissionRepoPort, PolicyRepoPort, RoleRepoPort } from "../index.js";
-import type { PolicyPermissionRecord } from "../index.js";
+import type { PolicyPermissionRepoPort, PolicyRepoPort, RoleRepoPort } from "../core/index.js";
+import type { PolicyPermissionRecord } from "../core/index.js";
 import type { PolicyRecord, RoleRecord } from "@jini-ai/core/contracts/site/user-management";
 import type { AssertVersionedWritePort } from "@jini-ai/core/optimistic-concurrency";
 import { createIdentityTransactions, type SqlVersionedIdentityRequired } from "./repo.js";

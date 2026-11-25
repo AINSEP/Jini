@@ -34,7 +34,7 @@ it("a provider patch preserves concurrent unrelated rows and preserves the seale
 
 function fixture() {
   const repo: MediaProviderCredentialRepoPort = { listByWorkspaceId: vi.fn(async () => []), upsert: vi.fn(), deleteByProviderIds: vi.fn(), replaceWorkspace: vi.fn() };
-  const deps: MediaProviderToolDeps = { workspaceId: "ws", authorize: async () => true, mediaProviderCredentialRepo: repo,
+  const deps: MediaProviderToolDeps = { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "granted" }), mediaProviderCredentialRepo: repo,
     clock: { nowMs: () => 0 }, siteAssistantSecretSealer: { seal: vi.fn(), open: vi.fn() },
     siteAssistantSecretKeyring: { activeKey: vi.fn(), deriveSigningSecret: vi.fn(), derive: vi.fn() },
     mediaProviderRegistry: { listProviders: () => [{ id: "selected", label: "Selected", hint: "", integrated: true }],
