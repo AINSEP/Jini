@@ -3,6 +3,8 @@ import { nowIso, type Clock, type IdGenerator } from '@jini-ai/core/primitives';
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
 import type { AssetRenditionRecord, MediaProvenance, MediaRecord } from './types.js';
 import { withSha256Lock } from './blob-gc-lock.js';
+import type { BlobGc } from './blob-gc-fence.js';
+import { computeBlobStorageKey } from './blob-key.js';
 import { sanitizeSvg } from './sanitize-svg.js';
 import { MediaValidationError } from './types.js';
 import { DEFAULT_MAX_UPLOAD_BYTES } from './media-service.js';
@@ -61,6 +63,8 @@ export interface ReplaceMediaFileDeps {
   mediaRepo: MediaFileReplacementRepoPort;
   assetBlobRepo: AssetBlobRepoPort;
   blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`), held through the atomic source switch. */
+  blobFence: Pick<BlobGc, 'claimWrite'>;
 }
 
 /** Bound replacement work and apply the upload sanitizer before hashing or staging.
@@ -106,8 +110,11 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   }
   const source = { sha256, contentType: sniffContentType({ bytes: safeBytes }), provenance: safeMediaProvenance({ source: provenance }) };
   const updatedAt = nowIso({ clock: deps.clock });
+  const fenceTarget = { workspaceId: deps.workspaceId, sha256, storageKey: computeBlobStorageKey({ workspaceId: deps.workspaceId, sha256 }), kind: 'replace' as const };
+  // The fence is held through `replaceFileIfVersion`: until the media row names the new bytes,
+  // only this fence keeps an unlinker in another process from removing them.
   return withSha256Lock({
-    key: sha256, criticalSection: async () => {
+    key: sha256, criticalSection: () => deps.blobFence.claimWrite({ ...fenceTarget, work: async () => {
       let blob = await deps.assetBlobRepo.findByHash({ workspaceId: deps.workspaceId, sha256 });
       if (!blob) {
         const { storageKey } = await deps.blobStore.put({ workspaceId: deps.workspaceId, sha256, bytes: safeBytes });
@@ -131,6 +138,6 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
       };
       const { applied } = await deps.mediaRepo.replaceFileIfVersion!(replacement);
       return applied ? mediaFileReplacementRecord({ media, input: replacement }) : null;
-    }
+    } })
   });
 }
