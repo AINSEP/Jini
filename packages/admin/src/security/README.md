@@ -35,9 +35,12 @@ What the host injects, and where:
   - `credentialDraftError?` (SEC-14): the draft token check run before any write (`required` on a create).
     The host binds the exported `credentialDraftError({ value, assertToken, describeInputError }, { required })`
     to its token validator and its locale copy; the returned copy is cut against the typed draft.
-- **HTTP other stores** (`createHttpOtherCredentials(…, { mediaOrder?, tokenHints?, mediaLabels? })`):
-  `mediaOrder: 'replaced-last'` keeps a host's existing W12 byte order; `tokenHints: true` opts in to
-  server-approved masked hints. Built-in MCP servers are never listed.
+- **HTTP other stores** (`createHttpOtherCredentials(…, { tokenHints?, mediaLabels? })`): a media key
+  Replace is one `PATCH …/media/providers/:providerId` carrying only `{ apiKey }`, and Remove is one
+  `DELETE` on that row — never a read-then-rewrite of the whole map, so the revision-guarded whole-map
+  PUT is not used and no sibling is touched. The host transport must forward `PATCH`. `mediaOrder` is
+  deprecated and has no effect. `tokenHints: true` opts in to server-approved masked hints. Built-in MCP
+  servers are never listed.
 - **Shared Keys and project keys** (SEC-12, OD-3 c): `SecurityApiPort.sharedKeys?` and `useProjectKey?`. Omit them and
   no "Use a saved key" control or Use / Stop using action renders. `createHttpSecurityApi(..., { sharedKeys: true })`
   adds both; `createHttpCredentialCopy` serves the host's own client names. Hints shown are the server's masked

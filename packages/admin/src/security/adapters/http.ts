@@ -143,24 +143,13 @@ export function createHttpCustomCredentials({ transport, workspacePath }: { tran
 }
 interface MediaSettings { baseUrl?: string; model?: string; apiKeyConfigured?: boolean; apiKeyTail?: string; apiKey?: string; apiKeyHint?: CredentialTokenHint | null }
 type MediaMap = Readonly<Record<string, MediaSettings>>;
-/** W12 order. `'in-place'` (the default) keeps a replaced entry where it was; `'replaced-last'` moves it
- * last as `{ apiKey, ...kept }`, the order a host's existing client writes. */
+/** @deprecated Has no effect: media keys are written one row at a time (PATCH / DELETE on
+ * `/media/providers/:providerId`), so there is no map order left to keep. Still accepted so hosts that
+ * pass it keep compiling; it goes in the next minor. */
 export type MediaWriteOrder = 'in-place' | 'replaced-last';
-/** Only non-secret settings are echoed back; apiKey is sent solely for the entry being replaced. */
-function mediaEntry({ entry }: { entry: MediaSettings }, { apiKey }: { apiKey?: string } = {}): MediaSettings {
-  return { ...(entry.baseUrl !== undefined ? { baseUrl: entry.baseUrl } : {}), ...(entry.model !== undefined ? { model: entry.model } : {}), ...(apiKey !== undefined ? { apiKey } : {}) };
-}
 const MEDIA_PROVIDERS_PATH = '/media/providers';
-/** Replacing the ENTIRE map requires sibling settings unchanged. Blank apiKey preserves their stored keys. */
-function rebuildMedia({ current, id, token }: { current: MediaMap; id: string; token?: string | undefined }, { order = 'in-place' }: { order?: MediaWriteOrder } = {}) {
-  const next: Record<string, MediaSettings> = {};
-  // The replaced entry is dropped when no token is given; every sibling is echoed unchanged.
-  const kept = Object.entries(current).filter(([key]) => key !== id || (token !== undefined && order === 'in-place'));
-  for (const [key, entry] of kept) next[key] = mediaEntry({ entry }, key === id && token !== undefined ? { apiKey: token } : {});
-  // A provider not in the map yet, or one moved last, is written last as `{ apiKey, ...kept }`.
-  if (token !== undefined && !Object.hasOwn(next, id)) next[id] = { apiKey: token, ...mediaEntry({ entry: Object.hasOwn(current, id) ? current[id]! : {} }) };
-  return next;
-}
+/** One provider's row. The id is path-encoded so it can only ever name that one row. */
+function mediaProviderPath({ id }: { id: string }, _optional = {}) { return `${MEDIA_PROVIDERS_PATH}/${encodeURIComponent(id)}`; }
 /** A server-approved hint. At most four characters leave, whatever the server sends: a longer tail
  * (or a pre-masked `••••tail`) is cut to its last four, and the hint's `length` is kept only as a number. */
 function maskedHint({ hint, tail }: { hint?: CredentialTokenHint | null | undefined; tail?: string | null | undefined }, _optional = {}): Pick<OtherCredentialSummary, 'tokenHint'> {
@@ -171,12 +160,15 @@ function maskedHint({ hint, tail }: { hint?: CredentialTokenHint | null | undefi
 type SingleReply = { data: { isSet: boolean; updatedAt: string | null; tokenHint?: CredentialTokenHint | null; masked?: string | null } };
 type McpServerReply = { serverId: string; label: string; envNames: readonly string[]; builtIn?: boolean; accessTokenHint?: CredentialTokenHint | null };
 /** `tokenHints: true` projects the server's masked hints (P46 policy flag); off, no hint is read at all. */
-export function createHttpOtherCredentials({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, { mediaLabels = {}, mediaOrder = 'in-place', tokenHints = false }: { mediaLabels?: Readonly<Record<string, string>>; mediaOrder?: MediaWriteOrder; tokenHints?: boolean } = {}): OtherCredentialsPort {
+export function createHttpOtherCredentials({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, { mediaLabels = {}, tokenHints = false }: { mediaLabels?: Readonly<Record<string, string>>; mediaOrder?: MediaWriteOrder; tokenHints?: boolean } = {}): OtherCredentialsPort {
   const base = trimBase({ workspacePath });
   const singles = { 'site-assistant': { path: '/assistant/site-credential', label: 'Assistant model key' }, 'admin-byok': { path: '/assistant/execution-credential', label: 'Admin model key' } };
-  async function request<T>(path: string, method: 'GET' | 'PUT' | 'DELETE', options: RequestOptions, body?: unknown) { options.signal?.throwIfAborted(); return transport.request<T>({ path: `${base}${path}`, method, ...(body !== undefined ? { body } : {}) }, options); }
+  async function request<T>(path: string, method: 'GET' | 'PUT' | 'PATCH' | 'DELETE', options: RequestOptions, body?: unknown) { options.signal?.throwIfAborted(); return transport.request<T>({ path: `${base}${path}`, method, ...(body !== undefined ? { body } : {}) }, options); }
   const hintOf = (source: Parameters<typeof maskedHint>[0]) => (tokenHints ? maskedHint(source) : {});
-  async function writeMedia({ id, token }: { id: string; token?: string }, options: RequestOptions) { const current = await request<MediaMap>(MEDIA_PROVIDERS_PATH, 'GET', options); await request(MEDIA_PROVIDERS_PATH, 'PUT', options, rebuildMedia({ current, id, token }, { order: mediaOrder })); }
+  // The whole-map PUT needs a fresh If-Match revision and would rewrite every sibling, so a key change
+  // is one row write: PATCH carries only the typed key (an omitted key would keep the stored one), and
+  // a removal is only this explicit DELETE, never inferred from a provider missing in a rewritten map.
+  async function writeMedia({ id, token }: { id: string; token?: string }, options: RequestOptions) { await (token === undefined ? request(mediaProviderPath({ id }), 'DELETE', options) : request(mediaProviderPath({ id }), 'PATCH', options, { apiKey: token })); }
   return {
     async list({ store }, options = {}) {
       if (store === 'site-assistant' || store === 'admin-byok') { const r = await request<SingleReply>(singles[store].path, 'GET', options); return r.data.isSet ? [{ store, id: store, label: singles[store].label, category: 'ai', configured: true, supportsReplace: true, updatedAt: r.data.updatedAt, ...hintOf({ hint: r.data.tokenHint, tail: r.data.masked }) }] : []; }
