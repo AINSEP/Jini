@@ -6,7 +6,8 @@ import {
   deadlineSignal, downloadShareArchive, importSiteSlug, parseImportInput, reconcileInterruptedImports, requireFreeSpace, requireOwnerSetup,
   requireStagingBudget, siteImportView, startImportedSite, type ImportHttpClient, type SiteImportStepsHost,
 } from "../import-backend-steps.js";
-import type { SiteImportRecord, SiteImportRegistry } from "../import-registry.js";
+import type { SiteImportRecord } from "@jini-ai/core/contracts/site/site-import-history";
+import type { SiteImportRegistry } from "../import-registry.js";
 import { SiteShareRefusal } from "../share-refusal.js";
 
 const UPLOAD_ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -125,7 +126,7 @@ describe("startImportedSite", () => {
 
 describe("storage budget and interrupted imports", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "import-steps-"));
-  const registry = (rows: SiteImportRecord[] = []) => ({ directory: tmp, expire: () => undefined, list: () => rows, stagePath: (r: SiteImportRecord) => path.join(tmp, `${r.importId}.stage`) }) as unknown as SiteImportRegistry;
+  const registry = (rows: SiteImportRecord[] = []) => ({ directory: tmp, payloadDirectory: tmp, expirePayloads: () => undefined, countStagedPayloads: () => fs.readdirSync(tmp).filter(name => name.endsWith(".upload.zip") || name.endsWith(".stage")).length, list: () => rows, stagePath: (r: SiteImportRecord) => path.join(tmp, `${r.importId}.stage`) }) as unknown as SiteImportRegistry;
 
   it("refuses when free space is under three expanded-archive caps, using the host's cap and copy", () => {
     expect(() => requireFreeSpace({ dir: tmp, message: "no room", maxExpandedBytes: Number.MAX_SAFE_INTEGER })).toThrow(expect.objectContaining({ code: "INSUFFICIENT_STORAGE", message: "no room" }));
@@ -145,7 +146,7 @@ describe("storage budget and interrupted imports", () => {
     for (const r of [verifying, creating, orphan]) fs.mkdirSync(path.join(tmp, `${r.importId}.stage`));
     const put: SiteImportRecord[] = [];
     const reconcileCreation = vi.fn(async () => "ready" as const);
-    await reconcileInterruptedImports({ registry: registry([verifying, creating, orphan, settled]), workspace: { id: "w" }, put: (r) => put.push(r), host: { reconcileCreation } });
+    await reconcileInterruptedImports({ registry: registry([verifying, creating, orphan, settled]), workspace: { id: "w" }, put: (r) => put.push(r), host: { reconcileCreation }, activeRows: () => [verifying, creating, orphan, settled] });
     expect(put.map((r) => [r.importId, r.status])).toEqual([["v1", "failed"], ["c1", "ready"], ["c2", "failed"]]);
     expect(put[2]).toMatchObject({ newSiteId: null, newSiteName: null, error: "Site creation was interrupted and rolled back. Import the archive again." });
     expect(reconcileCreation).toHaveBeenCalledWith({ allocation: creating.creation, workspace: { id: "w" } });

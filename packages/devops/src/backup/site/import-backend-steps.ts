@@ -1,8 +1,8 @@
+import type { SiteImportRecord, SiteImportSource, SiteImportView } from "@jini-ai/core/contracts/site/site-import-history";
 import fs from "node:fs";
 import { formatErrorForLog, type SecretRedactionOptions } from "@jini-ai/core";
 import type { SiteCreationAllocation } from "@jini-ai/core/contracts/site/platform-site-dir";
-import type { CredentialWarning } from "./credential-warnings.js";
-import type { SiteImportRegistry, SiteImportRecord } from "./import-registry.js";
+import type { SiteImportRegistry } from "./import-registry.js";
 import { SiteShareRefusal } from "./share-refusal.js";
 
 /**
@@ -52,16 +52,6 @@ export interface SiteImportStepsHost<W = unknown> {
   assertPortableName(required: { name: string }): void;
   /** Settles an interrupted site creation against the workspace. */
   reconcileCreation(required: { allocation: SiteCreationAllocation; workspace: W }): Promise<"ready" | "failed">;
-}
-
-export type SiteImportSource = { url: string } | { uploadId: string };
-export interface SiteImportView {
-  importId: string; source: SiteImportSource; newSiteId: string | null; newSiteName: string | null;
-  state: SiteImportRecord["status"]; status: SiteImportRecord["status"]; createdAt: string;
-  warnings?: readonly string[] | undefined;
-  credentialWarnings: readonly CredentialWarning[];
-  hasEncryptedKeys?: boolean | undefined;
-  setupUrl?: string; adminUrl?: string | null | undefined; error?: string | undefined; instructions: string;
 }
 export interface ParsedSiteImportInput { source: SiteImportSource; displayName?: string; requestId?: string }
 
@@ -115,10 +105,11 @@ export function requireFreeSpace(required: { dir: string; message: string; maxEx
 
 /** At most four private payloads (uploads or stages) and 900 MiB free before retaining more bytes. */
 export function requireStagingBudget(required: { registry: SiteImportRegistry; host: Pick<SiteImportStepsHost, "maxExpandedBytes" | "copy"> }): void {
-  required.registry.expire({});
-  const payloads = fs.readdirSync(required.registry.directory).filter(name => name.endsWith(".upload.zip") || name.endsWith(".stage"));
-  if (payloads.length >= 4) refusal({ code: "BUSY", message: "Four imports are staged. Complete owner setup or wait for expiry before uploading another." });
-  requireFreeSpace({ dir: required.registry.directory, message: required.host.copy.stagingSpace, maxExpandedBytes: required.host.maxExpandedBytes });
+  required.registry.expirePayloads({});
+  // The staging cap counts disposable payloads, not history.
+  const payloads = required.registry.countStagedPayloads({});
+  if (payloads >= 4) refusal({ code: "BUSY", message: "Four imports are staged. Complete owner setup or wait for expiry before uploading another." });
+  requireFreeSpace({ dir: required.registry.payloadDirectory, message: required.host.copy.stagingSpace, maxExpandedBytes: required.host.maxExpandedBytes });
 }
 
 /** The caller's signal (when given) combined with this step's own deadline. */
@@ -158,8 +149,11 @@ export async function downloadShareArchive(required: { http: ImportHttpClient; u
  * the previous holder crashed. A verifying row failed; a creating row with an allocation is
  * reconciled against the workspace, one without it failed. Either way its stage is discarded.
  */
-export async function reconcileInterruptedImports<W>(required: { registry: SiteImportRegistry; workspace: W; put: (row: SiteImportRecord) => void; host: Pick<SiteImportStepsHost<W>, "reconcileCreation"> }): Promise<void> {
-  for (const row of required.registry.list({})) {
+export async function reconcileInterruptedImports<W>(required: {
+  registry: SiteImportRegistry; workspace: W; put: (row: SiteImportRecord) => void; host: Pick<SiteImportStepsHost<W>, "reconcileCreation">;
+  activeRows: (required: Record<string, never>, optional?: Record<string, never>) => SiteImportRecord[];
+}, _optional: Record<string, never> = {}): Promise<void> {
+  for (const row of required.activeRows({}, {})) {
     if (row.status === "verifying") required.put({ ...row, status: "failed", error: "Archive verification was interrupted. Import the archive again." });
     else if (row.status === "creating") required.put(await reconcileCreatingRow({ row, workspace: required.workspace, host: required.host }));
     else continue;
@@ -200,6 +194,16 @@ export async function startImportedSite(required: { row: SiteImportRecord; name:
     console.warn("[site-import] The imported site could not start; the site remains available from Sites.", formatErrorForLog({ error }, required.host.errorLogOptions));
     return { ...required.row, error: "Site created with its owner. Start it from Sites to open admin." };
   }
+}
+
+/**
+ * Shows a needs-owner row past its expiry as failed. Lock-free indexed reads (list, page, get,
+ * replay) cannot run the expiry sweep, which writes, so they project the expired state instead
+ * of persisting it; this is the single source of truth for that projection.
+ */
+export function projectExpiredOwnerSetup({ row, nowMs }: { row: SiteImportRecord; nowMs: number }, _optional: Record<string, never> = {}): SiteImportRecord {
+  if (row.status !== "needs-owner" || row.expiresAt >= nowMs) return row;
+  return { ...row, status: "failed", error: "Owner setup expired", warnings: undefined, credentialWarnings: [] };
 }
 
 /** The public view of a stored import row. */

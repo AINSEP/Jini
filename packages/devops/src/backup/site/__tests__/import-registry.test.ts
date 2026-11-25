@@ -2,7 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { SiteImportRegistry, importSourceDigest, withoutQuery, type SiteImportDurableDeps, type SiteImportRecord, type SiteImportUpload } from "../import-registry.js";
+import type { SiteImportRecord } from "@jini-ai/core/contracts/site/site-import-history";
+import { SiteImportRegistry, importSourceDigest, withoutQuery, type SiteImportUpload } from "../import-registry.js";
+import { nodePayload } from "./node-payload.fixture.js";
 import { SiteShareRefusal } from "../share-refusal.js";
 
 const ID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -11,27 +13,15 @@ const HOUR = 3_600_000;
 const dirs: string[] = [];
 afterEach(() => { vi.useRealTimers(); for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true }); });
 
-/** A plain-fs durable store and a recording lock: the registry is exercised against injected deps only. */
+/** Plain-fs payload ports and a recording lock: the registry is exercised against injected deps only. */
 function setup(log?: (line: string, error: unknown) => void) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "registry-"));
   dirs.push(directory);
-  const opened: { prefix: string; lockTimeout: string }[] = [];
+  const writes: string[] = [];
   const locks: { lockPath: string; staleMs: number }[] = [];
-  const durable: SiteImportDurableDeps = {
-    openJsonFile: ({ filePath, notices }) => {
-      opened.push({ prefix: notices.prefix, lockTimeout: notices.lockTimeout({ lockPath: "x.lock", waitMs: 1 }) });
-      return {
-        read: () => {
-          if (!fs.existsSync(filePath)) return { state: "missing" };
-          try { return { state: "ok", value: JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown }; } catch { return { state: "unreadable" }; }
-        },
-        write: ({ value }) => fs.writeFileSync(filePath, JSON.stringify(value)),
-      };
-    },
-    withFileLock: async ({ lockPath, run }, { staleMs }) => { locks.push({ lockPath, staleMs }); return run(); },
-  };
-  const registry = new SiteImportRegistry({ directory, durable }, log ? { log } : {});
-  return { registry, directory, opened, locks };
+  const registry = new SiteImportRegistry({ directory, payload: nodePayload({ writes, locks }) }, log ? { log } : {});
+  fs.mkdirSync(registry.payloadDirectory, { mode: 0o700 });
+  return { registry, directory, writes, locks };
 }
 const record = (over: Partial<SiteImportRecord> = {}): SiteImportRecord => ({ importId: ID_A, principalId: "owner", source: { url: "https://share.example.test/s/token?k=1" }, newSiteId: null, newSiteName: null, displayName: "Site", status: "verifying", createdAt: "2026-01-01T00:00:00.000Z", expiresAt: Date.now() + HOUR, ...over });
 const upload = (over: Partial<SiteImportUpload> = {}): SiteImportUpload => ({ uploadId: ID_B, principalId: "owner", createdAt: Date.now(), ...over });
@@ -75,10 +65,11 @@ describe("site import registry (injected durable store)", () => {
     expect(registry.get({ importId: ID_A, principalId: "owner" }).source).toEqual({ url: "https://share.example.test/s/token?k=1" });
   });
 
-  it("opens its stores under the injected store's notices and runs transfers through the injected lock", async () => {
-    const { registry, opened, locks, directory } = setup();
+  it("writes its stores through the injected payload ports and runs transfers through the injected lock", async () => {
+    const { registry, writes, locks, directory } = setup();
     registry.saveUpload({ row: upload() });
-    expect(opened).toEqual([{ prefix: "Site imports", lockTimeout: "Import registry is busy." }]);
+    expect(writes).toHaveLength(1);
+    expect(path.dirname(writes[0]!)).toBe(registry.payloadDirectory);
     expect(await registry.exclusive({ run: async () => 42 })).toBe(42);
     expect(locks).toEqual([{ lockPath: path.join(directory, ".import.lock"), staleMs: Infinity }]);
   });
@@ -106,10 +97,12 @@ describe("site import registry (injected durable store)", () => {
     registry.expire({});
     expect(fs.existsSync(registry.uploadPath({ uploadId: ID_B }))).toBe(false);
     const rm = vi.spyOn(fs, "rmSync").mockImplementation(() => { throw new Error("busy"); });
-    fs.writeFileSync(path.join(registry.directory, `${ID_A}.stage`), "x");
+    // A stage is a directory; an orphan one (no pending record) is swept.
+    fs.mkdirSync(path.join(registry.payloadDirectory, `${ID_A}.stage`));
     registry.expire({});
     rm.mockRestore();
-    expect(lines.some(line => line.includes(`${ID_A}.stage`))).toBe(true);
+    // The payload sweep names the failed operation; one unremovable entry does not stop it.
+    expect(lines.some(line => line.includes("expire-import-payload"))).toBe(true);
   });
 
   it("fails an owner setup past its deadline and discards its stage", () => {

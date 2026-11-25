@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { createSiteImportBackend, parseSiteImportInput, type SiteImportHost, type SiteImportWorkspace } from "../import-backend.js";
 import type { ImportHttpClient } from "../import-backend-steps.js";
-import type { SiteImportRecord, SiteImportRegistry } from "../import-registry.js";
+import type { SiteImportRecord } from "@jini-ai/core/contracts/site/site-import-history";
+import type { SiteImportRegistry } from "../import-registry.js";
 
 const UPLOAD_ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 const VERIFIED = { name: "Verified Name", database: Buffer.from("db"), files: new Map<string, Buffer>(), warnings: [], modified: new Set<string>(), plugins: [], trustedPlugins: [], credentialWarnings: [] };
@@ -14,7 +15,7 @@ function memoryRegistry(directory: string): SiteImportRegistry {
   const rows = new Map<string, SiteImportRecord>();
   const uploads = new Map<string, { uploadId: string; principalId: string; createdAt: number; consumedBy?: string }>();
   return {
-    directory, expire: () => undefined, exclusive: ({ run }: { run: () => Promise<unknown> }) => run(),
+    directory, payloadDirectory: directory, clock: { nowMs: () => Date.now() }, session: { kind: "legacy" }, expire: () => undefined, expirePayloads: () => undefined, countStagedPayloads: () => 0, exclusive: ({ run }: { run: () => Promise<unknown> }) => run(),
     list: ({ principalId }: { principalId: string }) => [...rows.values()].filter((r) => r.principalId === principalId),
     get: ({ importId }: { importId: string }) => rows.get(importId)!, put: ({ row }: { row: SiteImportRecord }) => { rows.set(row.importId, row); },
     stagePath: (r: SiteImportRecord) => path.join(directory, `${r.importId}.stage`), uploadPath: ({ uploadId }: { uploadId: string }) => path.join(directory, `${uploadId}.upload.zip`),
@@ -35,6 +36,7 @@ function fixture(overrides: { host?: Partial<SiteImportHost>; http?: ImportHttpC
   };
   const workspace: SiteImportWorkspace = { home: () => directory };
   const backend = createSiteImportBackend({
+    authority: { refusal: () => undefined, retire: () => ({ removed: 0, finished: true }) },
     registry, workspace, host, setupBase: "/imports", reader: {} as never, schema: { index: 1, tag: "t" }, sanitize: async () => ({ bytes: Buffer.alloc(0) }),
     http: overrides.http ?? { send: async () => ({ status: 200, headers: { "content-type": "application/zip" }, bodyBytes: Buffer.from("zip"), bodyBytesTruncated: false }) },
     startSite: async () => ({ adminUrl: "http://site.example/admin", status: "running" }),

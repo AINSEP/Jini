@@ -6,8 +6,8 @@ export type SiteImportStatus = 'verifying' | 'needs-owner' | 'creating' | 'ready
 export interface SiteImportRecord {
   importId: string;
   principalId: string;
-  requestId?: string;
-  sourceDigest?: string;
+  requestId?: string | undefined;
+  sourceDigest?: string | undefined;
   source: SiteImportSource;
   newSiteId: string | null;
   newSiteName: string | null;
@@ -17,20 +17,20 @@ export interface SiteImportRecord {
   status: SiteImportStatus;
   createdAt: string;
   expiresAt: number;
-  adminUrl?: string | null;
-  warnings?: readonly string[];
+  adminUrl?: string | null | undefined;
+  warnings?: readonly string[] | undefined;
   credentialWarnings?: readonly { readonly path: string; readonly kind: string }[];
-  hasEncryptedKeys?: boolean;
-  error?: string;
+  hasEncryptedKeys?: boolean | undefined;
+  error?: string | undefined;
 }
 
 export interface SiteImportView {
   importId: string; source: SiteImportSource; newSiteId: string | null; newSiteName: string | null;
   state: SiteImportRecord['status']; status: SiteImportRecord['status']; createdAt: string;
-  warnings?: readonly string[];
+  warnings?: readonly string[] | undefined;
   credentialWarnings: readonly { readonly path: string; readonly kind: string }[];
-  hasEncryptedKeys?: boolean;
-  setupUrl?: string; adminUrl?: string | null; error?: string; instructions: string;
+  hasEncryptedKeys?: boolean | undefined;
+  setupUrl?: string; adminUrl?: string | null | undefined; error?: string | undefined; instructions: string;
 }
 
 export type SiteImportPage<T = SiteImportView> = { imports: T[]; nextCursor?: string };

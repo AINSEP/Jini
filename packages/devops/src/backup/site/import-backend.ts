@@ -1,3 +1,7 @@
+import type { ImportHistoryUnavailable } from "./import-index/errors.js";
+import type { SiteImportRecord, SiteImportSource, SiteImportView, SiteImportPage, SiteImportPageInput } from "@jini-ai/core/contracts/site/site-import-history";
+import { admitImport } from "./import-index/admission.js";
+import { listPage, listAll, decodeCursor, encodeCursor } from "./import-index/paging.js";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import fs from "node:fs";
 import path from "node:path";
@@ -5,21 +9,21 @@ import { randomUUID } from "node:crypto";
 import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 import type { CreateSiteResult, SiteCreationAllocation } from "@jini-ai/core/contracts/site/platform-site-dir";
 import type { CredentialWarning } from "./credential-warnings.js";
-import { importSourceDigest, withoutQuery, type SiteImportRegistry, type SiteImportRecord } from "./import-registry.js";
+import { importSourceDigest, withoutQuery, type SiteImportRegistry } from "./import-registry.js";
 import type { SiteImportProjection, VerifiedSiteImport } from "./import-verifier.js";
 import { SiteShareRefusal } from "./share-refusal.js";
 import {
   consumeUpload, deadlineSignal, downloadShareArchive, importSiteSlug, parseImportInput, reconcileInterruptedImports, refusal,
-  requireFreeSpace, requireOwnerSetup, requireStagingBudget, siteImportView, startImportedSite,
-  type ImportHttpClient, type ParsedSiteImportInput, type SiteImportSource, type SiteImportStepsHost, type SiteImportView,
+  projectExpiredOwnerSetup, requireFreeSpace, requireOwnerSetup, requireStagingBudget, siteImportView, startImportedSite,
+  type ImportHttpClient, type ParsedSiteImportInput, type SiteImportStepsHost,
 } from "./import-backend-steps.js";
 
-export type { SiteImportSource, SiteImportView } from "./import-backend-steps.js";
 export interface SiteImportBackend {
   upload(required: { principalId: string; archive: Buffer }, optional?: Record<string, never>): Promise<{ uploadId: string }>;
   importBackup(required: { principalId: string; source: SiteImportSource; displayName?: string; requestId?: string }, optional?: { signal?: AbortSignal }): Promise<SiteImportView>;
   completeOwner(required: { principalId: string; importId: string; adminPassword: unknown; savedKeysPassword?: unknown }, optional?: { signal?: AbortSignal }): Promise<SiteImportView>;
   list(required: { principalId: string }, optional?: Record<string, never>): Promise<SiteImportView[]>;
+  listPage(required: SiteImportPageInput, optional?: Record<string, never>): Promise<SiteImportPage>;
   get(required: { principalId: string; importId: string }, optional?: Record<string, never>): SiteImportView;
   /** Settles interrupted imports and removes expired or orphaned payloads, with no import to start. */
   tidy(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
@@ -62,8 +66,15 @@ export interface SiteImportHost<W extends SiteImportWorkspace = SiteImportWorksp
   tidyImportDatabases(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
 
+/** Import-history authority bound by the host (`bindSiteImportIndexState`): latched refusal, tidy-only retirement. */
+export interface SiteImportAuthority {
+  refusal(required: Record<string, never>, optional?: Record<string, never>): ImportHistoryUnavailable | undefined;
+  retire(required: Record<string, never>, optional?: Record<string, never>): { removed: number; finished: boolean };
+}
+
 /** Everything `createSiteImportBackend` needs: the host ports, plus the host collaborators in `host`. */
 export type SiteImportBackendRequired<W extends SiteImportWorkspace> = {
+  authority: SiteImportAuthority;
   registry: SiteImportRegistry; workspace: W; reader: AgentPluginArchiveReaderPort; http: ImportHttpClient;
   sanitize: SiteImportSanitizer; schema: { index: number; tag: string };
   startSite: (required: { name: string }) => Promise<{ adminUrl: string | null; status: string }>;
@@ -84,24 +95,29 @@ export type SiteImportBackendOptional<W extends SiteImportWorkspace> = {
 /** The ports and bookkeeping every import step shares; `exclusive` allows one import at a time. */
 type ImportBackendContext<W extends SiteImportWorkspace> = {
   required: SiteImportBackendRequired<W>; optional: SiteImportBackendOptional<W>; registry: SiteImportRegistry; workspace: W; host: SiteImportHost<W>;
-  view: (row: SiteImportRecord) => SiteImportView; put: (row: SiteImportRecord) => void;
+  view: (row: SiteImportRecord) => SiteImportView; indexedView: (row: SiteImportRecord) => SiteImportView; put: (row: SiteImportRecord) => void;
   exclusive: <T>(input: { run: () => Promise<T> }, optional?: Record<string, never>) => Promise<T>;
 };
 
 function createImportContext<W extends SiteImportWorkspace>({ required, optional }: { required: SiteImportBackendRequired<W>; optional: SiteImportBackendOptional<W> }): ImportBackendContext<W> {
   const { registry, workspace, host } = required;
   const view = (row: SiteImportRecord): SiteImportView => {
+    // A lock-free pre-migration view can transiently omit stage warnings.
     const warnings = host.stagedImportWarnings({ root: registry.stagePath(row) });
     return { ...siteImportView({ row, setupBase: required.setupBase }), ...(warnings.length ? { warnings } : {}) };
   };
+  // Lock-free indexed reads cannot write the expiry sweep, so they show the expired state without persisting it.
+  const indexedView = (row: SiteImportRecord): SiteImportView => siteImportView({ row: projectExpiredOwnerSetup({ row, nowMs: registry.clock.nowMs() }), setupBase: required.setupBase });
   const put = (row: SiteImportRecord) => { registry.put({ row }); optional.report?.({ importId: row.importId, status: row.status }); };
   let active = false;
   const exclusive = async <T>({ run }: { run: () => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> => {
     if (active) refusal({ code: "BUSY", message: "Another import is running. Retry after it finishes." });
     active = true;
-    try { return await registry.exclusive({ run: async () => { await reconcileInterruptedImports({ registry, workspace, put, host }); return run(); } }); } finally { active = false; }
+    try { return await registry.exclusive({ run: async () => { await reconcileInterruptedImports({ registry, workspace, put, host,
+      activeRows: (_required, _optional = {}) => registry.session.kind === "index" ? registry.session.store.activeRows({}) : registry.list({}).filter(row => row.status === "verifying" || row.status === "creating"),
+    }); return run(); } }); } finally { active = false; }
   };
-  return { required, optional, registry, workspace, host, view, put, exclusive };
+  return { required, optional, registry, workspace, host, view, indexedView, put, exclusive };
 }
 
 /** Reads or downloads the archive; records the consumed upload before reading so it is always removed. */
@@ -171,7 +187,7 @@ async function uploadImportArchive<W extends SiteImportWorkspace>({ ctx, input }
     const uploadId = randomUUID();
     try {
       fs.writeFileSync(ctx.registry.uploadPath({ uploadId }), input.archive, { flag: "wx", mode: 0o600 });
-      ctx.registry.saveUpload({ row: { uploadId, principalId: input.principalId, createdAt: Date.now() } });
+      ctx.registry.saveUpload({ row: { uploadId, principalId: input.principalId, createdAt: ctx.registry.clock.nowMs() } });
       return { uploadId };
     } catch (error) { fs.rmSync(ctx.registry.uploadPath({ uploadId }), { force: true }); throw error; }
   } });
@@ -181,22 +197,55 @@ function traced<T, W extends SiteImportWorkspace>({ ctx, name, run }: { ctx: Imp
   return ctx.required.tracker ? ctx.required.tracker.trace({ name, run }) : run();
 }
 
-async function startImportFromSource<W extends SiteImportWorkspace>({ ctx, input, options }: { ctx: ImportBackendContext<W>; input: { principalId: string; source: SiteImportSource; displayName?: string; requestId?: string }; options: { signal?: AbortSignal } }): Promise<SiteImportView> {
+type StartImportInput = { principalId: string; source: SiteImportSource; displayName?: string; requestId?: string };
+type IndexSession = Extract<SiteImportRegistry["session"], { kind: "index" }>;
+
+/** The deadline every verify step runs under; five minutes covers a 300 MiB download plus verification. */
+const verifyDeadline = (options: { signal?: AbortSignal }) => deadlineSignal({ timeoutMs: 5 * 60_000 }, options);
+
+/** Admits through the indexed history: a replayed request returns its first outcome, a new one verifies and stages. */
+async function startIndexedImport<W extends SiteImportWorkspace>({ ctx, session, input, parsed, options }: { ctx: ImportBackendContext<W>; session: IndexSession; input: StartImportInput; parsed: ParsedSiteImportInput; options: { signal?: AbortSignal } }): Promise<SiteImportView> {
+  const admitted = admitImport({ db: session.db, clock: ctx.registry.clock, policy: session.policy, principalId: input.principalId, requestId: parsed.requestId, source: parsed.source, digestSource: importSourceDigest,
+    requireBudget: (_required, _optional = {}) => { if ("url" in parsed.source) requireStagingBudget({ registry: ctx.registry, host: ctx.host }); },
+    makeRow: ({ now }, _optional = {}) => ({ importId: randomUUID(), principalId: input.principalId, requestId: parsed.requestId, source: parsed.source, sourceDigest: importSourceDigest({ source: parsed.source }), displayName: parsed.displayName ?? "Imported site", newSiteId: null, newSiteName: null, status: "verifying", createdAt: new Date(now).toISOString(), expiresAt: now + 3600_000 }),
+    beforeWrite: session.beforeWrite,
+  });
+  if (admitted.kind === "replay") {
+    if ("row" in admitted) return ctx.indexedView(admitted.row);
+    return siteImportView({ row: { ...admitted.outcome, principalId: input.principalId, expiresAt: 0, credentialWarnings: [] }, setupBase: ctx.required.setupBase });
+  }
+  ctx.optional.report?.({ importId: admitted.row.importId, status: admitted.row.status });
+  ctx.registry.expire({});
+  session.sweep({});
+  return traced({ ctx, name: "site.import.verify", run: () => verifyAndStage({ ctx, input: { row: admitted.row, parsed, signal: verifyDeadline(options) } }) });
+}
+
+/** Rows written before the digest column carry no digest, so their sources are compared with the query stripped. */
+function isSameImportSource({ existing, source }: { existing: SiteImportRecord; source: SiteImportSource }, _optional = {}): boolean {
+  if (existing.sourceDigest !== undefined) return existing.sourceDigest === importSourceDigest({ source });
+  return JSON.stringify(withoutQuery({ source: existing.source })) === JSON.stringify(withoutQuery({ source }));
+}
+
+/** Legacy (non-indexed) admission: a repeated requestId returns the first import, or conflicts when its source differs. */
+async function startLegacyImport<W extends SiteImportWorkspace>({ ctx, input, parsed, options }: { ctx: ImportBackendContext<W>; input: StartImportInput; parsed: ParsedSiteImportInput; options: { signal?: AbortSignal } }): Promise<SiteImportView> {
+  ctx.registry.expire({});
+  const existing = parsed.requestId ? ctx.registry.list(input).find(row => row.requestId === parsed.requestId) : undefined;
+  if (existing) {
+    if (!isSameImportSource({ existing, source: parsed.source })) refusal({ code: "REQUEST_CONFLICT", message: "requestId already belongs to another source." });
+    return ctx.view(existing);
+  }
+  if ("url" in parsed.source) requireStagingBudget({ registry: ctx.registry, host: ctx.host });
+  const row: SiteImportRecord = { importId: randomUUID(), principalId: input.principalId, requestId: parsed.requestId, source: parsed.source, sourceDigest: importSourceDigest({ source: parsed.source }), displayName: parsed.displayName ?? "Imported site", newSiteId: null, newSiteName: null, status: "verifying", createdAt: new Date().toISOString(), expiresAt: Date.now() + 3600_000 };
+  ctx.put(row);
+  return traced({ ctx, name: "site.import.verify", run: () => verifyAndStage({ ctx, input: { row, parsed, signal: verifyDeadline(options) } }) });
+}
+
+async function startImportFromSource<W extends SiteImportWorkspace>({ ctx, input, options }: { ctx: ImportBackendContext<W>; input: StartImportInput; options: { signal?: AbortSignal } }): Promise<SiteImportView> {
   const parsed = parseSiteImportInput({ input: { ...input.source, displayName: input.displayName, requestId: input.requestId } });
   return ctx.exclusive({ run: async () => {
-    ctx.registry.expire({});
-    const existing = parsed.requestId ? ctx.registry.list(input).find(row => row.requestId === parsed.requestId) : undefined;
-    if (existing) {
-      const sameSource = existing.sourceDigest !== undefined
-        ? existing.sourceDigest === importSourceDigest({ source: parsed.source })
-        : JSON.stringify(withoutQuery({ source: existing.source })) === JSON.stringify(withoutQuery({ source: parsed.source }));
-      if (!sameSource) refusal({ code: "REQUEST_CONFLICT", message: "requestId already belongs to another source." });
-      return ctx.view(existing);
-    }
-    if ("url" in parsed.source) requireStagingBudget({ registry: ctx.registry, host: ctx.host });
-    const row: SiteImportRecord = { importId: randomUUID(), principalId: input.principalId, requestId: parsed.requestId, source: parsed.source, sourceDigest: importSourceDigest({ source: parsed.source }), displayName: parsed.displayName ?? "Imported site", newSiteId: null, newSiteName: null, status: "verifying", createdAt: new Date().toISOString(), expiresAt: Date.now() + 3600_000 };
-    ctx.put(row);
-    return traced({ ctx, name: "site.import.verify", run: () => verifyAndStage({ ctx, input: { row, parsed, signal: deadlineSignal({ timeoutMs: 5 * 60_000 }, options) } }) });
+    const { session } = ctx.registry;
+    if (session.kind === "index") return startIndexedImport({ ctx, session, input, parsed, options });
+    return startLegacyImport({ ctx, input, parsed, options });
   } });
 }
 
@@ -239,12 +288,61 @@ async function completeImportOwner<W extends SiteImportWorkspace>({ ctx, input, 
 export function createSiteImportBackend<W extends SiteImportWorkspace>(required: SiteImportBackendRequired<W>, optional: SiteImportBackendOptional<W> = {}): SiteImportBackend {
   const ctx = createImportContext({ required, optional });
   const { registry } = ctx;
-  return {
-    upload: (input) => uploadImportArchive({ ctx, input }),
-    importBackup: (input, options = {}) => startImportFromSource({ ctx, input, options }),
-    completeOwner: (input, options = {}) => completeImportOwner({ ctx, input, options }),
-    async list(input) { return ctx.exclusive({ run: async () => { registry.expire({}); return registry.list(input).map(ctx.view); } }); },
-    get(input) { return ctx.view(registry.get(input)); },
-    async tidy() { await ctx.exclusive({ run: async () => { registry.expire({}); await ctx.host.tidyImportDatabases({}); } }); },
+  // Once indexed history is refused, failing closed is what prevents a second site: every method stops here.
+  const available = () => { const error = required.authority.refusal({}); if (error) throw error; };
+  const backend: SiteImportBackend = {
+    upload: async (input) => { available(); return uploadImportArchive({ ctx, input }); },
+    importBackup: async (input, options = {}) => { available(); return startImportFromSource({ ctx, input, options }); },
+    completeOwner: async (input, options = {}) => { available(); return completeImportOwner({ ctx, input, options }); },
+    async list(input) {
+      available();
+      const indexed = registry.history?.read({ run: (session, _optional = {}) => {
+        if (session.kind === "legacy") return undefined;
+        return listAll({ readPage: (page, _optional = {}) => listPage({ ...input, ...page, db: session.db, clock: registry.clock, policy: session.policy }) }).map(ctx.indexedView);
+      } });
+      if (indexed) return indexed;
+      return ctx.exclusive({ run: async () => { registry.expire({}); return registry.list(input).map(ctx.view); } });
+    },
+    async listPage(input, _optional = {}) {
+      available();
+      const indexed = registry.history?.read({ run: (session, _optional = {}) => {
+        if (session.kind === "legacy") return undefined;
+        const page = listPage({ ...input, db: session.db, clock: registry.clock, policy: session.policy });
+        return { ...page, imports: page.imports.map(ctx.indexedView) };
+      } });
+      if (indexed) return indexed;
+      return ctx.exclusive({ run: async () => {
+        registry.expire({});
+        // A cursor chooses a position, not a principal.
+        const cursor = input.cursor === undefined ? undefined : decodeCursor({ cursor: input.cursor });
+        const limit = Number.isInteger(input.limit) ? Math.max(1, Math.min(50, input.limit!)) : 50;
+        const rows = registry.list({ principalId: input.principalId }).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.importId < b.importId ? 1 : a.importId > b.importId ? -1 : 0))
+          .filter(row => !cursor || Date.parse(row.createdAt) < cursor.createdMs || Date.parse(row.createdAt) === cursor.createdMs && row.importId < cursor.importId);
+        const imports = rows.slice(0, limit).map(ctx.view);
+        const last = rows[limit - 1];
+        return { imports, ...(rows.length > limit && last ? { nextCursor: encodeCursor({ createdMs: Date.parse(last.createdAt), importId: last.importId }) } : {}) };
+      } });
+    },
+    get(input) {
+      available();
+      // Lock-free get and list never cut over or expire anything: they hold no lock, so only `exclusive` may mutate.
+      const row = registry.get(input);
+      if (registry.history) return registry.history.read({ run: (session, _optional = {}) => {
+        if (session.kind === "legacy") return ctx.view(row);
+        return ctx.indexedView(row);
+      } });
+      return ctx.view(row);
+    },
+    async tidy() {
+      available();
+      await ctx.exclusive({ run: async () => {
+        registry.expire({});
+        if (registry.session.kind === "index") registry.session.sweep({});
+        await ctx.host.tidyImportDatabases({});
+        // Snapshot retirement is tidy-only (no timer) and acts only once the index is the authority.
+        if (registry.session.kind === "index") required.authority.retire({});
+      } });
+    },
   };
+  return backend;
 }
