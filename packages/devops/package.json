@@ -84,6 +84,7 @@
       "./backup/site/share-preparation-steps": "node",
       "./backup/site/share-preparation": "node",
       "./backup/site/archive-manifest": "node",
+      "./backup/site/sources": "node",
       "./backup/site/static-download-landing": "universal",
       "./backup/site/static-copy": "node",
       "./backup/site/static-download-layout": "node",
@@ -469,6 +470,11 @@
       "types": "./dist/backup/site/archive-manifest.d.ts",
       "import": "./dist/backup/site/archive-manifest.js",
       "default": "./dist/backup/site/archive-manifest.js"
+    },
+    "./backup/site/sources": {
+      "types": "./dist/backup/site/sources.d.ts",
+      "import": "./dist/backup/site/sources.js",
+      "default": "./dist/backup/site/sources.js"
     },
     "./backup/site/static-download-landing": {
       "types": "./dist/backup/site/static-download-landing.d.ts",
