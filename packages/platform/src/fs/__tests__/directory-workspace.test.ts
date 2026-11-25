@@ -401,3 +401,13 @@ describe("leases with a user config policy", () => {
     expect(workspace.claim({ path: site, app: "Desktop" })).toMatchObject({ acquired: false, record: { token: old.record.token } });
   });
 });
+
+it("contested claim returns the maintenance record (incl. legacy record without purpose = serve)", () => {
+  const root = tempRoot(), host = workspace(root);
+  const claimed = host.claim({ path: root, app: "Example", purpose: "maintenance" }, {});
+  expect(claimed.record.purpose).toBe("maintenance");
+  const contested = host.claim({ path: root, app: "Example", purpose: "serve" }, {});
+  expect(contested).toEqual({ acquired: false, record: claimed.record });
+  expect(contested.record.port).toBe(0);
+  host.running({ path: root }).release({ token: claimed.record.token });
+});

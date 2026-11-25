@@ -27,3 +27,5 @@ export function createPostgresChatMaintenance<DB extends ChatDatabase>(required:
   validateKernel({ kernel: required.kernel, transports: ['node-postgres'], dialect: 'postgres' });
   return createSqlChatMaintenance(required);
 }
+
+export { createChatBulkDeletion } from '../sql/bulk-deletion.js';

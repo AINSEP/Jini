@@ -120,6 +120,7 @@ export interface ConversationChatPaneComponents {
 }
 
 export interface ConversationChatPaneProps extends ConversationChatPaneInput {
+  conversationListHooks: ConversationListProps['hooks'];
   onClose: () => void;
   /** The pane's state hook; pass `useConversationChatPane` from this entry. Required: no default hook. */
   useConversationChatPaneHook: (input: ConversationChatPaneInput) => ConversationChatPaneState;

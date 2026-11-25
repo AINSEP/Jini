@@ -6,11 +6,12 @@ export interface ConversationChatPaneHeaderProps {
   state: Pick<ConversationChatPaneState, 'transport' | 'listItems' | 'conversations' | 'deleteConfirmation'>;
   labels: Pick<ConversationChatPaneLabels, 'eyebrow' | 'title' | 'close' | 'closeAriaLabel'>;
   onClose: () => void;
+  hooks: ConversationListProps['hooks'];
   Conversations: ComponentType<ConversationListProps>;
 }
 
 /** The pane's own title bar: eyebrow + title, the conversation switcher, and the close button. */
-export function ConversationChatPaneHeader({ state, labels, onClose, Conversations }: ConversationChatPaneHeaderProps) {
+export function ConversationChatPaneHeader({ state, labels, onClose, Conversations, hooks }: ConversationChatPaneHeaderProps) {
   const { transport, listItems, conversations, deleteConfirmation } = state;
   return (
     <header className="jini-conversation-chat-pane__head">
@@ -25,6 +26,7 @@ export function ConversationChatPaneHeader({ state, labels, onClose, Conversatio
             silently discarding whatever is on screen. */}
         {transport !== undefined && (
           <Conversations
+            hooks={hooks}
             // A mutable copy of the hook's readonly list — see `conversationListView`.
             conversations={listItems}
             activeConversationId={conversations.activeId}

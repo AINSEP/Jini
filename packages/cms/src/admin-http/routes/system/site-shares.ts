@@ -51,9 +51,9 @@ export interface SiteShareRouteDeps {
   /** Whether this request authenticated with a publishing (connected-computer) credential. */
   isPublishTrusted(required: { context: SiteSharePrincipal }): boolean;
   /** The create body (`{}` or `{ jobId }`); throws the host's input refusal. */
-  readCreateInput(required: { body: unknown }): Record<string, unknown>;
+  readCreateInput(required: { body: unknown }): Record<string, unknown> & { jobId?: string; expiresInDays?: 7 | 30 | 90 | null };
   /** The static export body; throws the host's input refusal. */
-  readStaticInput(required: { body: unknown }): Record<string, unknown>;
+  readStaticInput(required: { body: unknown }): Record<string, unknown> & { expiresInDays?: 7 | 30 | 90 | null };
   /** Whether `token`/`file` name a share artifact the host's registry accepts. */
   isArtifactIdentity(required: { token: string; file: string }): boolean;
   /** The host's refusal for an upload that is not a share artifact (identity, media type or bytes). */
@@ -146,7 +146,9 @@ export const siteShareListRoute: SiteShareRoute = siteShareRoute({
 export const siteShareCreateRoute: SiteShareRoute = siteShareRoute({
   method: "post", path: ROOT, step: "Export creation",
   work: async ({ raw, deps, backend, principal }) => {
-    const input = deps.readCreateInput({ body: raw.body });
+    const parsed = deps.readCreateInput({ body: raw.body });
+    // Job polls cannot change the lifetime promised by the initial create.
+    const input = typeof parsed.jobId === "string" ? { jobId: parsed.jobId } : parsed;
     return jsonReply({ status: 200, body: await backend.create({ principalId: principalId({ principal }), signal: new AbortController().signal, ...input }) });
   },
 });

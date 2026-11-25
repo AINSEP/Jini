@@ -9,7 +9,7 @@ import { createPostgresChatStore, createPostgresChatMaintenance } from '../postg
 
 // A package test supplies its own clock port; the system clock lives in the platform package.
 const testClock = { nowMs: () => Date.now() };
-type AiChatsTable={id:string;scope_id:string;owner_kind:string;owner_id:string;title:string|null;title_source:Generated<string>;created_at:number;updated_at:number;expires_at:number|null};
+type AiChatsTable={id:string;scope_id:string;owner_kind:string;owner_id:string;title:string|null;title_source:Generated<string>;created_at:number;updated_at:number;expires_at:number|null;pinned_at:Generated<number|null>};
 type AiChatMessagesTable={id:string;conversation_id:string;role:string;content:string;agent_id:string|null;agent_name:string|null;events_json:string|null;attachments_json:string|null;run_id:string|null;run_status:string|null;position:number;created_at:number;started_at:number|null;ended_at:number|null};
 type ChatDatabase={
  ai_chats:AiChatsTable;ai_chat_messages:AiChatMessagesTable;

@@ -28,6 +28,7 @@ export interface ChatConversation {
   readonly updatedAt: number;
   /** Epoch milliseconds; absence means retained until explicitly deleted. */
   readonly expiresAt?: number;
+  readonly pinned?: boolean;
 }
 
 export interface CreateChatConversationInput {
@@ -103,6 +104,8 @@ export interface ChatStore {
     required: { readonly id: string; readonly title: string },
     optional?: { readonly source?: ChatTitleSource },
   ): Promise<ChatConversation | null>;
+  setPinned(required: { readonly id: string; readonly pinned: boolean }, optional?: Record<string, never>): Promise<ChatConversation | null>;
+  updateConversation(required: { readonly id: string; readonly title?: string; readonly pinned?: boolean }, optional?: { readonly source?: ChatTitleSource }): Promise<ChatConversation | null>;
   touch(required: { readonly id: string }, optional?: { readonly expiresAt?: number }): Promise<void>;
   /** Cascades messages; unknown/other-owned IDs are no-ops. */
   delete(required: { readonly id: string }, optional?: Record<string, never>): Promise<void>;

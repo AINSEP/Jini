@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConversationList, type ConversationListItem } from '../ConversationList.js';
+import { ConversationList, defaultConversationListHooks, type ConversationListItem } from '../ConversationList.js';
 
 const HOUR = 3_600_000;
 const ITEMS: ConversationListItem[] = [
@@ -11,7 +11,7 @@ const ITEMS: ConversationListItem[] = [
 ];
 
 function setup(overrides: Partial<React.ComponentProps<typeof ConversationList>> = {}) {
-  const props = { conversations: ITEMS, activeConversationId: null, onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn(), onRename: vi.fn(), ...overrides };
+  const props = { hooks: defaultConversationListHooks, conversations: ITEMS, activeConversationId: null, onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn(), onRename: vi.fn(), ...overrides };
   render(<ConversationList {...props} />);
   return { props, user: userEvent.setup() };
 }

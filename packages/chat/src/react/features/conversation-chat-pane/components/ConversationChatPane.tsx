@@ -22,13 +22,13 @@ export function ConversationChatPane({
   variant,
   className,
   components: { ConversationList: Conversations = ConversationList, ChatPane: Chat = ChatPane } = {},
-  useConversationChatPaneHook,
+  useConversationChatPaneHook, conversationListHooks,
 }: ConversationChatPaneProps) {
   const state = useConversationChatPaneHook({ useTransport, useConversations, useDeleteConfirmation, captureFolderDrop });
   const rootClassName = className === undefined ? 'jini-conversation-chat-pane' : `jini-conversation-chat-pane ${className}`;
   return (
     <aside className={rootClassName} aria-label={labels.paneAriaLabel} onDropCapture={state.onDropCapture}>
-      <ConversationChatPaneHeader state={state} labels={labels} onClose={onClose} Conversations={Conversations} />
+      <ConversationChatPaneHeader state={state} labels={labels} onClose={onClose} Conversations={Conversations} hooks={conversationListHooks} />
       <ConversationDeleteConfirm deleteConfirmation={state.deleteConfirmation} labels={labels} />
       <ConversationChatPaneChat state={state} labels={labels} variant={variant} Chat={Chat} />
     </aside>

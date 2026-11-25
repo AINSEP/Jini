@@ -10,6 +10,7 @@ export type AiChatsTable = {
   created_at: number;
   updated_at: number;
   expires_at: number | null;
+  pinned_at: Generated<number | null>;
 };
 
 export type AiChatMessagesTable = {

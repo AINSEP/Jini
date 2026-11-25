@@ -27,3 +27,5 @@ export function createPgliteChatMaintenance<DB extends ChatDatabase>(required: {
   validateKernel({ kernel: required.kernel, transports: ['pglite', 'pglite-socket'], dialect: 'postgres' });
   return createSqlChatMaintenance(required);
 }
+
+export { createChatBulkDeletion } from '../sql/bulk-deletion.js';

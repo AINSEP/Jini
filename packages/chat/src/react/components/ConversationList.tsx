@@ -32,9 +32,15 @@ export interface ConversationListItem {
   title: string | null;
   messageCount?: number;
   updatedAt?: number;
+  pinned?: boolean;
 }
 
 export interface ConversationListProps {
+  hooks: ConversationListHooks;
+  selectable?: boolean;
+  selectedIds?: readonly string[];
+  onTogglePin?: (required: { id: string; pinned: boolean }) => void;
+  onSelectionChange?: (required: { ids: string[] }) => void;
   report?: Pick<Logger, 'error'> | undefined;
   conversations: ConversationListItem[];
   activeConversationId: string | null;
@@ -113,7 +119,7 @@ function ConversationActions({ itemId, editing, canRename, canDelete, onRename, 
   </>;
 }
 
-/** Hooks ConversationList calls; defaults to the real ones, a test hands in fakes. */
+/** Hooks ConversationList calls; the host passes the real ones or a test hands in fakes. */
 export const defaultConversationListHooks = { useT, useConversationListView };
 export type ConversationListHooks = typeof defaultConversationListHooks;
 
@@ -129,10 +135,10 @@ export function ConversationList({
   createDisabled = false,
   emptyState,
   triggerLabel,
-  nativeTitle = true, hooks = defaultConversationListHooks, report,
-}: ConversationListProps & { hooks?: ConversationListHooks | undefined }) {
+  nativeTitle = true, hooks, report, selectable, selectedIds, onTogglePin, onSelectionChange,
+}: ConversationListProps, _optional = {}) {
   const t = hooks.useT();
-  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t }, { report });
+  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation, selectionAnchor } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t }, { report });
 
   return (
     <div className="jini-conv" ref={rootRef}>
@@ -196,6 +202,22 @@ export function ConversationList({
                   className={`jini-conv-item${item.id === activeConversationId ? ' jini-conv-item-active' : ''}`}
                   data-testid={`conversation-item-${item.id}`}
                 >
+                  {selectable ? <button type="button" role="checkbox" aria-checked={selectedIds?.includes(item.id) ?? false}
+                    aria-label={`${t('Select')} ${item.title ?? t('Untitled')}`}
+                    onClick={event => {
+                      // Optimistic state belongs to the host, which also owns persistence and rejection handling.
+                      const selected = new Set(selectedIds);
+                      const anchor = visible.findIndex(row => row.id === selectionAnchor.current);
+                      const target = visible.findIndex(row => row.id === item.id);
+                      if (event.shiftKey && anchor !== -1) {
+                        for (const row of visible.slice(Math.min(anchor, target), Math.max(anchor, target) + 1)) selected.add(row.id);
+                      } else if (selected.has(item.id)) selected.delete(item.id);
+                      else selected.add(item.id);
+                      selectionAnchor.current = item.id;
+                      onSelectionChange?.({ ids: [...selected] });
+                    }} /> : null}
+                  {onTogglePin ? <button type="button" aria-label={`${t(item.pinned ? 'Unpin' : 'Pin')} ${item.title ?? t('Untitled')}`}
+                    onClick={() => onTogglePin({ id: item.id, pinned: !item.pinned })}>{t(item.pinned ? 'Unpin' : 'Pin')}</button> : null}
                   {onRename && editingId === item.id ? (
                     <ConversationTitleEditor
                       title={rawTitles.get(item.id) ?? null}

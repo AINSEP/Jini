@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ConversationList, type ConversationListProps } from '../ConversationList.js';
+import { ConversationList, defaultConversationListHooks, type ConversationListProps } from '../ConversationList.js';
 import { conversationTriggerAttributes } from '../ConversationList.rules.js';
 
 const t = (key: string) => key;
@@ -34,6 +34,7 @@ describe('conversationTriggerAttributes', () => {
 function renderList(extra: Partial<ConversationListProps> = {}) {
   return render(
     <ConversationList
+      hooks={defaultConversationListHooks}
       conversations={[{ id: 'c1', title: 'Launch plan' }]}
       activeConversationId="c1"
       onSelect={() => {}}

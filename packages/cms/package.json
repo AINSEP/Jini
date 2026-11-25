@@ -651,7 +651,9 @@
       "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
       "./navigation/site/import-menu": "universal",
       "./navigation/site/repoint-menu-refs": "universal",
-      "./admin-http/routes/forms/pull-submissions": "universal"
+      "./admin-http/routes/forms/pull-submissions": "universal",
+      "./posts/revision-thinning": "universal",
+      "./admin-http/routes/posts/revision-thinning": "universal"
     },
     "isolation": {
       "domains": {
@@ -4152,6 +4154,16 @@
       "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
       "import": "./dist/admin-http/routes/forms/pull-submissions.js",
       "default": "./dist/admin-http/routes/forms/pull-submissions.js"
+    },
+    "./posts/revision-thinning": {
+      "types": "./dist/posts/revision-thinning.d.ts",
+      "import": "./dist/posts/revision-thinning.js",
+      "default": "./dist/posts/revision-thinning.js"
+    },
+    "./admin-http/routes/posts/revision-thinning": {
+      "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
+      "import": "./dist/admin-http/routes/posts/revision-thinning.js",
+      "default": "./dist/admin-http/routes/posts/revision-thinning.js"
     }
   },
   "files": [

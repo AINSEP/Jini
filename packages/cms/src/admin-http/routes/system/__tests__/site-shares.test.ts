@@ -12,7 +12,7 @@ const ZIP = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2]);
 function harness({ trusted = false, available = true, allowed = true, read = { ok: true, value: ZIP } as RouteBodyRead<unknown> } = {}) {
   const calls: unknown[] = [], failures: SiteShareFailureArgs[] = [], permissions: string[] = [];
   const backend = {
-    list: async () => ['row'], create: async (input: Record<string, unknown>) => ({ ...input, signal: input.signal instanceof AbortSignal }),
+    list: async (): Promise<unknown[]> => ['row'], create: async (input: Record<string, unknown>) => ({ ...input, signal: input.signal instanceof AbortSignal }),
     staticOptions: async () => ({ themes: [] }), acknowledge: async (input: { shareId: string }) => input, revoke: async (input: { shareId: string }) => input,
   };
   const deps: SiteShareRouteDeps = {
@@ -37,7 +37,7 @@ function harness({ trusted = false, available = true, allowed = true, read = { o
     const response = await spec.handle({ raw, deps, context, authorize: authorize as never }, { signal: new AbortController().signal });
     return { status: response.status, type: response.headers.get('content-type'), text: await response.text() };
   };
-  return { run, calls, failures, permissions };
+  return { run, calls, failures, permissions, deps, backend };
 }
 
 describe('site-share specs', () => {
@@ -100,4 +100,27 @@ describe('site-share specs', () => {
     expect(JSON.parse((await run(siteShareArtifactDeleteRoute, { params: { token: 'nope', file: 'f' } })).text)).toEqual({ code: 'NOT_FOUND', message: 'Share artifact deletion failed: this export was not found.' });
     expect(await run(siteShareArtifactDeleteRoute, { params: { token: 'good', file: 'f' } })).toEqual({ status: 204, type: null, text: '' });
   });
+});
+
+it('no expiry by default', async () => {
+  const h = harness();
+  h.deps.readCreateInput = () => ({});
+  h.deps.readStaticInput = () => ({});
+  expect(JSON.parse((await h.run(siteShareCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true });
+  expect(JSON.parse((await h.run(siteShareStaticCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true, format: 'static' });
+});
+it('list passes a row with url:null and no storage through unchanged', async () => {
+  const h = harness();
+  const row = { shareId: 'peer', url: null };
+  h.backend.list = async () => [row];
+  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: [row] });
+});
+it('poll cannot revise the initial choice', async () => {
+  const h = harness();
+  h.deps.readCreateInput = () => ({ expiresInDays: 7 });
+  expect(JSON.parse((await h.run(siteShareCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true, expiresInDays: 7 });
+  h.deps.readStaticInput = () => ({ expiresInDays: 90 });
+  expect(JSON.parse((await h.run(siteShareStaticCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true, format: 'static', expiresInDays: 90 });
+  h.deps.readCreateInput = () => ({ jobId: 'j', expiresInDays: 30 });
+  expect(JSON.parse((await h.run(siteShareCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true, jobId: 'j' });
 });
