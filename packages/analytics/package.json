@@ -25,6 +25,11 @@
       "./site/config.settings": "universal",
       "./admin-http/routes/recent-hits": "universal",
       "./public-http/routes/analytics-ingest": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./public-http/routes/analytics-ingest": "site"
+      }
     }
   },
   "type": "module",

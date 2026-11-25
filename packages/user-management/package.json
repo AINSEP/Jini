@@ -143,7 +143,9 @@
         "./identity/username-change-ports": "server",
         "./identity/delete-user-service": "server",
         "./member-login/oidc-login": "server",
-        "./member-login/link-service": "members"
+        "./member-login/link-service": "members",
+        "./public-http/routes/newsletter/confirm": "newsletter",
+        "./public-http/routes/newsletter/unsubscribe": "newsletter"
       },
       "shared": [
         "src/server/auth-challenge.ts",

@@ -154,7 +154,7 @@ function extractPendingBodyHtml({ body }: { body: unknown }, _options: Record<st
  * doc): the key absent entirely means "never chosen" (`null`), present but empty
  * (`?templateChoice=`) means the explicit "No template chosen" opt-out (`""`), present with a
  * value means that template filename. The admin client always sends one of the first two shapes
- * explicitly — see `templatePreviewUrl` in `apps/admin/src/lib/api.ts`.
+ * explicitly — see `templatePreviewUrl` in the admin app's API client.
  *
  * @complexity O(1).
  */
@@ -163,7 +163,7 @@ function resolveOverrideTemplateChoice({ rawTemplateChoice }: { rawTemplateChoic
 }
 
 /** The preview is author-controlled HTML served from the admin origin. The editors' iframe already
- *  sandboxes it (`PAGE_PREVIEW_IFRAME_SANDBOX`, `apps/admin/src/features/pages/rules.ts`); this header
+ *  sandboxes it (`PAGE_PREVIEW_IFRAME_SANDBOX` in the admin app's pages rules); this header
  *  applies the same flags when the URL is opened on its own, as a top-level tab. Never
  *  `allow-same-origin`: with it, a preview's script could call admin APIs with the session cookie. */
 const PREVIEW_CSP = "sandbox allow-scripts allow-forms allow-popups";

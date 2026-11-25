@@ -26,6 +26,11 @@
     },
     "optionalPeers": {
       "kysely": "opt-in: sql search-index store; import @jini-ai/search/site/index-state-store — The SQL search-index store could not load kysely. Install kysely to enable this feature, or check its installed version."
+    },
+    "isolation": {
+      "entries": {
+        "./public-http/routes/site/search": "http-query"
+      }
     }
   },
   "type": "module",
