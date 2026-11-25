@@ -62,6 +62,9 @@ export class RecordingHttpClient implements HttpClientPort {
     const index = Math.min(this.cursor, this.responses.length - 1);
     const entry = this.responses[index];
     this.cursor += 1;
+    // Jini compiles with noUncheckedIndexedAccess: an explicitly empty `responses` script has no
+    // entry to replay, so fail loudly instead of resolving `undefined` as an HttpResponse.
+    if (entry === undefined) throw new Error("RecordingHttpClient: no scripted responses");
 
     return typeof entry === "function" ? entry() : entry;
   }

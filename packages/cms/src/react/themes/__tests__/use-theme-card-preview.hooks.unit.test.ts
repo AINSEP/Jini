@@ -16,7 +16,11 @@ test("a theme without screenshots renders a placeholder", () => {
 });
 
 test("older servers retain JPEG then PNG fallback, and a rescan can restore an image", () => {
-  const { result, rerender } = renderHook(({ url }: { url?: string | null }) => useThemeCardPreview({ themeId: "signal", previewImageUrl: url }), { initialProps: { url: undefined } as { url?: string | null } });
+  const { result, rerender } = renderHook(
+    // exactOptionalPropertyTypes: an older server omits `previewImageUrl` entirely.
+    ({ url }: { url?: string | null }) => useThemeCardPreview({ themeId: "signal", ...(url === undefined ? {} : { previewImageUrl: url }) }),
+    { initialProps: {} as { url?: string | null } },
+  );
   expect(result.current.src).toBe("/theme-assets/signal/screenshots/index.jpg");
   act(() => result.current.handleError());
   expect(result.current.src).toBe("/theme-assets/signal/screenshots/index.png");
