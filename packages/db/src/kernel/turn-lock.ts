@@ -28,6 +28,13 @@ export class TurnLock {
     return new Promise((grant) => this.waiting.push({ kind, grant }));
   }
 
+  /** Take the lock only if it is free AND nobody is queued; never waits, so queued callers are never overtaken. O(1). */
+  tryAcquire(kind: Kind): boolean {
+    if (this.waiting.length > 0 || !this.fits(kind)) return false;
+    this.take(kind);
+    return true;
+  }
+
   release(kind: Kind): void {
     if (kind === "exclusive") this.exclusive = false;
     else this.shared -= 1;

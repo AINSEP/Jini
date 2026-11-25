@@ -333,6 +333,18 @@ describe('incrementalVacuumStep', () => {
     expect(await step(db, marker, {}, { minFreeBytes: 1e12, minFreeRatio: 1.1 })).toMatchObject({ status: 'skipped', reason: 'nothing-to-reclaim' });
   });
 
+  it('a transaction opened during the step\'s awaits makes it skip busy, not join', async () => {
+    const { db, marker } = await converted();
+    let opened = false;
+    const racing = { ...nodeFs, size: async (f: string) => { if (!opened) { opened = true; db.exec('BEGIN'); } return nodeFs.size(f); } };
+    const freeBefore = db.pragma('freelist_count', { simple: true });
+    const outcome = await step(db, marker, { fs: racing }, { minFreeBytes: 0 });
+    expect(outcome).toMatchObject({ status: 'skipped', reason: 'busy' });
+    expect(db.inTransaction).toBe(true);
+    db.exec('ROLLBACK');
+    expect(db.pragma('freelist_count', { simple: true })).toBe(freeBefore);
+  });
+
   it('step inside an open transaction throws', async () => {
     const { db, marker } = await converted();
     db.exec('BEGIN');

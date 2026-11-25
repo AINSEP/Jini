@@ -1,6 +1,7 @@
 import { inheritKernelSessionDatabase } from "./session-lock.js";
 import type { KyselyKernel } from "./port.js";
 import { inheritOwnedTransaction } from "./owned-transaction.js";
+import { inheritIdleTurn } from "./idle-turn.js";
 
 /**
  * @file A kernel whose query-builder statements address one Postgres schema: every `run()` body gets
@@ -20,6 +21,7 @@ export function scopeToSchema<DB>({ kernel, schema }: { kernel: KyselyKernel<DB>
     run: (fn) => kernel.run((db) => fn(db.withSchema(schema))),
   };
   inheritOwnedTransaction({ from: kernel as KyselyKernel<unknown>, to: scoped as KyselyKernel<unknown> });
+  inheritIdleTurn({ from: kernel as KyselyKernel<unknown>, to: scoped as KyselyKernel<unknown> });
   inheritKernelSessionDatabase({ from: kernel as KyselyKernel<unknown>, to: scoped as KyselyKernel<unknown> });
   return scoped;
 }
