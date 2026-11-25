@@ -8518,9 +8518,9 @@
   "./admin-http/routes/posts/revision-thinning": {
     "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
     "symbols": {
-      "RevisionThinningApplyDeps": "interface:6aa3c4d867",
-      "RevisionThinningPreviewDeps": "interface:0fa79f2bfa",
-      "createRevisionThinningRoutes": "function:ea18f7cfa4"
+      "RevisionThinningApplyDeps": "interface:7e3a7b3843",
+      "RevisionThinningPreviewDeps": "interface:cb6c880bb7",
+      "createRevisionThinningRoutes": "function:c59e8aa87e"
     }
   },
   "./posts/revision-thinning": {
