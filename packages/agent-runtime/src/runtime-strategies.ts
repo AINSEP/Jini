@@ -9,9 +9,13 @@ import { geminiToolCallReceipt } from './defs/gemini/tool-calls.js';
 import { OPENCODE_CONFIG_ENV } from './defs/opencode/constants.js';
 import { openCodeToolCallReceipt } from './defs/opencode/tool-calls.js';
 import { MIMO_CONFIG_ENV } from './defs/mimo/constants.js';
+import { mergeEnvContentInstructions, mergeEnvContentMcpConfig, withOpenCodeHttpMcp } from './defs/opencode/mcp-config.js';
 
 /** Structurally the daemon port's `AgentRuntimeStrategies['mcpBridge']`; the host checks the binding against that port. */
 type McpBridgeSlot = { prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void> };
+
+type EnvContentSlot = { mergeMcp: typeof mergeEnvContentMcpConfig };
+type InstructionsDocumentSlot = { merge: typeof mergeEnvContentInstructions };
 
 type ToolCallReceipt = (required: { event: Record<string, unknown> }) => Record<string, unknown>;
 
@@ -34,17 +38,51 @@ const MCP_BRIDGE_BY_ID: ReadonlyMap<string, McpBridgeSlot> = new Map([
   ['antigravity', { prepare: (required) => prepareAntigravityBridge(required, { ensurePermission: ensureAntigravityMcpPermission }) }],
 ]);
 
+/** Keyed by the declared MCP delivery strategy, like the variable above: both CLIs read one OpenCode-schema document. */
+const ENV_CONTENT_BY_STRATEGY: ReadonlyMap<string, EnvContentSlot> = new Map([
+  ['opencode-env-content', { mergeMcp: mergeEnvContentMcpConfig }],
+  ['mimo-env-content', { mergeMcp: mergeEnvContentMcpConfig }],
+]);
+
+/** Keyed by the declared system-prompt delivery strategy: it is a def's own declaration, independent of how its MCP bridge is delivered. */
+const INSTRUCTIONS_DOCUMENT_BY_STRATEGY: ReadonlyMap<string, InstructionsDocumentSlot> = new Map([
+  ['config-instructions-file', { merge: mergeEnvContentInstructions }],
+]);
+
+/** Keyed by definition id: the HTTP endpoint rides the inline document only for the CLIs that read it from there, so the
+ * shared delivery strategy (also declared by the Mimo definition, which does not take it) is not enough to select it. */
+const HTTP_MCP_ENV_BY_ID: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new Map([
+  ['opencode', withOpenCodeHttpMcp],
+  ['opencode-acp', withOpenCodeHttpMcp],
+]);
+
 /** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`). */
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV];
 
-/** Strategies for one definition. O(1): three map lookups. A definition that declares nothing gets `{}`. */
-export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection'> }, _optional: Record<string, never> = {}) {
+type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'systemPromptDelivery'>;
+
+/** The slots a definition's own declarations select (dialect, MCP delivery strategy, system-prompt strategy). */
+function declaredSlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
   const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
   const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
-  const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
+  const envContent = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_BY_STRATEGY.get(def.externalMcpInjection);
+  const instructionsDocument = def.systemPromptDelivery === undefined ? undefined : INSTRUCTIONS_DOCUMENT_BY_STRATEGY.get(def.systemPromptDelivery.strategy);
   return {
     ...(toolCallReceipt ? { toolCallReceipt } : {}),
     ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
-    ...(mcpBridge ? { mcpBridge } : {}),
+    ...(envContent ? { envContent } : {}),
+    ...(instructionsDocument ? { instructionsDocument } : {}),
   };
+}
+
+/** The slots bound to one CLI by definition id, where a shared declared strategy is not enough to select them. */
+function idSlots({ def }: { def: Pick<RuntimeAgentDef, 'id'> }, _optional: Record<string, never> = {}) {
+  const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
+  const httpMcpEnv = HTTP_MCP_ENV_BY_ID.get(def.id);
+  return { ...(mcpBridge ? { mcpBridge } : {}), ...(httpMcpEnv ? { httpMcpEnv } : {}) };
+}
+
+/** Strategies for one definition. O(1): six map lookups. A definition that declares nothing gets `{}`. */
+export function strategiesForDef({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  return { ...declaredSlots({ def }), ...idSlots({ def }) };
 }

@@ -1,4 +1,4 @@
-import { boundMcpDelivery } from './runtime-fixture.js';
+import { boundEnvContent, boundInstructionsDocument, boundMcpDelivery } from './runtime-fixture.js';
 import { ChildProcess, type SpawnOptions } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
@@ -14,8 +14,8 @@ describe('agent executor split parity', () => {
       'extractUsageTokens', 'translateStatusEvent', 'translateToolResultEvent', 'translateErrorEvent',
       'translateTurnEndEvent', 'translateAgentRuntimeEvent', 'AgentExecutorError',
       'MCP_BRIDGE_UNAVAILABLE', 'probeMcpBridge', 'unavailableJiniBridgeStatus', 'buildMcpJsonServerEntry',
-      'mergeMcpJsonContent', 'buildAcpMcpBridgeServers', 'mergeEnvContentMcpConfig',
-      'mergeEnvContentInstructions', 'buildCodexMcpServerToml', 'buildCodexHomeConfigToml',
+      'mergeMcpJsonContent', 'buildAcpMcpBridgeServers',
+      'buildCodexMcpServerToml', 'buildCodexHomeConfigToml',
       'resolveSourceCodexHomeDir', 'buildMcpBridgeDelivery', 'resolveSourceClaudeConfigDir',
       'DEFAULT_BUFFERED_STDOUT_MAX_BYTES', 'applyAgentTranslationSideEffects',
       'resolveDefAndStreamFormat', 'resolveImageDeliveryAndArgvBudget', 'resolveRunEnv', 'selectAgentExecutorHostEnv', 'resolveLaunch',
@@ -55,7 +55,7 @@ describe('agent executor split parity', () => {
     });
     const env = executor.computeChildEnv({ spawnEnv: {
       OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: { existing: { enabled: true } }, instructions: ['host.md'] }),
-    }, mcpBridge: bridge }, { stagedInstructionsFile: { varName: 'OPENCODE_CONFIG_CONTENT', path: '/scratch/overlay.md' } });
+    }, mcpBridge: bridge }, { ...boundEnvContent({ externalMcpInjection: 'opencode-env-content' }), ...boundInstructionsDocument({ systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'OPENCODE_CONFIG_CONTENT' } }), stagedInstructionsFile: { varName: 'OPENCODE_CONFIG_CONTENT', path: '/scratch/overlay.md' } });
     expect(env.OPENCODE_CONFIG_CONTENT).toBe(JSON.stringify({
       mcp: {
         existing: { enabled: true },

@@ -18,6 +18,11 @@ export type AgentStreamSink = (event: Record<string, unknown>) => void;
 
 type LaunchProbe = { agentId: string; launchPath: string; env: RuntimeEnv };
 
+/** The bridge entry a `*-env-content` document carries: the stdio launch, or a remote HTTP endpoint. */
+export type EnvContentBridgeEntry =
+  | { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string>> }
+  | { readonly type: 'remote'; readonly url: string; readonly headers: Readonly<Record<string, string>> };
+
 /** Vendor behaviour for one definition. Every slot is optional: a definition that needs none gets `{}`, and the launcher
  * then does nothing vendor-specific for it. The binding picks each slot from what the definition declares. */
 export interface AgentRuntimeStrategies {
@@ -30,6 +35,19 @@ export interface AgentRuntimeStrategies {
   readonly mcpBridge?: {
     prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void>;
   };
+  /** For a `*-env-content` MCP delivery: serialises the bridge entry into the config document the CLI reads from the env
+   * variable `mcpDelivery.envContentVar` names, keeping whatever the host already put there. `serverName` is the key the
+   * daemon registers its bridge under. Absent: the definition has no such document. */
+  readonly envContent?: {
+    mergeMcp(required: { existingRaw: string | undefined; entry: EnvContentBridgeEntry; serverName: string }): string;
+  };
+  /** For a `config-instructions-file` system-prompt delivery: appends the staged overlay file's path to the `instructions`
+   * of the config document in the env variable the definition names, keeping what is already there. Absent: no such delivery. */
+  readonly instructionsDocument?: {
+    merge(required: { existingRaw: string | undefined; instructionsFilePath: string }): string;
+  };
+  /** Merges a run-scoped HTTP MCP endpoint into the spawn env's config document (`envVar` names it, from `mcpDelivery`); absent: the spawn env is kept. */
+  readonly httpMcpEnv?: (required: { env: NodeJS.ProcessEnv; endpoint: { readonly url: string; readonly token: string }; envVar: string; serverName: string }) => NodeJS.ProcessEnv;
 }
 
 export interface AgentRuntimePort {

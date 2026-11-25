@@ -10,6 +10,7 @@ import {
   spawnAgentChildProcess,
   type McpBridgeDelivery,
 } from '../index.js';
+import { boundEnvContent } from './runtime-fixture.js';
 
 // Pure/near-pure helpers extracted from `translateUsagePayload`, `wireAcpLifecycle`, and `run()`
 // during the complexity refactor that brought `run()` from cyclomatic 63 / cognitive 49 down to the
@@ -144,7 +145,7 @@ describe('computeChildEnv', () => {
       envVarName: 'OPENCODE_CONFIG_CONTENT',
       serverEntry: { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'r1', JINI_DAEMON_URL: 'http://x' } },
     };
-    const result = computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: bridge });
+    const result = computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: bridge }, boundEnvContent({ externalMcpInjection: 'opencode-env-content' }));
     expect(result.PATH).toBe('/bin');
     expect(result.OPENCODE_CONFIG_CONTENT).toBeDefined();
     const parsed = JSON.parse(result.OPENCODE_CONFIG_CONTENT!);
@@ -158,8 +159,14 @@ describe('computeChildEnv', () => {
       serverEntry: { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'r1', JINI_DAEMON_URL: 'http://x' } },
     };
     const before = { ...spawnEnv };
-    computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: bridge });
+    computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: bridge }, boundEnvContent({ externalMcpInjection: 'opencode-env-content' }));
     expect(spawnEnv).toEqual(before);
+  });
+
+  // A binding bug must stop the run before spawn: a CLI started without its bridge document would run with no tools.
+  it("refuses an 'env-content' bridge when the runtime bound no envContent slot", () => {
+    const bridge: McpBridgeDelivery = { kind: 'env-content', envVarName: 'X_CONFIG', serverEntry: { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'r1', JINI_DAEMON_URL: 'http://x' } } };
+    expect(() => computeChildEnv({ spawnEnv, mcpBridge: bridge })).toThrow(/envContent slot/);
   });
 
   // A first-party originator lets a mentioned skill install and start MCP servers past the staged home.

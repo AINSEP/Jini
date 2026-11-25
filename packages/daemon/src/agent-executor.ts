@@ -41,8 +41,6 @@ export {
   buildMcpJsonServerEntry,
   mergeMcpJsonContent,
   buildAcpMcpBridgeServers,
-  mergeEnvContentMcpConfig,
-  mergeEnvContentInstructions,
   buildCodexMcpServerToml,
   buildCodexHomeConfigToml,
   resolveSourceCodexHomeDir,
