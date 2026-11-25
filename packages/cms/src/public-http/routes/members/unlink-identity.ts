@@ -68,7 +68,7 @@ async function unlinkSteps({ raw, deps, clientAddress }: { raw: Parameters<Publi
 
 /** Fresh member self-service only, same-origin JSON and the existing strict IP/member counters. A raw answer,
  *  so the reissued session cookie is APPENDED after any `Set-Cookie` an earlier handler wrote.
- * @complexity O(s) affected sessions; the host's transactional helper owns all persistence.
+ * @complexity O(s) affected sessions; transactional helper owns all persistence.
  */
 export const memberUnlinkIdentityRoute: PublicMemberRawRoute<MemberUnlinkIdentityRouteDeps> & { readonly readHeaders: readonly string[]; readonly requestFacts: true; readonly bufferedReply: true } = {
   method: "post",

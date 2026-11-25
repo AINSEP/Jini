@@ -288,6 +288,7 @@
       "./public-http/routes/members/forgot-password": "universal",
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
+      "./public-http/routes/content/posts/get-by-slug": "universal",
       "./public-http/routes/members/reset-password": "universal",
       "./public-http/routes/members/password-sign-in": "universal",
       "./public-http/routes/members/sign-in": "universal",
@@ -2399,6 +2400,11 @@
       "types": "./dist/public-http/routes/members/me.d.ts",
       "import": "./dist/public-http/routes/members/me.js",
       "default": "./dist/public-http/routes/members/me.js"
+    },
+    "./public-http/routes/content/posts/get-by-slug": {
+      "types": "./dist/public-http/routes/content/posts/get-by-slug.d.ts",
+      "import": "./dist/public-http/routes/content/posts/get-by-slug.js",
+      "default": "./dist/public-http/routes/content/posts/get-by-slug.js"
     },
     "./public-http/routes/members/reset-password": {
       "types": "./dist/public-http/routes/members/reset-password.d.ts",

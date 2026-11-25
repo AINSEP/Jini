@@ -61,11 +61,13 @@ function jsonResponse({ status, body, headers = {} }: { status: number; body: un
 }
 
 /** Complete a purpose-bound link/code challenge and set only the member session cookie. A raw answer, so the
- *  cookie is APPENDED after any `Set-Cookie` an earlier handler wrote, never replacing it. O(1) I/O. */
-export const memberCompleteSignInRoute: PublicMemberRawRoute<MemberCompleteSignInRouteDeps> & { readonly requestFacts: true } = {
+ *  cookie is APPENDED after any `Set-Cookie` an earlier handler wrote, never replacing it. Buffered, because the
+ *  hand-written route answered through `res.json` (Content-Length and the app's ETag, never a chunked body). O(1) I/O. */
+export const memberCompleteSignInRoute: PublicMemberRawRoute<MemberCompleteSignInRouteDeps> & { readonly requestFacts: true; readonly bufferedReply: true } = {
   method: "post",
   path: "/api/members/v1/workspaces/:workspaceId/sign-in/complete",
   requestFacts: true,
+  bufferedReply: true,
   handle: async ({ raw, deps }) => {
     const credential = memberCompletionCredential({ body: raw.body });
     if (!credential) rejectRoute({ status: 400, error: "expected token or challengeId and six-digit code strings" });

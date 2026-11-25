@@ -44,8 +44,10 @@ async function answer(response: Response) {
 }
 
 describe("memberCompleteSignInRoute", () => {
-  it("pins method, path and request facts", () => {
-    expect(Object.keys(memberCompleteSignInRoute).sort()).toEqual(["handle", "method", "path", "requestFacts"]);
+  it("pins method, path, request facts and the buffered reply", () => {
+    // The hand-written route answered with `res.json`: Content-Length and the app's ETag, never chunked.
+    expect(Object.keys(memberCompleteSignInRoute).sort()).toEqual(["bufferedReply", "handle", "method", "path", "requestFacts"]);
+    expect(memberCompleteSignInRoute.bufferedReply).toBe(true);
     expect(memberCompleteSignInRoute.method).toBe("post");
     expect(memberCompleteSignInRoute.path).toBe("/api/members/v1/workspaces/:workspaceId/sign-in/complete");
     expect(memberCompleteSignInRoute.requestFacts).toBe(true);

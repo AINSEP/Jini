@@ -9,7 +9,7 @@ import { contentPostGetRoute, type ContentPostGetRouteDeps } from "../get-by-slu
  * post is indistinguishable from a missing one, and the per-visitor answer is never shared-cacheable. */
 
 const signal = new AbortController().signal;
-const raw = (slug: string | undefined): RouteInputContext => ({ body: undefined, query: {}, params: { workspaceId: "ws-1", ...(slug === undefined ? {} : { slug }) }, headers: {} });
+const raw = (slug: string | null): RouteInputContext => ({ body: undefined, query: {}, params: { workspaceId: "ws-1", ...(slug === null ? {} : { slug }) }, headers: {} });
 const post = (memberAccessJson: string | null = null) => ({ ...buildPostRecord({ id: "p-1", slug: "hello", title: "Hello" }), kind: "post", status: "published", memberAccessJson, deletedAt: null }) as never;
 type Ctx = { member: string | null };
 
@@ -27,7 +27,7 @@ function deps(over: { row?: unknown; settings?: unknown; token?: string; allowed
   };
 }
 
-async function call(d: ContentPostGetRouteDeps<Ctx>, slug: string | undefined = "hello") {
+async function call(d: ContentPostGetRouteDeps<Ctx>, slug: string | null = "hello") {
   const input = raw(slug);
   const parsed = contentPostGetRoute.parse(input) as { ok: true; value: unknown };
   return (contentPostGetRoute.handle as (r: unknown, o: unknown) => Promise<unknown>)({ input: parsed.value, deps: d, raw: input, context: undefined, authorize: async () => {} }, { signal });
@@ -76,7 +76,7 @@ describe("contentPostGetRoute", () => {
 
   it("names the raw slug in the gate's 404 and an absent slug as empty", async () => {
     expect((await refusal(call(deps({ allowed: () => false }), "Hello "))).response.body).toEqual({ error: "post 'Hello ' was not found" });
-    expect((await refusal(call(deps({ row: null }), undefined))).response.body).toEqual({ error: "post '' was not found" });
+    expect((await refusal(call(deps({ row: null }), null))).response.body).toEqual({ error: "post '' was not found" });
   });
 
   it("answers missing presentation settings as a 404 with its own message", async () => {
