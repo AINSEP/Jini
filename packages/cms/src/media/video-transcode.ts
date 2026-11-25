@@ -9,13 +9,14 @@
  * `video-transcode.ffmpeg.ts` is one adapter of {@link MediaTranscoderPort}.
  */
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
+import { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 import { sniffContentType } from "./content-type-sniffer.js";
 import { getMediaById, rollbackUploadedMedia, uploadMedia, type UploadMediaDeps } from "./media-service.js";
 import type { MediaRecord } from "./types.js";
 
 const MIB = 1024 * 1024;
 /** Owner rule (2026-10-31): a video at or under 50 MiB is kept as-is on import. */
-export const VIDEO_TRANSCODE_THRESHOLD_BYTES = 50 * MIB;
+export const VIDEO_TRANSCODE_THRESHOLD_BYTES = MEDIA_MAX_UPLOAD_BYTES;
 /** Largest original this package will hand to a transcoder; the bytes are held in memory. */
 export const VIDEO_TRANSCODE_MAX_INPUT_BYTES = 2 * 1024 * MIB;
 

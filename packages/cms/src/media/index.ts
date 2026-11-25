@@ -203,6 +203,7 @@ export { sanitizeSvg } from "./sanitize-svg.js";
 
 export { replaceMediaFile, mediaReplacementMetadata, mediaFileReplacementRecord, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort, type MediaFileReplacementInput, type MediaReplacementMetadata } from './replace-media-file.js';
 
+export { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 export { MAX_DOCUMENT_BYTES, DOCUMENT_CONTENT_TYPES, documentContentType, validateDocumentIngress, decodeDocumentUtf8, documentDisplayFilename, type DocumentArchiveReaderPort } from "./document-ingress.js";
 export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, createDocumentTextReader, isDocumentOnlyBlob } from "./document-read.js";
 

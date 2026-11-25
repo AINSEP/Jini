@@ -98,6 +98,7 @@
       "./contracts/site/api-ai-assistant-api-types": "universal",
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
+      "./contracts/site/media-upload-limits": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
       "./contracts/site/daemon-tool-audit": "universal",
@@ -771,6 +772,11 @@
       "types": "./dist/contracts/site/cms-forms.d.ts",
       "import": "./dist/contracts/site/cms-forms.js",
       "default": "./dist/contracts/site/cms-forms.js"
+    },
+    "./contracts/site/media-upload-limits": {
+      "types": "./dist/contracts/site/media-upload-limits.d.ts",
+      "import": "./dist/contracts/site/media-upload-limits.js",
+      "default": "./dist/contracts/site/media-upload-limits.js"
     },
     "./contracts/site/cms-media": {
       "types": "./dist/contracts/site/cms-media.d.ts",

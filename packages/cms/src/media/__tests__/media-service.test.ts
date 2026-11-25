@@ -1,3 +1,4 @@
+import { isoBmffVideoBytes } from "./iso-bmff-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "vitest";
@@ -144,12 +145,6 @@ test("uploadMedia dedups identical bytes into one blob but two media rows", asyn
   });
   assert.ok(blob);
 });
-
-/** A tiny `.mov`/`.m4v` byte fixture: a self-consistent ftyp box naming `brand`, then a stub `mdat`. */
-function isoBmffVideoBytes(brand: string): Buffer {
-  const ftyp = Buffer.concat([Buffer.from([0, 0, 0, 20]), Buffer.from(`ftyp${brand}`), Buffer.alloc(4), Buffer.from(brand)]);
-  return Buffer.concat([ftyp, Buffer.from([0, 0, 0, 8]), Buffer.from("mdat")]);
-}
 
 /** .MOV gap (owner 2026-10-31): QuickTime and M4V uploads are accepted as-is, never converted here. */
 test("uploadMedia accepts .mov and .m4v originals as-is and records their sniffed video type", async () => {

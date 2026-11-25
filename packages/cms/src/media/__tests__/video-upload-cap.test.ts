@@ -4,6 +4,9 @@ import { uploadMedia } from "../media-service.js";
 import { replaceMediaFile, type MediaFileReplacementRepoPort } from "../replace-media-file.js";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
+import { readFileSync } from "node:fs";
+import { isoBmffVideoBytes } from "./iso-bmff-fixture.js";
+import { mediaFileExtension } from "../file-extension.js";
 
 const MIB = 1024 * 1024;
 /** The host's two caps: images and everything else at 50 MiB, video at 500 MiB. */
@@ -55,4 +58,50 @@ test("replacing a file with a 60 MiB video honours the video cap, a 60 MiB image
 test("an uploaded record carries captions: null, the shape the repository reads back", async () => {
   const { media } = await uploadMedia({ deps: fixture().uploadDeps, input: { workspaceId: "ws", filename: "a.png", contentType: "image/png", bytes: new Uint8Array([1]), createdByPrincipal: "o" } });
   assert.equal(media.captions, null);
+});
+
+/** A sniffed ISO-BMFF original padded to `byteLength`, so its size sits exactly where the test needs it. */
+const paddedIsoBmff = (brand: string, byteLength: number) => { const bytes = new Uint8Array(byteLength); bytes.set(isoBmffVideoBytes(brand)); return bytes; };
+
+async function storedOriginal(f: ReturnType<typeof fixture>, input: { filename: string; contentType: string; bytes: Uint8Array }) {
+  const { media } = await uploadMedia({ deps: f.uploadDeps, input: { workspaceId: "ws", createdByPrincipal: "owner", ...input } }, { maxUploadBytes: 50 * MIB });
+  const blob = await f.uploadDeps.blobRepo.findByHash({ workspaceId: "ws", sha256: media.source.sha256 });
+  assert.ok(blob, "the original is recorded");
+  // Blob keys are content hashes; the public suffix comes from the sniffed type, never the upload filename.
+  return { media, suffix: mediaFileExtension({ contentType: media.source.contentType ?? "" }), stored: await f.uploadDeps.blobStore.get({ storageKey: blob.storageKey }) };
+}
+
+test("stores a sniffed QuickTime file unchanged at the policy limit", async () => {
+  const bytes = paddedIsoBmff("qt  ", 50 * MIB);
+  const { media, suffix, stored } = await storedOriginal(fixture(), { filename: "clip.mov", contentType: "video/quicktime", bytes });
+  assert.equal(media.source.contentType, "video/quicktime");
+  assert.equal(suffix, "mov", "stored under a .mov suffix");
+  assert.ok(Buffer.from(stored).equals(Buffer.from(bytes)), "stored bytes are the original, unconverted");
+});
+
+test("stores a sniffed M4V file unchanged", async () => {
+  const bytes = isoBmffVideoBytes("M4V ");
+  const { media, suffix, stored } = await storedOriginal(fixture(), { filename: "clip.m4v", contentType: "video/x-m4v", bytes });
+  assert.equal(media.source.contentType, "video/x-m4v");
+  assert.equal(suffix, "m4v", "stored under a .m4v suffix");
+  assert.ok(Buffer.from(stored).equals(bytes), "stored bytes are the original, unconverted");
+});
+
+test("a one-byte-over ordinary upload reports the configured 50 MiB limit", async () => {
+  await assert.rejects(
+    upload(fixture(), "image/png", 50 * MIB + 0.1 * MIB),
+    (error: Error) => error.message.includes("That file is 50.1 MB; the limit is 50 MB."),
+  );
+});
+
+test("the document limit is the shared media policy value, not a second literal", () => {
+  const source = readFileSync(new URL("../document-ingress.ts", import.meta.url), "utf8");
+  assert.ok(source.includes("MEDIA_MAX_UPLOAD_BYTES"), "document-ingress binds the shared policy value");
+  assert.doesNotMatch(source, /50\s*\*\s*1024\s*\*\s*1024/);
+});
+
+test("the cms media entry re-exports the shared policy value at 50 MiB", async () => {
+  const media = await import("../index.js");
+  assert.equal(media.MEDIA_MAX_UPLOAD_BYTES, 50 * MIB);
+  assert.equal(media.MAX_DOCUMENT_BYTES, media.MEDIA_MAX_UPLOAD_BYTES);
 });
