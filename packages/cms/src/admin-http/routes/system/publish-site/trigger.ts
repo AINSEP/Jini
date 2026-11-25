@@ -62,7 +62,7 @@ function validOptionalCredential({ value }: { value: unknown }, _options = {}): 
 export function createPublishTriggerRoute<TConfig, TSnapshot extends { status: string }>(
   _required: { deps: PublishTriggerDeps<TConfig, TSnapshot> }, _optional = {},
 ): JsonRouteSpec<{ body: unknown }, unknown, PublishTriggerDeps<TConfig, TSnapshot>, PublishSitePrincipal> {
-  return defineJsonRoute({
+  return defineJsonRoute<{ body: unknown }, unknown, PublishTriggerDeps<TConfig, TSnapshot>, PublishSitePrincipal>({
     method: 'post', path: '/api/admin/v1/workspaces/:workspaceId/system/publish',
     parse: raw => ok({ value: { body: raw.body } }),
     handle: async ({ input, deps, context, authorize }) => {

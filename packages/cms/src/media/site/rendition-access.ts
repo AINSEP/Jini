@@ -121,7 +121,7 @@ function scanEntryAssets(entry: PostRecord, savedWidgets?: ReadonlyMap<string, R
   if (entry.bodyHtml !== null) addHtmlEmbedAssetIds({ bodyHtml: entry.bodyHtml, out: ids });
   // Featured image (2026-10-05): a gated post's header image is gated with it, same as a body image.
   if (entry.featuredMediaId) ids.add(entry.featuredMediaId);
-  const widgets = collectPlacedWidgetMediaKeys({ bodyJson: entry.bodyJson, bodyHtml: entry.bodyHtml, savedWidgets });
+  const widgets = collectPlacedWidgetMediaKeys({ bodyJson: entry.bodyJson, bodyHtml: entry.bodyHtml, ...(savedWidgets === undefined ? {} : { savedWidgets }) });
   for (const key of widgets.keys) ids.add(key);
   return { ids, readable: READABLE_BODY_FORMATS.has(entry.bodyFormat) && widgets.readable };
 }
@@ -192,7 +192,7 @@ async function buildAssetReferenceIndex(deps: Parameters<typeof createRenditionA
   const entries = await deps.readEntries({ workspaceId: deps.workspaceId });
   const savedWidgets = await loadSavedWidgetConfigs(deps, entries);
   const index: AssetReferenceIndex = { byAsset: new Map(), opaqueGated: new Set() };
-  for (const entry of entries) indexEntryAssets({ index, entry, deps }, { savedWidgets });
+  for (const entry of entries) indexEntryAssets({ index, entry, deps }, savedWidgets === undefined ? {} : { savedWidgets });
   return index;
 }
 

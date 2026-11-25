@@ -1,5 +1,5 @@
 import type { PeerCallDeps } from "../../../publish/content/peer-transport.js";
-import type { PublishScope } from "../../../publish/content/ui.js";
+import type { PublishScope } from "../../../publish/content/ui/contract.js";
 import { readOverwriteEntityKeys } from "./import.js";
 import { defineJsonRoute, ok, routeReply } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";

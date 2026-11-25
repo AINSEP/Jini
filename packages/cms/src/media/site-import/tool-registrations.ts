@@ -193,7 +193,7 @@ function editorialFields({ input, keys }: { input: Record<string, unknown>; keys
   }, {});
 }
 
-function createMediaReplaceFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReturnType<typeof indexCatalogById>): ToolHandler {
+function createMediaReplaceFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReadonlyMap<string, AgentToolDefinition>): ToolHandler {
   return async (ctx) => {
   const input = requireInputRecord({ input: ctx.input });
   routeDeps.refuseUnexpectedKeys(input, ["mediaId", "url", "root", "path"]);
@@ -217,7 +217,7 @@ function createMediaReplaceFileHandler(routeDeps: MediaImportToolDeps, CATALOG_B
 };
 }
 
-function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReturnType<typeof indexCatalogById>): ToolHandler {
+function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReadonlyMap<string, AgentToolDefinition>): ToolHandler {
   return async (ctx): Promise<unknown> => {
   const input = requireInputRecord({ input: ctx.input });
   const root = requireString({ input, key: "root" });
@@ -254,7 +254,7 @@ function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATAL
 };
 }
 
-function createMediaImportFromUrlHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReturnType<typeof indexCatalogById>): ToolHandler {
+function createMediaImportFromUrlHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReadonlyMap<string, AgentToolDefinition>): ToolHandler {
   return async (ctx): Promise<unknown> => {
   const input = requireInputRecord({ input: ctx.input });
   const url = requireString({ input, key: "url" });

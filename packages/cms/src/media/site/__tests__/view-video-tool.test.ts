@@ -28,8 +28,8 @@ it("shared blob does not make another creator’s video readable", async () => {
 });
 it("an oversized sheet never reaches image preparation", async () => {
   const s = setup();
-  s.deps.extractor = { extract: async () => ({ ok: true, metadata: { duration: 1, width: 1, height: 1, codec: "vp9", container: "webm", sizeBytes: 8, hasAudio: false }, frames: [],
-    sheets: [{ bytes: new Uint8Array(VIDEO_MAX_SHEET_BYTES + 1), mimeType: "image/jpeg", columns: 1, rows: 1, tileEdgePx: 1, tiles: [{ index: 1, row: 1, column: 1, at: 0 }] }] }) };
+  Object.assign(s.deps, { extractor: { extract: async () => ({ ok: true, metadata: { duration: 1, width: 1, height: 1, codec: "vp9", container: "webm", sizeBytes: 8, hasAudio: false }, frames: [],
+    sheets: [{ bytes: new Uint8Array(VIDEO_MAX_SHEET_BYTES + 1), mimeType: "image/jpeg", columns: 1, rows: 1, tileEdgePx: 1, tiles: [{ index: 1, row: 1, column: 1, at: 0 }] }] }) } });
   const tool = buildMediaViewVideoRegistrations({ deps: s.deps, catalog: s.catalog })[0];
   if (!tool) throw new Error("missing tool");
   await expect(tool.handler(ctx({ attachmentRef: "attachment:12345678", layout: "sheet" }))).rejects.toThrow("sheet output limit");

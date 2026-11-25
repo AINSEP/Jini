@@ -28,7 +28,7 @@ it("promotion delegates to upload with the original run and sniffed type", async
 it("a ref not on the current message never reaches the Library resolver", async () => {
   const resolveForRun = vi.fn(async () => undefined);
   const tool = buildLibrarySaveAttachmentTool({ deps: deps(), getStore: () => ({ resolveForRun }), getMessageAttachmentRefs: () => ["attachment:current1"],
-    readFile: async () => new Uint8Array(), isAttachmentRejected: () => false, archiveReader: async () => new Map(),
+    readFile: async () => new Uint8Array(), isAttachmentRejected: () => false, archiveReader: { entries: async function* () { yield* []; } },
     byteLengthUtf8: ({ text }) => text.length, encodeUtf8: () => new Uint8Array(), description: "Save privately" });
   await expect(tool.handler(ctx({ attachmentRef: "attachment:oldref12" }))).rejects.toThrow("not bound to this current message");
   expect(resolveForRun).not.toHaveBeenCalled();
@@ -36,7 +36,7 @@ it("a ref not on the current message never reaches the Library resolver", async 
 it("oversize generated text is never encoded", async () => {
   const encodeUtf8 = vi.fn(() => new Uint8Array());
   const tool = buildLibrarySaveAttachmentTool({ deps: deps(), getStore: () => undefined, getMessageAttachmentRefs: () => [],
-    readFile: async () => new Uint8Array(), isAttachmentRejected: () => false, archiveReader: async () => new Map(),
+    readFile: async () => new Uint8Array(), isAttachmentRejected: () => false, archiveReader: { entries: async function* () { yield* []; } },
     byteLengthUtf8: () => MAX_DOCUMENT_BYTES + 1, encodeUtf8, description: "Save privately" });
   await expect(tool.handler(ctx({ name: "note.md", content: "text" }))).rejects.toThrow("at most 50 MiB");
   expect(encodeUtf8).not.toHaveBeenCalled();

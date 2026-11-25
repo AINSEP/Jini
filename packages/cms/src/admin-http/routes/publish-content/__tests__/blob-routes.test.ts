@@ -137,7 +137,7 @@ describe("blobPutRoute", () => {
     const pending = blobPutRoute.handle({ input: putInput({ dataBase64: Buffer.from(BYTES).toString("base64") }),
       deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize });
     try {
-      expect(await Promise.race([entry, pending.then(() => "completed")])).toBe("entered");
+      expect(await Promise.race([entry, Promise.resolve(pending).then(() => "completed")])).toBe("entered");
       expect(writes).toEqual([]);
     } finally { release(); }
     expect(await pending).toEqual({ ok: true, value: { sha256: SHA, written: true } });

@@ -6,7 +6,7 @@ import { CollectionEntryEditor, type CollectionEntryEditorProps } from "../Colle
 
 it("keeps the body opaque, gates invalid JSON and renders taxonomy only for saved entries", () => {
   const BodyEditor = vi.fn(({ editor }: { editor: { opaque: string } }) => <div>{editor.opaque}</div>);
-  const EntryTerms = vi.fn(() => <div>taxonomy</div>);
+  const EntryTerms = vi.fn((_props: { contentType: string; contentId: string }) => <div>taxonomy</div>);
   const editor = { opaque: "body slot" };
   const props: CollectionEntryEditorProps<typeof editor> = {
     contentTypeKey: "catalog", entryId: null, BodyEditor, EntryTerms, ServerLabel: ({ value }) => <span>{value}</span>, entryListHref: ({ contentTypeKey }) => `/entries/${contentTypeKey}`, readStoredField: () => ({ saved: true }),
