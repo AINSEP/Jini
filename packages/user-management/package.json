@@ -32,6 +32,7 @@
       "./mail/status/domain-deps": "universal",
       "./admin-http/http/users": "universal",
       "./admin-http/owner/mfa-deps": "universal",
+      "./admin-http/owner/mfa-routes": "universal",
       "./admin-http/routes/users/create-role": "universal",
       "./admin-http/routes/users/update-role": "universal",
       "./admin-http/routes/users/delete-role": "universal",
@@ -254,6 +255,11 @@
       "types": "./dist/admin-http/owner/mfa-deps.d.ts",
       "import": "./dist/admin-http/owner/mfa-deps.js",
       "default": "./dist/admin-http/owner/mfa-deps.js"
+    },
+    "./admin-http/owner/mfa-routes": {
+      "types": "./dist/admin-http/owner/mfa-routes.d.ts",
+      "import": "./dist/admin-http/owner/mfa-routes.js",
+      "default": "./dist/admin-http/owner/mfa-routes.js"
     },
     "./admin-http/routes/users/create-role": {
       "types": "./dist/admin-http/routes/users/create-role.d.ts",
