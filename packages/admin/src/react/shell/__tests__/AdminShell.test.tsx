@@ -205,7 +205,7 @@ it('closes the drawer on Escape, backdrop and navigation', async () => {
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   fireEvent.click(toggle);
-  fireEvent.click(container.querySelector('.sidebar-backdrop')!);
+  fireEvent.click(container.querySelector('.jini-admin-sidebar-backdrop')!);
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   fireEvent.click(toggle);
   act(() => f.go('/hidden'));

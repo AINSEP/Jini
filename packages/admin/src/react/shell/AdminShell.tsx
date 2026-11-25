@@ -26,13 +26,13 @@ function themeOptions(props: AdminShellBaseProps): ThemeOptions {
 
 /**
  * Loading, login or session-error UI for every state except an authenticated one.
- * The loading state carries `jini-admin-boot-screen` and the legacy `boot-screen` alias: Jini ships no rule for either name, but consuming admin hosts style the legacy `.boot-screen` selector,
- * so the alias is a host contract to keep until every host selects the prefixed class.
+ * The loading state carries only `jini-admin-boot-screen`: hosts style the prefixed name. The unprefixed
+ * `boot-screen` alias was dropped once no consuming host selected it (pinned by `no-unprefixed-shell-aliases.test.ts`).
  */
 function renderSessionGate({ props, context, state, refresh }: {
   readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly state: GateState; readonly refresh: () => Promise<void>;
 }): ReactNode {
-  if (state.status === 'checking') return <div className="jini-admin-boot-screen boot-screen" role="status">{props.labels.loading}</div>;
+  if (state.status === 'checking') return <div className="jini-admin-boot-screen" role="status">{props.labels.loading}</div>;
   if (state.status === 'anonymous') return props.slots.login({ context, refreshSession: refresh });
   if (props.slots.sessionError) return props.slots.sessionError({ error: state.error, retry: refresh });
   return <div role="alert"><p>{props.labels.sessionError}</p><button type="button" onClick={() => { void refresh(); }}>{props.labels.retry}</button></div>;
@@ -84,12 +84,9 @@ interface ShellLayoutArgs {
 
 /**
  * The topbar, `<main>` with the routed panel (or `noAccess`) and the host's `afterMain` content.
- * Each topbar element carries its `jini-admin-topbar*` class and the legacy `admin-topbar*` alias: Jini
- * ships no rule for either name, but consuming admin hosts style the legacy `.admin-topbar*` selectors, so
- * the alias is a host contract to keep until every host selects the prefixed classes. The column
- * (`jini-admin-main-col`) and `<main>` (`jini-admin-content`) follow the same pairing: Jini's packaged CSS
- * styles the content region through either name, and consuming hosts still select the legacy `.admin-main-col`
- * and `.admin-content` (layout, scroll, container-query ancestor), so both aliases stay.
+ * Each topbar element carries only its `jini-admin-topbar*` class, the column `jini-admin-main-col` and
+ * `<main>` `jini-admin-content`: Jini's packaged CSS and consuming hosts select the prefixed names. The
+ * unprefixed `admin-*` aliases were dropped together with the host selectors that still used them.
  */
 function ShellMainColumn({ props, view, drawer, ids }: {
   readonly props: AdminShellBaseProps; readonly view: ShellView; readonly drawer: ReturnType<typeof useShellDrawer>;
@@ -97,17 +94,17 @@ function ShellMainColumn({ props, view, drawer, ids }: {
 }): ReactNode {
   const { model, slotArgs } = view;
   return (
-    <div className="jini-admin-main-col admin-main-col">
-      <div className="jini-admin-topbar admin-topbar">
-        <button type="button" className="jini-admin-topbar-toggle admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
+    <div className="jini-admin-main-col">
+      <div className="jini-admin-topbar">
+        <button type="button" className="jini-admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
           aria-label={drawer.open ? props.labels.closeNavigation : props.labels.openNavigation}
           onClick={() => drawer.setOpen((open) => !open)}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" strokeLinecap="round" /></svg>
         </button>
-        <span className="jini-admin-topbar-title admin-topbar-title">{props.title}</span>
+        <span className="jini-admin-topbar-title">{props.title}</span>
         {props.slots.topbar}
       </div>
-      <main ref={props.mainRef} id={ids.main} className="jini-admin-content admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
+      <main ref={props.mainRef} id={ids.main} className="jini-admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
         {renderRoutedPanel({ model, slots: props.slots, slotArgs })}
       </main>
       {props.slots.afterMain}
@@ -127,10 +124,9 @@ function renderAssistant(slots: AdminShellBaseProps['slots']): ReactNode {
  * the sidebar, main column, assistant and overlays. It is its own component so the model and the translated nav are memoized on
  * what they derive from (panels, capabilities, the session's permissions, route, `translateNav`):
  * a drawer toggle or a theme repaint re-renders the shell without rebuilding either.
- * The root, skip link and drawer backdrop carry `jini-admin-layout`, `jini-admin-skip-link` and
- * `jini-admin-sidebar-backdrop` plus the legacy `admin-layout`, `skip-link` and `sidebar-backdrop`: Jini's packaged
- * CSS still styles `.admin-layout` for hosts that render their own chrome, and consuming hosts select all three
- * legacy names, so each alias is a host contract until every host selects the prefixed classes.
+ * The root, skip link and drawer backdrop carry only `jini-admin-layout`, `jini-admin-skip-link` and
+ * `jini-admin-sidebar-backdrop`. A host that renders its own chrome gets `jini-admin-layout` from
+ * `resolveAdminLayoutClassName`, so Jini's packaged CSS selects the prefixed name alone.
  */
 function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
   const { props, context, controller, session, appearance, routePath, drawer, ids } = args;
@@ -144,11 +140,11 @@ function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
   };
   const view: ShellView = { model, slotArgs, nav };
   const layout = (
-    <div className={['jini-admin-layout admin-layout', props.className].filter(Boolean).join(' ')}>
-      <a href={`#${ids.main}`} className="jini-admin-skip-link skip-link">{props.labels.skipToContent}</a>
+    <div className={['jini-admin-layout', props.className].filter(Boolean).join(' ')}>
+      <a href={`#${ids.main}`} className="jini-admin-skip-link">{props.labels.skipToContent}</a>
       {renderShellSidebar({ props, view, drawer, id: ids.sidebar })}
       {props.slots.beforeMain}
-      {drawer.open && <button type="button" className="jini-admin-sidebar-backdrop sidebar-backdrop" aria-label={props.labels.closeNavigation} onClick={() => drawer.setOpen(false)} />}
+      {drawer.open && <button type="button" className="jini-admin-sidebar-backdrop" aria-label={props.labels.closeNavigation} onClick={() => drawer.setOpen(false)} />}
       <ShellMainColumn props={props} view={view} drawer={drawer} ids={ids} />
       {renderAssistant(props.slots)}
       {props.slots.overlays?.(slotArgs)}

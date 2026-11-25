@@ -4,7 +4,7 @@ import { useAdminBootScope } from "../lib/admin-boot-scope.js";
 
 /**
  * @file The operator's interface preferences, read live for the admin shell, which turns them into
- * classes on `.admin-layout` that gate CSS rules:
+ * classes on `.jini-admin-layout` that gate CSS rules:
  *
  * - "Hide the chat button while the chat is open" -> `hides-fab-while-open`, which gates the
  *   hide-while-open rules, so the FAB either hides while the dock is open (the close control
@@ -55,10 +55,10 @@ export function useInterfacePreferences<T extends InterfacePreferences>(required
   return query.data ?? defaultPreferences;
 }
 
-/** `.admin-layout`'s class list: each preference's CSS rules apply only under its class. */
+/** `.jini-admin-layout`'s class list: each preference's CSS rules apply only under its class. */
 export function resolveAdminLayoutClassName<T extends InterfacePreferences>(preferences: T): string {
   return [
-    "admin-layout",
+    "jini-admin-layout",
     preferences.hideChatFabWhileOpen ? "hides-fab-while-open" : null,
     preferences.wrapTabs ? "wraps-tabs" : null,
   ].filter(Boolean).join(" ");

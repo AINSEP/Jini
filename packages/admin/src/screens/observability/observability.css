@@ -23,7 +23,7 @@
 }
 
 @container admin-content (max-width: 620px) {
-  :is(.jini-admin-layout, .admin-layout) .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar, :is(.jini-admin-layout, .admin-layout).wraps-tabs .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar {
+  .jini-admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar, .jini-admin-layout.wraps-tabs .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar {
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
@@ -31,11 +31,11 @@
     padding-right: 0;
     mask-image: linear-gradient(to right, black 0, black calc(100% - 32px), transparent);
   }
-  :is(.jini-admin-layout, .admin-layout) .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item {
+  .jini-admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item {
     padding-inline: 6px;
     gap: 5px;
   }
-  :is(.jini-admin-layout, .admin-layout) .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item strong {
+  .jini-admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item strong {
     white-space: nowrap;
     font-size: 12px;
   }

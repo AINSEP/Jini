@@ -38,7 +38,7 @@ it('renders the host composition in the place of the built-in sidebar, in the ho
   expect(order).toEqual(['cms-nav-mobile-head', 'first-group', 'cms-rail-toggle-row', 'cms-section', 'cms-section', 'cms-foot']);
   expect(screen.getByText('Host footer')).toBeInTheDocument();
   expect(screen.getAllByRole('navigation')).toHaveLength(1);
-  expect(container.querySelector('.admin-main-col')).not.toBeNull();
+  expect(container.querySelector('.jini-admin-main-col')).not.toBeNull();
 });
 
 it('hands the slot the visible, translated nav and exactly the props the built-in sidebar passes', () => {

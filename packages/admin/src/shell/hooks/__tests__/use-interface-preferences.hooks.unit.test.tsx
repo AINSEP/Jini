@@ -54,8 +54,8 @@ describe("useInterfacePreferences", () => {
 
 describe("resolveAdminLayoutClassName", () => {
   it("adds one class per enabled preference", () => {
-    expect(resolveAdminLayoutClassName({ hideChatFabWhileOpen: false, wrapTabs: false })).toBe("admin-layout");
-    expect(resolveAdminLayoutClassName(HIDE_FAB)).toBe("admin-layout hides-fab-while-open");
-    expect(resolveAdminLayoutClassName({ hideChatFabWhileOpen: true, wrapTabs: true })).toBe("admin-layout hides-fab-while-open wraps-tabs");
+    expect(resolveAdminLayoutClassName({ hideChatFabWhileOpen: false, wrapTabs: false })).toBe("jini-admin-layout");
+    expect(resolveAdminLayoutClassName(HIDE_FAB)).toBe("jini-admin-layout hides-fab-while-open");
+    expect(resolveAdminLayoutClassName({ hideChatFabWhileOpen: true, wrapTabs: true })).toBe("jini-admin-layout hides-fab-while-open wraps-tabs");
   });
 });

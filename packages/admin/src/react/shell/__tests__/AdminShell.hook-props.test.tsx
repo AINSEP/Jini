@@ -88,7 +88,7 @@ it('useDrawerHook: a fake drawer state drives the toggle and backdrop', () => {
     useDrawerHook={useDrawerHook} />);
   expect(useDrawerHook).toHaveBeenCalledWith({ routePath: '/' });
   expect(screen.getByRole('button', { name: 'Close navigation', expanded: true })).toBeInTheDocument();
-  act(() => { (container.querySelector('.sidebar-backdrop') as HTMLElement).click(); });
+  act(() => { (container.querySelector('.jini-admin-sidebar-backdrop') as HTMLElement).click(); });
   expect(setOpen).toHaveBeenCalledWith(false);
 });
 

@@ -67,7 +67,7 @@ it('beforeMain renders between the sidebar and the backdrop', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
   const root = container.firstElementChild!;
   const order = [...root.children].map((el) => el.getAttribute('data-testid') ?? el.className);
-  expect(order.slice(0, 5)).toEqual(['jini-admin-skip-link skip-link', 'cms-nav scroll is-open', 'before-main', 'jini-admin-sidebar-backdrop sidebar-backdrop', 'jini-admin-main-col admin-main-col']);
+  expect(order.slice(0, 5)).toEqual(['jini-admin-skip-link', 'cms-nav scroll is-open', 'before-main', 'jini-admin-sidebar-backdrop', 'jini-admin-main-col']);
 });
 
 it('assistantAside renders in place of the built-in aside, and wins when both are supplied', () => {
@@ -83,7 +83,7 @@ it('afterMain renders inside the main column, right after <main>', () => {
   mount({ afterMain: <div data-testid="after-main" /> });
   const main = screen.getByRole('main');
   expect(main.nextElementSibling).toBe(screen.getByTestId('after-main'));
-  expect(main.parentElement).toHaveClass('admin-main-col');
+  expect(main.parentElement).toHaveClass('jini-admin-main-col');
 });
 
 it('ids: one host-set value reaches the skip link, the topbar toggle, the nav and main', () => {
