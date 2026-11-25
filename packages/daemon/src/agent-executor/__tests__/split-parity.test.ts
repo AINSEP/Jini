@@ -47,7 +47,7 @@ describe('agent executor split parity', () => {
   // PARITY
   it('preserves existing MCP servers and instructions while keeping credentials out of argv', () => {
     const bridge = executor.buildMcpBridgeDelivery({
-      cwd: '/workspace', runId: 'run-1', strategy: 'opencode-env-content',
+      cwd: '/workspace', runId: 'run-1', mechanism: 'env-content',
       options: { command: 'bridge', args: ['serve'], daemonUrl: 'http://127.0.0.1:4000' },
       credential: 'run-token', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }),
     });

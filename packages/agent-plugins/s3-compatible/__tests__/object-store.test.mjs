@@ -425,6 +425,7 @@ test("createArtifactStore() delegates to the publish target's share capability w
   }
   const kit = {
     DeployError,
+    isShareArtifactKey: ({ key }) => /^_share\/[A-Za-z]{16}\/[a-z0-9][a-z0-9-]{0,79}\.alpha\.zip$/.test(key),
     checkDeploymentUrl: async () => ({ status: "ready" }),
     createSigV4Client(input) {
       signer.push(input);
@@ -437,7 +438,7 @@ test("createArtifactStore() delegates to the publish target's share capability w
   assert.deepEqual(Object.keys(store).sort(), Object.keys(direct).sort());
   assert.deepEqual(signer[0], { accessKeyId: "id", secretAccessKey: "secret", service: "s3", region: "us-east-1" });
 
-  const key = `_share/${"a".repeat(16)}/site.tovu.zip`;
+  const key = `_share/${"a".repeat(16)}/site.alpha.zip`;
   await store.delete({ key });
   assert.deepEqual(sent.map(({ url, init }) => [init.method, url]), [["DELETE", `https://s3.us-east-1.amazonaws.com/share-bucket/${key}`]]);
   await assert.rejects(() => store.delete({ key: "not-a-share" }), { message: "Invalid share artifact key." });

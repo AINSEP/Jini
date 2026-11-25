@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { parseAgentPluginManifest, parseAgentPluginMcpConfig, readAgentPluginMetadata } from '../../manifest.js';
+import { parseAgentPluginManifest, parseAgentPluginMcpConfig, readAgentPluginMetadata, legacyAgentPluginMetadataWarning, type LegacyMcpAliases } from '../../manifest.js';
+
+const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: legacyAgentPluginMetadataWarning } satisfies LegacyMcpAliases;
 
 const schema = 'https://agent-plugins.org/schemas/1.0.0/';
 const plugin = (extension: unknown, namespace = 'jini') => ({ $schema: `${schema}plugin.schema.json`, name: 'portable', extensions: { [namespace]: extension } });
@@ -33,23 +35,23 @@ describe('portable manifest metadata', () => {
   });
   test('neutral MCP fields override old keys, while malformed new keys never inherit legacy values', () => {
     const pluginManifest = plugin({ mcpServers: { remote: { authMode: 'none', tovuAuthMode: 'oauth', defaultTools: { read: ['inspect'] }, tovuDefaultTools: { allow: ['old'] } } } });
-    const parsed = parseAgentPluginMcpConfig({ value: mcp() }, { pluginManifest });
+    const parsed = parseAgentPluginMcpConfig({ value: mcp() }, { pluginManifest, legacyMcpAliases });
     expect(parsed).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'none', defaultTools: { read: ['inspect'], write: [] } } } } });
-    const invalid = parseAgentPluginMcpConfig({ value: mcp() }, { pluginManifest: plugin({ mcpServers: { remote: { authMode: null, tovuAuthMode: 'oauth' } } }) });
+    const invalid = parseAgentPluginMcpConfig({ value: mcp() }, { pluginManifest: plugin({ mcpServers: { remote: { authMode: null, tovuAuthMode: 'oauth' } } }), legacyMcpAliases });
     expect(invalid).toMatchObject({ ok: true, config: { servers: {} } });
   });
   test('legacy MCP entries retain sign-in grants but never acquire reviewed reads', () => {
-    const parsed = parseAgentPluginMcpConfig({ value: mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] } }) });
+    const parsed = parseAgentPluginMcpConfig({ value: mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] } }) }, { legacyMcpAliases });
     expect(parsed).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'oauth', defaultTools: { allow: ['inspect'], read: [], write: [] } } } }, warnings: [expect.stringContaining('2027-05-06')] });
   });
   test('null legacy aliases preserve inline sign-in fallback while canonical null remains invalid', () => {
     const tokenAuth = { helpUrl: 'https://example.test/token', probeUrl: 'https://example.test/probe' };
     const renamedTools = { old_inspect: 'inspect' };
     const value = mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] }, tovuTokenAuth: tokenAuth, tovuRenamedTools: renamedTools });
-    const legacy = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { tovuAuthMode: null, tovuDefaultTools: null } } }, 'tovu') });
+    const legacy = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { tovuAuthMode: null, tovuDefaultTools: null } } }, 'tovu'), legacyMcpAliases });
     expect(legacy).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'oauth', defaultTools: { allow: ['inspect'], read: [], write: [] }, tokenAuth, renamedTools } } } });
     for (const field of ['authMode', 'defaultTools']) {
-      const canonical = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { [field]: null } } }) });
+      const canonical = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { [field]: null } } }), legacyMcpAliases });
       expect(canonical).toMatchObject({ ok: true, config: { servers: {} } });
     }
   });

@@ -47,8 +47,8 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
   const visibleRows = sortedRows.slice(start, start + size);
 
   return (
-    <div className="jini-data-table-frame" data-table-provider="shadcn">
-      <Table className="jini-data-table">
+    <div className="jini-ui-data-table-frame" data-table-provider="shadcn">
+      <Table className="jini-ui-data-table">
         <TableHeader>
           <TableRow>
             {columns.map((column) => {
@@ -57,7 +57,7 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
               <TableHead key={column.key} scope="col" data-numeric={numericKeys.has(column.key)}
                 aria-sort={sortable ? (columnSort ?? 'none') : undefined}>
                 {sortable ? (
-                  <button type="button" className="jini-data-table-sort" onClick={() => {
+                  <button type="button" className="jini-ui-data-table-sort" onClick={() => {
                     setSort({ key: column.key, direction: activeSort?.key === column.key && activeSort.direction === 'ascending'
                       ? 'descending' : 'ascending' });
                     setPage(0);
@@ -72,7 +72,7 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length === 0 && <TableRow><TableCell className="jini-data-table-empty" colSpan={columns.length}>No results.</TableCell></TableRow>}
+          {rows.length === 0 && <TableRow><TableCell className="jini-ui-data-table-empty" colSpan={columns.length}>No results.</TableCell></TableRow>}
           {visibleRows.map(({ row, index }) => (
             <TableRow
               key={index}
@@ -86,9 +86,9 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
         </TableBody>
       </Table>
       {paging && (
-        <div className="jini-data-table-pagination">
+        <div className="jini-ui-data-table-pagination">
           <span aria-live="polite">{rows.length === 0 ? 0 : start + 1}–{Math.min(start + size, rows.length)} of {rows.length} rows</span>
-          <div className="jini-data-table-pagination-controls">
+          <div className="jini-ui-data-table-pagination-controls">
             <button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
             <button type="button" aria-label="Next page" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}>Next</button>
           </div>

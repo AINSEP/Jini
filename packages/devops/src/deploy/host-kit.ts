@@ -57,6 +57,10 @@ export interface SigV4Client {
 
 /** Everything a module may call that is not a runtime builtin. The host builds it and passes it in. */
 export interface DeployHostKit {
+  readonly isShareArtifactKey?: (
+    required: { readonly key: string },
+    optional?: Record<string, never>,
+  ) => boolean;
   /** `fetch`, aborted after `requiredArgs.timeoutMs`. */
   fetch(requiredArgs: { url: string; timeoutMs: number }, optionalArgs?: { init?: RequestInit }): Promise<Response>;
   readonly timeouts: DeployFetchTimeouts;

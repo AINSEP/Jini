@@ -6,7 +6,7 @@
 import type {
   AgentLaunchResolution, DefaultModelResolution, ModelCatalogSnapshot, ModelDiscoveryContext, ModelIdentityKind,
   NativeToolPolicyInput, PreparedAgentLogFile, PreparedPromptFile, RunPlan, RunPlanHost, RuntimeAgentDef, RuntimeBuildOptions,
-  RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError, NativeCapabilities,
+  RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError, NativeCapabilities, McpBridgeMechanism,
 } from '@jini-ai/core/contracts/agents';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
@@ -68,6 +68,7 @@ export type EnvContentBridgeEntry =
 /** Vendor behaviour for one definition. Every slot is optional: a definition that needs none gets `{}`, and the launcher
  * then does nothing vendor-specific for it. The binding picks each slot from what the definition declares. */
 export interface AgentRuntimeStrategies {
+  readonly mcpBridgeMechanism?: McpBridgeMechanism;
   /** Re-shapes one parsed stream event so a native tool call carries its bridge-correlation candidate; absent: events pass unchanged. */
   readonly toolCallReceipt?: (required: { event: Record<string, unknown> }) => Record<string, unknown>;
   /** For a `*-env-content` MCP delivery: the env variable that carries the serialised config document. */

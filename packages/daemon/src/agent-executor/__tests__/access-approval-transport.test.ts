@@ -13,7 +13,7 @@ import { scheduler } from '../../__tests__/surface-fixture.js';
 import { createToolExecutor } from '../../tool-executor.js';
 import { withSurfaceExchangeLifetime } from '../../tool-recovery/surface-lifetime.js';
 import { computeChildEnv } from '../launch.js';
-import { boundEnvContent, boundMcpDelivery, boundMcpConfigFile, boundMcpHome, prepareBoundRunHome } from './runtime-fixture.js';
+import { agentRuntimeFixture, boundEnvContent, boundMcpDelivery, boundMcpConfigFile, boundMcpHome, prepareBoundRunHome } from './runtime-fixture.js';
 import { resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
 
 // Adapter staging and shared delegated execution, not a claim to launch vendor CLI binaries.
@@ -32,9 +32,12 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
     writeFile: async ({ path, content }: { path: string; content: string }) => { written.set(path, content); },
     mkdtemp: async () => '/fixture/codex-home', removeDir: async () => {}, linkSessionStore: async () => {},
   };
+  const slots = agentRuntimeFixture().strategies.for({ def });
+  const mechanism = slots.mcpConfigFile ? 'config-file' : slots.mcpHome ? 'staged-home' : slots.mcpDelivery ? 'env-content' : slots.mcpBridge ? 'env-passthrough' : runtimeSupportsExternalTools({ def }) ? 'acp-merge' : undefined;
+  expect(slots.mcpBridgeMechanism).toBe(mechanism);
   const delivery = await resolveMcpBridgeForRun({
     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
-    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def), ...boundMcpHome(def) },
+    deps: { mechanism, ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def), ...boundMcpHome(def) },
   });
   if (delivery === null) {
     expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery })).toEqual({});

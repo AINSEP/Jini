@@ -16,7 +16,7 @@ describe('chart table characterization', () => {
         { category: 'February', amount: '2.5', extra: null, flag: true },
       ],
     } });
-    expect(element.className).toBe('jini-data-table-frame');
+    expect(element.className).toBe('jini-ui-data-table-frame');
     expect(element.dataset.tableProvider).toBe('native');
     expect(element.querySelector('p')).toBeNull();
     expect(element.querySelector('caption')?.textContent).toBe('<img src=x onerror=alert(1)>');
@@ -46,7 +46,7 @@ describe('chart table characterization', () => {
     const cell = element.querySelector('tbody td');
     expect(cell?.textContent).toBe('No results.');
     expect(cell?.getAttribute('colspan')).toBe(String(expectedSpan));
-    expect(cell?.className).toBe('jini-data-table-empty');
+    expect(cell?.className).toBe('jini-ui-data-table-empty');
   });
 
   it('retains an empty title and a row with no columns instead of inserting an empty-state row', () => {

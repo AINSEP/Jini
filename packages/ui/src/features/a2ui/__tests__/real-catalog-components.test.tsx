@@ -84,7 +84,7 @@ describe('real catalog: recharts.bar-chart', () => {
       },
     ]);
     const { container } = render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={DEFAULT_INTERACTIVE_UI_REGISTRY} />);
-    expect(container.querySelector('table.jini-data-table')).toHaveTextContent('Jan100Feb150');
+    expect(container.querySelector('table.jini-ui-data-table')).toHaveTextContent('Jan100Feb150');
     expect(container.querySelector('svg')).toBeNull();
   });
 
@@ -98,7 +98,7 @@ describe('real catalog: recharts.bar-chart', () => {
     // The title and the accessible fallback column header intentionally share this label.
     expect(screen.getByText('Revenue', { selector: '[data-a2ui-component-id="title"]' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Revenue' })).toBeInTheDocument();
-    expect(container.querySelector('table.jini-data-table')).toHaveTextContent('Jan100');
+    expect(container.querySelector('table.jini-ui-data-table')).toHaveTextContent('Jan100');
   });
 });
 

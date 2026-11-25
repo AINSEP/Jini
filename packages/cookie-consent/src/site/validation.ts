@@ -11,14 +11,17 @@ const FIELDS = [...Object.keys(SITE_CONSENT_DEFAULTS), 'appearance', 'customCss'
  * Missing fields, unknown fields and type mismatches never reach persistence.
  * Appearance values remain untrusted until Jini compiles them. O(n), n <= 32 KiB.
  * @example parseConsentConfig({ value: { ...SITE_CONSENT_DEFAULTS, message: 'Our cookie policy.' } }) */
-export function parseConsentConfig({ value }: { value: unknown }, _options = {}): ConsentConfig {
+export function parseConsentConfig(
+  { value, bannerModeRefusal }: { value: unknown; bannerModeRefusal?: string | undefined },
+  _options = {},
+): ConsentConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ToolInputError({ message: 'config must be a JSON object.' });
   const raw = value as Record<string, unknown>;
   if (Object.keys(raw).some(key => !FIELDS.includes(key))) throw new ToolInputError({ message: 'Unknown consent configuration field. Categories are fixed by the consent engine.' });
   for (const [key, fallback] of Object.entries(SITE_CONSENT_DEFAULTS)) {
     if (!Object.prototype.hasOwnProperty.call(raw, key) || typeof raw[key] !== typeof fallback) throw new ToolInputError({ message: `Invalid consent field: ${key}.` });
   }
-  validateConsentOptions({ raw });
+  validateConsentOptions({ raw, bannerModeRefusal });
   const config = { ...raw } as SiteConsentSettings;
   validateConsentCopy({ config });
   validateConsentAppearanceShape({ raw });
@@ -64,8 +67,8 @@ export function consentConfigProblems({ config }: { config: ConsentConfig; trust
 }
 
 /** Optional engine fields stay outside required defaults so older snapshots still parse. */
-function validateConsentOptions({ raw }: { raw: Record<string, unknown> }, _options = {}): void {
+function validateConsentOptions({ raw, bannerModeRefusal }: { raw: Record<string, unknown>; bannerModeRefusal?: string | undefined }, _options = {}): void {
   if ('allowUnsafeEval' in raw && typeof raw.allowUnsafeEval !== 'boolean') throw new ToolInputError({ message: 'allowUnsafeEval must be a boolean.' });
   if ('reopen' in raw && raw.reopen !== 'link') throw new ToolInputError({ message: 'Cookie preferences reopen through a link.' });
-  if ('bannerMode' in raw && !SITE_CONSENT_BANNER_MODES.includes(raw.bannerMode as never)) throw new ToolInputError({ message: 'Choose the Jini banner, your own banner, or none.' });
+  if ('bannerMode' in raw && !SITE_CONSENT_BANNER_MODES.includes(raw.bannerMode as never)) throw new ToolInputError({ message: bannerModeRefusal ?? 'Choose the built-in banner, your own banner, or none.' });
 }

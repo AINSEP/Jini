@@ -3,8 +3,10 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PackagePathViolation, createAgentPluginLayout, createAgentPluginLifecycle } from '../../index.js';
-import { parseAgentPluginMcpConfig } from '../../manifest.js';
+import { parseAgentPluginMcpConfig, legacyAgentPluginMetadataWarning, type LegacyMcpAliases } from '../../manifest.js';
 import { ports } from '../test-support.js';
+
+const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: legacyAgentPluginMetadataWarning } satisfies LegacyMcpAliases;
 
 /**
  * @file Host contract for the capability projection reached through `createAgentPluginLifecycle`'s
@@ -26,7 +28,7 @@ beforeAll(async () => {
   events = [];
   api = createAgentPluginLifecycle(
     { ...ports, extensionNamespace: 'jini', layout: createAgentPluginLayout({ root: path.join(dir, 'layout') }) },
-    { onEvent: ({ event, message }) => { events.push({ event, message }); } },
+    { legacyMcpAliases, onEvent: ({ event, message }) => { events.push({ event, message }); } },
   );
 });
 afterAll(() => rm(dir, { recursive: true, force: true }));

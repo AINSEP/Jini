@@ -1,7 +1,7 @@
 import type { WorkspaceMigrationOwnership } from '../../core/persistent-state.js';
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import type { AtomicFileWriterPort, BootIdentity, FileLockPort } from "@jini-ai/core/contracts/runtime";
-import type { AgentPluginServerMetadataReader } from './manifest.js';
+import type { AgentPluginServerMetadataReader, LegacyMcpAliases } from './manifest.js';
 import type { AgentPluginDeliveryMode } from './types.js';
 import type { AgentPluginLayoutPort, InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
@@ -76,6 +76,7 @@ export interface AgentPluginLifecyclePorts {
   /** Host-facing recovery instructions; the bundled refusal and its security gate remain owned here. */
   readonly formatBundledUninstallRecovery?: ((required: { readonly pluginId: string }, optional: Record<string, never>) => string) | undefined;
   readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined;
+  readonly legacyMcpAliases?: LegacyMcpAliases | undefined;
   readonly deliveryMode: AgentPluginDeliveryMode;
   readonly mcpProvisioning: AgentPluginMcpProvisioningPort;
   readonly fetch: AgentPluginFetchPort;
@@ -83,5 +84,5 @@ export interface AgentPluginLifecyclePorts {
 }
 
 /** Application policy/effects are required; observers and metadata translators are optional. */
-export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
-export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
+export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'legacyMcpAliases' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
+export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'legacyMcpAliases' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
