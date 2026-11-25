@@ -495,7 +495,7 @@
    "ResolveMailerDeps": "interface:2395ced37f",
    "ResolveMailerOptions": "interface:e70811d336",
    "ResolvedEmailEvent": "interface:0ceba9d865",
-   "ResolvedMailer": "interface:68ffb1635f",
+   "ResolvedMailer": "interface:76b5aa0d6b",
    "SenderDomainVerification": "type:7038367565",
    "SenderDomainVerificationDeps": "interface:105623fed9",
    "SenderDomainVerificationPort": "type:da04bec92d",
