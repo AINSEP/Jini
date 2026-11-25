@@ -85,6 +85,7 @@
       "./newsletter/hooks": "universal",
       "./newsletter/lists": "universal",
       "./newsletter/campaign-write-service": "universal",
+      "./newsletter/agent-tools": "universal",
       "./newsletter/launch-gate": "universal",
       "./newsletter/repo.memory": "universal",
       "./newsletter/repo": "universal",
@@ -508,6 +509,11 @@
       "types": "./dist/newsletter/lists.d.ts",
       "import": "./dist/newsletter/lists.js",
       "default": "./dist/newsletter/lists.js"
+    },
+    "./newsletter/agent-tools": {
+      "types": "./dist/newsletter/agent-tools.d.ts",
+      "import": "./dist/newsletter/agent-tools.js",
+      "default": "./dist/newsletter/agent-tools.js"
     },
     "./newsletter/campaign-write-service": {
       "types": "./dist/newsletter/campaign-write-service.d.ts",
