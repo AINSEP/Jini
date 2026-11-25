@@ -1120,8 +1120,9 @@
    "AgUiClient": "interface:36f67235bc",
    "AgUiClientPorts": "interface:b3989c988b",
    "AgUiEventContext": "interface:98f709f96f",
+   "AgUiFetchAgent": "interface:b44eb23f10",
    "AgUiRunClient": "interface:2f5a79b8fa",
-   "createAgUiFetchAgent": "function:afbc5bd7b5",
+   "createAgUiFetchAgent": "function:46e6de53c0",
    "createAgUiRunClient": "function:7a36a31c21"
   }
  },
