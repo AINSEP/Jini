@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createRouteTestErrors, fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -94,15 +93,20 @@ describe('daemonStatusRoute', () => {
   });
 
   it('surfaces an unexpected error through the mounted route as a 500 INTERNAL_ERROR (malformed-response category)', async () => {
-    const host = { ...fakeDaemonRouteHost(), reportInternalError: reportRouteInternalError };
+    const fixture = createRouteTestErrors();
+    const baseHost = fakeDaemonRouteHost();
+    const host = { ...baseHost, context: { ...baseHost.context, errors: fixture.errors }, reportInternalError: fixture.reportInternalError };
     const fetch = serveRoutes({ routes: daemonStatusRoutes({ deps: makeDeps({ getVersion: () => { throw new Error('boom'); } }), host }) });
     const response = await fetch(jsonRequest({ path: '/api/daemon/status' }));
     expect(response.status).toBe(500);
     // Redacted, not echoed: the route's catch is a last-resort handler for unanticipated exceptions and must not forward their text to the caller.
-    const body = await response.json() as { error: { code: string; message: string } };
+    const body = await response.json() as { error: { code: string; message: string; requestId: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
     // A failed GET changed nothing, so the fallback copy says so instead of asking whether a change was saved.
-    expect(body.error.message).toBe('The server could not finish this request. Nothing was changed. Try again; if it keeps failing, copy the request ID and report this problem.');
+    expect(body.error.message).toBe(`The server could not finish this request. Nothing was changed. Try again; if it keeps failing, report the error ID. (error ${body.error.requestId})`);
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.entries[0]?.meta?.errorId).toBe(body.error.requestId);
+    expect(JSON.stringify(body)).not.toContain('boom');
   });
 });
 

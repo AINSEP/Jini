@@ -6,6 +6,7 @@
 export type { DbTransport, KyselyKernel } from "./port.js";
 export { buildKernel, type KernelDriver } from "./kernel-core.js";
 export { TurnLock } from "./turn-lock.js";
+export { withIdleTurn, type IdleTurnRefusal, type IdleTurnResult } from "./idle-turn.js";
 export {
   autoIdColumnSql,
   checkpointWal,

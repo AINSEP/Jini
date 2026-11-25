@@ -15,10 +15,9 @@ import { type ToolExecutor } from '../../tool-executor-types.js';
 import { createRemoteToolExecutor, ToolRpcError } from '../../remote-tool-executor.js';
 import { toolExecutionRoutes, type AuthorizeToolRun, type ToolExecutionRoutesOptional, type ToolExecutionRoutesRequired } from '../tool-execution-routes.js';
 import { jsonResponse } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
 import type { ReportRouteInternalError } from '@jini-ai/core/contracts/server';
-import { fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
 import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
@@ -77,8 +76,13 @@ async function serve(
   const app = express();
   app.use((req, res, next) => { seen.push({ req, res, closeListeners: res.listenerCount('close') }); next(); });
   if (optional.before) app.use(optional.before);
-  const { before: _before, tls: _tls, env: hostEnv = env, reportInternalError = reportRouteInternalError, ...routeOptions } = optional;
-  const host = { ...fakeDaemonRouteHost(), reportInternalError };
+  const { before: _before, tls: _tls, env: hostEnv = env, reportInternalError, ...routeOptions } = optional;
+  let host = fakeDaemonRouteHost();
+  if (reportInternalError) host = { ...host, reportInternalError };
+  else {
+    const fixture = createRouteTestErrors();
+    host = { ...host, context: { ...host.context, errors: fixture.errors }, reportInternalError: fixture.reportInternalError };
+  }
   const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of toolExecutionRoutes({ listToolsFor: () => [], env: hostEnv, host, ...required }, routeOptions)) dispatcher.server.route(route);
   app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals }); });
@@ -481,15 +485,19 @@ describe('remote tool catalog', () => {
     expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown, logSource: 'tool-catalog' });
   });
 
-  it('logs only the class and request ID of a listToolsFor failure when the host gives no sink', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+  it('records one listToolsFor incident with the fixture reporter and correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } }, { reportInternalError: fixture.reportInternalError });
     const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
     const { error } = JSON.parse(response.text) as { error: { requestId: string } };
-    const line = logged.mock.calls.map((args) => args.join(' ')).join('\n');
-    expect(line).toContain(`correlationId=${error.requestId}) Error`);
-    expect(line).not.toContain('boom');
-    expect(line).not.toContain('tool-execution-rpc.test.ts');
-    expect(line).not.toContain('SECRETSECRET');
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta).toMatchObject({ errorId: error.requestId, label: 'Error' });
+    expect(fixture.reports[0]?.context.incidentId).toBe(error.requestId);
+    expect(response.text).not.toContain('boom');
+    expect(response.text).not.toContain('tool-execution-rpc.test.ts');
+    expect(response.text).not.toContain('SECRETSECRET');
+    expect(JSON.stringify(fixture.entries)).not.toContain('SECRETSECRET');
   });
 });

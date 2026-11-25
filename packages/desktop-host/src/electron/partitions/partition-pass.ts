@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { PartitionFsPort } from './holder-registry.js';
 import { listCandidates } from './partition-root.js';
+import { isAmbiguousPartitionEligible } from './partition-inventory.js';
 import type { PartitionCandidate } from './partition-root.js';
 import { partitionDirName } from './profile-interlock.js';
 import type { PartitionInterlock, PartitionWriterContext } from './profile-interlock.js';
@@ -318,10 +319,14 @@ const keptBecause = (reason: string | undefined): ManualRemovalResult => {
 /** Pre-write checks for owner-confirmed removal, in order: claims readable, no other holders, not claimed, a real directory. `null` means proceed. */
 async function manualPreflight(S: Pass, partition: string): Promise<ManualRemovalResult | null> {
   if (!(await loadClaims(S))) return { state: 'kept', reason: 'unknown' };
+  const ledger = S.ledger.readStrict({}, {});
+  if (ledger.state === 'unknown') return { state: 'kept', reason: 'unknown' };
   if (S.others.length > 0) return { state: 'kept', reason: 'busy' };
-  if (S.claimed.has(partition)) return { state: 'kept', reason: 'protected' };
-  const stat = await lstatOr(S.fs, path.join(S.root, partition));
-  if (typeof stat === 'string' || stat.isSymbolicLink() || !stat.isDirectory()) return { state: 'kept', reason: 'missing' };
+  const claims = { state: 'ok' as const, claimed: [...S.claimed, ...S.held], otherInstances: S.others };
+  if (!isAmbiguousPartitionEligible({ partition, claims, ledger })) return { state: 'kept', reason: 'protected' };
+  const list = await listCandidates({ root: S.root, fs: S.fs, isManaged: S.isManaged });
+  if (list.state === 'unknown') return { state: 'kept', reason: 'unknown' };
+  if (!list.candidates.some(candidate => candidate.name === partition)) return { state: 'kept', reason: 'missing' };
   return null;
 }
 

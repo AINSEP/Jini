@@ -1,4 +1,3 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '../../index.js';
@@ -13,7 +12,7 @@ import {
   type RunStartContext,
 } from '../runs.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { readFrames } from './fakes/sse-reader.js';
 
@@ -24,7 +23,7 @@ function makeLifecycle(): RunLifecycle {
 }
 
 function makeDeps(overrides: Partial<RunHttpDeps> = {}): RunHttpDeps {
-  return { reportInternalError: reportRouteInternalError, lifecycle: makeLifecycle(), ...overrides };
+  return { reportInternalError: createRouteTestErrors().reportInternalError, lifecycle: makeLifecycle(), ...overrides };
 }
 
 beforeEach(() => {
@@ -341,17 +340,22 @@ describe('runStartRoute.handle', () => {
     expect(onInternalError.mock.calls[0]![0].error).toBe('raw string failure with a secret token abc123');
   });
 
-  it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('SEC-005: records one fixture incident with the correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const deps = makeDeps({
+      reportInternalError: fixture.reportInternalError,
       onStarted: () => {
         throw new Error('driver spawn failed');
       },
     });
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    consoleErrorSpy.mockRestore();
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
   });
 });
 
@@ -745,16 +749,19 @@ describe('run routes: one incident owner (log safety)', () => {
     expect(JSON.stringify(result.error)).not.toContain('SECRETSECRET');
   });
 
-  it('without a host sink the default line carries the class only', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => { });
-    try {
-      const deps = makeDeps({ onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
-      const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
-      if (result.ok) throw new Error('expected failure');
-      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (run-start, correlationId=${result.error.requestId})`, 'Error']]);
-      const printed = JSON.stringify(consoleError.mock.calls);
-      for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
-    } finally { consoleError.mockRestore(); }
+  it('the fixture reporter records one ERR id and keeps diagnostics out of the response', async () => {
+    const fixture = createRouteTestErrors();
+    const deps = makeDeps({ reportInternalError: fixture.reportInternalError, onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+    const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
+    expect(fixture.entries[0]?.meta?.label).toBe('Error');
+    const printed = JSON.stringify(result);
+    for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
   });
 });
 

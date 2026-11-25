@@ -16,7 +16,8 @@
  */
 import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
-import { injectedRecordingReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, injectedRecordingReporter } from './fakes/route-host.js';
+import type { RouteErrorPorts } from '@jini-ai/core/contracts/server';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import {
@@ -133,11 +134,10 @@ async function harness(
     store?: AttachmentStore;
     /** Told of every incident the host's injected reporter takes; a fresh recorder by default. */
     recordIncident?: ReturnType<typeof vi.fn>;
-    /** Leaves the injected recorder out, so the host's real reporter and its default log line answer. */
-    useDefaultErrorSink?: boolean;
+    errors?: RouteErrorPorts;
   } = {},
 ): Promise<Harness & { store: AttachmentStore; recordIncident: ReturnType<typeof vi.fn> }> {
-  const { useDefaultErrorSink, recordIncident = vi.fn(), ...depOverrides } = overrides;
+  const { errors, recordIncident = vi.fn(), ...depOverrides } = overrides;
   const store = overrides.store ?? (await diskStore()).store;
   const deps: AttachmentsHttpDeps = {
     store,
@@ -152,7 +152,7 @@ async function harness(
   // "body already drained" case below a genuine reproduction rather than a contrived one.
   app.use(express.json());
   const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-  mountAttachmentRoutes({ app, deps, adapter }, useDefaultErrorSink === true ? {} : { reportInternalError: injectedRecordingReporter({ record: recordIncident }) });
+  mountAttachmentRoutes({ app, deps, adapter: { ...adapter, ...(errors ? { errors } : {}) } }, errors ? {} : { reportInternalError: injectedRecordingReporter({ record: recordIncident }) });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
@@ -1819,9 +1819,9 @@ describe('attachment routes — origin guard throwing before either handler star
   });
 });
 
-describe('attachment routes — default internal-error sink', () => {
-  it('logs to console.error when no host sink is supplied', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+describe('attachment routes — recording host reporter', () => {
+  it('records one attachment incident with the owning fixture reporter and correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const { store: real } = await diskStore();
     const store: AttachmentStore = {
       ...real,
@@ -1829,15 +1829,18 @@ describe('attachment routes — default internal-error sink', () => {
         throw new Error('boom');
       },
     };
-    const { url } = await harness({ store, useDefaultErrorSink: true });
+    const { url } = await harness({ store, errors: fixture.errors });
 
     const response = await upload(url, { batch: 'batch-sink-1', name: 'a.txt' });
 
     expect(response.status).toBe(500);
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('internal error (attachment-upload, correlationId='),
-      'Error',
-    );
+    const body = await response.json() as { error: { requestId: string } };
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(body.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta).toMatchObject({ errorId: body.error.requestId, label: 'Error' });
+    expect(fixture.reports[0]?.context.incidentId).toBe(body.error.requestId);
+    expect(JSON.stringify(body)).not.toContain('boom');
   });
 });
 

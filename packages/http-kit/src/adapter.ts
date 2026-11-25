@@ -79,7 +79,7 @@ interface ExpressRouteCall<Input, Output, Deps, Context> {
   readonly spec: JsonRouteSpec<Input, Output, Deps, Context>;
   /** The deps given at mount; `serveExpressRoute` binds them to the request through `mountOptions.requestDeps`. */
   readonly mountedDeps: Deps;
-  readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps'>;
+  readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps' | 'preserveHostErrorRouting'>;
   readonly adapter: RouteHostContext | undefined;
   readonly onReturnedError: JsonRoutePorts<Deps, Context>['onReturnedError'];
   readonly signal: AbortSignal;
@@ -93,6 +93,7 @@ interface ExpressRouteCall<Input, Output, Deps, Context> {
 interface ExpressAnswer {
   readonly write: () => void;
   readonly verdict: OperationVerdict;
+  readonly forwarded?: { readonly error: unknown };
 }
 
 const COMPLETED: OperationVerdict = { outcome: 'completed', failed: false };
@@ -143,6 +144,7 @@ async function reporterServe<Input, Output, Deps, Context>(call: ExpressRouteCal
     classify: tagged => tagged.verdict,
     settle: error => disconnectVerdict({ signal: call.signal, error }),
   }, { audience: 'anonymous' });
+  if (run.ok && run.value.forwarded) throw run.value.forwarded.error;
   // A client that already went away gets nothing: a cancelled run, and equally a real failure
   // recorded after the disconnect, have nobody to answer.
   if ('cancelled' in run || call.signal.aborted) return;
@@ -179,6 +181,7 @@ function hostPolicyAnswer<Input, Output, Deps, Context>(
   try {
     onError({ res, error });
   } catch (policyError) {
+    if (call.mountOptions.preserveHostErrorRouting) return { verdict: FAILED, write: noWrite, forwarded: { error: policyError } };
     recordQuietly({ reporter: errors.reporter, error: policyError, step: 'Answer with host error policy' });
     throw error;
   }
@@ -218,6 +221,10 @@ function deliver<Input, Output, Deps, Context>({ call, write }: { readonly call:
     // before its gates, in merge order, so an admitted header still wins over a static one of the same name.
     write();
   } catch (writeError) {
+    if (!res.headersSent && call.mountOptions.preserveHostErrorRouting && spec.ports?.onError) {
+      spec.ports.onError({ res, error: writeError });
+      return;
+    }
     const { errorId } = recordQuietly({ reporter: errors.reporter, error: writeError, step: `Write ${spec.method.toUpperCase()} ${spec.path} response` });
     const id = errorId ?? UNAVAILABLE_ERROR_ID;
     const fallback = httpFallbackCopy({ method: spec.method });

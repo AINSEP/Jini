@@ -1,6 +1,6 @@
 /** ST-2c.J partition pass and owner-confirmed sign-in removal over in-memory ports. No Electron is loaded. */
 import { describe, expect, it } from 'vitest';
-import { createPartitionInterlock, createRetirementLedger, removeAmbiguousPartition, runPartitionPass } from '../index.js';
+import { createPartitionInterlock, createRetirementLedger, listAmbiguousPartitions, listCandidates, removeAmbiguousPartition, runPartitionPass } from '../index.js';
 import type { PartitionPassReport, RetirementRecord } from '../index.js';
 import { FakeClock, FakeScheduler, MemoryLock, MESSAGES } from './fakes.js';
 import { MemoryDurableJson, PassFs } from './pass-fakes.js';
@@ -278,6 +278,49 @@ describe('owner-confirmed sign-in removal', () => {
   const remove = (w: World, interlock: ReturnType<typeof proc>, c: unknown) => removeAmbiguousPartition({
     partition: `persist:${B}`, interlock, ledger: w.ledger, fs: w.fs, root: { isManaged }, newToken: w.token,
     confirmation: c as typeof confirmation,
+  });
+
+  it('a pending automatic retirement cannot be manually removed', async () => {
+    const w = world(), self = proc(w, 100);
+    const pending = retire(w, B);
+    const before = w.ledger.readStrict({}, {});
+    expect(await listAmbiguousPartitions({
+      readRoot: async () => ({ state: 'ok', root: ROOT }),
+      list: ({ root }) => listCandidates({ root, fs: w.fs, isManaged }),
+      readClaims: async () => ({ state: 'ok', claimed: [], otherInstances: [] }),
+      readLedger: () => w.ledger.readStrict({}, {}),
+    })).toEqual({ state: 'ok', candidates: [] });
+    expect(await remove(w, self, confirmation)).toEqual({ state: 'kept', reason: 'protected' });
+    expect(w.fs.files.get(`${ROOT}/${B}/Cookies`)).toBe('jar');
+    expect(w.ledger.readStrict({}, {})).toEqual(before);
+    expect(record(w)).toEqual([pending]);
+  });
+
+  it('holder or sibling appearing after confirmation keeps the partition', async () => {
+    for (const arrival of ['holder', 'sibling', 'tracked']) {
+      const w = world(), self = proc(w, 100);
+      const bytes = { Cookies: 'jar', 'Local Storage/leveldb/1': 'local', 'IndexedDB/x/1': 'indexed' };
+      w.fs.tree(`${ROOT}/${B}`, bytes);
+      let acquired: Promise<unknown> = Promise.resolve();
+      let fired = false;
+      w.fs.gate = async (op, target) => {
+        if (fired || op !== 'rename' || !target.startsWith(`${ASIDE}/${B}.`)) return;
+        fired = true;
+        if (arrival === 'tracked') w.tracked.names = [B];
+        else {
+          const sibling = proc(w, 200, { invalidates: false });
+          if (arrival === 'holder') {
+            acquired = sibling.acquireSiteSession({ partition: `persist:${B}`, subjectDir: '/sites/b' });
+            await ticks();
+          }
+        }
+      };
+      expect(await remove(w, self, confirmation)).toEqual({ state: 'kept', reason: 'protected' });
+      for (const [name, value] of Object.entries(bytes)) expect(w.fs.files.get(`${ROOT}/${B}/${name}`)).toBe(value);
+      expect(await w.fs.readdir({ path: ASIDE })).toEqual([]);
+      expect(record(w)[0]).toMatchObject({ basis: 'owner-dialog', state: 'invalidated' });
+      if (arrival === 'holder') await expect(acquired).resolves.toMatchObject({ state: 'held' });
+    }
   });
 
   it('manual sign-in removal without confirmation is refused', async () => {

@@ -10,7 +10,7 @@ import { createInMemoryEventLog, createRunLifecycle } from '../../index.js';
 import { attachmentLookupRoutes } from '../attachment-lookup-routes.js';
 import { createResearchSearchRoute } from '../research.js';
 import { runStartRoute } from '../runs.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
 interface ReporterCall { readonly required: { readonly report: { readonly error: unknown }; readonly logSource: string; readonly message: string }; readonly optional: unknown }
@@ -69,4 +69,22 @@ it('attachment lookup: one host report, no legacy sink, the host request ID in t
   expectNoLegacySink({ call: reporter.calls[0] });
   expect(((await response.json()) as { error: { requestId: string } }).error.requestId).toBe('injected-1');
   expect(legacySink).not.toHaveBeenCalled();
+});
+
+it('a fixture-host incident exposes the same ERR id it records and no cause', async () => {
+  const fixture = createRouteTestErrors();
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('PRIVATE-FIXTURE-CAUSE-CANARY');
+  const store = { resolveForRun: async () => { throw failure; }, listPendingForOwner: async () => [] };
+  const fetch = serveRoutes({ routes: attachmentLookupRoutes({ store, host: { ...host, context: { ...host.context, errors: fixture.errors }, reportInternalError: fixture.reportInternalError } }) });
+  const response = await fetch(jsonRequest({ path: '/internal/attachment-lookup', method: 'POST' }, { body: { op: 'resolveForRun', ref: 'r', runId: 'run-1' } }));
+  const body = await response.json() as { error: { requestId: string; message: string } };
+  expect(response.status).toBe(500);
+  expect(fixture.entries).toHaveLength(1);
+  expect(fixture.reports).toHaveLength(1);
+  expect(body.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+  expect(fixture.entries[0]?.meta?.errorId).toBe(body.error.requestId);
+  expect(fixture.reports[0]?.context.incidentId).toBe(body.error.requestId);
+  expect(body.error.message).toContain(body.error.requestId);
+  expect(JSON.stringify(body)).not.toContain('PRIVATE-FIXTURE-CAUSE-CANARY');
 });

@@ -7,6 +7,7 @@ import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 import { buildKernel, type KyselyKernel, TurnLock } from "../index.js";
 import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
 import { inheritOwnedTransaction } from "../owned-transaction.js";
+import { inheritIdleTurn } from "../idle-turn.js";
 
 /**
  * @file The better-sqlite3 driver: a kernel over an ALREADY OPEN SQLite connection the consumer
@@ -172,6 +173,7 @@ export function openSqliteFileKernel<DB>(
   };
   connectionsByKernel.set(owned as SqliteKernel<unknown>, client);
   inheritOwnedTransaction({ from: kernel as KyselyKernel<unknown>, to: owned as KyselyKernel<unknown> });
+  inheritIdleTurn({ from: kernel as KyselyKernel<unknown>, to: owned as KyselyKernel<unknown> });
   return owned;
 }
 

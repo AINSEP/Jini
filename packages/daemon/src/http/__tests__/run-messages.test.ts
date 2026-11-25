@@ -1,9 +1,8 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type UserMessageDelivery } from '../../index.js';
 import { runMessageRoute, runRoutes, type RunHttpDeps } from '../runs.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
 const testOriginPolicy = createRecordingOriginPolicy();
@@ -12,7 +11,7 @@ const testOriginPolicy = createRecordingOriginPolicy();
 const serve = (deps: RunHttpDeps) => serveRoutes({ routes: runRoutes({ deps, host: fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy }) }) });
 
 function makeDeps(deliver?: (input: { runId: string; text: string }) => UserMessageDelivery): RunHttpDeps {
-  return { reportInternalError: reportRouteInternalError, lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
+  return { reportInternalError: createRouteTestErrors().reportInternalError, lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
 }
 
 beforeEach(() => {
@@ -22,7 +21,7 @@ beforeEach(() => {
 describe('POST /api/runs/:runId/messages — a message sent while the run is going', () => {
   it('does not send text alone when the host has no explicit attachment delivery', async () => {
     const deliver = vi.fn((): UserMessageDelivery => 'delivered');
-    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver, reportInternalError: reportRouteInternalError };
+    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver, reportInternalError: createRouteTestErrors().reportInternalError };
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
     const result = await runMessageRoute.handle({ input: { runId: run.id, text: 'see screenshot', attachmentIds: ['attachment:1'] }, deps });
     expect(result).toMatchObject({ ok: false, error: { details: { delivery: 'unsupported' } } });

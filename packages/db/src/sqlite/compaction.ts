@@ -229,6 +229,9 @@ export async function incrementalVacuumStep(required: StepRequired, _optional: S
   if (!worthReclaiming({ db, before, ..._optional })) {
     return { status: 'skipped', reason: 'nothing-to-reclaim', message: COMPACTION_MESSAGES.nothingToReclaim, before };
   }
+  // The awaits above leave a gap in which a foreign `BEGIN` can open on the shared handle; the
+  // vacuum would then join that transaction. Re-check with no await before the pragma.
+  if (db.inTransaction) return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
   const started = mono();
   if (!runBoundedVacuum({ db, ..._optional })) return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
   const after = await measure({ db, filePath, io });

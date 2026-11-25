@@ -15,6 +15,7 @@ import {
 import type { DbTransport } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
 import { registerOwnedTransaction } from "./owned-transaction.js";
+import { registerIdleTurn, type IdleTurnControl } from "./idle-turn.js";
 
 /** An owned transaction's hook that runs before its turn is released. */
 interface OwnedTurn { onSettled?: () => void }
@@ -192,6 +193,31 @@ export function buildKernel<DB>({ driver }: { driver: KernelDriver<DB> }, _optio
     assertAvailable: () => assertOwnedAvailable({ rt }),
     transaction: (work, optional = {}) => transaction(work, optional),
   } });
+  registerIdleTurn({ kernel: kernel as KyselyKernel<unknown>, control: idleTurnControl({ rt }) });
   registerKernelSessionDatabase({ kernel: kernel as KyselyKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
   return kernel;
+}
+
+/**
+ * Admission for `withIdleTurn`. The turn lock is checked BEFORE the transaction state: an owned
+ * transaction holds the lock, so it is ordinary kernel work that clears by itself and answers
+ * "busy" (invariant I2). "transaction-open" is left for a transaction the kernel does not own —
+ * a raw `BEGIN` on the shared handle — which only the connection itself can reveal. A refusal
+ * after the lock was taken releases it before returning.
+ */
+function idleTurnControl<DB>({ rt }: { rt: KernelRuntime<DB> }): IdleTurnControl {
+  return {
+    tryTake() {
+      const { lock, scope } = rt;
+      if (lock === undefined) return { refusal: "unsupported" };
+      if (scope.getStore() !== undefined || heldLocks.getStore()?.has(lock) === true) return { refusal: "in-scope" };
+      if (!lock.tryAcquire("exclusive")) return { refusal: "busy" };
+      if (rt.own.transactions > 0 || rt.driver.foreignTransactionOpen?.() === true) {
+        lock.release("exclusive");
+        return { refusal: "transaction-open" };
+      }
+      return { release: () => lock.release("exclusive") };
+    },
+    runHeld: (body) => heldLocks.run(new Set([...(heldLocks.getStore() ?? []), ...(rt.lock ? [rt.lock] : [])]), body),
+  };
 }

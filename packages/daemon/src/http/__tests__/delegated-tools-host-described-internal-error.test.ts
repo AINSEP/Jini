@@ -1,6 +1,5 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { injectedRecordingReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, injectedRecordingReporter } from './fakes/route-host.js';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -56,11 +55,12 @@ function requestIdOf(result: Awaited<ReturnType<typeof callRoute>>['result']): s
 }
 
 describe('delegated tool route: describeInternalError (host-supplied model-safe text for the 500)', () => {
-  it.each([false, true])('redacts the default failure log while retaining request IDs; a throwing describer adds no console line (describer=%s)', async (describerThrows) => {
+  it.each([false, true])('records one redacted fixture incident with its ERR id; a throwing describer adds no console line (describer=%s)', async (describerThrows) => {
     const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
     const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
     const executor = { ...throwingExecutor(), execute: async () => { throw failure; } };
-    const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
+    const fixture = createRouteTestErrors();
+    const deps: DelegatedToolsHttpDeps = { reportInternalError: fixture.reportInternalError,
       lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
       toolExecutor: executor,
       resolvePrincipal: () => PRINCIPAL,
@@ -71,13 +71,16 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     try {
       const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-log', toolId: 'broken' }, deps });
       const requestId = requestIdOf(result);
-      expect(log).toHaveBeenCalledTimes(1);
-      for (const line of log.mock.calls) {
-        const output = line.map(String).join(' ');
-        expect(output).toContain(requestId);
-        expect(output).not.toContain('UPSTREAM_FAILED');
-        for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
-        expect(output).toContain('ECONNREFUSED');
+      expect(log).not.toHaveBeenCalled();
+      expect(fixture.entries).toHaveLength(1);
+      expect(fixture.reports).toHaveLength(1);
+      expect(requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+      expect(fixture.entries[0]?.meta).toMatchObject({ errorId: requestId, label: 'Error(ECONNREFUSED)' });
+      expect(fixture.reports[0]?.context.incidentId).toBe(requestId);
+      expect(JSON.stringify(result)).not.toContain('UPSTREAM_FAILED');
+      for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) {
+        expect(JSON.stringify(fixture.entries)).not.toContain(value);
+        expect(JSON.stringify(result)).not.toContain(value);
       }
     } finally { log.mockRestore(); }
   });
