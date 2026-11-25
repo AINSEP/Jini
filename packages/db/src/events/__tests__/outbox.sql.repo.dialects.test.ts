@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { afterAll, describe, test } from "vitest";
-import type { DomainEvent } from "@jini-ai/core/contracts/events";
+import type { AttributedDomainEvent, DomainEvent } from "@jini-ai/core/contracts/events";
 import { sql } from "kysely";
 import type { KyselyKernel } from "../../kernel/port.js";
-import { outboxEventValues, SqlOutboxAdapter } from "../outbox-repo.sql.js";
+import { preparedOutboxEvent, outboxEventValues, SqlOutboxAdapter } from "../outbox-repo.sql.js";
 import { SqlChangeSetRepo } from "../change-set-repo.sql.js";
 import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
 
@@ -44,8 +44,8 @@ describe.each(["sqlite", "postgres"] as const)("outbox sql adapter [%s]", (diale
     const attributed: DomainEvent = { ...event("e-agent"), actorId: "agent-7", actor: { id: "agent-7", kind: "agent" }, changeSetId: "cs-1" };
     await outbox.enqueue(attributed);
     const repo = new SqlChangeSetRepo({ kernel, tables: TABLES }, {});
-    const viaChangeSet: DomainEvent = { ...attributed, id: "e-system", actorId: "sys-1", actor: { id: "sys-1", kind: "system" } };
-    await repo.insert({ record: { id: "cs-1", workspaceId: "ws-1", status: "applied", summary: "s", createdAt: T0 }, items: [] }, { event: viaChangeSet });
+    const viaChangeSet: AttributedDomainEvent = { ...attributed, id: "e-system", actorId: "sys-1", actor: { id: "sys-1", kind: "system" } };
+    await repo.insert({ record: { id: "cs-1", workspaceId: "ws-1", actorId: "sys-1", actor: { id: "sys-1", kind: "system" }, status: "applied", summary: "s", createdAt: T0 }, items: [] }, { event: viaChangeSet });
     const claimed = await outbox.claimPending({ batchSize: 5, nowIso: T0 });
     assert.deepEqual(claimed.map((row) => row.event).sort((a, b) => a.id.localeCompare(b.id)), [attributed, viaChangeSet]);
     await assert.rejects(outbox.enqueue({ ...attributed, id: "e-bad", actorId: "user-1" }), /actor/);
@@ -146,4 +146,30 @@ describe.each(["sqlite", "postgres"] as const)("outbox sql adapter [%s]", (diale
     await kernel.transaction(async () => outbox.enqueue(event("committed")));
     assert.deepEqual((await rows()).map((row) => row.id), ["committed"]);
   });
+});
+
+test("an envelope preparation hook cannot erase or replace a stamped actor", () => {
+  const actor = { id: 'writer', kind: 'agent' } as const;
+  const original: DomainEvent = { ...event('stamped'), actor, actorId: actor.id };
+  const saved = structuredClone(original);
+  const prepared = preparedOutboxEvent({ event: original }, { prepareOutboxEvent: ({ event: input }) => {
+    input.id = 'replaced';
+    input.workspaceId = 'other';
+    input.occurredAt = '2030-01-01';
+    if (input.actor) { input.actor.id = 'forged'; input.actor.kind = 'system'; }
+    input.actorId = 'forged';
+    return { ...input, payload: { prepared: true }, metadata: { prepared: true }, actor: { id: 'forged', kind: 'system' } };
+  } });
+  assert.deepEqual(original, saved);
+  assert.deepEqual(prepared, { ...saved, payload: { prepared: true }, metadata: { prepared: true } });
+  const erased = preparedOutboxEvent({ event: original }, { prepareOutboxEvent: ({ event: input }) => {
+    const { actor: _actor, actorId: _actorId, ...envelope } = input;
+    return envelope;
+  } });
+  assert.deepEqual(erased, saved);
+  const legacy = event('legacy');
+  const injected = preparedOutboxEvent({ event: legacy }, { prepareOutboxEvent: ({ event: input }) => ({ ...input, actor, actorId: actor.id }) });
+  assert.deepEqual(injected, legacy);
+  assert.equal(Object.hasOwn(injected, 'actor'), false);
+  assert.equal(Object.hasOwn(injected, 'actorId'), false);
 });

@@ -405,7 +405,7 @@ describe('SourceConfigItemCard', () => {
 
     it('declares an explicit text color on the Edit/Save/Cancel toggle buttons, so a host page that resets bare <button> color to its own accent-ink cannot render them invisible', () => {
       // Regression: `.source-config-item-card-edit-toggle button` shipped with no `color` at all,
-      // unlike its sibling rules (`.source-config-item-card-actions button, select` and
+      // unlike its sibling rules (`.jini-ui-source-config-item-card-actions button, select` and
       // `.source-config-test-button`, both of which set `color: var(--jini-text)`). A host's own admin
       // design system has a global `button { ...; color: var(--primary-ink); }` base rule (an
       // off-white ink meant to sit on that rule's own colored `background`) that is MORE specific
@@ -464,8 +464,17 @@ describe('SourceConfigItemCard without the trust pair (SourceTrustSelectorProps)
   it('renders with neither trustOptions nor onTrustChange, even when the host can set trust', () => {
     const { onTrustChange: _unused, trustOptions: _none, ...withoutTrust } = baseProps();
     const { container } = render(<SourceConfigItemCard {...withoutTrust} capabilities={FULL_CAPS} />);
-    expect(container.querySelector('.source-config-item-card')).not.toBeNull();
+    expect(container.querySelector('.jini-ui-source-config-item-card')).not.toBeNull();
     expect(screen.queryByLabelText(/Trust level for/)).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
   });
+});
+
+it('the expanded source configuration retains its private selectors', async () => {
+  const { container } = render(<SourceConfigItemCard {...baseProps()} />);
+  await userEvent.click(screen.getByRole('button', { name: /https:\/\/a.example/ }));
+  expect(container.querySelector('.jini-ui-source-config-item-card')).toHaveClass('is-expanded');
+  for (const node of container.querySelectorAll('[class]')) {
+    for (const token of node.classList) if (token.startsWith('jini-ui-source-config-')) expect(CSS).toContain(`.${token}`);
+  }
 });

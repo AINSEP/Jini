@@ -6,6 +6,7 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
  */
 
 export interface PublishRunResultProps {
+  readonly classes: { readonly success: string; readonly error: string };
   run: {
     status: 'idle' | 'running' | 'completed' | 'errored';
     result?: { ok: true; url: string } | { ok: false; message: string };
@@ -18,7 +19,7 @@ export interface PublishRunResultProps {
 }
 
 /** A publish run's completed/errored detail — the live URL on success, or the failure message. */
-export function PublishRunResult({ run, publishedLabel, linkLabel, linkHandle }: PublishRunResultProps) {
+export function PublishRunResult({ run, publishedLabel, linkLabel, linkHandle, classes }: PublishRunResultProps) {
   if (run.status !== "completed" && run.status !== "errored") return null;
   // `result` can be present at EITHER terminal status — `publish-site.ts`'s own trigger route maps
   // ANY `publishStaticSite` outcome with `ok: false` (bad config, no credential, a rejected provider
@@ -30,13 +31,13 @@ export function PublishRunResult({ run, publishedLabel, linkLabel, linkHandle }:
   if (run.result) {
     if (!run.result.ok) {
       return (
-        <p className="save-error" role="alert">
+        <p className={classes.error} role="alert">
           {run.result.message}
         </p>
       );
     }
     return (
-      <p className="save-ok">
+      <p className={classes.success}>
         {publishedLabel}{" "}
         <a
           href={run.result.url}
@@ -51,7 +52,7 @@ export function PublishRunResult({ run, publishedLabel, linkLabel, linkHandle }:
     );
   }
   if (run.error) {
-    return <p className="save-error" role="alert">{run.error}</p>;
+    return <p className={classes.error} role="alert">{run.error}</p>;
   }
   return null;
 }

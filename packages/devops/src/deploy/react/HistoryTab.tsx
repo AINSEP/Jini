@@ -20,6 +20,7 @@ import type { AgentHandleOptions, AgentHandleProps } from "@jini-ai/core/agent-h
  * imply a capability this instance does not have.
  */
 export interface HistoryTabProps {
+  readonly classes: { readonly tab: string; readonly card: string; readonly empty: string; readonly mark: string; readonly title: string; readonly body: string; readonly secondaryButton: string };
   useAdminLocaleHook: (
     required: Record<string, never>, optional?: Record<string, never>,
   ) => string;
@@ -31,19 +32,19 @@ export interface HistoryTabProps {
   ) => AgentHandleProps;
 }
 
-export function HistoryTab({ useAdminLocaleHook, t, historyIcon, publishHref, agentHandle }: HistoryTabProps) {
+export function HistoryTab({ useAdminLocaleHook, t, historyIcon, publishHref, agentHandle, classes }: HistoryTabProps) {
   const locale = useAdminLocaleHook({});
   return (
-    <div className="deployment-tab">
+    <div className={classes.tab}>
       <div
-        className="card"
+        className={classes.card}
         {...agentHandle({ handle: "deployment-history-empty" }, {
           role: "region",
           label: "No deploys yet — history has nothing to show because no host is wired up to deploy from",
         })}
       >
-        <div className="deployment-empty">
-          <span className="deployment-empty-mark">
+        <div className={classes.empty}>
+          <span className={classes.mark}>
             {historyIcon}
           </span>
           {/* A real `<h2>`, not a styled `<p>`: this is the only heading in the tab's region, and a
@@ -51,12 +52,12 @@ export function HistoryTab({ useAdminLocaleHook, t, historyIcon, publishHref, ag
               structure entirely (confirmed live — this tab's heading list was `H1` and nothing
               else). `.deployment-empty-title` supplies the size, so the element choice is free to
               be the semantically correct one. */}
-          <h2 className="deployment-empty-title">{t({ locale: locale, key: "No deploys yet" })}</h2>
-          <p className="deployment-empty-body">
+          <h2 className={classes.title}>{t({ locale: locale, key: "No deploys yet" })}</h2>
+          <p className={classes.body}>
             {t({ locale: locale, key: "Nothing has been deployed from this screen — and nothing can be yet. Once a host is wired up, every build and deploy will be listed here with its outcome." })}
           </p>
           <a
-            className="btn-secondary"
+            className={classes.secondaryButton}
             href={publishHref}
             {...agentHandle({ handle: "deployment-history-publish-link" }, {
               role: "link",

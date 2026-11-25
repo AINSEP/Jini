@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.js";
 /**
  * @file "Soon" Agent Plugins are locked off (owner, 2026-11-10). The owner has not tested them and does
  * not want anyone trying them, so nothing may switch one on: the admin switch, `plugins_set_enabled`,
@@ -31,7 +32,7 @@ export class AgentPluginNotReadyError extends Error {
 /** The manifest's maturity flag wins; an unflagged plugin on the host's list reads "soon".
  *  Jini's reader takes no plugin id, so the host list is applied here, not in `identity.ts`.
  *  @complexity O(1). */
-export function readHostPluginMaturity({ manifest, pluginId, hostSoonPluginIds }: { manifest: unknown; pluginId: string; hostSoonPluginIds: ReadonlySet<string> }, options: { warn?: (message: string) => void } = {}): PluginMaturity | undefined {
+export function readHostPluginMaturity({ manifest, pluginId, hostSoonPluginIds }: { manifest: unknown; pluginId: string; hostSoonPluginIds: ReadonlySet<string> }, options: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> & { warn?: (message: string) => void } = {}): PluginMaturity | undefined {
   return readPluginMaturity({ manifest }, options) ?? (hostSoonPluginIds.has(pluginId) ? "soon" : undefined);
 }
 
@@ -51,25 +52,25 @@ export interface SoonCatalogPort<P extends SoonPlugin = SoonPlugin> {
  */
 export async function findSoonAgentPlugin<P extends SoonPlugin>(
   { catalog, workspaceRoot, pluginId, hostSoonPluginIds }: { catalog: SoonCatalogPort<P>; workspaceRoot: string; pluginId: string; hostSoonPluginIds: ReadonlySet<string> },
-  _optional: Record<string, never> = {},
+  optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): Promise<{ readonly name: string } | undefined> {
   const revisions = (await catalog.list({ workspaceRoot })).filter(plugin => plugin.pluginId === pluginId);
   const name = revisions.find(plugin => plugin.displayName)?.displayName ?? pluginId;
-  if (revisions.length === 0) return readHostPluginMaturity({ manifest: undefined, pluginId, hostSoonPluginIds }) === "soon" ? { name } : undefined;
+  if (revisions.length === 0) return readHostPluginMaturity({ manifest: undefined, pluginId, hostSoonPluginIds }, optional) === "soon" ? { name } : undefined;
   for (const plugin of revisions) {
     const manifest: unknown = await orFallback({
       work: async () => JSON.parse(await catalog.readManifest({ plugin })),
       fallback: undefined,
       step: "read plugin maturity manifest",
     });
-    if (readHostPluginMaturity({ manifest, pluginId, hostSoonPluginIds }) === "soon") return { name };
+    if (readHostPluginMaturity({ manifest, pluginId, hostSoonPluginIds }, optional) === "soon") return { name };
   }
   return undefined;
 }
 
 /** @throws {AgentPluginNotReadyError} `pluginId` is a Soon plugin. @complexity As {@link findSoonAgentPlugin}. */
-export async function assertAgentPluginReady<P extends SoonPlugin>(required: { catalog: SoonCatalogPort<P>; workspaceRoot: string; pluginId: string; hostSoonPluginIds: ReadonlySet<string> }, _optional: Record<string, never> = {}): Promise<void> {
-  const soon = await findSoonAgentPlugin(required);
+export async function assertAgentPluginReady<P extends SoonPlugin>(required: { catalog: SoonCatalogPort<P>; workspaceRoot: string; pluginId: string; hostSoonPluginIds: ReadonlySet<string> }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): Promise<void> {
+  const soon = await findSoonAgentPlugin(required, optional);
   if (soon) throw new AgentPluginNotReadyError({ pluginId: required.pluginId, name: soon.name });
 }
 
@@ -88,11 +89,11 @@ export async function lockSoonAgentPlugins<P extends SoonPlugin>(
     workspaceRoot: string;
     hostSoonPluginIds: ReadonlySet<string>;
   },
-  _optional: Record<string, never> = {},
+  optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): Promise<readonly string[]> {
   const switched: string[] = [];
   for (const pluginId of new Set((await catalog.list({ workspaceRoot })).map(plugin => plugin.pluginId))) {
-    if (!(await findSoonAgentPlugin({ catalog, workspaceRoot, pluginId, hostSoonPluginIds }))) continue;
+    if (!(await findSoonAgentPlugin({ catalog, workspaceRoot, pluginId, hostSoonPluginIds }, optional))) continue;
     if ((await activations.resolveAgentPluginActivation({ workspaceRoot, pluginId })).verdict === "inactive") continue;
     await activations.setAgentPluginActivation({ workspaceRoot, pluginId, enabled: false, actor: SOON_LOCK_ACTOR });
     switched.push(pluginId);

@@ -94,7 +94,7 @@ export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigA
 
   return (
     <form
-      className="source-config-add-form"
+      className="jini-ui-source-config-add-form"
       {...sourceConfigAgentProps({ base: agentHandle, role: 'form', label: submitLabel })}
       onSubmit={(event) => {
         event.preventDefault();
@@ -142,8 +142,8 @@ function AddFormTrustSelect({ useTHook = useT, ...props }: SourceConfigAddFormPr
   const { trustOptions, trust, submitting, onTrustChange, agentHandle } = props;
   const trustLabel = t('Trust level');
   return (
-    <label className="source-config-field" htmlFor="source-config-add-form-trust">
-      <span className="source-config-field-label">{trustLabel}</span>
+    <label className="jini-ui-source-config-field" htmlFor="source-config-add-form-trust">
+      <span className="jini-ui-source-config-field-label">{trustLabel}</span>
       <select
         id="source-config-add-form-trust"
         value={trust ?? ''}

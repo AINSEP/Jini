@@ -42,7 +42,7 @@ describe("TabBar — render", () => {
     render(<TabBar tabs={tabs} activeId="a" onChange={vi.fn()} ariaLabel="My tabs" />);
 
     expect(screen.getByTestId("tab-a-icon")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Tab B" }).querySelector(".tab-bar-icon")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tab B" }).querySelector(".jini-ui-tab-bar-icon")).not.toBeInTheDocument();
   });
 
   it("renders a count badge only when count is defined", () => {
@@ -55,8 +55,8 @@ describe("TabBar — render", () => {
     // The count renders as visible text inside the button, so it's part of the tab's own
     // accessible name ("Tab A3") — matched by substring here rather than asserting the exact
     // concatenated string, which is an implementation detail of the DOM order, not the contract.
-    expect(screen.getByRole("tab", { name: /Tab A/ }).querySelector(".tab-bar-count")).toHaveTextContent("3");
-    expect(screen.getByRole("tab", { name: "Tab B" }).querySelector(".tab-bar-count")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Tab A/ }).querySelector(".jini-ui-tab-bar-count")).toHaveTextContent("3");
+    expect(screen.getByRole("tab", { name: "Tab B" }).querySelector(".jini-ui-tab-bar-count")).not.toBeInTheDocument();
   });
 
   it("renders an empty tablist without crashing when there are no tabs (empty-state edge case)", () => {

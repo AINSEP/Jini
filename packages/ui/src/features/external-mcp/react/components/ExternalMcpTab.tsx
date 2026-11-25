@@ -83,15 +83,15 @@ export function ExternalMcpTab({
 
   const draftTestResultProps = list.testResults[DRAFT_TEST_SCOPE] ? { testResult: list.testResults[DRAFT_TEST_SCOPE] } : {};
   return (
-    <section className="external-mcp-tab">
-      <div className="external-mcp-head">
+    <section className="jini-ui-external-mcp-tab">
+      <div className="jini-ui-external-mcp-head">
         <div>
           <h3>{t('External MCP servers')}</h3>
-          <p className="external-mcp-subtitle">{t('Third-party tools for your coding agent.')}</p>
+          <p className="jini-ui-external-mcp-subtitle">{t('Third-party tools for your coding agent.')}</p>
         </div>
         <button
           type="button"
-          className="external-mcp-add-button"
+          className="jini-ui-external-mcp-add-button"
           onClick={() => setFormOpen((open) => !open)}
           aria-expanded={formOpen}
         >
@@ -101,7 +101,7 @@ export function ExternalMcpTab({
       </div>
 
       {banner ? (
-        <div className="external-mcp-banner" role="alert">
+        <div className="jini-ui-external-mcp-banner" role="alert">
           {t(banner)}
         </div>
       ) : null}
@@ -126,7 +126,7 @@ export function ExternalMcpTab({
       ) : null}
 
       {list.loading ? (
-        <div className="source-config-list-loading" role="status">
+        <div className="jini-ui-source-config-list-loading" role="status">
           {t('Loading…')}
         </div>
       ) : (
@@ -153,16 +153,16 @@ function ExternalMcpSources({
   const t = useTHook();
   if (list.sources.length === 0) {
     return (
-      <div className="external-mcp-empty">
-        <p className="external-mcp-empty-title">{t('No MCP servers configured.')}</p>
-        <p className="external-mcp-empty-hint">
+      <div className="jini-ui-external-mcp-empty">
+        <p className="jini-ui-external-mcp-empty-title">{t('No MCP servers configured.')}</p>
+        <p className="jini-ui-external-mcp-empty-hint">
           {t('Click "Add server" to get started — pick a template or set up a custom stdio / HTTP server.')}
         </p>
       </div>
     );
   }
   return (
-    <div className="source-config-list-items">
+    <div className="jini-ui-source-config-list-items">
       {list.sources.map((source) => (
         <SourceConfigItemCard
           key={source.id}
@@ -196,10 +196,10 @@ function ExternalMcpFooter({ saveStatusLabel, configPath, useTHook = useT }: {
   const t = useTHook();
   if (!saveStatusLabel) return null;
   return (
-    <div className="external-mcp-footer">
-      <span className="external-mcp-save-pill">{t(saveStatusLabel)}</span>
+    <div className="jini-ui-external-mcp-footer">
+      <span className="jini-ui-external-mcp-save-pill">{t(saveStatusLabel)}</span>
       {configPath ? (
-        <span className="external-mcp-stored-at">
+        <span className="jini-ui-external-mcp-stored-at">
           {t('Stored at')} <code>{configPath}</code>
         </span>
       ) : null}

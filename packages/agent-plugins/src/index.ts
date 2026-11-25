@@ -11,4 +11,4 @@ export {
   validatePluginManifest,
   validateMcpManifest,
 } from './manifest.js';
-export type { McpManifest, McpServerEntry, PluginManifest } from './manifest.js';
+export type { AgentPluginIdentityReadOptions, LegacyAgentPluginIdentity, McpManifest, McpServerEntry, PluginManifest } from './manifest.js';

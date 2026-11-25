@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from '../core/identity-namespace.js';
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { parsePluginCredentialCards } from '../lifecycle/credential-card-metadata.js';
 import type { PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
@@ -7,10 +8,14 @@ import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 export { parsePluginCredentialCards, parseCredentialCardUsedFor } from '../lifecycle/credential-card-metadata.js';
 
 /** Reuse Jini's active, trusted-package gate and contained manifest read. */
-export const credentialCardsContribution: PluginContributionDefinition<PluginCredentialCard, PluginCredentialCard> = {
+export function createCredentialCardsContribution(required: Pick<AgentPluginIdentityReadOptions, "legacyIdentity">, _optional: Record<string, never> = {}): PluginContributionDefinition<PluginCredentialCard, PluginCredentialCard> {
+  return {
   filename: 'plugin.json', contribution: 'credential cards', kind: 'data',
-  parse: input => parsePluginCredentialCards(input), load: ({ descriptor, plugin }) => ({ ...descriptor, pluginId: plugin.pluginId }),
+  parse: input => parsePluginCredentialCards(input, required), load: ({ descriptor, plugin }) => ({ ...descriptor, pluginId: plugin.pluginId }),
 };
+}
+
+export const credentialCardsContribution = createCredentialCardsContribution({});
 
 /** Preserve mail objects and ordering; duplicate targets retain mail priority, while conflicting
  * API label owners are all refused. O(cards) time and space; no persistent ownership registry.

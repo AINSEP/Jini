@@ -1,3 +1,4 @@
+import type { PluginManifestReadOptions } from "../plugin-format.js";
 /** Retained byte admission extends the ordered loader; no second activation or trust store. */
 import { snapshotSitePluginPackage } from './install.js';
 import { verifyPluginSnapshotIntegrity } from './module-snapshot.js';
@@ -37,7 +38,7 @@ function retainedAsset(path: string, bytes: Uint8Array, digest: string, contentT
  */
 export async function admitBrowserProviderAssets(
   { record, manifest, pluginRoot, approvals }: { record: PluginDiscoveryRecord; manifest: PluginManifest; pluginRoot: string; approvals: readonly BundledBrowserProviderApproval[] },
-  _options: Record<string, never> = {},
+  options: PluginManifestReadOptions = {},
 ): Promise<BrowserProviderAdmissionResult> {
   if (validateBrowserProviders({ browserProviders: manifest.browserProviders, integrity: manifest.integrity }).length) return { admitted: false, reason: 'BROWSER_PROVIDER_INVALID' };
   const approval = approvals.find((approval) => approval.pluginId === record.id && approval.version === manifest.version);
@@ -46,7 +47,7 @@ export async function admitBrowserProviderAssets(
   if (Object.keys(manifest.integrity).length !== Object.keys(approval.integrity).length || Object.entries(approval.integrity).some(([file, digest]) => manifest.integrity[file] !== digest)) return { admitted: false, reason: 'INTEGRITY_FAILED' };
   try {
     const files = await snapshotSitePluginPackage({ sourceDir: pluginRoot });
-    verifyPluginSnapshotIntegrity({ files, integrity: approval.integrity });
+    verifyPluginSnapshotIntegrity({ files, integrity: approval.integrity }, options);
     const providers = (manifest.browserProviders ?? []).map((declaration): AdmittedBrowserProvider => {
       const paths = [declaration.javascript, ...(declaration.stylesheet ? [declaration.stylesheet] : [])];
       const assets = paths.map((file) => retainedAsset(file, files.get(file)!, approval.integrity[file]!, file.endsWith('.css') ? 'text/css' : 'text/javascript'));

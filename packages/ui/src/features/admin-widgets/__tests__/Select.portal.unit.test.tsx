@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen } from "../../../__tests__/ui-kit-render-support.js";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -231,4 +232,24 @@ describe("Select portal ownership", () => {
     expect(screen.getByRole("button", { name: "elsewhere" })).toHaveFocus();
     expect(onChange).not.toHaveBeenCalled();
   });
+});
+
+it("a keyboard-opened Select paints its portalled option panel", async () => {
+  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8")
+    + readFileSync(new URL("../styles/admin-widgets.css", import.meta.url), "utf8");
+  const user = userEvent.setup();
+  const { container } = render(<Select value="a" onChange={vi.fn()} options={OPTIONS} aria-label="Pick one" />);
+  screen.getByRole("combobox").focus();
+  await user.keyboard("{ArrowDown}");
+  const panel = screen.getByRole("listbox").parentElement!;
+  expect(panel.parentElement).toBe(document.body);
+  expect(container.contains(panel)).toBe(false);
+  expect(panel).toHaveFocus();
+  expect(panel).toHaveClass("jini-ui-select-panel");
+  for (const token of ["jini-ui-select-trigger", "jini-ui-select-panel", "jini-ui-select-list", "jini-ui-select-option", "jini-ui-select-option-check"]) {
+    expect(document.querySelector(`.${token}`)).not.toBeNull();
+    expect(css).toContain(`.${token}`);
+  }
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("combobox")).toHaveFocus();
 });

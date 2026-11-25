@@ -1,8 +1,9 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { withFileLock } from "@jini-ai/platform/fs/file-lock";
 import * as nativeFilesystem from "node:fs/promises";
 import { test, expect } from 'vitest';
 import { validatePluginManifest, validateMcpManifest, isPluginManifest, isMcpManifest } from '../index.js';
-import { createAgentPluginLifecycle, createAgentPluginLayout, parseAgentPluginManifest, fetchAgentPluginArchive, legacyAgentPluginMetadataWarning } from '../lifecycle/index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout, parseAgentPluginManifest, fetchAgentPluginArchive } from '../lifecycle/index.js';
 import { nativeEffectsFixture } from '../lifecycle/__tests__/fixtures/native-effects.js';
 import { ports } from '../lifecycle/__tests__/test-support.js';
 import { mkdtemp } from 'node:fs/promises';
@@ -26,16 +27,16 @@ test('identity namespace injection preserves the legacy plugin format and select
       example: { id: 'example/toolkit', provides: ['deploy-target:fly'] },
     },
   };
-  expect(parseAgentPluginManifest({ value })).toMatchObject({
-    ok: true, manifest: { id: 'legacy/toolkit', provides: ['source-control'] }, warnings: [legacyAgentPluginMetadataWarning],
+  expect(parseAgentPluginManifest({ value }, { legacyIdentity: fixtureLegacyIdentity })).toMatchObject({
+    ok: true, manifest: { id: 'legacy/toolkit', provides: ['source-control'] }, warnings: [fixtureLegacyIdentity.warning],
   });
-  expect(parseAgentPluginManifest({ value }, { identityNamespace: 'example' })).toMatchObject({
+  expect(parseAgentPluginManifest({ value }, { legacyIdentity: fixtureLegacyIdentity, identityNamespace: 'example' })).toMatchObject({
     ok: true, manifest: { id: 'example/toolkit', provides: ['deploy-target:fly'] }, warnings: [],
   });
   const invalid = { ...value, extensions: { ...value.extensions, example: { id: 'invalid' } } };
   expect(validatePluginManifest({ value: invalid })).toBe(true);
   expect(validatePluginManifest({ value: invalid }, { identityNamespace: 'example' })).toBe(false);
-  expect(parseAgentPluginManifest({ value: invalid }, { identityNamespace: 'example' })).toEqual({
+  expect(parseAgentPluginManifest({ value: invalid }, { legacyIdentity: fixtureLegacyIdentity, identityNamespace: 'example' })).toEqual({
     ok: false, errors: ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'],
   });
 });
@@ -45,7 +46,7 @@ test('strict parser preserves standard author objects and legacy author strings'
   for (const value of [author, 'Example']) {
     const result = parseAgentPluginManifest({ value: {
       $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'toolkit', author: value,
-    } });
+    } }, { legacyIdentity: fixtureLegacyIdentity });
     expect(result).toMatchObject({ ok: true, manifest: { author: value } });
   }
 });

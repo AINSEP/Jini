@@ -66,6 +66,12 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
   metadata?: Record<string, unknown>;
 }
 
+export type AttributedDomainEvent<T = Record<string, unknown>> =
+  Omit<DomainEvent<T>, "actor" | "actorId"> & {
+    actor: MutationActor;
+    actorId: MutationActor["id"];
+  };
+
 /**
  * Event bus abstraction used by the application layer.
  *

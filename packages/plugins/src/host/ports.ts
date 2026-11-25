@@ -1,3 +1,4 @@
+import type { PluginManifestReadOptions } from "./plugin-format.js";
 /** Host contracts only. No product SDK, content-type implementation or executable importer lives here. */
 import type { PluginManifest, PluginValidationError } from './manifest-types.js';
 import type { PluginDiscoveryRecord } from './discovery-types.js';
@@ -32,7 +33,7 @@ export interface DeclarativeContentTypesPort {
   plan(required: { ports: Pick<DeclaredContentTypePorts, 'findByKey'>; workspaceId: string; decls: readonly DeclaredContentType[] }, optional?: Record<string, never>): Promise<DeclaredContentTypePlan>;
   apply(required: { ports: DeclaredContentTypePorts; workspaceId: string; pluginId: string; plan: DeclaredContentTypePlan }, optional?: Record<string, never>): Promise<unknown>;
 }
-export interface ManifestHostPorts<H extends HookPoints = HookPoints> {
+export interface ManifestHostPorts<H extends HookPoints = HookPoints> extends PluginManifestReadOptions {
   /** Host-owned namespace containing publisher id/provides in persisted manifest extensions. */
   readonly identityNamespace: string;
   readonly legacyIdentityNamespace?: string;

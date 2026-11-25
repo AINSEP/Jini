@@ -30,7 +30,7 @@ import path from "node:path";
 import { readAtMost, readNoFollowFlags } from "./open-flags.js";
 import { isPluginRelativePath } from "../browser-providers.js";
 import type { PluginDiscoveryRecord } from "../discovery-types.js";
-import { PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
+import { pluginManifestFilenames, type PluginManifestReadOptions } from "../plugin-format.js";
 import { sitePluginRoot } from "./discovery.js";
 
 /** Every packaged file is opened read-only and without following a final-component symlink. */
@@ -291,8 +291,8 @@ export interface SitePluginPackage {
 }
 
 /** The manifest discovery reads (current name first, then the legacy alias), or `undefined`. */
-async function presentManifestName(rootReal: string): Promise<string | undefined> {
-  for (const name of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+async function presentManifestName(rootReal: string, optional: PluginManifestReadOptions = {}): Promise<string | undefined> {
+  for (const name of pluginManifestFilenames({}, optional)) { // legacy alias
     if (await lstat(path.join(rootReal, name)).then(() => true, (error: unknown) => errnoCode(error) === "ENOENT" ? false : Promise.reject(error))) return name;
   }
   return undefined;
@@ -312,17 +312,17 @@ async function presentManifestName(rootReal: string): Promise<string | undefined
  */
 export async function listSitePluginPackage(
   required: { installDir: string; record: PluginDiscoveryRecord },
-  _optional: Record<string, never> = {},
+  optional: PluginManifestReadOptions = {},
 ): Promise<SitePluginPackage> {
   const { installDir, record } = required;
   const { manifest } = record;
   if (record.source !== "site" || record.status !== "valid" || manifest === undefined) {
     throw new PluginPackagePathError(`'${record.id}' is not a valid installed site plugin`);
   }
-  const integrity = Object.entries(manifest.integrity).filter(([key]) => !PLUGIN_MANIFEST_FILENAMES.includes(key));
+  const integrity = Object.entries(manifest.integrity).filter(([key]) => !pluginManifestFilenames({}, optional).includes(key));
   if (integrity.some(([key]) => !isPluginRelativePath({ path: key }))) throw new PluginPackagePathError(`'${record.id}' lists a file outside its package`);
   const rootDir = await resolvePackageRoot(sitePluginRoot({ installDir, id: record.id, version: record.version }), installDir);
-  const manifestName = rootDir === null ? undefined : await presentManifestName(rootDir);
+  const manifestName = rootDir === null ? undefined : await presentManifestName(rootDir, optional);
   if (rootDir === null || manifestName === undefined) throw new PluginPackagePathError(`'${record.id}' ${record.version} is not installed`);
   return {
     rootDir,

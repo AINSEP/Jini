@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.js";
 /** Chat customization reuses Jini's package fork and the admin upload preview/install owner. */
 import { requireInputRecord, requireString, ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
@@ -27,7 +28,7 @@ export interface CustomizeAgentPluginLifecycle<P extends { readonly pluginId: st
  */
 export async function prepareCustomizedAgentPluginArchive<P extends { readonly pluginId: string; readonly packageRoot: string }, B>(
   { deps, ctx, lifecycle }: { deps: CustomizeAgentPluginDeps; ctx: ToolExecutionContext; lifecycle: CustomizeAgentPluginLifecycle<P, B> },
-  _options = {},
+  options: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): Promise<Uint8Array> {
   const input = requireInputRecord({ input: ctx.input });
   const pluginId = requireString({ input, key: "pluginId" });
@@ -38,7 +39,7 @@ export async function prepareCustomizedAgentPluginArchive<P extends { readonly p
   if (sources.length !== 1 || source === undefined) throw new ToolInputError({ message: `Source '${pluginId}' must identify exactly one installed Agent Plugin.` });
   try {
     return await zipCustomizedAgentPluginFolder({ path: source.packageRoot, maxBytes: lifecycle.maxAgentPluginInstallArchiveBytes(), name: requireString({ input, key: "newId" }), identityNamespace: "jini",
-      edit: { path: requireString({ input, key: "path" }), oldString: requireString({ input, key: "oldString" }), newString: requireString({ input, key: "newString" }, { allowEmpty: true }) } });
+      edit: { path: requireString({ input, key: "path" }), oldString: requireString({ input, key: "oldString" }), newString: requireString({ input, key: "newString" }, { allowEmpty: true }) } }, options);
   } catch (error) {
     if (error instanceof FolderZipError) throw new ToolInputError({ message: error.message });
     throw error;

@@ -16,7 +16,7 @@ import { validateManifest, validatePluginIdFormat, type PluginManifest, type Plu
 import type { ArchiveReaderPort, ManifestHostPorts, PluginTierPolicy } from "../ports.js";
 import type { PluginActivationRepoPort } from "../activation.js";
 import type { PluginConflict } from "../plugin-claims.js";
-import { PLUGIN_MANIFEST_FILENAME as MANIFEST, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from "../plugin-format.js";
+import { PLUGIN_MANIFEST_FILENAME as MANIFEST, pluginManifestFilenames, type PluginManifestReadOptions, canonicalizePluginManifest } from "../plugin-format.js";
 
 export { PluginInstallError } from '../plugin-tool-errors.js';
 export interface PluginInstallPreview {
@@ -166,9 +166,9 @@ const DECLARATIVE_DATA_FILE = /(?:^|\/)(?:LICENSE|[^/]+\.(?:json|md|txt|png|jpe?
  * still be tier-3 with `server/index.mjs`, because a sideloaded manifest cannot grant itself a
  * verified publisher tier (tier-2 needs the sandbox, which does not exist yet).
  */
-function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>, tierPolicy: PluginTierPolicy): void {
+function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>, tierPolicy: PluginTierPolicy, optional: PluginManifestReadOptions = {}): void {
   if (candidate.tier === "tier-1") {
-    const code = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key) && !DECLARATIVE_DATA_FILE.test(key)); // legacy alias
+    const code = [...files.keys()].filter((key) => !pluginManifestFilenames({}, optional).includes(key) && !DECLARATIVE_DATA_FILE.test(key)); // legacy alias
     if (code.length) fail("PLUGIN_MANIFEST_INVALID", `A declarative (tier-1) plugin must not ship code: ${code.join(", ")}`);
     return;
   }
@@ -177,8 +177,8 @@ function checkTierAndCode(candidate: PluginManifest, files: Map<string, Buffer>,
 }
 
 /** The parsed manifest JSON (current name first, then the legacy alias), or a refusal. */
-function parseManifestFile(files: Map<string, Buffer>): unknown {
-  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+function parseManifestFile(files: Map<string, Buffer>, optional: PluginManifestReadOptions = {}): unknown {
+  const filename = pluginManifestFilenames({}, optional).find(name => files.has(name)); // legacy alias
   try { return JSON.parse(filename === undefined ? "" : files.get(filename)!.toString("utf8")); }
   catch { return fail("PLUGIN_MANIFEST_INVALID", `A valid ${MANIFEST} is required.`); }
 }
@@ -186,15 +186,15 @@ function parseManifestFile(files: Map<string, Buffer>): unknown {
 /** Integrity must list exactly every packaged file except plugin manifests, each hash matching.
  * Its shape needs no check here: `validatePackage` only calls this after `validateManifest` passed,
  * which requires `integrity` and refuses anything but a plain object of sha256 strings. */
-function assertIntegrity(candidate: PluginManifest, files: Map<string, Buffer>): void {
-  const packaged = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).sort(); // legacy alias
+function assertIntegrity(candidate: PluginManifest, files: Map<string, Buffer>, optional: PluginManifestReadOptions = {}): void {
+  const packaged = [...files.keys()].filter((key) => !pluginManifestFilenames({}, optional).includes(key)).sort(); // legacy alias
   if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except plugin manifests.");
   for (const key of packaged) if (candidate.integrity[key] !== hash(files.get(key)!)) fail("PLUGIN_INTEGRITY_INVALID", `Integrity mismatch: ${key}`);
 }
 
 function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): PluginManifest {
   const { builtInIds } = deps;
-  const raw = parseManifestFile(files) as PluginManifest | null;
+  const raw = parseManifestFile(files, deps) as PluginManifest | null;
   const id = typeof raw?.id === "string" ? raw.id : "";
   if (builtInIds.some((builtin) => builtin.toLowerCase() === id.toLowerCase())) fail("PLUGIN_SHADOWS_BUILT_IN", "Package id belongs to a built-in plugin.");
   const result = validateManifest({ ...deps, manifest: raw, folderName: id, builtInIds });
@@ -204,9 +204,9 @@ function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): P
   // accepts only a canonical SemVer version (`isExactSemver`), whose alphabet [0-9A-Za-z.+-] starting
   // with a digit is already path-safe — so the version can name an install folder as-is.
   const candidate = raw as PluginManifest;
-  checkTierAndCode(candidate, files, deps.tierPolicy);
+  checkTierAndCode(candidate, files, deps.tierPolicy, deps);
   if (typeof candidate.name !== "string" || !candidate.name.trim() || typeof candidate.sdkRange !== "string" || !semver.validRange(candidate.sdkRange)) fail("PLUGIN_MANIFEST_INVALID", "A name and valid SDK range are required.");
-  assertIntegrity(candidate, files);
+  assertIntegrity(candidate, files, deps);
   return candidate;
 }
 
@@ -246,8 +246,8 @@ async function isScannableVersion(required: { scan: IdentityScan; versionDir: st
   } catch (error) { warnUnavailableSlot(required.deps, required.localId, error); return false; }
 }
 
-async function findInstalledManifest(scan: IdentityScan, versionDir: string): Promise<string> {
-  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+async function findInstalledManifest(scan: IdentityScan, versionDir: string, optional: PluginManifestReadOptions = {}): Promise<string> {
+  for (const filename of pluginManifestFilenames({}, optional)) { // legacy alias
     const candidatePath = path.join(versionDir, filename);
     try { await scan.lstat(candidatePath); return candidatePath; }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -259,7 +259,7 @@ async function findInstalledManifest(scan: IdentityScan, versionDir: string): Pr
 async function readInstalledIdentity(required: { scan: IdentityScan; versionDir: string; localId: string; deps: PluginInstallDeps }): Promise<InstalledIdentity | undefined> {
   const { scan, localId, deps } = required;
   try {
-    const manifestPath = await findInstalledManifest(scan, required.versionDir);
+    const manifestPath = await findInstalledManifest(scan, required.versionDir, deps);
     const manifestInfo = await scan.lstat(manifestPath);
     if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
     const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
@@ -394,8 +394,8 @@ export function digestSitePluginSnapshot(required: { files: ReadonlyMap<string, 
   return hash(Buffer.from(JSON.stringify([...required.files].map(([key, bytes]) => [key, hash(bytes)]).sort(([a], [b]) => a! < b! ? -1 : 1))));
 }
 
-export async function computePluginIntegrity(required: { sourceDir: string }, _optional: Record<string, never> = {}): Promise<Record<string, string>> {
-  return Object.fromEntries([...await snapshot(required.sourceDir)].filter(([key]) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).map(([key, bytes]) => [key, hash(bytes)])); // legacy alias
+export async function computePluginIntegrity(required: { sourceDir: string }, optional: PluginManifestReadOptions = {}): Promise<Record<string, string>> {
+  return Object.fromEntries([...await snapshot(required.sourceDir)].filter(([key]) => !pluginManifestFilenames({}, optional).includes(key)).map(([key, bytes]) => [key, hash(bytes)])); // legacy alias
 }
 export async function previewSitePluginInstall(required: PluginInstallInput & { deps: PluginInstallDeps }, _optional: Record<string, never> = {}): Promise<PluginInstallPreview> {
   return (await inspect(required, required.deps)).preview;
@@ -415,8 +415,8 @@ async function withPluginInstallLock<T>(required: { root: string; run: () => Pro
 }
 
 /** Writes the retained bytes (manifest canonicalized) into a fresh staged version folder. */
-async function writeStagedVersion(required: { versionDir: string; files: Map<string, Buffer> }): Promise<void> {
-  for (const [key, bytes] of canonicalizePluginManifest({ files: required.files })) { // legacy alias
+async function writeStagedVersion(required: { versionDir: string; files: Map<string, Buffer> }, optional: PluginManifestReadOptions = {}): Promise<void> {
+  for (const [key, bytes] of canonicalizePluginManifest({ files: required.files }, optional)) { // legacy alias
     const target = path.join(required.versionDir, key);
     await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes, { flag: "wx" });
   }
@@ -466,7 +466,7 @@ export async function installSitePlugin(required: PluginInstallInput & { expecte
     try {
       await mkdir(root + "-staging", { recursive: true });
       staging = await mkdtemp(path.join(root + "-staging", "install-"));
-      await writeStagedVersion({ versionDir: path.join(staging, "new", manifest.version), files });
+      await writeStagedVersion({ versionDir: path.join(staging, "new", manifest.version), files }, optional);
       await checkDestination(manifest, required, optional);
       await mkdir(root, { recursive: true });
       await publishStaged({ live: path.join(root, manifest.id), staging, manifest, versionAppend: optional.versionAppend }).catch((error: unknown) => {

@@ -73,7 +73,7 @@ function storedEntryText(archive: Uint8Array, entryName: string): string {
 async function forkManifest(extensions: Record<string, unknown> | undefined, identityNamespace: string) {
   const input = await fixture();
   await writeFile(path.join(input.path, 'plugin.json'), JSON.stringify({ name: 'stock', version: '1.0.0', ...(extensions ? { extensions } : {}) }));
-  const archive = await zipCustomizedAgentPluginFolder({ ...input, identityNamespace });
+  const archive = await zipCustomizedAgentPluginFolder({ ...input, identityNamespace }, { legacyIdentity: { namespace: 'tovu', warning: 'Legacy fixture' } });
   return { manifest: JSON.parse(storedEntryText(archive, 'plugin.json')), text: Buffer.from(archive).toString('utf8') };
 }
 
@@ -117,4 +117,15 @@ test('refuses a manifest whose extensions value is not an object', async () => {
   const input = await fixture();
   await writeFile(path.join(input.path, 'plugin.json'), JSON.stringify({ name: 'stock', extensions: ['tovu'] }));
   await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow('plugin.json extensions must be an object.');
+});
+
+test('a canonical fork preserves presentation but drops publisher and supersession claims', async () => {
+  const input = await fixture();
+  await writeFile(path.join(input.path, 'plugin.json'), JSON.stringify({ name: 'stock', extensions: { alpha: { id: 'publisher/stock', displayName: 'Stock', provides: ['stock-data'], ...HISTORY } } }));
+  const archive = await zipCustomizedAgentPluginFolder({ ...input, identityNamespace: 'jini' }, { legacyIdentity: { namespace: 'alpha', warning: 'Alpha legacy' } });
+  const result = JSON.parse(storedEntryText(archive, 'plugin.json'));
+  expect(result.extensions.jini).toEqual({ id: 'local/custom', displayName: 'Stock', provides: ['stock-data'] });
+  expect(result.extensions.alpha).toEqual(result.extensions.jini);
+  expect(Buffer.from(archive).toString('utf8')).not.toContain('publisher/stock');
+  expect(Buffer.from(archive).toString('utf8')).not.toContain('supersedes');
 });

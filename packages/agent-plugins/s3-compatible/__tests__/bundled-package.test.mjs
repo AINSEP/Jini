@@ -45,3 +45,12 @@ test("S3-compatible's shipped prose is host-neutral; quoted identifiers and mess
     assert.doesNotMatch(prose, /\bTovu\b/, file);
   }
 });
+
+test("media-key help uses a neutral example without changing the field", async () => {
+  const contribution = await readJson("jini-deploy-targets.json");
+  const fields = contribution.targets.flatMap(target => target.credential.fields);
+  const field = fields.find(field => field.name === "mediaKeyPrefix");
+  assert.ok(field);
+  assert.equal(field.name, "mediaKeyPrefix");
+  assert.equal(field.help, "Optional folder-like prefix for media objects in the media bucket, e.g. site-media/. Blank stores them at ws/… directly.");
+});

@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { createRef } from "react";
+import { useZipDrop } from "../use-zip-drop.hooks.js";
 import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstallTabCard, InstallTabFieldRow } from "../InstallTabCard.js";
+import { InstallTabCard, InstallTabFieldRow, InstallTabOption, ZipDropZone } from "../InstallTabCard.js";
 
 /**
  * @file The install card's field row as a form: Enter or the button submits through the host's
@@ -37,4 +40,30 @@ describe("InstallTabCard", () => {
     expect(screen.getByText("From GitHub or a ZIP.")).toBeInTheDocument();
     expect(screen.getByText("body")).toBeInTheDocument();
   });
+});
+
+it("a drag changes the dropzone outline without changing its accessible name", () => {
+  const css = readFileSync(new URL("../install-tab-card.css", import.meta.url), "utf8");
+  function Card() {
+    const drop = useZipDrop({ onDropFiles: vi.fn(), isLocked: () => false });
+    return <div className="page"><InstallTabCard titleId="install-title" title="Install">
+      <InstallTabOption heading="Soon" badge="Coming soon" />
+      <ZipDropZone drop={drop} glyph="+" title="Drop a ZIP" hint="One package"
+        busy={false} chooseLabel="Choose a file" onChoose={vi.fn()} inputRef={createRef<HTMLInputElement>()}
+        inputLabel="Package ZIP" onFileChange={vi.fn()} dropProps={{ role: "region", "aria-label": "Drop a ZIP" }} />
+    </InstallTabCard></div>;
+  }
+  const { container } = render(<Card />);
+  const zone = screen.getByRole("region", { name: "Drop a ZIP" });
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
+  fireEvent.dragOver(zone);
+  expect(zone).toHaveClass("jini-install-tab-is-dragging");
+  expect(screen.getByRole("region", { name: "Drop a ZIP" })).toBe(zone);
+  expect(container.querySelector(".jini-install-tab-is-soon")).not.toBeNull();
+  for (const node of container.querySelectorAll("[class]")) {
+    for (const token of node.classList) if (token.startsWith("jini-install-tab-")) expect(css).toContain(`.${token}`);
+  }
+  expect(css).not.toMatch(/\.is-(soon|dragging)\b/);
+  fireEvent.dragLeave(zone);
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
 });

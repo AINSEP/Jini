@@ -1,3 +1,5 @@
+const LEGACY_PLUGIN_MANIFEST_FILENAME = "legacy.plugin.json";
+const manifestRead = { legacyManifestFilenames: [LEGACY_PLUGIN_MANIFEST_FILENAME] };
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as filesystem from 'node:fs/promises';
 import { link, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
@@ -5,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { PluginManifest } from '../../manifest.js';
-import { LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
+import { PLUGIN_MANIFEST_FILENAME } from "../../plugin-format.js";
 import {
   assertPluginInstallIdle, computePluginIntegrity, digestSitePluginSnapshot, installSitePlugin, previewSitePluginInstall,
   pruneSitePluginVersions, snapshotSitePluginPackage, type PluginInstallDeps, type PluginSnapshotLimits,
@@ -56,7 +58,7 @@ async function writePackage(dir: string, manifest: object, files: Record<string,
   return dir;
 }
 function makeDeps(root: string, overrides: Partial<PluginInstallDeps> = {}): PluginInstallDeps {
-  return { ...manifestHost, installDir: path.join(root, 'plugins'), builtInIds: [], repo: { listAll: async () => [] },
+  return { ...manifestHost, ...manifestRead, installDir: path.join(root, 'plugins'), builtInIds: [], repo: { listAll: async () => [] },
     conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
     tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' as const }, warn: () => {}, ...overrides };
 }
@@ -85,7 +87,7 @@ describe('install lock and helpers', () => {
     const b = digestSitePluginSnapshot({ files: new Map([['c', Buffer.from('3')], ['a', Buffer.from('1')], ['b', Buffer.from('2')]]) });
     expect(a).toBe(b);
     const source = await writePackage(path.join(await tempRoot(), 'src'), baseManifest('x'), { 'README.md': 'hi' });
-    expect(await computePluginIntegrity({ sourceDir: source })).toEqual({ 'README.md': sha('hi') });
+    expect(await computePluginIntegrity({ sourceDir: source }, manifestRead)).toEqual({ 'README.md': sha('hi') });
   });
 
   it('install reports busy when the lock already exists', async () => {

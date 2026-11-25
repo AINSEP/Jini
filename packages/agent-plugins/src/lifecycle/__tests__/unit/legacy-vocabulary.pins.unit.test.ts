@@ -1,9 +1,10 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { parseAgentPluginManifest, parseAgentPluginMcpConfig, legacyAgentPluginMetadataWarning, type LegacyMcpAliases } from '../../manifest.js';
+import { parseAgentPluginManifest, parseAgentPluginMcpConfig, type LegacyMcpAliases } from '../../manifest.js';
 
-const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: legacyAgentPluginMetadataWarning } satisfies LegacyMcpAliases;
+const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: fixtureLegacyIdentity.warning } satisfies LegacyMcpAliases;
 
 /** R03 pins: legacy spellings are read at the boundary that interprets them, canonical spellings are emitted and shipped. */
 const schema = 'https://agent-plugins.org/schemas/1.0.0/';
@@ -13,7 +14,7 @@ const packagesRoot = path.resolve(import.meta.dirname, '../../../..');
 
 describe('legacy vocabulary: N-1 reads', () => {
   test('an N-1 manifest that only declares extensions.tovu still parses and warns', () => {
-    const legacy = parseAgentPluginManifest({ value: plugin({ id: 'publisher/n-1', summary: 'old' }, 'tovu') });
+    const legacy = parseAgentPluginManifest({ value: plugin({ id: 'publisher/n-1', summary: 'old' }, 'tovu') }, { legacyIdentity: fixtureLegacyIdentity });
     expect(legacy).toMatchObject({ ok: true, manifest: { summary: 'old' }, warnings: [expect.stringContaining('extensions.tovu')] });
   });
   test('an N-1 OAuth config (tovuAuthMode) still reads as authMode and emits only the canonical field', () => {

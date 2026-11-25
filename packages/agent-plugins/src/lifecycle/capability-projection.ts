@@ -20,7 +20,7 @@ import { createSkillFileReader, type SkillFileResult } from "./skill-file-reader
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const parseAgentPluginMcpConfig = (value: unknown, pluginManifest?: unknown) => parseAgentPluginMcpConfigValue({ value, extensionNamespace: resolveAgentPluginLifecycleNamespace({ value: pluginManifest, extensionNamespace: ports.extensionNamespace }) }, { pluginManifest, readServerMetadata: ports.readServerMetadata, legacyMcpAliases: ports.legacyMcpAliases });
+  const parseAgentPluginMcpConfig = (value: unknown, pluginManifest?: unknown) => parseAgentPluginMcpConfigValue({ value, extensionNamespace: resolveAgentPluginLifecycleNamespace({ value: pluginManifest, extensionNamespace: ports.extensionNamespace }, { legacyIdentity: ports.legacyIdentity }) }, { pluginManifest, readServerMetadata: ports.readServerMetadata, legacyMcpAliases: ports.legacyMcpAliases, legacyIdentity: ports.legacyIdentity });
   const { assertContainedOnDisk } = createPackagePathsModule(ports);
   /**
    * A plugin must not execute arbitrary local code without explicit operator confirmation.

@@ -130,15 +130,15 @@ export function ConnectorsBrowser({
   const { filter, setFilter, selectedProvider, catalog, authorization, detail, filteredConnectors, hasNoResults, alerts, handleProviderTabSelect, actions, categoryLabelProps, gateProps } = useConnectorsBrowserViewHook({ unlocked, providerTabs, catalogRefreshKey, dependencies, getCategoryLabel, gate, onProviderTabClick, onConnectorAuthResult, onConnectorsChanged, useConnectorCatalog, useConnectorAuthorization, useConnectorDetail, t });
 
   return (
-    <div className="tab-panel connectors-panel connectors-panel-embedded">
+    <div className="tab-panel jini-ui-connectors-panel jini-ui-connectors-panel-embedded">
       <div className="tab-panel-toolbar">
-        <div className="toolbar-left connectors-heading">
+        <div className="jini-ui-toolbar-left jini-ui-connectors-heading">
           <div>
             <h2>{t('Connectors')}</h2>
             <p>{t('Connect third-party tools and services.')}</p>
           </div>
         </div>
-        <div className="toolbar-right">
+        <div className="jini-ui-toolbar-right">
           <ProviderTabBar
             tabs={providerTabs}
             selectedId={selectedProvider}

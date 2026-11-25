@@ -1,3 +1,4 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { describe, expect, test } from 'vitest';
 import { parseAgentPluginManifest } from '../../manifest.js';
 import { validatePluginManifest } from '../../../manifest.js';
@@ -17,7 +18,7 @@ const dualKey = {
 };
 
 function parsedIdentity(identityNamespace?: string) {
-  const result = parseAgentPluginManifest({ value: dualKey }, identityNamespace === undefined ? {} : { identityNamespace });
+  const result = parseAgentPluginManifest({ value: dualKey }, { ...(identityNamespace === undefined ? {} : { identityNamespace }), legacyIdentity: fixtureLegacyIdentity });
   if (!result.ok) throw new Error(result.errors.join(' '));
   return { id: result.manifest.id, provides: result.manifest.provides };
 }
@@ -38,14 +39,14 @@ describe('extension namespace per host', () => {
 
   test('an explicit tovu request reads a declared canonical jini copy, without the legacy warning', () => {
     const value = { ...dualKey, extensions: { tovu: dualKey.extensions.tovu, jini: { id: 'jini/stock', provides: ['market-data'] } } };
-    const result = parseAgentPluginManifest({ value }, { identityNamespace: 'tovu' });
+    const result = parseAgentPluginManifest({ value }, { legacyIdentity: fixtureLegacyIdentity, identityNamespace: 'tovu' });
     expect(result.ok && { id: result.manifest.id, warnings: result.warnings }).toEqual({ id: 'jini/stock', warnings: [] });
   });
 
   test('the object validator checks only the requested host key', () => {
     const foreignInvalid = { ...dualKey, extensions: { ...dualKey.extensions, 'open-marketing': { id: 'not a publisher id' } } };
-    expect(validatePluginManifest({ value: foreignInvalid }, { identityNamespace: 'open-marketing' })).toBe(false);
-    expect(validatePluginManifest({ value: foreignInvalid }, { identityNamespace: 'tovu' })).toBe(true);
-    expect(validatePluginManifest({ value: foreignInvalid })).toBe(true);
+    expect(validatePluginManifest({ value: foreignInvalid }, { legacyIdentity: fixtureLegacyIdentity, identityNamespace: 'open-marketing' })).toBe(false);
+    expect(validatePluginManifest({ value: foreignInvalid }, { legacyIdentity: fixtureLegacyIdentity, identityNamespace: 'tovu' })).toBe(true);
+    expect(validatePluginManifest({ value: foreignInvalid }, { legacyIdentity: fixtureLegacyIdentity })).toBe(true);
   });
 });

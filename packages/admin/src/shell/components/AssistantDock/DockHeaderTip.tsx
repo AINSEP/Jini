@@ -6,7 +6,7 @@ import { useDockHeaderTip } from "./DockHeaderTip.hooks.js";
 /**
  * Wraps one dock-header icon button (close, conversations, settings) with the same white bubble
  * the subagents icon's `InfoTip` shows, opening under it (owner, 2026-10-11). Same markup and
- * classes as `InfoTip`'s portal, so `styles.css`'s `.info-tip-bubble` rules style both.
+ * classes as `InfoTip`'s portal, so `styles.css`'s `.jini-ui-info-tip-bubble` rules style both.
  * The bubble is `aria-hidden`: each wrapped button carries the same text as its own `aria-label`.
  */
 export function DockHeaderTip({ label, children, useTip = useDockHeaderTip, useAdminKitValuesHook = useAdminKitValues }: {
@@ -19,7 +19,7 @@ export function DockHeaderTip({ label, children, useTip = useDockHeaderTip, useA
       {children}
       {tip.open
         ? createPortal(
-            <span ref={tip.bubbleRef} className="info-tip-bubble info-tip-bubble-below" role="presentation" aria-hidden="true"
+            <span ref={tip.bubbleRef} className="jini-ui-info-tip-bubble jini-ui-info-tip-bubble-below" role="presentation" aria-hidden="true"
               style={infoTipBubbleStyle(tip.coords)}>
               {label}
             </span>,

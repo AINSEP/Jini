@@ -96,7 +96,7 @@ function TabBarButton({
     <button
       type="button"
       role="tab"
-      className="tab-bar-item"
+      className="jini-ui-tab-bar-item"
       aria-selected={active}
       aria-label={tabAccessibleLabel({ tab })}
       aria-disabled={tab.disabled || undefined}
@@ -107,14 +107,14 @@ function TabBarButton({
     >
       {tab.dot ? <span className="jini-tab-bar-dot" aria-hidden="true" /> : null}
       {tab.icon ? (
-        <span className="tab-bar-icon" aria-hidden="true">
+        <span className="jini-ui-tab-bar-icon" aria-hidden="true">
           {tab.icon}
         </span>
       ) : null}
       {tab.label}
       {tabDotAccessibleSuffix(tab)}
       {tab.tag ? <span className="jini-tab-bar-tag">{tab.tag}</span> : null}
-      {tab.count !== undefined ? <span className="tab-bar-count">{tab.count}</span> : null}
+      {tab.count !== undefined ? <span className="jini-ui-tab-bar-count">{tab.count}</span> : null}
     </button>
   );
 }
@@ -134,7 +134,7 @@ export function TabBar({
   return (
     <TabStripFrame
       ref={stripRef}
-      className="tab-bar"
+      className="jini-ui-tab-bar"
       role="tablist"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}

@@ -107,7 +107,7 @@ function placeVertically(
 
 /**
  * The portal's inline style: position plus, once measured, the arrow offset as a CSS variable
- * (`.info-tip-bubble::after` reads `--info-tip-arrow-left`, defaulting to centred).
+ * (`.jini-ui-info-tip-bubble::after` reads `--info-tip-arrow-left`, defaulting to centred).
  * @param coords The controller's coordinates.
  * @returns Inline style for the bubble.
  * @complexity O(1).

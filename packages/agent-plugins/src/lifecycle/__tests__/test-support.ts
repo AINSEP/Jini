@@ -20,6 +20,7 @@ import { createTrustedPluginFilesModule } from "../trusted-plugin-files.js";
 import { createUninstallModule } from "../uninstall.js";
 export const ports: AgentPluginLifecyclePorts = {
   ...nativeEffectsFixture(),
+  legacyIdentity: { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' },
   layout: {
     get root() { return resolveAgentPluginLayout().root; },
     forWorkspace: input => resolveAgentPluginLayout().forWorkspace(input),
@@ -72,7 +73,7 @@ export function fetchAgentPluginArchive(input: { url: string }, optional: FetchA
 
 export const RETIRED_BUNDLED_AGENT_PLUGINS = ports.retiredBundledPlugins;
 export function parseAgentPluginMcpConfig(value: unknown, pluginManifest?: unknown) {
-  return parseAgentPluginMcpConfigValue({ value, extensionNamespace: ports.extensionNamespace }, { pluginManifest });
+  return parseAgentPluginMcpConfigValue({ value, extensionNamespace: ports.extensionNamespace }, { pluginManifest, legacyIdentity: ports.legacyIdentity });
 }
 
 /** Consumer-neutral projection for the copied digest-selection scenarios, never registers tools. */

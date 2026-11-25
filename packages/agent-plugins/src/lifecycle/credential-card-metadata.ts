@@ -1,7 +1,7 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 import type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
 export type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
-import { readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
+import { type AgentPluginIdentityReadOptions, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
 // From the leaf, not contribution-loader.ts: manifest.ts re-exports this file, and importing
 // contribution-loader.ts here would close a lifecycle cycle back through activation.ts to ports.ts.
 import type { PluginContributionParseResult } from './contribution-types.js';
@@ -112,7 +112,7 @@ function cardText({ value }: { value: RecordValue }, _options = {}): Pick<Plugin
  * @returns Normalized display/form metadata or a declaration-specific refusal reason.
  * @complexity O(c + f), capped at 32 cards × 16 fields; no I/O or input mutation.
  */
-export function parsePluginCredentialCards({ raw }: { raw: string }, options: { identityNamespace?: string; onWarning?: (warning: string) => void } = {}):
+export function parsePluginCredentialCards({ raw }: { raw: string }, options: AgentPluginIdentityReadOptions & { onWarning?: (warning: string) => void } = {}):
   PluginContributionParseResult<PluginCredentialCard> {
   let parsed: unknown;
   try { parsed = JSON.parse(raw); }

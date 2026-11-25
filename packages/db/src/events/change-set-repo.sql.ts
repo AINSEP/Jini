@@ -1,7 +1,8 @@
 import type { Kysely, Selectable } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type {
-  DomainEvent,
+  AttributedDomainEvent,
+  NewChangeSetRecord,
   ChangeSetItemRecord,
   ChangeSetRecord,
   ChangeSetRepoPort,
@@ -95,12 +96,13 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
    * partial write (the "transaction participation" requirement, and the
    * resolution for the outbox event specifically; see this file's header). */
   async insert(
-    { record, items }: { record: ChangeSetRecord; items: ChangeSetItemRecord[] },
-    { event }: { event?: DomainEvent } = {},
+    { record, items }: { record: NewChangeSetRecord; items: ChangeSetItemRecord[] },
+    { event }: { event?: AttributedDomainEvent | undefined } = {},
   ): Promise<void> {
     // Build every row first so conflicting attribution is refused before the transaction opens.
+    if (event && (record.actor.id !== event.actor.id || record.actor.kind !== event.actor.kind || record.actorId !== event.actorId)) throw new Error("Change-set and event actor attribution must match.");
     const header = toRow(record, this.columns);
-    // The host preparation runs first so the actor check sees the envelope that is actually stored.
+    // Preparation preserves the writer's actor while preparing the envelope that is actually stored.
     const eventRow = event ? outboxEventValues(preparedOutboxEvent({ event }, this.preparation)) : undefined;
     await this.kernel.transaction(async () =>
       this.kernel.run(async (db) => {

@@ -60,3 +60,17 @@ test("the capability card links to the host's plugins admin screen", () => {
   assert.equal(card.id, "plugins");
   assert.deepEqual(card.pointers.map((pointer) => ("href" in pointer ? pointer.href : pointer.tool)), ["acme_list_plugins", "/host/plugins"]);
 });
+
+test("enablement explains confirmation and live schema writes without a host document id", () => {
+  const tool = createPluginAgentToolCatalog({ copy }).find(tool => tool.name === PLUGINS_SET_ENABLED_TOOL_ID)!;
+  const enabled = (tool.inputSchema as { properties: { enabled: { description: string } } }).properties.enabled.description;
+  assert.match(tool.description, /owner's approval card/);
+  assert.match(tool.description, /live schema DDL/);
+  assert.match(tool.description, /snapshot-protected, transactional schema changes/);
+  assert.match(enabled, /ENABLING ALWAYS ASKS THE HUMAN FIRST/);
+  assert.match(enabled, /schema DDL against the live database/);
+  assert.match(enabled, /snapshot-protected, transactional schema changes/);
+  assert.match(enabled, /discovery status is 'valid'/);
+  assert.match(tool.description, /disabling flips the activation flag back/);
+  assert.doesNotMatch(tool.description + enabled, /ADR-023/);
+});

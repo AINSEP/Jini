@@ -91,7 +91,7 @@ async function performPluginAttachment<E, O>({ state, pluginId, record }: { stat
   const { epoch, target, invocation, capture } = beginAttachment({ state, pluginId, record });
   const { manifest, attachmentSource } = target;
   const sdkSlot: { sdk: PluginSdk | undefined } = { sdk: undefined };
-  const result = await loadPlugin(buildLoadInput({ state, record, target, invocation, capture, sdkSlot }), {});
+  const result = await loadPlugin(buildLoadInput({ state, record, target, invocation, capture, sdkSlot }), state.runtimeBinding);
   if (!result.loaded) {
     throw new PluginLoadError(pluginId, result.reason);
   }
@@ -172,6 +172,7 @@ function resolveRuntimeImporter<E, O>({ state, target, record }: { state: Runtim
   return target.manifest.tier === "tier-2"
     ? withRegisteredPackageRoot({ importModule: createTier2ImportSeam({ ...state.runtimeBinding, manifest: target.manifest, runCall: state.required.tier2CallRunner }), packageRoot: target.packageRoot })
     : state.required.createModuleImporter({ manifest: target.manifest, source: record.source }, {
+        legacyManifestFilenames: state.runtimeBinding.legacyManifestFilenames,
         ...(target.importModule === undefined ? {} : { importModule: target.importModule }),
         ...(snapshots === undefined ? {} : { snapshots }),
       });

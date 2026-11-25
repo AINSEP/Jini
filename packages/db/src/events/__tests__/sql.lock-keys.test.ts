@@ -39,7 +39,7 @@ test("claimPending locks outbox_events:claim inside the transaction, before the 
 test("a change-set insert takes no lock: header, items and event are one transaction around one run", async () => {
   const { kernel, events } = recordingKernel();
   await new SqlChangeSetRepo({ kernel, tables: TABLES }, {}).insert({
-    record: { id: "cs-1", workspaceId: "ws-1", status: "proposed", summary: "s", createdAt: "2026-11-18T00:00:00.000Z" },
+    record: { id: "cs-1", workspaceId: "ws-1", actorId: "test-writer", actor: { id: "test-writer", kind: "user" }, status: "proposed", summary: "s", createdAt: "2026-11-18T00:00:00.000Z" },
     items: [],
   });
   assert.deepEqual(events, ["begin", "read", "commit"]);

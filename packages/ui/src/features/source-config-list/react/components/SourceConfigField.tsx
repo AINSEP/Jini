@@ -93,11 +93,11 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
   const reveal: RevealToggleProps = { revealed, disabled, agentProps: revealAgentProps, onToggle: toggleRevealed };
 
   return (
-    <div className="source-config-field">
-      <label className="source-config-field-label" htmlFor={inputId}>
+    <div className="jini-ui-source-config-field">
+      <label className="jini-ui-source-config-field-label" htmlFor={inputId}>
         {fieldLabel}
         {spec.required ? (
-          <span className="source-config-field-required" aria-label={t('required')}>
+          <span className="jini-ui-source-config-field-required" aria-label={t('required')}>
             *
           </span>
         ) : null}

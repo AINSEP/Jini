@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Payments } from "..";
+import { usePayments } from "../Payments.hooks.js";
+const classes = { page: "page", pageHeader: "page-header", pageHeaderText: "page-header-text", pageKicker: "page-kicker", pageTitle: "page-title", pageDescription: "page-description", notice: "notice", panels: "dash-panels", panel: "dash-panel", panelHead: "dash-panel-head", panelTitle: "dash-panel-title", panelBody: "dash-panel-body", actions: "page-actions", disabledStatus: "status status-disabled", secondaryButton: "btn-secondary" };
 
 /**
  * @file Owner-directed Open SaaS Commerce adaptation, constrained by ADR-001.
@@ -15,7 +17,7 @@ import { Payments } from "..";
 
 describe("Payments — provider-neutral Commerce overview", () => {
   it("connects the Open SaaS payment journey to Tovu's existing Commerce routes", () => {
-    render(<Payments providers={[
+    render(<Payments classes={classes} usePaymentsHook={usePayments} providers={[
       { id: "regional-pay", displayName: "Regional Pay", refunds: "none", capture: "auto" },
       { id: "bank-transfer", displayName: "Bank Transfer", refunds: "full", capture: "manual" },
     ]} />);
@@ -35,24 +37,38 @@ describe("Payments — provider-neutral Commerce overview", () => {
   });
 
   it("shows setup required with no supplied providers and removes retired summaries on rerender", () => {
-    const { rerender } = render(<Payments providers={[]} />);
+    const { rerender } = render(<Payments classes={classes} usePaymentsHook={usePayments} providers={[]} />);
     const region = screen.getByRole("region", { name: "Payment providers" });
     expect(within(region).getByText("Setup required")).toBeInTheDocument();
     expect(screen.getByLabelText("Planned payment provider adapters")).toBeEmptyDOMElement();
-    rerender(<Payments providers={[{ id: "regional-pay", displayName: "<Regional Pay>", refunds: "none", capture: "auto" }]} />);
+    rerender(<Payments classes={classes} usePaymentsHook={usePayments} providers={[{ id: "regional-pay", displayName: "<Regional Pay>", refunds: "none", capture: "auto" }]} />);
     expect(within(region).getByText("<Regional Pay>")).toBeInTheDocument();
     expect(region.querySelector("regional")).toBeNull();
-    rerender(<Payments />);
+    rerender(<Payments classes={classes} usePaymentsHook={usePayments} />);
     expect(screen.getByLabelText("Planned payment provider adapters")).toBeEmptyDOMElement();
     expect(within(region).getByText("Setup required")).toBeInTheDocument();
   });
 
   it("states the missing backend boundary instead of inventing readiness, metrics, or controls", () => {
-    const { container } = render(<Payments />);
+    const { container } = render(<Payments classes={classes} usePaymentsHook={usePayments} />);
 
     expect(screen.getByText(/commerce read model is not connected yet/i)).toBeInTheDocument();
     expect(screen.getByText(/no revenue totals or trends are shown/i)).toBeInTheDocument();
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/\$\s*\d/);
   });
+});
+
+it("the host paints payments without changing the planned provider affordances", () => {
+  for (const host of ['host-a', 'host-b']) {
+    const supplied = Object.fromEntries(Object.keys(classes).map(key => [key, `${host}-${key}`]));
+    const { container, unmount } = render(<Payments usePaymentsHook={usePayments} classes={{ ...classes, ...supplied }} providers={[{ id: 'fixture', displayName: 'Fixture Pay', refunds: 'none', capture: 'auto' }]} />);
+    expect(container.firstElementChild).toHaveClass(`${host}-page`);
+    expect(screen.getByRole('region', { name: 'Payment providers' })).toHaveClass(`${host}-panel`);
+    expect(screen.getByText('Setup required')).toHaveClass(`${host}-disabledStatus`);
+    expect(screen.getByText('Fixture Pay')).toHaveClass(`${host}-disabledStatus`);
+    expect(screen.getByRole('link', { name: 'Open products' })).toHaveAttribute('href', '/admin/products');
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    unmount();
+  }
 });

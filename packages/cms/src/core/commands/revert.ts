@@ -1,6 +1,6 @@
 import { nowIso as readNowIso, type Clock as ClockPort, type IdGenerator as IdGeneratorPort, type UUID } from "@jini-ai/core/primitives";
 import type {
-  DomainEvent,
+  AttributedDomainEvent,
   OutboxPort,
   ChangeSetRecord,
   ChangeSetRepoPort,
@@ -136,7 +136,7 @@ const ITEM_PERMISSION_DENIED_MESSAGE = "You don't have permission to undo one of
 const ITEM_CANNOT_FORCE_MESSAGE =
   "This change can't be forced back over a newer version. Keep the newer version and edit it again instead.";
 
-function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord, actor: MutationActor): DomainEvent<{ changeSetId: UUID }> {
+function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord, actor: MutationActor): AttributedDomainEvent<{ changeSetId: UUID }> {
   return {
     id: deps.idGen.newId(),
     name: "change-set.reverted",
@@ -148,7 +148,7 @@ function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRe
     actor: { id: actor.id, kind: actor.kind },
     changeSetId: reverted.id,
     payload: { changeSetId: reverted.id },
-  } as DomainEvent<{ changeSetId: UUID }>;
+  };
 }
 
 export async function revertChangeSet(

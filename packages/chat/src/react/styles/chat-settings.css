@@ -42,19 +42,19 @@
 }
 .jini-chat-settings-dialog .jini-chat-settings-close:hover { background: var(--jini-chat-settings-subtle, #f4f5f7); color: var(--jini-chat-settings-fg, #1a1916); }
 .jini-chat-settings-dialog .jini-chat-settings-close:focus-visible { outline: 2px solid var(--jini-chat-settings-accent, #3b66c4); outline-offset: 2px; }
-.jini-chat-settings-dialog > .tab-bar { display: flex; border-bottom: 1px solid var(--jini-chat-settings-border, #d9dce2); flex: none; flex-wrap: nowrap; margin: 0.25rem 0 0; padding: 0 1.5rem; gap: 0.5rem; }
-.jini-chat-settings-dialog > .tab-bar .tab-bar-item {
+.jini-chat-settings-dialog > .jini-ui-tab-bar { display: flex; border-bottom: 1px solid var(--jini-chat-settings-border, #d9dce2); flex: none; flex-wrap: nowrap; margin: 0.25rem 0 0; padding: 0 1.5rem; gap: 0.5rem; }
+.jini-chat-settings-dialog > .jini-ui-tab-bar .jini-ui-tab-bar-item {
   display: inline-flex; align-items: center; flex-shrink: 0; background: none;
   border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 0.65rem 0.25rem;
   margin-bottom: -1px; font: inherit; font-size: var(--jini-font-size-sm, 0.875rem); font-weight: 600;
   color: var(--jini-chat-settings-muted, #676767); cursor: pointer; transition: color 140ms, border-color 140ms;
 }
-.jini-chat-settings-dialog > .tab-bar .tab-bar-item:hover { color: var(--jini-chat-settings-fg, #1a1916); }
-.jini-chat-settings-dialog > .tab-bar .tab-bar-item[aria-selected="true"] {
+.jini-chat-settings-dialog > .jini-ui-tab-bar .jini-ui-tab-bar-item:hover { color: var(--jini-chat-settings-fg, #1a1916); }
+.jini-chat-settings-dialog > .jini-ui-tab-bar .jini-ui-tab-bar-item[aria-selected="true"] {
   color: var(--jini-chat-settings-selected-text, var(--jini-chat-settings-accent, #3b66c4));
   border-bottom-color: var(--jini-chat-settings-selected-ring, var(--jini-chat-settings-accent, #3b66c4));
 }
-.jini-chat-settings-dialog .tab-bar-item:focus-visible { outline: 2px solid var(--jini-chat-settings-accent, #3b66c4); outline-offset: -2px; border-radius: 4px 4px 0 0; }
+.jini-chat-settings-dialog .jini-ui-tab-bar-item:focus-visible { outline: 2px solid var(--jini-chat-settings-accent, #3b66c4); outline-offset: -2px; border-radius: 4px 4px 0 0; }
 .jini-chat-settings-body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: 1.25rem 1.5rem 1.5rem; overflow-wrap: anywhere;
@@ -67,7 +67,7 @@
   display: inline-flex; flex-wrap: wrap; align-self: flex-start; max-width: 100%; gap: 0.25rem; padding: 0.2rem;
   border: 1px solid var(--jini-chat-settings-border, #d9dce2); border-radius: 8px; background: var(--jini-chat-settings-subtle, #f4f5f7);
 }
-.jini-chat-settings-legend > .info-tip { margin-left: 0.3rem; }
+.jini-chat-settings-legend > .jini-ui-info-tip { margin-left: 0.3rem; }
 .jini-chat-settings-segment {
   position: relative; display: inline-flex; align-items: center; padding: 0.4rem 0.95rem;
   border-radius: 6px; font-size: var(--jini-font-size-sm, 0.875rem); color: var(--jini-chat-settings-muted, #676767); cursor: pointer;
@@ -93,7 +93,7 @@ button.jini-chat-settings-segment:hover { opacity: 1; }
 .jini-chat-settings-text { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
 /* A switch's ⓘ follows its label's text, like the legend's (owner, 2026-10-21), outside the label so a tap never toggles. */
 .jini-chat-settings-label-row { display: flex; align-items: center; gap: 0.3rem; }
-.jini-chat-settings-label-row > .info-tip { flex: none; }
+.jini-chat-settings-label-row > .jini-ui-info-tip { flex: none; }
 .jini-chat-settings-label { font-size: 0.9375rem; line-height: 1.4; cursor: pointer; }
 .jini-chat-settings-description { margin: 0; font-size: 0.8125rem; line-height: 1.35; color: var(--jini-text-muted, var(--jini-chat-settings-muted, #676767)); }
 .jini-chat-settings-description--group { margin: -0.25rem 0 0.625rem; }
@@ -133,17 +133,17 @@ button.jini-chat-settings-segment:hover { opacity: 1; }
    phone floor in styles.css (44px min on every [role="button"] in `.jini-dialog`) did the same,
    so it is undone here and the hit area takes over at that width too. */
 @media (pointer: coarse), (max-width: 640px) {
-  .jini-chat-settings-legend .info-tip-icon,
-  .jini-chat-settings-label-row > .info-tip .info-tip-icon { position: relative; }
-  .jini-chat-settings-legend .info-tip-icon::before,
-  .jini-chat-settings-label-row > .info-tip .info-tip-icon::before { content: ""; position: absolute; inset: -13px; }
-  .jini-dialog .jini-chat-settings-legend .info-tip-icon[role="button"],
-  .jini-dialog .jini-chat-settings-label-row > .info-tip .info-tip-icon[role="button"] { min-width: 0; min-height: 0; }
+  .jini-chat-settings-legend .jini-ui-info-tip-icon,
+  .jini-chat-settings-label-row > .jini-ui-info-tip .jini-ui-info-tip-icon { position: relative; }
+  .jini-chat-settings-legend .jini-ui-info-tip-icon::before,
+  .jini-chat-settings-label-row > .jini-ui-info-tip .jini-ui-info-tip-icon::before { content: ""; position: absolute; inset: -13px; }
+  .jini-dialog .jini-chat-settings-legend .jini-ui-info-tip-icon[role="button"],
+  .jini-dialog .jini-chat-settings-label-row > .jini-ui-info-tip .jini-ui-info-tip-icon[role="button"] { min-width: 0; min-height: 0; }
 }
 @media (max-width: 640px) {
   .jini-chat-settings-dialog input[type="checkbox"][role="switch"] { width: 38px; height: 22px; }
   .jini-chat-settings-body { padding-inline: 1rem; }
-  .jini-chat-settings-dialog > .tab-bar { padding-inline: 1rem; }
+  .jini-chat-settings-dialog > .jini-ui-tab-bar { padding-inline: 1rem; }
   .jini-chat-settings-header { padding-left: 1rem; }
 }
 

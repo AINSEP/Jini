@@ -1,6 +1,6 @@
 export { createCredentialSaveTools, type CredentialSaveMessages, type CredentialSaveAdapters } from './credential-save-tool.js';
 export { createPluginCredentialCardOperations, findPluginCredentialCard, loadPluginCredentialCardsSafely, type LoadPluginCredentialCards, type PluginCredentialCardPorts } from './plugin-credential-card.js';
-export { parsePluginCredentialCards, parseCredentialCardUsedFor, credentialCardsContribution, mergePluginCredentialCards } from './credential-cards.js';
+export { parsePluginCredentialCards, parseCredentialCardUsedFor, createCredentialCardsContribution, credentialCardsContribution, mergePluginCredentialCards } from './credential-cards.js';
 export * from './ports.js';
 export * from './federate-mcp.js';
 export * from './enable-access.js';

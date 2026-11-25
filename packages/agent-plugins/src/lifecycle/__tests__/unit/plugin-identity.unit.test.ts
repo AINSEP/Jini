@@ -1,9 +1,10 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { legacyAgentPluginMetadataWarning, parseAgentPluginManifest } from '../../manifest.js';
+import { parseAgentPluginManifest } from '../../manifest.js';
 import { createInstallModule, type InstallAgentPluginOptional } from '../../install.js';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSearchModule } from '../../search.js';
@@ -20,24 +21,24 @@ const manifest = (name: string, id?: string) => ({
 
 describe('plugin identity (owner 2026-10-09)', () => {
   it('parses the shared identity contract and keeps portable fields and version separate', () => {
-    const result = parseAgentPluginManifest({ value: manifest('github', 'jini/github') });
+    const result = parseAgentPluginManifest({ value: manifest('github', 'jini/github') }, { legacyIdentity: fixtureLegacyIdentity });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.errors.join(' '));
     expect(result.manifest.id).toBe('jini/github');
     expect(result.manifest.name).toBe('github');
     expect(result.manifest.version).toBe('1.0.0');
     expect(result.manifest.provides).toEqual(['source-control']);
-    expect(result.warnings).toEqual([legacyAgentPluginMetadataWarning]);
+    expect(result.warnings).toEqual([fixtureLegacyIdentity.warning]);
   });
 
   it('warns for legacy manifests and rejects malformed qualified ids and provides', () => {
-    const result = parseAgentPluginManifest({ value: manifest('github') });
+    const result = parseAgentPluginManifest({ value: manifest('github') }, { legacyIdentity: fixtureLegacyIdentity });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.errors.join(' '));
     expect(result.manifest.id).toBe('unknown/github');
     expect(result.warnings).toEqual(["Plugin 'github' has no publisher-qualified id; using 'unknown/github'."]);
-    expect(parseAgentPluginManifest({ value: manifest('github', '../github') })).toEqual({ ok: false, errors: ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'] });
-    expect(parseAgentPluginManifest({ value: { ...manifest('github'), extensions: { tovu: { id: 'jini/github', provides: ['ok', 1] } } } })).toEqual({ ok: false, errors: ['Plugin provides must be an array of capability names.'] });
+    expect(parseAgentPluginManifest({ value: manifest('github', '../github') }, { legacyIdentity: fixtureLegacyIdentity })).toEqual({ ok: false, errors: ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'] });
+    expect(parseAgentPluginManifest({ value: { ...manifest('github'), extensions: { tovu: { id: 'jini/github', provides: ['ok', 1] } } } }, { legacyIdentity: fixtureLegacyIdentity })).toEqual({ ok: false, errors: ['Plugin provides must be an array of capability names.'] });
   });
 
   it('ranks capability-only and publisher-id queries using the existing ranker', () => {
@@ -52,7 +53,7 @@ describe('plugin identity (owner 2026-10-09)', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'plugin-identity-')); roots.push(root);
     const layout = createAgentPluginLayout({ root });
     const events: { event: string; message: string }[] = [];
-    const installer = createInstallModule({ ...ports, filesystem: optional.filesystem ?? ports.filesystem, layout, extensionNamespace: 'tovu', onEvent: event => events.push(event) });
+    const installer = createInstallModule({ ...ports, legacyIdentity: fixtureLegacyIdentity, filesystem: optional.filesystem ?? ports.filesystem, layout, extensionNamespace: 'tovu', onEvent: event => events.push(event) });
     async function install(name: string, id: string, workspaceId = 'site', options: InstallAgentPluginOptional & { version?: string } = {}) {
       const text = JSON.stringify({ ...manifest(name, id), version: options.version ?? '1.0.0' });
       const archive = Buffer.from(text);
@@ -126,17 +127,17 @@ describe('plugin identity (owner 2026-10-09)', () => {
     expect(JSON.parse(await readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).version).toBe('1.0.0');
     expect(JSON.parse(await readFile(path.join(second.packageRoot, 'plugin.json'), 'utf8')).version).toBe('2.0.0');
     expect(events).toEqual([
-      { event: 'agent-plugin-identity-warning', message: legacyAgentPluginMetadataWarning, pluginId: 'github' },
-      { event: 'agent-plugin-identity-warning', message: legacyAgentPluginMetadataWarning, pluginId: 'github' },
+      { event: 'agent-plugin-identity-warning', message: fixtureLegacyIdentity.warning, pluginId: 'github' },
+      { event: 'agent-plugin-identity-warning', message: fixtureLegacyIdentity.warning, pluginId: 'github' },
       { event: 'agent-plugin-revision-prune-warning', message: "Plugin 'github': a superseded revision could not be pruned." },
     ]);
   });
   it('keeps portable plugin.json keyword coercion advisory', () => {
-    const result = parseAgentPluginManifest({ value: { ...manifest('bridge', 'tovu/bridge'), keywords: ['repository', 4, ''] } });
+    const result = parseAgentPluginManifest({ value: { ...manifest('bridge', 'tovu/bridge'), keywords: ['repository', 4, ''] } }, { legacyIdentity: fixtureLegacyIdentity });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.errors.join(' '));
     expect(result.manifest.keywords).toEqual(['repository']);
-    expect(result.warnings).toEqual(['Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.', legacyAgentPluginMetadataWarning]);
+    expect(result.warnings).toEqual(['Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.', fixtureLegacyIdentity.warning]);
   });
 
   it('requires the core peer version that exports the runtime identity entry', async () => {

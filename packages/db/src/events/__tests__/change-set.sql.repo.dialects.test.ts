@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterAll, describe, test } from "vitest";
-import type { ChangeSetItemRecord, ChangeSetRecord, DomainEvent } from "@jini-ai/core/contracts/events";
+import type { ChangeSetItemRecord, NewChangeSetRecord, AttributedDomainEvent } from "@jini-ai/core/contracts/events";
 import { sql } from "kysely";
 import type { KyselyKernel } from "../../kernel/port.js";
 import { SqlChangeSetRepo } from "../change-set-repo.sql.js";
@@ -14,14 +14,14 @@ import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
  */
 
 const AT = "2026-11-18T00:00:00.000Z";
-const header = (over: Partial<ChangeSetRecord> = {}): ChangeSetRecord => ({
-  id: "cs-a", workspaceId: "ws-a", actorId: "user-1", status: "proposed", summary: "Renamed a post", idempotencyKey: "idem-1", intentRef: "chat-1", createdAt: AT, ...over,
+const header = (over: Partial<NewChangeSetRecord> = {}): NewChangeSetRecord => ({
+  id: "cs-a", workspaceId: "ws-a", actorId: "user-1", actor: { id: "user-1", kind: "user" }, status: "proposed", summary: "Renamed a post", idempotencyKey: "idem-1", intentRef: "chat-1", createdAt: AT, ...over,
 });
 const item = (over: Partial<ChangeSetItemRecord> = {}): ChangeSetItemRecord => ({
   id: "csi-a", changeSetId: "cs-a", entityType: "post", entityId: "post-1", operation: "update", beforeRevisionId: "rev-0", afterRevisionId: "rev-1",
   inversePayload: { title: "Old" }, entityVersionAtApply: 3, position: 0, ...over,
 });
-const EVENT: DomainEvent = { id: "evt-1", name: "change-set.applied", occurredAt: AT, workspaceId: "ws-a", payload: { changeSetId: "cs-a" } };
+const EVENT: AttributedDomainEvent = { id: "evt-1", name: "change-set.applied", actorId: "user-1", actor: { id: "user-1", kind: "user" }, occurredAt: AT, workspaceId: "ws-a", payload: { changeSetId: "cs-a" } };
 
 const PARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
@@ -30,10 +30,10 @@ afterAll(async () => { for (const kernel of opened) await kernel.close(); });
 
 describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dialect) => {
   async function make() {
-    const kernel = await openEventsKernel({ dialect });
+    const kernel = await openEventsKernel({ dialect }, { actorKindColumn: true });
     opened.push(kernel);
     const count = async (table: string) => Number((await kernel.query<{ n: number }>(sql`SELECT count(*) AS n FROM ${sql.table(table)}`))[0]?.n);
-    return { kernel, repo: new SqlChangeSetRepo({ kernel, tables: TABLES }, {}), count };
+    return { kernel, repo: new SqlChangeSetRepo({ kernel, tables: TABLES }, { actorKindColumn: true }), count };
   }
 
   test("a populated change set round-trips through findById with its items in position order", async () => {
@@ -47,7 +47,8 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
   test("every absent optional field is stored as NULL and read back as undefined", async () => {
     const { kernel, repo } = await make();
     const bare = { id: "cs-a", workspaceId: "ws-a", status: "proposed", summary: "s", createdAt: AT } as const;
-    await repo.insert({ record: bare, items: [{ id: "csi-a", changeSetId: "cs-a", entityType: "post", entityId: "p", operation: "create", position: 0 }] });
+    await kernel.execute(sql`INSERT INTO change_sets (id, workspace_id, status, summary, created_at) VALUES (${bare.id}, ${bare.workspaceId}, ${bare.status}, ${bare.summary}, ${bare.createdAt})`);
+    await kernel.execute(sql`INSERT INTO change_set_items (id, change_set_id, entity_type, entity_id, operation, position) VALUES ('csi-a', 'cs-a', 'post', 'p', 'create', 0)`);
     const [stored] = await kernel.query<Record<string, unknown>>(sql`SELECT actor_id, idempotency_key, intent_ref, applied_at, reverted_at FROM change_sets`);
     assert.deepEqual(stored, { actor_id: null, idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null });
     const found = await repo.findById({ workspaceId: "ws-a", id: "cs-a" });
@@ -66,13 +67,15 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
   }
   const AGENT = { id: "agent-7", kind: "agent" } as const;
 
-  test("a legacy row keeps its actor id without inventing kind", async () => {
+  test("a historical row still reads with no invented kind", async () => {
     const migrated = await makeMigrated();
     await migrated.kernel.execute(sql`INSERT INTO change_sets (id, workspace_id, actor_id, status, summary, created_at) VALUES ('cs-old', 'ws-a', 'user-1', 'applied', 's', ${AT})`);
     const found = await migrated.repo.findById({ workspaceId: "ws-a", id: "cs-old" });
     assert.equal(found?.changeSet.actorId, "user-1");
     assert.equal(found?.changeSet.actor, undefined);
-    const legacy = await make();
+    const legacyKernel = await openEventsKernel({ dialect });
+    opened.push(legacyKernel);
+    const legacy = { kernel: legacyKernel, repo: new SqlChangeSetRepo({ kernel: legacyKernel, tables: TABLES }, {}) };
     await legacy.repo.insert({ record: header({ actor: AGENT, actorId: AGENT.id }), items: [] });
     const [stored] = await legacy.kernel.query<Record<string, unknown>>(sql`SELECT * FROM change_sets`);
     assert.equal("actor_kind" in (stored ?? {}), false);
@@ -150,4 +153,23 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
     const saved = (await repo.findById({ workspaceId: "ws-a", id: "cs-a" }))?.changeSet;
     assert.deepEqual({ status: saved?.status, appliedAt: saved?.appliedAt, summary: saved?.summary }, { status: "applied", appliedAt: AT, summary: "Renamed a post" });
   });
+  test("one command persists one actor on both atomic records", async () => {
+    const { kernel, repo } = await makeMigrated();
+    const record = header({ actor: AGENT, actorId: AGENT.id });
+    const event: AttributedDomainEvent = { ...EVENT, actor: AGENT, actorId: AGENT.id };
+    await repo.insert({ record, items: [item()] }, { event });
+    assert.deepEqual((await repo.findById({ workspaceId: record.workspaceId, id: record.id }))?.changeSet.actor, AGENT);
+    const [stored] = await kernel.query<{ event_json: string }>(sql`SELECT event_json FROM outbox_events`);
+    assert.deepEqual(JSON.parse(stored!.event_json).actor, AGENT);
+    assert.equal(JSON.parse(stored!.event_json).actorId, AGENT.id);
+  });
+
+  test("header and event actors must agree before the first effect", async () => {
+    const { kernel, repo } = await makeMigrated();
+    await assert.rejects(repo.insert({ record: header(), items: [item()] }, { event: { ...EVENT, actor: AGENT, actorId: AGENT.id } }), /actor/);
+    for (const table of ['change_sets', 'change_set_items', 'outbox_events']) assert.deepEqual(await kernel.query(sql`SELECT id FROM ${sql.table(table)}`), []);
+  });
+
+
+
 });

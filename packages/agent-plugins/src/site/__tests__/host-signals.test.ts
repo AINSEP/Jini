@@ -162,3 +162,25 @@ describe('resolveBundledHostSignals', () => {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });
+
+it('legacy-only manifest produces the same capability decisions before and after boot', () => {
+  const legacyIdentity = { namespace: 'alpha', warning: 'Alpha legacy' };
+  const declaration = { signals: [signal], deploymentAdvice: 'Set example mode.' };
+  const value = { extensions: { alpha: { hostSignals: [signal], deploymentAdvice: declaration.deploymentAdvice } } };
+  const options = { legacyIdentity };
+  expect(parseHostSignalDeclaration({ manifest: value }, options)).toEqual(declaration);
+  expect(parseHostSignalDeclaration({ manifest: value })).toBeUndefined();
+  const sources = () => [{ packageRoot: '/bundled/a' }];
+  expect(readBundledHostSignalDeclaration({ sourceRoot: '/bundled', sources }, { ...options, readText: () => JSON.stringify(value) })).toEqual(declaration);
+  const root = mkdtempSync(path.join(os.tmpdir(), 'legacy-host-signals-'));
+  try {
+    writeFileSync(path.join(root, 'plugin.json'), JSON.stringify(value));
+    const required = { env: {}, bundledSourceRoot: root, sources: () => [{ packageRoot: root }],
+      selectCoreHostSignalDeclaration: ({ declaration }: { declaration?: BundledHostSignalDeclaration }) => declaration ?? { signals: [] },
+      evaluateHostSignals: ({ declaration }: { declaration: BundledHostSignalDeclaration }) => declaration,
+    };
+    expect(resolveBundledHostSignals(required, options)).toEqual(declaration);
+    expect(resolveBundledHostSignals(required)).toEqual({ signals: [] });
+    expect(resolveBundledHostSignals(required, { ...options, readDeclaration: () => ({ signals: [] }) })).toEqual({ signals: [] });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

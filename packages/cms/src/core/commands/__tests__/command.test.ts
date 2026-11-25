@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import type { DomainEvent, OutboxPort, ChangeSetItemRecord, ChangeSetRecord, ChangeSetRepoPort } from "@jini-ai/core/contracts/events";
+import { describe, expect, expectTypeOf, test } from "vitest";
+import type { NewChangeSetRecord, AttributedDomainEvent, DomainEvent, OutboxPort, ChangeSetItemRecord, ChangeSetRecord, ChangeSetRepoPort } from "@jini-ai/core/contracts/events";
 import {
   DuplicateCommandError,
   ForbiddenError,
@@ -268,4 +268,18 @@ describe("executeCommand insert failures", () => {
     await expect(executeCommand({ ...h, command: { ...h.command, idempotencyKey: "key" } })).rejects.toBeNull();
     expect(h.idempotencyQueries()).toBe(1);
   });
+});
+
+test("one command persists one actor on both atomic records", async () => {
+  const h = harness();
+  const actor = { id: 'actor-1', kind: 'agent' } as const;
+  await executeCommand({ ...h, deps: { ...h.deps, outbox: fakeOutbox() }, command: { ...h.command, actor } });
+  expect(h.inserts).toHaveLength(1);
+  expect(h.inserts[0]?.required.record.actor).toEqual(actor);
+  expect(h.inserts[0]?.required.record.actorId).toBe(actor.id);
+  expect(h.inserts[0]?.optional?.event?.actor).toEqual(actor);
+  expect(h.inserts[0]?.optional?.event?.actorId).toBe(actor.id);
+  expectTypeOf<ChangeSetRecord>().not.toMatchTypeOf<NewChangeSetRecord>();
+  expectTypeOf<ChangeSetRecord>().not.toMatchTypeOf<Parameters<ChangeSetRepoPort["insert"]>[0]["record"]>();
+  expectTypeOf<DomainEvent>().not.toMatchTypeOf<AttributedDomainEvent>();
 });
