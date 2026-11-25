@@ -101,6 +101,23 @@ describe("trackOutboundCall", () => {
 });
 
 describe("trackAgentRun", () => {
+ it('exports only provider-reported usage on the finished agent span', () => {
+  const { exporter, port } = setup();
+  for (const [usage, attributes] of [
+   [{ inputTokens: 12, outputTokens: 7, costUsd: 0.125 }, { 'gen_ai.usage.input_tokens': 12, 'gen_ai.usage.output_tokens': 7, 'gen_ai.usage.cost_usd': 0.125 }],
+   [{ inputTokens: 0, outputTokens: 0 }, { 'gen_ai.usage.input_tokens': 0, 'gen_ai.usage.output_tokens': 0 }],
+   [{ costUsd: 0 }, { 'gen_ai.usage.cost_usd': 0 }],
+   [{ inputTokens: -1, outputTokens: NaN, costUsd: -1 }, {}],
+   [{ inputTokens: 1.5, outputTokens: Infinity, costUsd: Infinity }, {}],
+   [undefined, {}],
+  ] as const) {
+   port.trackAgentRun({ runId: 'r' }).end({ status: 'succeeded', ...(usage === undefined ? {} : { usage }) });
+   expect(exporter.getFinishedSpans().at(-1)!.attributes).toEqual({
+    'gen_ai.operation.name': 'invoke_agent', 'agent.run.id': 'r', 'agent.run.status': 'succeeded', ...attributes,
+   });
+  }
+ });
+
  it.each(['succeeded', 'failed', 'interrupted', 'canceled', 'abandoned'] as const)('records one duration and completion after %s settlement, including repeated end', status => {
   const span = { updateName: vi.fn(), setAttribute: vi.fn(), setStatus: vi.fn(), addEvent: vi.fn(), end: vi.fn() };
   const metric = vi.fn(() => { expect(span.end).toHaveBeenCalledTimes(1); });

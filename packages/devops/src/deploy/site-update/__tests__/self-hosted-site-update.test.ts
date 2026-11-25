@@ -8,7 +8,7 @@ const approval: SiteUpdateApproval = { kind: 'owner-approval', approvedBy: 'owne
 const ids = { newId: () => 'ERR-TEST-0000-0000-0001' };
 
 /** Recording image-tag + health ports over a pretend running container. */
-function setup(options: { health?: SiteUpdateVerification; withDataRestore?: boolean } = {}) {
+function setup(options: { health?: SiteUpdateVerification; withDataRestore?: boolean; managedRollback?: boolean } = {}) {
   const calls: string[] = [];
   const state = { tag: 'v2.0.0', running: 'v2.0.0' };
   const images: ImageTagPort = {
@@ -23,6 +23,13 @@ function setup(options: { health?: SiteUpdateVerification; withDataRestore?: boo
       prefix: 'v',
       ids,
       ...(options.withDataRestore ? { data: { restore: async ({ backupId }) => { calls.push(`data.restore:${backupId}`); } } } : {}),
+      ...(options.managedRollback ? {
+        rollbackDeployment: async ({ previousTag, backupId }: { previousTag: string; backupId: string }) => {
+          calls.push(`managed.rollback:${previousTag}:${backupId}`);
+          state.tag = previousTag;
+          state.running = previousTag;
+        },
+      } : {}),
     },
   );
   return { calls, state, site, ports: { ...shared.ports, site } };
@@ -73,6 +80,16 @@ describe('createSelfHostedSiteUpdate — through runSiteUpdate', () => {
     const { calls, site, ports } = setup({ health: { status: 'unhealthy', reason: 'Blank page.' }, withDataRestore: true });
     await runSiteUpdate({ ports, plan: await planned(site), approval });
     expect(calls.slice(-3)).toEqual(['images.setTag:v2.0.0', 'images.redeploy:v2.0.0', 'data.restore:backup-1']);
+  });
+
+  it('managed rollback delegates the binary and data recovery as one operation', async () => {
+    const { calls, state, site, ports } = setup({ health: { status: 'unhealthy', reason: 'Blank page.' }, withDataRestore: true, managedRollback: true });
+    const result = await runSiteUpdate({ ports, plan: await planned(site), approval });
+    expect(result.outcome).toBe('rolled-back');
+    expect(calls).toEqual([
+      'images.currentTag', 'images.setTag:v2.1.0', 'images.redeploy:v2.1.0', 'images.currentTag', 'health:2.1.0', 'managed.rollback:v2.0.0:backup-1',
+    ]);
+    expect(state).toEqual({ tag: 'v2.0.0', running: 'v2.0.0' });
   });
 
   it('a container still on the old tag fails the check without asking the site', async () => {

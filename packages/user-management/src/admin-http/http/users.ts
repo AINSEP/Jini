@@ -27,6 +27,8 @@ export interface AdminUserResponse {
   lastLoginAt?: string | undefined;
   roleIds: string[];
   policyIds: string[];
+  /** Editor basis for the profile fields: send it back as `expectedVersion` on PATCH. */
+  version: number;
 }
 
 /** Admin-facing shape of a role. */
@@ -35,6 +37,8 @@ export interface AdminRoleResponse {
   workspaceId: string;
   name: string;
   isBuiltin: boolean;
+  /** Editor basis: send it back as `expectedVersion` on PATCH. */
+  version: number;
 }
 
 /** Admin-facing shape of a policy. */
@@ -45,6 +49,8 @@ export interface AdminPolicyResponse {
   description?: string | undefined;
   isBuiltin: boolean;
   isFrozen: boolean;
+  /** Editor basis: send it back as `expectedVersion` on PATCH. */
+  version: number;
 }
 
 /**
@@ -74,12 +80,13 @@ export function toAdminUserResponse(required: {
     lastLoginAt: user.lastLoginAt,
     roleIds,
     policyIds,
+    version: user.version,
   };
 }
 
 /** Serialize a `RoleRecord` to `AdminRoleResponse`. @complexity O(1). @overallScore 100 */
 export function toAdminRoleResponse(role: RoleRecord): AdminRoleResponse {
-  return { id: role.id, workspaceId: role.workspaceId, name: role.name, isBuiltin: role.isBuiltin };
+  return { id: role.id, workspaceId: role.workspaceId, name: role.name, isBuiltin: role.isBuiltin, version: role.version };
 }
 
 /** Serialize a `PolicyRecord` to `AdminPolicyResponse`. @complexity O(1). @overallScore 100 */
@@ -91,5 +98,6 @@ export function toAdminPolicyResponse(policy: PolicyRecord): AdminPolicyResponse
     description: policy.description,
     isBuiltin: policy.isBuiltin,
     isFrozen: policy.isFrozen,
+    version: policy.version,
   };
 }

@@ -145,7 +145,7 @@ export interface MediaModelCatalog {
 }
 
 export interface MediaDispatchEngine {
-  generate(required: RequiredArgs<MediaGenerationRequest>, optional?: OptionalArgs<MediaGenerationRequest>): Promise<MediaGenerationResult>;
+  generate(required: RequiredArgs<MediaGenerationRequest>, optional?: OptionalArgs<MediaGenerationRequest> & { signal?: AbortSignal }): Promise<MediaGenerationResult>;
 }
 
 /** Internal: the pure shape rendered by `render*` provider functions, before the engine attaches `providerId`/`usedStubFallback`/`warnings`. */

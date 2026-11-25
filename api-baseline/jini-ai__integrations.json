@@ -386,7 +386,7 @@
    "MEDIA_PROVIDERS": "variable:533a17cd7b",
    "MEDIA_PROVIDER_CONTRACT": "variable:f8e3a7c887",
    "MEDIA_PROVIDER_ID_ALIASES": "variable:1740c65745",
-   "MediaDispatchEngine": "interface:675c88e891",
+   "MediaDispatchEngine": "interface:2c587853b6",
    "MediaDispatchEngineOptions": "interface:61a28deda6",
    "MediaDispatchEngineRequired": "interface:8605598c00",
    "MediaExecutionMode": "type:95a9585028",

@@ -17,10 +17,11 @@ export function createRolesApi({ authenticatedAdminRequest, workspaceId }: Roles
       authenticatedAdminRequest<{ role: AdminRole }>({ method: "POST", path: `/workspaces/${workspaceId}/roles`, body: { name } }),
     // SPEC-006 0.6.0.
     updateRole: (
-      { roleId, name }: { roleId: string; name: string },
+      { roleId, name, expectedVersion }: { roleId: string; name: string; expectedVersion?: number | undefined },
       _options: Record<string, never> = {}
     ) =>
-      authenticatedAdminRequest<{ role: AdminRole }>({ method: "PATCH", path: `/workspaces/${workspaceId}/roles/${encodeURIComponent(roleId)}`, body: { name } }),
+      // `expectedVersion` is the loaded row's version: the server's conditional write refuses a stale basis with 409.
+      authenticatedAdminRequest<{ role: AdminRole }>({ method: "PATCH", path: `/workspaces/${workspaceId}/roles/${encodeURIComponent(roleId)}`, body: { name, expectedVersion } }),
     deleteRole: ({ roleId }: { roleId: string }, _optional: Record<string, never> = {}) =>
       authenticatedAdminRequest<void>({ method: "DELETE", path: `/workspaces/${workspaceId}/roles/${encodeURIComponent(roleId)}` }),
     listPolicies: () => authenticatedAdminRequest<{ policies: AdminPolicy[] }>({ method: "GET", path: `/workspaces/${workspaceId}/policies` }),
@@ -29,7 +30,7 @@ export function createRolesApi({ authenticatedAdminRequest, workspaceId }: Roles
     // SPEC-006 0.6.0.
     updatePolicy: (
       { policyId }: { policyId: string },
-      options: { name?: string; description?: string } = {}
+      options: { name?: string; description?: string; expectedVersion?: number | undefined } = {}
     ) =>
       authenticatedAdminRequest<{ policy: AdminPolicy }>({ method: "PATCH", path: `/workspaces/${workspaceId}/policies/${encodeURIComponent(policyId)}`, body: options }),
     deletePolicy: ({ policyId }: { policyId: string }, _optional: Record<string, never> = {}) =>

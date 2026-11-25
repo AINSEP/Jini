@@ -12,7 +12,7 @@ function wrapper({ children }: { children: ReactNode }) { return <FetchQueryProv
 const submit = () => ({ preventDefault: vi.fn() }) as unknown as FormEvent;
 
 test('user creation, grants, email and status writes preserve exact port payloads and refresh the roster', async () => {
-  const port = createFakeUsersPort({}, { meId: 'another-admin', roles: [{ id: 'editor', workspaceId: 'fake-ws', name: 'Editor', isBuiltin: false }] });
+  const port = createFakeUsersPort({}, { meId: 'another-admin', roles: [{ id: 'editor', workspaceId: 'fake-ws', name: 'Editor', isBuiltin: false, version: 1 }] });
   const create = vi.spyOn(port, 'createUser');
   const { result } = renderHook(() => useUsers({ port, translate, queryScope: 'reconcile-users' }), { wrapper });
   await waitFor(() => expect(result.current.users).toEqual([]));
@@ -35,7 +35,7 @@ test('user creation, grants, email and status writes preserve exact port payload
 
 // REGRESSION: fails if updatePolicy spreads opts without restoring the existing name for name: undefined.
 test('fake policy updates preserve the required name across omitted and undefined optional names', async () => {
-  const port = createFakeRolesPort({}, { policies: [{ id: 'custom', workspaceId: 'fake-ws', name: 'Custom', isBuiltin: false, isFrozen: false }] });
+  const port = createFakeRolesPort({}, { policies: [{ id: 'custom', workspaceId: 'fake-ws', name: 'Custom', isBuiltin: false, isFrozen: false, version: 1 }] });
   const target = { policyId: 'custom' };
   expect((await port.updatePolicy(target)).policy.name).toBe('Custom');
   const described = await port.updatePolicy(target, { description: 'New description' });

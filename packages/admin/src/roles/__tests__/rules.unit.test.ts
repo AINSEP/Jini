@@ -13,13 +13,13 @@ import { t } from "../roles-i18n.js";
  * exactly the "moved verbatim" contract the extraction claims and is otherwise unverified.
  */
 
-const ROLE: AdminRole = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false };
+const ROLE: AdminRole = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false, version: 1 };
 const POLICY: AdminPolicy = {
   id: "p1",
   workspaceId: "w1",
   name: "Content Policy",
   description: "desc",
-  isBuiltin: false,
+  isBuiltin: false, version: 1,
   isFrozen: false,
 };
 

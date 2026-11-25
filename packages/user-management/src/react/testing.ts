@@ -158,6 +158,7 @@ function fakeRole(overrides: Partial<AdminRole> & Pick<AdminRole, "id">): AdminR
     workspaceId: FAKE_WORKSPACE_ID,
     name: "Fake role",
     isBuiltin: false,
+    version: 1,
     ...overrides,
   };
 }
@@ -168,6 +169,7 @@ function fakePolicy(overrides: Partial<AdminPolicy> & Pick<AdminPolicy, "id">): 
     name: "Fake policy",
     isBuiltin: false,
     isFrozen: false,
+    version: 1,
     ...overrides,
   };
 }
@@ -246,7 +248,9 @@ function fakePolicyOperations(policies: AdminPolicy[], options: FakeRolesPortOpt
       if (index < 0) throw new Error(`fake policy not found: ${target.policyId}`);
       const current = policies[index]!;
       // Optional updates must retain the required name when it is omitted or undefined.
-      const updated = { ...current, ...opts, name: opts?.name ?? current.name };
+      // `expectedVersion` is the request's compare-and-set basis, not a policy field; keep it out of the stored row.
+      const { expectedVersion: _basis, ...fields } = opts ?? {};
+      const updated = { ...current, ...fields, name: fields.name ?? current.name };
       policies[index] = updated;
       return { policy: updated };
     },

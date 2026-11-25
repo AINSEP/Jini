@@ -1034,7 +1034,7 @@
    "AgentRunTracker": "interface:d6adb008e4",
    "AgentRunTrackingInput": "interface:594908be6d",
    "AgentRunTrackingOptions": "interface:6bb4adf695",
-   "AgentRunTrackingOutcome": "interface:7645a90c6d",
+   "AgentRunTrackingOutcome": "interface:490fb9c8a0",
    "BrowserAnalyticsContribution": "interface:35bf803803",
    "CrashUpload": "interface:e405e1a2c9",
    "DbQueryTracker": "interface:b98c2b41b6",
@@ -2005,7 +2005,10 @@
   "symbols": {
    "ArtifactStorePort": "interface:bb2dc3636a",
    "ArtifactUpload": "interface:e688309feb",
-   "DeployTargetCredential": "type:ab3baf1da1"
+   "DeployTargetCredential": "type:ab3baf1da1",
+   "SiteUpdateAvailability": "type:8a7455413c",
+   "SiteUpdateLastAttempt": "type:ed77f1ada6",
+   "SiteUpdateStatusReply": "type:1010d8d7e2"
   }
  },
  "./contracts/site/diagnostics-domain-dns": {
@@ -2019,7 +2022,7 @@
   "symbols": {
    "AgentSpanOptions": "interface:567ec35508",
    "CaptureEvent": "interface:b90b233e98",
-   "OperationSpanOptions": "interface:c5804ecd7b",
+   "OperationSpanOptions": "interface:7d26255d01",
    "RequestSpanOptions": "interface:d8ec2a1c52",
    "Tracker": "interface:a8e95733db",
    "TrackerErrorContext": "interface:6f2dcbd670",
@@ -2504,8 +2507,8 @@
    "PasswordHasherPort": "interface:f502fa8476",
    "PolicyPermissionRecord": "interface:205752fcb3",
    "PolicyPermissionRepoPort": "interface:6d9d1ee9e3",
-   "PolicyRecord": "interface:daf7052fb5",
-   "PolicyRepoPort": "interface:b3a5462493",
+   "PolicyRecord": "interface:8e5ac8ea71",
+   "PolicyRepoPort": "interface:26c9234852",
    "PrincipalKind": "type:a515a37a8b",
    "PrincipalPolicyRecord": "interface:0466496e9c",
    "PrincipalPolicyRepoPort": "interface:ecff2742d9",
@@ -2516,12 +2519,12 @@
    "PrincipalStatus": "type:5db607e745",
    "RolePolicyRecord": "interface:4329268a51",
    "RolePolicyRepoPort": "interface:036e26aeb7",
-   "RoleRecord": "interface:26bf9402d4",
-   "RoleRepoPort": "interface:ed6178e3a5",
+   "RoleRecord": "interface:19d288ca36",
+   "RoleRepoPort": "interface:662c645f61",
    "SessionRecord": "interface:08ae02fd6a",
    "SessionRepoPort": "interface:0ac9ae46ad",
-   "UserRecord": "interface:9d8ad07d74",
-   "UserRepoPort": "interface:629df2aa02"
+   "UserRecord": "interface:2fc0128bc7",
+   "UserRepoPort": "interface:481ac5c20c"
   }
  },
  "./contracts/site/user-management-react": {
@@ -2529,15 +2532,15 @@
   "symbols": {
    "AdminIdentityUser": "interface:2ce5eb8c93",
    "AdminMember": "interface:33728c5ad2",
-   "AdminPolicy": "interface:8312604a96",
+   "AdminPolicy": "interface:670c9855fd",
    "AdminPolicyPermission": "interface:79c403155f",
-   "AdminRole": "interface:082b214d1e",
+   "AdminRole": "interface:7335b7ecfc",
    "AdminUser": "interface:0be19e739a",
    "MembersPort": "interface:387a007d8c",
    "PasskeyOptions": "type:174f45e889",
    "PasskeySettingsPort": "interface:d60af8745c",
    "PasskeySignInPort": "interface:de53800ede",
-   "RolesPort": "interface:754cb08fb8",
+   "RolesPort": "interface:2e88ff79c2",
    "TotpSettingsPort": "interface:0527fe37d2",
    "UsersPort": "interface:c34e24a18f"
   }

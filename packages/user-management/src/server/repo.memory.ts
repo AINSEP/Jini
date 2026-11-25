@@ -1,3 +1,4 @@
+import type { AssertVersionedWritePort } from "@jini-ai/core/optimistic-concurrency";
 import { matchesRecordFields, upsertRecord } from "@jini-ai/core/records";
 import type {
   PolicyPermissionRecord,
@@ -57,6 +58,33 @@ export abstract class InMemoryIdentityRows<Row> {
   }
 }
 
+/** The constructor object of a versioned identity repo (users, roles, policies): the host binds its
+ * optimistic-concurrency implementation, as for the in-memory webhook subscription repo. */
+export interface InMemoryVersionedIdentityRequired { assertVersionedWrite: AssertVersionedWritePort }
+
+/**
+ * Compare-and-swap for one identity row. A supplied basis must still be the stored version; a
+ * missing basis (create, seed, credential reset, legacy client) writes unconditionally.
+ *
+ * @throws {RecordVersionConflictError} (via the bound port) when the basis is stale or the row is gone.
+ * @complexity O(1).
+ */
+async function writeVersionedRow<Row extends { version: number }>(
+  required: { rows: Row[]; index: number; record: Row; recordKind: string; recordId: string; assertVersionedWrite: AssertVersionedWritePort },
+  optional: { expectedVersion?: number } = {},
+): Promise<void> {
+  const current = required.rows[required.index];
+  if (optional.expectedVersion !== undefined && current?.version !== optional.expectedVersion) {
+    await required.assertVersionedWrite({ changedRows: 0, recordKind: required.recordKind, recordId: required.recordId,
+      expectedVersion: optional.expectedVersion, readCurrentVersion: async () => current?.version ?? null });
+  }
+  // The successful compare and write stay synchronous for concurrent memory callers.
+  if (current === undefined) { required.rows.push(required.record); return; }
+  // Every write to an existing row advances it — even an unversioned credential reset — so an
+  // editor's basis read before that write is stale and cannot write the old row back.
+  required.rows[required.index] = { ...required.record, version: current.version + 1 };
+}
+
 /** Workspace-scoped rows keyed by `id`: the generic find/list/save/delete every identity repo shares. */
 export abstract class InMemoryWorkspaceRecords<Row extends { workspaceId: string; id: string }> extends InMemoryIdentityRows<Row> {
   async findById(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<Row | null> { return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } as Partial<Row> })) ?? null; }
@@ -93,9 +121,11 @@ export class InMemoryPrincipalRepo extends InMemoryIdentityRows<PrincipalRecord>
 }
 
 export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implements UserRepoPort {
+  private readonly assertVersionedWrite: AssertVersionedWritePort;
 
-  constructor(_required: Record<string, never>, { initialRows = [] }: { initialRows?: UserRecord[] } = {}) {
-    super(_required, { initialRows });
+  constructor({ assertVersionedWrite }: InMemoryVersionedIdentityRequired, { initialRows = [] }: { initialRows?: UserRecord[] } = {}) {
+    super({}, { initialRows });
+    this.assertVersionedWrite = assertVersionedWrite;
   }
 
   async findByPrincipalId(required: {
@@ -116,8 +146,14 @@ export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implement
     return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
   }
 
-  async save(record: UserRecord): Promise<void> {
-    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, principalId: record.principalId } });
+  async save(record: UserRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
+    const index = this.rows.findIndex(row => matchesRecordFields({ record: row, fields: { workspaceId: record.workspaceId, principalId: record.principalId } }));
+    const stored = this.rows[index];
+    // A versioned save is a profile edit: login and password bookkeeping are written by their own
+    // paths and are not part of the editor's snapshot, so the stored values are kept.
+    const written = optional.expectedVersion !== undefined && stored !== undefined
+      ? { ...record, passwordHash: stored.passwordHash, lastLoginAt: stored.lastLoginAt } : record;
+    return writeVersionedRow({ rows: this.rows, index, record: written, recordKind: "user", recordId: record.principalId, assertVersionedWrite: this.assertVersionedWrite }, optional);
   }
 
   async recordLogin(required: { workspaceId: string; principalId: string; lastLoginAt: string }): Promise<void> {
@@ -166,12 +202,36 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
 }
 
 export class InMemoryRoleRepo extends InMemoryWorkspaceRecords<RoleRecord> implements RoleRepoPort {
+  private readonly assertVersionedWrite: AssertVersionedWritePort;
+
+  constructor({ assertVersionedWrite }: InMemoryVersionedIdentityRequired, { initialRows = [] }: { initialRows?: RoleRecord[] } = {}) {
+    super({}, { initialRows });
+    this.assertVersionedWrite = assertVersionedWrite;
+  }
+
+  override async save(record: RoleRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
+    const index = this.rows.findIndex(row => matchesRecordFields({ record: row, fields: { workspaceId: record.workspaceId, id: record.id } }));
+    return writeVersionedRow({ rows: this.rows, index, record, recordKind: "role", recordId: record.id, assertVersionedWrite: this.assertVersionedWrite }, optional);
+  }
+
   async findByName(required: { workspaceId: string; name: string }): Promise<RoleRecord | null> {
     return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
   }
 }
 
 export class InMemoryPolicyRepo extends InMemoryWorkspaceRecords<PolicyRecord> implements PolicyRepoPort {
+  private readonly assertVersionedWrite: AssertVersionedWritePort;
+
+  constructor({ assertVersionedWrite }: InMemoryVersionedIdentityRequired, { initialRows = [] }: { initialRows?: PolicyRecord[] } = {}) {
+    super({}, { initialRows });
+    this.assertVersionedWrite = assertVersionedWrite;
+  }
+
+  override async save(record: PolicyRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
+    const index = this.rows.findIndex(row => matchesRecordFields({ record: row, fields: { workspaceId: record.workspaceId, id: record.id } }));
+    return writeVersionedRow({ rows: this.rows, index, record, recordKind: "policy", recordId: record.id, assertVersionedWrite: this.assertVersionedWrite }, optional);
+  }
+
   async findByName(required: { workspaceId: string; name: string }): Promise<PolicyRecord | null> {
     return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
   }

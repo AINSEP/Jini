@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -21,14 +22,14 @@ const WORKSPACE = "workspace-1";
 const HASHER = new Argon2PasswordHasher({ loadBinding: loadArgon2Binding }, { memoryCost: 8, timeCost: 1, parallelism: 1 });
 
 test("B262: a password reset landing between login's read and its timestamp write survives", async () => {
-  const users = new InMemoryUserRepo({});
+  const users = new InMemoryUserRepo({ assertVersionedWrite });
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}), users, sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}),
   } });
   await repos.principals.save({ id: "p-1", workspaceId: WORKSPACE, kind: "user", displayName: "ed", status: "active", createdAt: "2026-01-01T00:00:00.000Z" });
-  await repos.users.save({ principalId: "p-1", workspaceId: WORKSPACE, username: "ed", passwordHash: await HASHER.hash({ password: "old-pass" }) });
+  await repos.users.save({ version: 1, principalId: "p-1", workspaceId: WORKSPACE, username: "ed", passwordHash: await HASHER.hash({ password: "old-pass" }) });
 
   const resetHash = await HASHER.hash({ password: "new-pass" });
   // Patched on the raw repo (beneath the transactional queue) so the interleaved write cannot deadlock it.

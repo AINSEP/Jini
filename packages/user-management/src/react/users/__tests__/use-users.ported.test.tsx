@@ -32,8 +32,8 @@ const USER_B = {
   roleIds: [] as string[],
   policyIds: [] as string[],
 };
-const ROLE = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false };
-const POLICY = { id: "p1", workspaceId: "w1", name: "Content", description: "d", isBuiltin: false, isFrozen: false };
+const ROLE = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false, version: 1 };
+const POLICY = { id: "p1", workspaceId: "w1", name: "Content", description: "d", isBuiltin: false, version: 1, isFrozen: false };
 describe("injected port (useX(dependencies) / useWiredX() conversion coverage)", () => {
 
   it("loads users, roles, and policies through the injected port, without touching fetch", async () => {

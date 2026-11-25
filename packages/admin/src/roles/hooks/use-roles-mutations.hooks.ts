@@ -19,7 +19,7 @@ export function useRolesMutations(
     invalidates: [KEYS.list],
   });
   const saveRoleMutation = useFetchMutation({
-    run: ({ input }: { input: { roleId: string; name: string } }) => port.updateRole(input),
+    run: ({ input }: { input: { roleId: string; name: string; expectedVersion: number | undefined } }) => port.updateRole(input),
   }, {
     invalidates: [KEYS.list],
   });
@@ -29,8 +29,8 @@ export function useRolesMutations(
     invalidates: [KEYS.list],
   });
   const savePolicyMutation = useFetchMutation({
-    run: ({ input }: { input: { policyId: string; name: string; description: string } }) =>
-      port.updatePolicy({ policyId: input.policyId }, { name: input.name, description: input.description }),
+    run: ({ input }: { input: { policyId: string; name: string; description: string; expectedVersion: number | undefined } }) =>
+      port.updatePolicy({ policyId: input.policyId }, { name: input.name, description: input.description, expectedVersion: input.expectedVersion }),
   }, {
     invalidates: [KEYS.list],
   });

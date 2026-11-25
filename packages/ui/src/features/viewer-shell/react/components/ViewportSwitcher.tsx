@@ -28,7 +28,7 @@ export interface ViewportSwitcherProps {
  * the other component didn't have. This component is that shared primitive
  * — when that other file's extraction happens, it should bind to this
  * component rather than re-implement its own dropdown switcher. See
- * `archived UI source map` for the full comparison.
+ * `070311a07^:packages/ui/source-map.md` (section "features/viewer-shell/") for the full comparison.
  */
 export function ViewportSwitcher({ presets, viewport, onViewport, ariaLabel, tabIndex, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: ViewportSwitcherProps) {
   const [open, setOpen] = useState(false);

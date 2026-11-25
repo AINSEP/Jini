@@ -1848,6 +1848,10 @@
     {
       "id": "08aa98f5889b",
       "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "0315b5702515",
+      "reason": "P10-S6.J: only the dangling archived-source-map pointer was replaced by a commit-qualified citation (070311a07^:packages/ui/source-map.md); the reason (host-owned footer slot, no default footer shipped) is unchanged and still in the comment."
     }
   ]
 }

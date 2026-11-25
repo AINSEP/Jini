@@ -31,7 +31,19 @@ export interface DesktopSiteMigratePort extends SiteDataRestorePort {
 export interface DesktopSiteUpdateOptions {
   /** Mints the `ERR-` id when a feed or running version is not a version number. */
   ids?: IdGenerator | undefined;
+  /**
+   * The host's managed recovery: stop the app, restore the data backup, restart on `previousVersion`, and
+   * check the old version is healthy, as one operation. When given it replaces the legacy app-then-data
+   * rollback entirely; managed production updates always pass it.
+   */
+  rollbackDeployment?: DesktopRollbackDeploymentPort | undefined;
 }
+
+/** Puts the kept previous app binary and its data back together; see {@link DesktopSiteUpdateOptions.rollbackDeployment}. */
+export type DesktopRollbackDeploymentPort = (
+  required: { previousVersion: string; backupId: string },
+  optional?: SiteUpdateCallOptions,
+) => Promise<void>;
 
 /**
  * Builds the desktop adapter. Apply order is stage app -> migrate site data -> swap app in, so a
@@ -67,6 +79,10 @@ export function createDesktopSiteUpdate(
       return health.check({ expectedVersion: plan.toVersion }, optional);
     },
     rollback: async ({ to, backupId }, optional) => {
+      // The online database adapter cannot choose when to replace a live database file, so managed
+      // rollback delegates binary and data recovery together instead of running the legacy pair first.
+      const { rollbackDeployment } = _optional;
+      if (rollbackDeployment) return rollbackDeployment({ previousVersion: to, backupId }, optional);
       await app.rollbackTo({ version: to }, optional);
       await migrate.restore({ backupId }, optional);
     },

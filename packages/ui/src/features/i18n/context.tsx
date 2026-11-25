@@ -8,7 +8,7 @@
  * dictionary or gets a passthrough).
  *
  * Origin: `i18n/index.tsx` in the vendored OD web tree. Ported the
- * *mechanism* only — see `archived UI source map` for what was dropped
+ * *mechanism* only — see `070311a07^:packages/ui/source-map.md` (section "i18n/observability/utils sweep") for what was dropped
  * (OD's 19 baked-in locale dictionaries, OD's desktop-host OS-locale
  * bridge, the manual-vs-auto-detected localStorage tagging).
  */

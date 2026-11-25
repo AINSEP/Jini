@@ -22,6 +22,8 @@
       "./agent-jobs": "node",
       "./deploy": "node",
       "./deploy/react": "browser",
+      "./deploy/admin-http/site-update-status": "universal",
+      "./deploy/react/site-update-notice": "browser",
       "./checks/published-types": "node",
       "./checks/coverage": "node",
       "./checks/node": "node",
@@ -238,6 +240,16 @@
       "types": "./dist/deploy/react/index.d.ts",
       "import": "./dist/deploy/react/index.js",
       "default": "./dist/deploy/react/index.js"
+    },
+    "./deploy/admin-http/site-update-status": {
+      "types": "./dist/deploy/admin-http/site-update-status.d.ts",
+      "import": "./dist/deploy/admin-http/site-update-status.js",
+      "default": "./dist/deploy/admin-http/site-update-status.js"
+    },
+    "./deploy/react/site-update-notice": {
+      "types": "./dist/deploy/react/SiteUpdateNotice.d.ts",
+      "import": "./dist/deploy/react/SiteUpdateNotice.js",
+      "default": "./dist/deploy/react/SiteUpdateNotice.js"
     },
     "./checks/published-types": {
       "types": "./dist/checks/published-types/index.d.ts",

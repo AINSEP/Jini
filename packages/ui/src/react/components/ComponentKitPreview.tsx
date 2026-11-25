@@ -49,7 +49,7 @@ export interface ComponentKitPreviewProps {
  * shape; that markdown-parsing pipeline is OD-specific product logic (their
  * "design.md" spec format) and is not ported — same call already made for
  * the color-mixing math this component leans on (`readableTextColor`, see
- * `archived UI source map`'s color-math section: "what was deliberately
+ * `070311a07^:packages/ui/source-map.md` (section "flat atoms — `scrollWorkspaceTabsWithWheel` + `DesignSystemFlow` color math"), color-math subsection: "what was deliberately
  * left behind"). This component instead takes the already-resolved token
  * model directly, genericizing the token *source* to whatever the host
  * computes it from.

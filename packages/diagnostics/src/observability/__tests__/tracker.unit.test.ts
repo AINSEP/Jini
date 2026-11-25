@@ -301,3 +301,15 @@ it("a thrown non-Error object is reported once as it propagates through nested t
   expect(reports[0]!.context.operation).toBe("inner");
   expect((reports[0]!.error as Error).message).toBe("non-Error thrown: object");
 });
+
+it("forwards an operation's structural parent to the provider, never as an attribute", async () => {
+  const starts: unknown[] = [];
+  const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), trackOperation(input) { starts.push(input); return { run: fn => fn(), end() {} }; } } });
+  const parent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+  await tracker.trace({ name: "outbox.deliver", run: () => undefined }, { attributes: { "event.name": "entry.updated" }, traceparent: parent });
+  await tracker.trace({ name: "plain", run: () => undefined }, { attributes: { source: "admin" } });
+  expect(starts).toEqual([
+    { name: "outbox.deliver", attributes: { "event.name": "entry.updated" }, traceparent: parent },
+    { name: "plain", attributes: { source: "admin" } },
+  ]);
+});

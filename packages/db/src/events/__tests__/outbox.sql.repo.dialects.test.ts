@@ -14,6 +14,7 @@ import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
 
 const T0 = "2026-11-18T00:00:00.000Z";
 const LEASE_MS = 90_000;
+const PARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 const event = (id: string): DomainEvent => ({ id, name: "post.published", occurredAt: T0, workspaceId: "ws-1", payload: { id } });
 const FROZEN_JSON = '{"id":"post-1-post.published-3","name":"post.published","occurredAt":"2026-11-18T00:00:00.000Z","aggregateId":"post-1","workspaceId":"ws-1","payload":{"slug":"hello","version":3}}';
 
@@ -94,6 +95,35 @@ describe.each(["sqlite", "postgres"] as const)("outbox sql adapter [%s]", (diale
     await outbox.markDelivered({ id: "e1" });
     await outbox.markDelivered({ id: "missing" });
     assert.deepEqual(await rows(), settled);
+  });
+
+  test("producer context survives durable enqueue without modifying the original envelope", async () => {
+    const { kernel } = await make();
+    const outbox = new SqlOutboxAdapter({ kernel, tables: TABLES, claimLeaseMs: LEASE_MS }, {
+      prepareOutboxEvent: ({ event: produced }) => ({ ...produced, metadata: { ...produced.metadata, traceparent: PARENT } }),
+    });
+    const original = event("e1");
+    const snapshot = structuredClone(original);
+    await kernel.transaction(async () => outbox.enqueue(original));
+    assert.deepEqual(original, snapshot, "the caller's envelope is untouched");
+    const [claimed] = await outbox.claimPending({ batchSize: 5, nowIso: T0 });
+    assert.deepEqual(claimed?.event, { ...snapshot, metadata: { traceparent: PARENT } }, "the prepared envelope is the stored one");
+  });
+
+  test("preparation keeps the dedupe key and schedule, and a failing preparation stores the original envelope without failing the write", async () => {
+    const { kernel, rows } = await make();
+    const renaming = new SqlOutboxAdapter({ kernel, tables: TABLES, claimLeaseMs: LEASE_MS }, {
+      prepareOutboxEvent: ({ event: produced }) => ({ ...produced, id: "renamed", workspaceId: "ws-other", occurredAt: "2030-01-01T00:00:00.000Z", metadata: { traceparent: PARENT } }),
+    });
+    await renaming.enqueue(event("e1"));
+    await renaming.enqueue(event("e1"));
+    const failing = new SqlOutboxAdapter({ kernel, tables: TABLES, claimLeaseMs: LEASE_MS }, {
+      prepareOutboxEvent: () => { throw new Error("context reader down"); },
+    });
+    await failing.enqueue(event("e2"));
+    assert.deepEqual((await rows()).map((row) => [row.id, row.next_attempt_at]), [["e1", T0], ["e2", T0]]);
+    const claimed = await failing.claimPending({ batchSize: 5, nowIso: T0 });
+    assert.deepEqual(claimed.map((record) => record.event), [{ ...event("e1"), metadata: { traceparent: PARENT } }, event("e2")]);
   });
 
   test("enqueue inside a transaction that throws leaves no row; one that commits leaves it", async () => {

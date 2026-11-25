@@ -24,7 +24,7 @@ it("normalizes names, preserves credentials/email/sessions, audits once, and sup
   const session = await login({ deps: h.deps, input: { workspaceId: "w", username: "alice", password: "test-password" } });
   const required = { deps: h.deps, input: { workspaceId: "w", callerPrincipalId: h.ownerPrincipalId, principalId: target.principalId } };
   const { user } = await updateUser(required, { username: "  E\u0301LODIE  " });
-  expect(user).toEqual({ ...target, lastLoginAt: session.session.createdAt, username: "élodie" });
+  expect(user).toEqual({ ...target, lastLoginAt: session.session.createdAt, username: "élodie", version: target.version + 1 });
   expect(await validateSession({ deps: h.deps, input: { workspaceId: "w", rawToken: session.rawToken } })).toMatchObject({ principal: { id: target.principalId } });
   expect(await h.repos.sessions.findById({ workspaceId: "w", id: session.session.id })).toEqual(session.session);
   expect(h.audit).toEqual([{ workspaceId: "w", callerPrincipalId: h.ownerPrincipalId, principalId: target.principalId,

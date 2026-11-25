@@ -2,7 +2,7 @@
 // compact card grid rather than a native <select>. Origin: `OptionCards<T>`
 // in `NewProjectPanel.tsx` (OD) — the component itself carried no
 // product-specific typing or copy (label/options come entirely from props),
-// so this is a verbatim structural port. See archived UI source map.
+// so this is a verbatim structural port. See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 export interface OptionCardsOption<T extends string | number> {
   value: T;

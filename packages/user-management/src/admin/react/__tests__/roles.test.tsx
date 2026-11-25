@@ -12,9 +12,9 @@ import { roles } from '../index.js';
 import { createMemoryRolesApi } from '../../adapters/memory.js';
 import type { RolesApiPort } from '../../ports.js';
 import type { RoleRecord, PolicyRecord } from '../../models.js';
-const role: RoleRecord = { id: 'r', workspaceId: 'w', name: 'Authors', isBuiltin: false };
-const builtin: RoleRecord = { id: 'builtin', workspaceId: 'w', name: 'Owner', isBuiltin: true };
-const policy: PolicyRecord = { id: 'p', workspaceId: 'w', name: 'Readers', description: 'Read things', isBuiltin: false, isFrozen: false };
+const role: RoleRecord = { version: 1, id: 'r', workspaceId: 'w', name: 'Authors', isBuiltin: false };
+const builtin: RoleRecord = { version: 1, id: 'builtin', workspaceId: 'w', name: 'Owner', isBuiltin: true };
+const policy: PolicyRecord = { version: 1, id: 'p', workspaceId: 'w', name: 'Readers', description: 'Read things', isBuiltin: false, isFrozen: false };
 async function mount({ permissions = [], api, kit, strict = false, omitPolicies = false }: {
     permissions?: string[];
     api?: RolesApiPort;

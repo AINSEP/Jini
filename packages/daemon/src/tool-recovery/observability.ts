@@ -33,7 +33,8 @@ export type ToolFailureReporter = Pick<ErrorReporter, "record">;
 export type ToolCallObservability = Pick<ObservabilityPort, "trackOperation"> & Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">>;
 
 // A denial, a declined confirmation and a cancellation are the system working as designed, not
-// failures; a timeout and a failed handler are.
+// failures; a timeout and a failed handler are. Refusals still count under kind: "refused" on
+// tool.failures, but are not failed spans or incidents.
 const FAILED_STATUSES: ReadonlySet<ToolExecutionStatus> = new Set(["failed", "timed-out"]);
 
 /** The settled result's text as an Error, so an error tracker gets a type to group on. The text is
@@ -75,10 +76,21 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
 
 type ToolCallMetrics = Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">>;
 
-function recordToolCallMetrics({ observability, toolId, failed }: { observability: ToolCallMetrics; toolId: string; failed: boolean }): void {
+type ToolFailureKind = "internal" | "input" | "refused";
+
+/** The fixed `kind` label for one settled call's `tool.failures` increment, or undefined when the
+ * call did not fail (completed, cancelled). A refusal is counted but is not a failed span. */
+function failureKindOf(result: ToolExecutionResult): ToolFailureKind | undefined {
+  if (result.status === "denied" || result.status === "confirmation-denied") return "refused";
+  if (result.status === "timed-out") return "internal";
+  if (result.status !== "failed") return undefined;
+  return result.errorKind === "validation" ? "input" : "internal";
+}
+
+function recordToolCallMetrics({ observability, toolId, failureKind }: { observability: ToolCallMetrics; toolId: string; failureKind?: ToolFailureKind | undefined }, _optional = {}): void {
   if (!observability.supportsMetric || !observability.metric) return;
   observability.metric({ name: "tool.calls", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
-  if (failed) observability.metric({ name: "tool.failures", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
+  if (failureKind) observability.metric({ name: "tool.failures", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId, kind: failureKind } });
 }
 
 /** One call's settlement inputs: `metrics` is present only when the call is observed. */
@@ -101,8 +113,8 @@ function recordSafely({ reporter, required, options }: { reporter: ToolFailureRe
 }
 
 /** Metrics only for an observed call; the fixed `tool.calls`/`tool.failures` counters. */
-function settleToolCallMetrics({ settlement, failed }: { settlement: ToolCallSettlement; failed: boolean }): void {
-  if (settlement.metrics) recordToolCallMetrics({ observability: settlement.metrics, toolId: settlement.attributes["tool.id"], failed });
+function settleToolCallMetrics({ settlement, failureKind }: { settlement: ToolCallSettlement; failureKind: ToolFailureKind | undefined }): void {
+  if (settlement.metrics) recordToolCallMetrics({ observability: settlement.metrics, toolId: settlement.attributes["tool.id"], failureKind });
 }
 
 /** A throw from below: an internal one is recorded with the ORIGINAL object, so a later boundary
@@ -117,7 +129,7 @@ function settleThrownToolCall({ error, settlement }: { error: unknown; settlemen
     recordSafely({ reporter, required: { error, step: TOOL_STEP, operation: TOOL_CALL_OPERATION, tracker }, options: { attributes: { ...attributes, "tool.error_kind": errorKind } } });
   }
   endOnce({ tracker, verdict: { outcome: "threw", failed: true, attributes: { "tool.error_kind": errorKind } } });
-  settleToolCallMetrics({ settlement, failed: true });
+  settleToolCallMetrics({ settlement, failureKind: errorKind === "validation" ? "input" : "internal" });
 }
 
 /** Records a failed or timed-out result and returns the result the caller sees. A failed result
@@ -149,7 +161,7 @@ function settleToolResult({ result, settlement }: { result: ToolExecutionResult;
   const settled = reportResultFailure({ result, errorKind, settlement });
   const failed = FAILED_STATUSES.has(result.status);
   endOnce({ tracker: settlement.tracker, verdict: { outcome: result.status, failed, ...(errorKind ? { attributes: { "tool.error_kind": errorKind } } : {}) } });
-  settleToolCallMetrics({ settlement, failed });
+  settleToolCallMetrics({ settlement, failureKind: failureKindOf(result) });
   return settled;
 }
 

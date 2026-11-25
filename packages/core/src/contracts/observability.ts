@@ -36,7 +36,7 @@ export interface AgentRunTrackingInput { runId: string; }
 export interface AgentRunTrackingOptions { conversationId?: string; agentName?: string; traceparent?: string; }
 /** `interrupted`: the run vanished (its process restarted). `abandoned`: the watcher gave up unproven. */
 export type AgentRunStatus = 'succeeded' | 'failed' | 'canceled' | 'interrupted' | 'abandoned';
-export interface AgentRunTrackingOutcome { status: AgentRunStatus; error?: unknown; }
+export interface AgentRunTrackingOutcome { status: AgentRunStatus; error?: unknown; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number }; }
 export interface AgentRunTracker extends TrackerScope { end(outcome: AgentRunTrackingOutcome): void; }
 /** Fixed labels and ids only (a tool id, a run id): never user text, paths, or values a caller sent. */
 export type OperationAttributes = Readonly<Record<string, string | number>>;

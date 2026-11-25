@@ -104,7 +104,7 @@ test("a throw is rethrown unchanged; ToolInputError (unknown tool) is validation
   }
 });
 
-test.each(['completed', 'timed-out', 'denied'] as const)('%s increments tool.calls and failures follow the span classification', async status => {
+test.each(['completed', 'timed-out', 'denied', 'confirmation-denied'] as const)('%s increments tool.calls and classifies failure counters independently of spans', async status => {
   const fake = createFakePort(); const rec = recording();
   const metric = vi.fn();
   const result: ToolExecutionResult = { executionId: 'e', status };
@@ -113,10 +113,39 @@ test.each(['completed', 'timed-out', 'denied'] as const)('%s increments tool.cal
   const settled = await executor.execute(CALL);
   if (status === 'timed-out') expect(settled).toEqual({ ...result, errorId: IDS[0] });
   else expect(settled).toBe(result);
-  const expected = [[{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }]];
-  if (status === 'timed-out') expected.push([{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }]);
+  const expected: unknown[][] = [[{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }]];
+  if (status !== 'completed') expected.push([{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list', kind: status === 'timed-out' ? 'internal' : 'refused' } }]);
   expect(metric.mock.calls).toEqual(expected);
   expect(fake.operations[0]?.end?.failed).toBe(status === 'timed-out');
+  expect(fake.operations[0]?.errors).toHaveLength(status === 'timed-out' ? 1 : 0);
+});
+
+test('records exactly one classified counter per non-canceled tool failure', async () => {
+  for (const [result, kind] of [
+    [{ executionId: 'e', status: 'failed', errorKind: 'validation' }, 'input'],
+    [{ executionId: 'e', status: 'failed', errorKind: 'internal' }, 'internal'],
+    [{ executionId: 'e', status: 'failed' }, 'internal'],
+    [{ executionId: 'e', status: 'cancelled' }, undefined],
+  ] as const) {
+    const metric = vi.fn();
+    const executor = withToolCallObservability({ inner: executorReturning(() => result),
+      observability: { ...createFakePort().port, metric, supportsMetric: true } });
+    expect(await executor.execute(CALL)).toBe(result);
+    expect(metric.mock.calls).toEqual([
+      [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }],
+      ...(kind === undefined ? [] : [[{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list', kind } }]]),
+    ]);
+  }
+  for (const [error, kind] of [[new ToolInputError({ message: 'invalid input' }), 'input'], [new Error('unexpected'), 'internal']] as const) {
+    const metric = vi.fn();
+    const executor = withToolCallObservability({ inner: executorReturning(() => { throw error; }),
+      observability: { ...createFakePort().port, metric, supportsMetric: true } });
+    await expect(executor.execute(CALL)).rejects.toBe(error);
+    expect(metric.mock.calls).toEqual([
+      [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }],
+      [{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list', kind } }],
+    ]);
+  }
 });
 
 test('an input throw increments calls and failures once with the fixed unregistered label', async () => {
@@ -128,7 +157,7 @@ test('an input throw increments calls and failures once with the fixed unregiste
   await expect(executor.execute({ ...CALL, toolId: 'made_up_tool' })).rejects.toBe(error);
   expect(metric.mock.calls).toEqual([
     [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'unregistered' } }],
-    [{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'unregistered' } }],
+    [{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'unregistered', kind: 'input' } }],
   ]);
   expect(fake.operations[0]?.end?.failed).toBe(true);
 });

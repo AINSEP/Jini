@@ -3,13 +3,14 @@
   "types": "./dist/events/domain-outbox.d.ts",
   "symbols": {
    "DomainOutboxRequired": "interface:c1fff7d131",
+   "ReadOutboxParent": "type:3f039fc467",
    "computeDomainOutboxBackoffMs": "function:9ae70295a1",
    "outboxWorkerArgs": "function:c139033ff5",
    "processDomainOutbox": "function:4707ee2faa",
    "toCmsOutbox": "function:e9a8caa0db",
    "toEnqueueOnlyDomainOutbox": "function:e35690fd1e",
    "toJiniOutbox": "function:4624256f7b",
-   "trackOutboxDelivery": "function:6ff86387e6"
+   "trackOutboxDelivery": "function:fca7a4f8cf"
   }
  },
  "./events/memory-bus": {
@@ -66,7 +67,7 @@
    "outboxRequestDigest": "function:6bb7858ae1",
    "processFencedOutbox": "function:ee0638996e",
    "processOutbox": "function:24f51c7a2f",
-   "startOutboxDrainer": "function:50042df494",
+   "startOutboxDrainer": "function:a5860d26a1",
    "toEnqueueOnlyOutbox": "function:473de47fab",
    "withProcessedEventGuard": "function:f0c47572fb"
   }

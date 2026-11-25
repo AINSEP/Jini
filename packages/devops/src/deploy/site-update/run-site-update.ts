@@ -42,8 +42,33 @@ export interface SiteUpdateRunResult {
   errorId?: string;
 }
 
-interface RunContext {
-  ports: SiteUpdatePorts;
+/**
+ * What a host persists between preparing and finishing an update. The process that accepted the update
+ * may not be the one that verifies it: a desktop or self-hosted replacement restarts the very process
+ * that ran the approval, backup and readiness gate.
+ */
+export interface PreparedSiteUpdate {
+  plan: SiteUpdatePlan;
+  backupId: string;
+  steps: readonly SiteUpdateStepLog[];
+}
+
+/** Result of {@link prepareSiteUpdate}: ready for the host to replace the site, or stopped with the inline result. */
+export type SiteUpdatePreparation =
+  | { status: 'prepared'; prepared: PreparedSiteUpdate }
+  | { status: 'stopped'; result: SiteUpdateRunResult };
+
+/** How the host-driven replacement ended, as observed by the process that finishes the update. */
+export type PreparedSiteUpdateApply = { status: 'landed'; summary: string } | { status: 'failed' };
+
+/** The ports {@link finishPreparedSiteUpdate} may use: only the live check and the rollback. */
+export interface FinishSiteUpdatePorts {
+  site: Pick<SiteUpdatePort, 'verifyUpdate' | 'rollback'>;
+  ids: IdGenerator;
+}
+
+interface RunContext<P = SiteUpdatePorts> {
+  ports: P;
   plan: SiteUpdatePlan;
   signal: AbortSignal | undefined;
   rollbackSignal: AbortSignal | undefined;
@@ -52,11 +77,11 @@ interface RunContext {
 
 type Finish = Omit<SiteUpdateRunResult, 'steps'>;
 
-function log(ctx: RunContext, step: SiteUpdateStep, status: SiteUpdateStepStatus, detail: string): void {
+function log(ctx: RunContext<unknown>, step: SiteUpdateStep, status: SiteUpdateStepStatus, detail: string): void {
   ctx.steps.push({ step, status, detail });
 }
 
-function finish(ctx: RunContext, result: Finish): SiteUpdateRunResult {
+function finish(ctx: RunContext<unknown>, result: Finish): SiteUpdateRunResult {
   return { ...result, steps: ctx.steps };
 }
 
@@ -64,13 +89,13 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function refuse(ctx: RunContext, detail: string, errorId?: string): SiteUpdateRunResult {
+function refuse(ctx: RunContext<unknown>, detail: string, errorId?: string): SiteUpdateRunResult {
   log(ctx, 'approval', 'refused', detail);
   return finish(ctx, { outcome: 'refused', summary: detail, ...(errorId ? { errorId } : {}) });
 }
 
 /** "Never auto-update": the owner's token must exist, name an approver, and match this exact version. */
-function checkApproval(ctx: RunContext, approval: SiteUpdateApproval | undefined): SiteUpdateRunResult | null {
+function checkApproval(ctx: RunContext<Pick<SiteUpdatePorts, 'ids'>>, approval: SiteUpdateApproval | undefined): SiteUpdateRunResult | null {
   const { plan } = ctx;
   if (!approval || approval.kind !== 'owner-approval' || approval.approvedBy.trim() === '') {
     return refuse(ctx, 'The owner has not approved this update, so nothing was changed.');
@@ -91,14 +116,14 @@ function checkApproval(ctx: RunContext, approval: SiteUpdateApproval | undefined
 }
 
 /** Checked before every step that writes, so a cancelled update never starts one. */
-function stopIfAborted(ctx: RunContext, step: SiteUpdateStep, before: string, backupId?: string): SiteUpdateRunResult | null {
+function stopIfAborted(ctx: RunContext<unknown>, step: SiteUpdateStep, before: string, backupId?: string): SiteUpdateRunResult | null {
   if (!ctx.signal?.aborted) return null;
   const detail = `Stopped before ${before} because the update was cancelled. The site was not changed.`;
   log(ctx, step, 'skipped', detail);
   return finish(ctx, { outcome: 'aborted', summary: detail, ...(backupId ? { backupId } : {}) });
 }
 
-async function backupStep(ctx: RunContext): Promise<{ backupId: string } | SiteUpdateRunResult> {
+async function backupStep(ctx: RunContext<Pick<SiteUpdatePorts, 'backup' | 'ids'>>): Promise<{ backupId: string } | SiteUpdateRunResult> {
   const stopped = stopIfAborted(ctx, 'backup', 'the backup');
   if (stopped) return stopped;
   try {
@@ -113,10 +138,16 @@ async function backupStep(ctx: RunContext): Promise<{ backupId: string } | SiteU
   }
 }
 
-/** The gate between backup and deploy: a blocked or broken check means nothing is deployed. */
-async function readinessStep(ctx: RunContext, backupId: string): Promise<SiteUpdateRunResult | null> {
+/**
+ * The gate between backup and deploy: a blocked or broken check means nothing is deployed. The check
+ * is told which backup exists and which version it was taken of, so it can judge the data that backup covers.
+ */
+async function readinessStep(ctx: RunContext<Pick<SiteUpdatePorts, 'readiness' | 'ids'>>, backupId: string): Promise<SiteUpdateRunResult | null> {
   try {
-    const readiness = await ctx.ports.readiness.check({ toVersion: ctx.plan.toVersion }, { signal: ctx.signal });
+    const readiness = await ctx.ports.readiness.check(
+      { toVersion: ctx.plan.toVersion },
+      { signal: ctx.signal, backupId, fromVersion: ctx.plan.fromVersion },
+    );
     if (readiness.status === 'ok') {
       log(ctx, 'readiness', 'done', `Stored data is ready for ${ctx.plan.toVersion}.`);
       return null;
@@ -138,7 +169,7 @@ interface RollbackCause { what: string; summary: string; errorId?: string }
  * by now the new version is (maybe half) live and failing, and stopping here would leave the owner's
  * site broken. It runs under its own `rollbackSignal` lifetime instead.
  */
-async function rollbackStep(ctx: RunContext, backupId: string, cause: RollbackCause): Promise<SiteUpdateRunResult> {
+async function rollbackStep(ctx: RunContext<{ site: Pick<SiteUpdatePort, 'rollback'>; ids: IdGenerator }>, backupId: string, cause: RollbackCause): Promise<SiteUpdateRunResult> {
   const to = ctx.plan.fromVersion;
   const idPart = cause.errorId ? { errorId: cause.errorId } : {};
   try {
@@ -153,7 +184,7 @@ async function rollbackStep(ctx: RunContext, backupId: string, cause: RollbackCa
   }
 }
 
-async function verifyStep(ctx: RunContext, backupId: string): Promise<SiteUpdateRunResult> {
+async function verifyStep(ctx: RunContext<FinishSiteUpdatePorts>, backupId: string): Promise<SiteUpdateRunResult> {
   const { plan } = ctx;
   let reason: string | null;
   try {
@@ -181,12 +212,73 @@ async function deployStep(ctx: RunContext, backupId: string): Promise<SiteUpdate
     log(ctx, 'apply', 'done', summary);
   } catch (error) {
     // The deploy may have half-landed, so a failed apply is undone like a failed live check.
-    const errorId = ctx.ports.ids.newId();
-    log(ctx, 'apply', 'failed', `${errorId}: ${messageOf(error)}`);
-    const summary = `${errorId}: The deploy failed (${messageOf(error)}), so the site was rolled back to ${ctx.plan.fromVersion}.`;
-    return rollbackStep(ctx, backupId, { what: 'The deploy failed', summary, errorId });
+    return applyFailedStep(ctx, backupId, messageOf(error));
   }
   return verifyStep(ctx, backupId);
+}
+
+/** Logs a failed apply under a fresh `ERR-` id and undoes it with the kept previous version. */
+function applyFailedStep(ctx: RunContext<FinishSiteUpdatePorts>, backupId: string, reason: string): Promise<SiteUpdateRunResult> {
+  const errorId = ctx.ports.ids.newId();
+  log(ctx, 'apply', 'failed', `${errorId}: ${reason}`);
+  const summary = `${errorId}: The deploy failed (${reason}), so the site was rolled back to ${ctx.plan.fromVersion}.`;
+  return rollbackStep(ctx, backupId, { what: 'The deploy failed', summary, errorId });
+}
+
+/**
+ * The first half of an update: owner approval, backup, and the readiness gate. Never applies, verifies
+ * or rolls back, so a host can persist the result and replace the site (restarting this process).
+ *
+ * @param required.ports - Backup, readiness and error-id ports.
+ * @param required.plan - The planned move; `fromVersion` is the version kept to roll back to.
+ * @param required.approval - The owner's token for exactly `plan.toVersion`; missing means stopped with no port called.
+ * @returns `prepared` with the plan, backup id and step log, or `stopped` with the same result `runSiteUpdate` returns.
+ * @throws Only what the `ids` port itself throws.
+ * @complexity At most two sequential port calls.
+ */
+export async function prepareSiteUpdate(
+  required: { ports: Pick<SiteUpdatePorts, 'backup' | 'readiness' | 'ids'>; plan: SiteUpdatePlan; approval: SiteUpdateApproval | undefined },
+  _optional: Pick<RunSiteUpdateOptions, 'signal'> = {},
+): Promise<SiteUpdatePreparation> {
+  const ctx: RunContext<Pick<SiteUpdatePorts, 'backup' | 'readiness' | 'ids'>> = {
+    ports: required.ports, plan: required.plan, signal: _optional.signal, rollbackSignal: undefined, steps: [],
+  };
+  const refused = checkApproval(ctx, required.approval);
+  if (refused) return { status: 'stopped', result: refused };
+  const backup = await backupStep(ctx);
+  if ('outcome' in backup) return { status: 'stopped', result: backup };
+  const blocked = await readinessStep(ctx, backup.backupId);
+  if (blocked) return { status: 'stopped', result: blocked };
+  return { status: 'prepared', prepared: { plan: required.plan, backupId: backup.backupId, steps: [...ctx.steps] } };
+}
+
+/**
+ * The second half of an update, after the host replaced the site: the live check, and the rollback to the
+ * kept previous version when the replacement failed or the check fails. Resuming must never repeat apply:
+ * this has no apply, backup or approval port, and a landed replacement still needs the live check before
+ * it counts as updated. Hosts call it only with a durable operation they claimed and reloaded themselves,
+ * never with receipt data a request supplied. The rollback runs on `rollbackSignal`, never the caller's signal.
+ *
+ * @param required.prepared - What {@link prepareSiteUpdate} returned, as the host persisted it; its log is copied, not changed.
+ * @param required.ports - The live-check and rollback ports, plus the error-id port.
+ * @param required.apply - Whether the host's replacement landed (with what it did) or failed.
+ * @returns The outcome, a plain-words summary, the full step log, and on success what changed. Never throws for port failures.
+ * @throws Only what the `ids` port itself throws.
+ * @complexity At most two sequential port calls.
+ */
+export async function finishPreparedSiteUpdate(
+  required: { prepared: PreparedSiteUpdate; ports: FinishSiteUpdatePorts; apply: PreparedSiteUpdateApply },
+  _optional: RunSiteUpdateOptions = {},
+): Promise<SiteUpdateRunResult> {
+  const { prepared, apply } = required;
+  const ctx: RunContext<FinishSiteUpdatePorts> = {
+    ports: required.ports, plan: prepared.plan, signal: _optional.signal, rollbackSignal: _optional.rollbackSignal,
+    steps: prepared.steps.map((entry) => ({ ...entry })),
+  };
+  // A confirmed failure may still have half-landed, so it is undone exactly like a failed inline apply.
+  if (apply.status === 'failed') return applyFailedStep(ctx, prepared.backupId, 'The new version did not land.');
+  log(ctx, 'apply', 'done', apply.summary);
+  return verifyStep(ctx, prepared.backupId);
 }
 
 /**
@@ -207,14 +299,14 @@ export async function runSiteUpdate(
   required: { ports: SiteUpdatePorts; plan: SiteUpdatePlan; approval: SiteUpdateApproval | undefined },
   _optional: RunSiteUpdateOptions = {},
 ): Promise<SiteUpdateRunResult> {
+  const preparation = await prepareSiteUpdate(
+    { ports: required.ports, plan: required.plan, approval: required.approval },
+    { signal: _optional.signal },
+  );
+  if (preparation.status === 'stopped') return preparation.result;
+  const { prepared } = preparation;
   const ctx: RunContext = {
-    ports: required.ports, plan: required.plan, signal: _optional.signal, rollbackSignal: _optional.rollbackSignal, steps: [],
+    ports: required.ports, plan: prepared.plan, signal: _optional.signal, rollbackSignal: _optional.rollbackSignal, steps: [...prepared.steps],
   };
-  const refused = checkApproval(ctx, required.approval);
-  if (refused) return refused;
-  const backup = await backupStep(ctx);
-  if ('outcome' in backup) return backup;
-  const blocked = await readinessStep(ctx, backup.backupId);
-  if (blocked) return blocked;
-  return deployStep(ctx, backup.backupId);
+  return deployStep(ctx, prepared.backupId);
 }

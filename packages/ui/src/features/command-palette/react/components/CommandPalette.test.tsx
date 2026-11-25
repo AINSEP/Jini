@@ -3,7 +3,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from './CommandPalette.js';
 import type { CommandPaletteItem, CommandPaletteResult } from '../../types.js';
-import { I18nProvider, type useT } from '../../../i18n/index.js';
+import { I18nProvider, useT } from '../../../i18n/index.js';
+import { useCommandPaletteView } from './CommandPalette.hooks.js';
+import { useWiredCommandPalette } from '../hooks/useCommandPalette.js';
 
 Element.prototype.scrollIntoView = vi.fn();
 
@@ -14,6 +16,8 @@ const SAMPLE_ITEMS: CommandPaletteItem[] = [
 
 /** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
 const useQuotingT: typeof useT = () => (key) => `«${key}»`;
+
+const HOOKS = { useWiredCommandPalette, useTHook: useT, useCommandPaletteViewHook: useCommandPaletteView };
 
 describe('CommandPalette 4-pattern hook override test suite', () => {
   it('Pattern 1 — State 1: Empty results state via hook override', () => {
@@ -32,6 +36,7 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
         items={SAMPLE_ITEMS}
         onSelect={vi.fn()}
         onClose={vi.fn()}
+        {...HOOKS}
         useWiredCommandPalette={customHook as any}
       />,
     );
@@ -59,6 +64,7 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
         items={SAMPLE_ITEMS}
         onSelect={vi.fn()}
         onClose={vi.fn()}
+        {...HOOKS}
         useWiredCommandPalette={customHook as any}
       />,
     );
@@ -89,6 +95,7 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
         items={SAMPLE_ITEMS}
         onSelect={vi.fn()}
         onClose={vi.fn()}
+        {...HOOKS}
         useWiredCommandPalette={customHook as any}
       />,
     );
@@ -108,6 +115,7 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
           items={SAMPLE_ITEMS}
           onSelect={onSelect}
           onClose={onClose}
+          {...HOOKS}
         />
       );
     }
@@ -123,14 +131,14 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
   });
 
   it('renders the translator supplied through useTHook', () => {
-    render(<CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} useTHook={useQuotingT} />);
+    render(<CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} {...HOOKS} useTHook={useQuotingT} />);
     expect(screen.getByPlaceholderText('«Search…»')).toBeInTheDocument();
   });
 
   it('renders the translated placeholder from the real provider, not the key', () => {
     render(
       <I18nProvider dictionaries={{ fr: { 'Search…': 'Rechercher…' } }} initialLocale="fr">
-        <CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} />
+        <CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} {...HOOKS} />
       </I18nProvider>,
     );
     expect(screen.getByPlaceholderText('Rechercher…')).toBeInTheDocument();

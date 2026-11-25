@@ -18,7 +18,7 @@ export interface ResourceRunHistoryListProps {
  * `AutomationRunHistory`: a small header, a loading/empty state, or a flat
  * list of past runs each showing a `StatusPill` + timing + an optional
  * error/summary message + host-defined actions (the origin's "crystallize"/
- * "view progress" buttons, generalized — see `archived UI source map`
+ * "view progress" buttons, generalized — see `070311a07^:packages/ui/source-map.md` (section "features/resource-dashboard/")
  * for what crystallize's own OD-specific workflow dropped).
  */
 export function ResourceRunHistoryList({

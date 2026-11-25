@@ -19,7 +19,7 @@ export interface FilePreviewPaneProps<TFile> {
    * Host-supplied, kind-aware thumbnail. Defaults to a generic glyph
    * placeholder — this package ships no file-kind-specific rendering (no
    * HTML-iframe preview, no design-canvas preview; see
-   * `archived UI source map` for what the origin `DesignFilesPanel`
+   * `070311a07^:packages/ui/source-map.md` (section "features/asset-tree-browser/") for what the origin `DesignFilesPanel`
    * shipped there instead and why it isn't ported).
    */
   renderThumbnail?: ((file: TFile) => ReactNode) | undefined;

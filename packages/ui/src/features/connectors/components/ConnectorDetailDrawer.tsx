@@ -393,7 +393,7 @@ function ConnectorDrawerNotices({
  * Modal detail drawer with a paginated tool list. Keeps its own
  * escape-key-to-close and body-scroll-lock behavior inline (standard modal
  * a11y idioms, not business/transport logic) — see
- * `archived UI source map`'s purity-check note for why these two
+ * `070311a07^:packages/ui/source-map.md` (section "features/connectors/", subsection "Purity grep") for the purity-check note for why these two
  * `document`/`window` touches were kept here rather than routed through
  * `dependencies.ts`.
  */

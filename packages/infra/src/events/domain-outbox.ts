@@ -76,17 +76,36 @@ export function outboxWorkerArgs(
 
 type DeliveryBus = OutboxWorkerArgs<DomainEvent>["bus"];
 
+/** Reads the producer's parent from a persisted envelope; the host owns where it stored it. */
+export type ReadOutboxParent = (required: { event: DomainEvent }, _optional?: Record<string, never>) => string | undefined;
+
+/** Ask the host's reader for the persisted parent. A reader fault drops correlation only: it never
+ * blocks, fails or duplicates a delivery. @complexity O(1) beyond the injected reader. */
+function persistedParent({ event, readParent }: { event: DomainEvent; readParent: ReadOutboxParent | undefined }): string | undefined {
+  try { return readParent?.({ event }); } catch { return undefined; }
+}
+
 /** Outbox/job-queue chokepoint: each background delivery is one `outbox.deliver` operation labelled
  * with the event's stable name only (never its payload); a failed delivery is reported and still
  * rethrown, so retry/backoff stays `processOutbox`'s. Without a port the bus is used as-is.
- * @example const traced = trackOutboxDelivery({ bus: args.bus, tracker });
+ * The parent comes from the persisted envelope, not from ambient state: an asynchronous delivery runs
+ * after the producing request has returned, so it cannot inherit that request's local context, and
+ * its ancestry must not depend on when the producing transaction committed. It travels as a trace
+ * option, never an attribute, and every retry of the row reads the same persisted value.
+ * @example const traced = trackOutboxDelivery({ bus: args.bus, tracker }, { readParent: ({ event }) => readTraceparent(event) });
  * @complexity O(1) beyond the wrapped publish. */
-export function trackOutboxDelivery({ bus, tracker }: { bus: DeliveryBus; tracker: Tracker }, _optional: Record<string, never> = {}): DeliveryBus {
-  return { publish: (input) => tracker.trace({ name: "outbox.deliver", run: async (span) => {
-    const result = await bus.publish(input);
-    span.setOutcome({ outcome: "delivered", failed: false });
-    return result;
-  } }, { attributes: { "event.name": input.event.name } }) };
+export function trackOutboxDelivery(
+  { bus, tracker }: { bus: DeliveryBus; tracker: Tracker },
+  optional: { readParent?: ReadOutboxParent } = {},
+): DeliveryBus {
+  return { publish: (input) => {
+    const traceparent = persistedParent({ event: input.event, readParent: optional.readParent });
+    return tracker.trace({ name: "outbox.deliver", run: async (span) => {
+      const result = await bus.publish(input);
+      span.setOutcome({ outcome: "delivered", failed: false });
+      return result;
+    } }, { attributes: { "event.name": input.event.name }, ...(traceparent ? { traceparent } : {}) });
+  } };
 }
 
 /**

@@ -853,7 +853,16 @@
       "safeDnsLabel": "function:069aa5040b",
       "safeProjectLabel": "function:2fa5b05b68",
       "waitForDeployOps": "function:4f2005ab15",
-      "waitForReachableDeploymentUrl": "function:adbaed2eb7"
+      "waitForReachableDeploymentUrl": "function:adbaed2eb7",
+      "DesktopRollbackDeploymentPort": "type:b61adfb6f2",
+      "FinishSiteUpdatePorts": "interface:2afb33b394",
+      "PreparedSiteUpdate": "interface:de7a878231",
+      "PreparedSiteUpdateApply": "type:85933963af",
+      "SelfHostedRollbackDeploymentPort": "type:5a36b0242d",
+      "SiteUpdatePreparation": "type:3052d593bd",
+      "SiteUpdateReadinessOptions": "interface:4140151d49",
+      "finishPreparedSiteUpdate": "function:c02a461dae",
+      "prepareSiteUpdate": "function:d8090f3dd8"
     }
   },
   "./deploy/node": {
@@ -1741,6 +1750,20 @@
     "symbols": {
       "ShowMoreImports": "function:24b66d487c",
       "ShowMoreImportsButton": "type:6af292bfc0"
+    }
+  },
+  "./deploy/admin-http/site-update-status": {
+    "types": "./dist/deploy/admin-http/site-update-status.d.ts",
+    "symbols": {
+      "SiteUpdateStatusRouteDeps": "interface:e9b6cae781",
+      "siteUpdateStatusRoute": "variable:5387455064"
+    }
+  },
+  "./deploy/react/site-update-notice": {
+    "types": "./dist/deploy/react/SiteUpdateNotice.d.ts",
+    "symbols": {
+      "SiteUpdateNotice": "function:058d514278",
+      "SiteUpdateNoticeProps": "interface:680f42a224"
     }
   }
 }

@@ -51,10 +51,10 @@ async function runRowDelete(
 export function createPolicyActions(
   {
     setRowError, setEditingPolicyId, setEditingPolicyName, setEditingPolicyDescription, setRowSavingId, savePolicyMutation, editingPolicyName,
-    editingPolicyDescription, locale, errors, pendingPolicyDelete, deletePolicyMutation, setPendingPolicyDelete,
+    editingPolicyDescription, editingPolicyVersion, setEditingPolicyVersion, locale, errors, pendingPolicyDelete, deletePolicyMutation, setPendingPolicyDelete,
   }:
     Pick<ReturnType<typeof useRolesState>, "setRowError" | "setEditingPolicyId" | "setEditingPolicyName" | "setEditingPolicyDescription" | "setRowSavingId"
-    | "editingPolicyName" | "editingPolicyDescription" | "locale" | "errors" | "pendingPolicyDelete" | "setPendingPolicyDelete"> &
+    | "editingPolicyName" | "editingPolicyDescription" | "editingPolicyVersion" | "setEditingPolicyVersion" | "locale" | "errors" | "pendingPolicyDelete" | "setPendingPolicyDelete"> &
     Pick<ReturnType<typeof useRolesMutations>, "savePolicyMutation" | "deletePolicyMutation">
 ) {
   function startEditPolicy(policy: AdminPolicy) {
@@ -62,6 +62,7 @@ export function createPolicyActions(
     setEditingPolicyId(policy.id);
     setEditingPolicyName(policy.name);
     setEditingPolicyDescription(policy.description ?? "");
+    setEditingPolicyVersion(policy.version);
   }
 
   /** Same settle-time guard as `onSaveRole` above, keyed on `policyId` instead of `roleId` — see
@@ -70,7 +71,7 @@ export function createPolicyActions(
     setRowSavingId(policyId);
     setRowError(null);
     try {
-      await savePolicyMutation.mutate({ input: { policyId, name: editingPolicyName, description: editingPolicyDescription } });
+      await savePolicyMutation.mutate({ input: { policyId, name: editingPolicyName, description: editingPolicyDescription, expectedVersion: editingPolicyVersion } });
       setEditingPolicyId((current) => (current === policyId ? null : current));
     } catch (e) {
       setRowError(describeApiError({ e, fallback: t({ locale: locale, key: "failed to update policy" }), locale, errors }));
@@ -99,11 +100,11 @@ export function createPolicyActions(
 export function createRoleActions(
   {
     createRoleMutation, roleName, setRoleName, createPolicyMutation, policyName, policyDescription, setPolicyName, setPolicyDescription, setRowError,
-    setEditingRoleId, setEditingRoleName, setRowSavingId, saveRoleMutation, editingRoleName, locale, errors, pendingRoleDelete, deleteRoleMutation, setPendingRoleDelete,
+    setEditingRoleId, setEditingRoleName, setRowSavingId, saveRoleMutation, editingRoleName, editingRoleVersion, setEditingRoleVersion, locale, errors, pendingRoleDelete, deleteRoleMutation, setPendingRoleDelete,
   }:
     Pick<ReturnType<typeof useRolesMutations>, "createRoleMutation" | "createPolicyMutation" | "saveRoleMutation" | "deleteRoleMutation"> &
     Pick<ReturnType<typeof useRolesState>, "roleName" | "setRoleName" | "policyName" | "policyDescription" | "setPolicyName" | "setPolicyDescription"
-    | "setRowError" | "setEditingRoleId" | "setEditingRoleName" | "setRowSavingId" | "editingRoleName" | "locale" | "errors" | "pendingRoleDelete" | "setPendingRoleDelete">
+    | "setRowError" | "setEditingRoleId" | "setEditingRoleName" | "setRowSavingId" | "editingRoleName" | "editingRoleVersion" | "setEditingRoleVersion" | "locale" | "errors" | "pendingRoleDelete" | "setPendingRoleDelete">
 ) {
   async function onCreateRole(e: React.FormEvent) {
     e.preventDefault();
@@ -120,6 +121,7 @@ export function createRoleActions(
     setRowError(null);
     setEditingRoleId(role.id);
     setEditingRoleName(role.name);
+    setEditingRoleVersion(role.version);
   }
 
   /** `setEditingRoleId`/`setRowSavingId`'s settle-time writes (2026-09-05 fix, same bug class as
@@ -134,7 +136,7 @@ export function createRoleActions(
     setRowSavingId(roleId);
     setRowError(null);
     try {
-      await saveRoleMutation.mutate({ input: { roleId, name: editingRoleName } });
+      await saveRoleMutation.mutate({ input: { roleId, name: editingRoleName, expectedVersion: editingRoleVersion } });
       setEditingRoleId((current) => (current === roleId ? null : current));
     } catch (e) {
       setRowError(describeApiError({ e, fallback: t({ locale: locale, key: "failed to rename role" }), locale, errors }));

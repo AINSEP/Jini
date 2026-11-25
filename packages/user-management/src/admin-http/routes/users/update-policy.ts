@@ -3,7 +3,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { updatePolicy } from "../../../server/admin-crud-service.js";
 import { toAdminPolicyResponse, type AdminPolicyResponse } from "../../http/users.js";
 import {
-  ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, optionalString, rejectAccessError,
+  ACCESS_FORBIDDEN, ACCESS_VERSION_CONFLICT, accessExpectedVersion, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, optionalString, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
@@ -14,9 +14,9 @@ export interface PolicyUpdateRouteDeps extends AccessServiceRouteDeps {
 }
 
 /** The two writable PATCH fields — `undefined` means "leave unchanged" — plus the target id. */
-interface PolicyUpdateInput { policyId: string; name: string | undefined; description: string | undefined }
+interface PolicyUpdateInput { policyId: string; name: string | undefined; description: string | undefined; expectedVersion?: unknown }
 
-const POLICY_UPDATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
+const POLICY_UPDATE_ERRORS = [ACCESS_VERSION_CONFLICT, ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
 /**
  * PATCH policies/:policyId — `UPDATE_POLICY` (SPEC-006 0.6.0, REQ-18) — rename/re-describe a
@@ -28,14 +28,16 @@ export const policyUpdateRoute = defineJsonRoute<PolicyUpdateInput, { policy: Ad
   path: "/api/admin/v1/workspaces/:workspaceId/policies/:policyId",
   parse: (raw) => {
     const body = accessBody({ body: raw.body });
-    return ok({ value: { policyId: accessPathParam({ params: raw.params, name: "policyId" }), name: optionalString({ value: body.name }), description: optionalString({ value: body.description }) } });
+    return ok({ value: { policyId: accessPathParam({ params: raw.params, name: "policyId" }), name: optionalString({ value: body.name }), description: optionalString({ value: body.description }), expectedVersion: body.expectedVersion } });
   },
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
+    // Outside the `try`: a malformed basis is a 400 refusal, not a service error to map.
+    const expectedVersion = accessExpectedVersion({ value: input.expectedVersion });
     try {
       const { policy } = await deps.updatePolicy(
         { deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId } },
-        { name: input.name, description: input.description },
+        { name: input.name, description: input.description, expectedVersion },
       );
       return ok({ value: { policy: toAdminPolicyResponse(policy) } });
     } catch (err) {

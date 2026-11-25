@@ -3,8 +3,8 @@ import { createMemoryUsersApi, createMemoryUsersSafety, createMemoryMembersApi, 
 export const owner: AdminOperator = { principalId: 'owner', workspaceId: 'w', username: 'owner', status: 'active', createdAt: '2026-01-01', roleIds: [], policyIds: [] };
 export const alice: AdminOperator = { ...owner, principalId: 'alice', username: 'alice', email: 'alice@example.test' };
 export const bob: AdminOperator = { ...alice, principalId: 'bob', username: 'bob' };
-export const role: RoleRecord = { id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
-export const policy: PolicyRecord = { id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
+export const role: RoleRecord = { version: 1, id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
+export const policy: PolicyRecord = { version: 1, id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
 export const member: AdminMember = { id: 'm', workspaceId: 'w', email: 'member@example.test', name: 'Member', status: 'active', createdAt: '2026-01-01', updatedAt: '2026-01-01', version: 1 };
 export const member2: AdminMember = { ...member, id: 'n', email: 'next@example.test' };
 export function fixtures({ permissions = ['*'], callerId = 'owner', trash = true }: { permissions?: string[]; callerId?: string; trash?: boolean } = {}) {

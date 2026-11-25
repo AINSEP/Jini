@@ -13,7 +13,7 @@ import {
  * chosen recipient and test-mode card details. All ports are in-memory fakes.
  */
 
-const OWNER = { principalId: "owner", workspaceId: "ws", username: "owner", email: "owner@example.com", passwordHash: "x" };
+const OWNER = { principalId: "owner", workspaceId: "ws", username: "owner", email: "owner@example.com", passwordHash: "x", version: 1 };
 const T0 = Date.parse("2026-10-22T10:00:00.000Z");
 const ok = (providerMessageId = "pm-1"): MailerSendResult => ({ ok: true, providerMessageId, acceptedAt: "2026-10-22T10:00:00.000Z" });
 

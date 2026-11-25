@@ -37,6 +37,8 @@ export interface AdminRole {
   workspaceId: string;
   name: string;
   isBuiltin: boolean;
+  /** The row's compare-and-set version; an editor sends the one it loaded back as `expectedVersion`. */
+  version: number;
 }
 
 export interface AdminPolicy {
@@ -46,6 +48,8 @@ export interface AdminPolicy {
   description?: string | undefined;
   isBuiltin: boolean;
   isFrozen: boolean;
+  /** The row's compare-and-set version; an editor sends the one it loaded back as `expectedVersion`. */
+  version: number;
 }
 
 /** One permission row written onto a policy (OQ-10). Mirrors `identity`'s `PolicyPermissionRecord`
@@ -102,12 +106,13 @@ export interface RolesPort {
   listRoles(required: Record<string, never>): Promise<{ roles: AdminRole[] }>;
   listPolicies(required: Record<string, never>): Promise<{ policies: AdminPolicy[] }>;
   createRole(required: { name: string }): Promise<{ role: AdminRole }>;
-  updateRole(input: { roleId: string; name: string }): Promise<{ role: AdminRole }>;
+  /** `expectedVersion` is the version of the row the editor loaded; a stale one is refused with `409 VERSION_CONFLICT`. */
+  updateRole(input: { roleId: string; name: string; expectedVersion?: number | undefined }): Promise<{ role: AdminRole }>;
   deleteRole(required: { roleId: string }): Promise<void>;
   createPolicy(input: { name: string }, options?: { description?: string  | undefined}): Promise<{ policy: AdminPolicy }>;
   updatePolicy(
     target: { policyId: string },
-    options?: { name?: string | undefined; description?: string  | undefined},
+    options?: { name?: string | undefined; description?: string  | undefined; expectedVersion?: number | undefined },
   ): Promise<{ policy: AdminPolicy }>;
   deletePolicy(required: { policyId: string }): Promise<void>;
   writePolicyPermission(

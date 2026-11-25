@@ -7,8 +7,8 @@ import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../../models.js"
 const t = (key: string) => `T:${key}`;
 const alice: AdminIdentityUser = { principalId: "alice", workspaceId: "w", username: "alice", status: "active",
   roleIds: ["r1"], policyIds: ["p1"], createdAt: "2026-10-01", isOwner: false };
-const roleById = new Map<string, AdminRole>([["r1", { id: "r1", workspaceId: "w", name: "editor", isBuiltin: false }]]);
-const policyById = new Map<string, AdminPolicy>([["p1", { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, isFrozen: false }]]);
+const roleById = new Map<string, AdminRole>([["r1", { id: "r1", workspaceId: "w", name: "editor", isBuiltin: false, version: 1 }]]);
+const policyById = new Map<string, AdminPolicy>([["p1", { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, isFrozen: false, version: 1 }]]);
 
 function inRow(node: React.ReactNode) {
   return render(<table><tbody><tr>{node}</tr></tbody></table>);

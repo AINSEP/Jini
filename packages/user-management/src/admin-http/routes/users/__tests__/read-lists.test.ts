@@ -17,8 +17,8 @@ function recording(allowed = true) {
   return { calls, authorize };
 }
 
-const POLICY = { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true, internal: "hidden" };
-const ROLE = { id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true, internal: "hidden" };
+const POLICY = { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true, version: 4, internal: "hidden" };
+const ROLE = { id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true, version: 2, internal: "hidden" };
 const ROW = { id: "pp-9", workspaceId: WORKSPACE_ID, policyId: "policy-7", permission: "content.read", resourceType: "post", constraintJson: '{"status":"published"}' };
 
 function counting() {
@@ -66,9 +66,9 @@ describe("role/policy list specs", () => {
     };
     const { authorize } = recording();
     expect(await roleListRoute.handle({ input: {}, deps, context: { id: "p" }, authorize }))
-      .toEqual({ ok: true, value: { roles: [{ id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true }] } });
+      .toEqual({ ok: true, value: { roles: [{ id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true, version: 2 }] } });
     expect(await policyListRoute.handle({ input: {}, deps, context: { id: "p" }, authorize })).toEqual({ ok: true, value: { policies: [
-      { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true },
+      { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true, version: 4 },
     ] } });
     expect(seen).toEqual([{ workspaceId: WORKSPACE_ID }, { workspaceId: WORKSPACE_ID }]);
   });

@@ -174,7 +174,7 @@ export function useRoles(deps: RolesDependencies, _optional: Record<string, neve
   const {
     port, errors, locale, boundT, roles, policies, error, rowError, setRowError, roleName, setRoleName, policyName, setPolicyName, policyDescription,
     setPolicyDescription, editingRoleId, setEditingRoleId, editingRoleName, setEditingRoleName, editingPolicyId, setEditingPolicyId, editingPolicyName,
-    setEditingPolicyName, editingPolicyDescription, setEditingPolicyDescription, rowSavingId, setRowSavingId, permissionPolicyId, setPermissionPolicyId,
+    editingRoleVersion, setEditingRoleVersion, editingPolicyVersion, setEditingPolicyVersion, setEditingPolicyName, editingPolicyDescription, setEditingPolicyDescription, rowSavingId, setRowSavingId, permissionPolicyId, setPermissionPolicyId,
     permissionInput, setPermissionInput, resourceTypeInput, setResourceTypeInput, permissionRows, setPermissionRows, permissionsLoading, setPermissionsLoading,
     removingPermissionId, setRemovingPermissionId, permissionsGenerationRef, permissionPolicyIdRef, pendingRoleDelete, setPendingRoleDelete, pendingPolicyDelete,
     setPendingPolicyDelete, pendingPermissionRemove, setPendingPermissionRemove,
@@ -185,11 +185,11 @@ export function useRoles(deps: RolesDependencies, _optional: Record<string, neve
   } = useRolesMutations({ port });
   const { onCreateRole, onCreatePolicy, startEditRole, onSaveRole, onDeleteRole } = createRoleActions({
     createRoleMutation, roleName, setRoleName, createPolicyMutation, policyName, policyDescription, setPolicyName, setPolicyDescription, setRowError,
-    setEditingRoleId, setEditingRoleName, setRowSavingId, saveRoleMutation, editingRoleName, locale, errors, pendingRoleDelete, deleteRoleMutation, setPendingRoleDelete,
+    setEditingRoleId, setEditingRoleName, setRowSavingId, saveRoleMutation, editingRoleName, editingRoleVersion, setEditingRoleVersion, locale, errors, pendingRoleDelete, deleteRoleMutation, setPendingRoleDelete,
   });
   const { startEditPolicy, onSavePolicy, onDeletePolicy } = createPolicyActions({
     setRowError, setEditingPolicyId, setEditingPolicyName, setEditingPolicyDescription, setRowSavingId, savePolicyMutation, editingPolicyName,
-    editingPolicyDescription, locale, errors, pendingPolicyDelete, deletePolicyMutation, setPendingPolicyDelete,
+    editingPolicyDescription, editingPolicyVersion, setEditingPolicyVersion, locale, errors, pendingPolicyDelete, deletePolicyMutation, setPendingPolicyDelete,
   });
   const { loadPermissions, togglePermissionForm } = createPermissionLoader({
     permissionsGenerationRef, setPermissionsLoading, port, setPermissionRows, setRowError, locale, errors, setPermissionInput, setResourceTypeInput,

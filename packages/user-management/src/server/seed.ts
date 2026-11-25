@@ -227,7 +227,7 @@ async function ensureBuiltinRole(required: {
   const existing = await deps.repos.roles.findByName({ workspaceId, name });
   if (!existing) {
     const roleId = deps.idGen.newId();
-    await deps.repos.roles.save({ id: roleId, workspaceId, name, isBuiltin: true });
+    await deps.repos.roles.save({ version: 1, id: roleId, workspaceId, name, isBuiltin: true });
     return roleId;
   }
   if (!existing.isBuiltin) {
@@ -250,7 +250,7 @@ async function ensureBuiltinPolicy(required: {
   const existing = await deps.repos.policies.findByName({ workspaceId, name: policyName });
   if (!existing) {
     const policyId = deps.idGen.newId();
-    await deps.repos.policies.save({
+    await deps.repos.policies.save({ version: 1,
       id: policyId,
       workspaceId,
       name: policyName,
@@ -476,7 +476,7 @@ async function createOwner(required: {
     status: "active",
     createdAt: nowIso,
   });
-  await deps.repos.users.save({
+  await deps.repos.users.save({ version: 1,
     principalId: ownerPrincipalId,
     workspaceId,
     username: ownerUsername,

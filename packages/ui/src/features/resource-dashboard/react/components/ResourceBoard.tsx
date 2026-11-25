@@ -23,7 +23,7 @@ export interface ResourceBoardProps<TItem extends ResourceBoardItem<TBody>, TBod
   onOpenItem: (id: string) => void;
   onCreate?: () => void;
   createLabel?: string;
-  /** Fired when a kebab menu action with `kind === 'rename'` is clicked — this primitive never collects the new name itself (no `Dialog` is ported, see `archived UI source map`). */
+  /** Fired when a kebab menu action with `kind === 'rename'` is clicked — this primitive never collects the new name itself (no `Dialog` is ported, see `070311a07^:packages/ui/source-map.md` (section "features/resource-dashboard/")). */
   onRenameRequest?: (id: string, currentTitle: string) => void;
   /** Fired for any menu action kind other than the three this primitive natively understands (`rename`/`duplicate`/`delete`). */
   onCustomItemAction?: (id: string, kind: string) => void;

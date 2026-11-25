@@ -1,5 +1,6 @@
 import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
-import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { rejectRoute, RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { parseExpectedVersion, RecordVersionConflictError, versionConflictBody } from "@jini-ai/core/optimistic-concurrency";
 
 import {
   GrantExceedsIssuerError, IdentityConflictError, IdentityForbiddenError, IdentityNotFoundError, IdentityValidationError,
@@ -57,6 +58,23 @@ export const ACCESS_NOT_FOUND = rung({ errorClass: IdentityNotFoundError, status
 export const ACCESS_GRANT_EXCEEDS_ISSUER = rung({ errorClass: GrantExceedsIssuerError, status: 403, body: (err) => ({
   error: err.message, code: "GRANT_EXCEEDS_ISSUER", details: { offendingPermissions: err.offendingPermissions },
 }) });
+/** A stale editor basis: someone saved the record after this caller opened it. */
+export const ACCESS_VERSION_CONFLICT = rung({ errorClass: RecordVersionConflictError, status: 409, body: (err) => ({ ...versionConflictBody({ error: err }) }) });
+
+/**
+ * The optional `expectedVersion` an identity editor PATCH carries. Absent stays absent (legacy
+ * clients keep working); present must be a non-negative integer, else `400 VALIDATION_ERROR` —
+ * a mistyped basis is never read as "no basis". @complexity O(1).
+ */
+export function accessExpectedVersion({ value }: { value: unknown }, _optional: Record<string, never> = {}): number | undefined {
+  try {
+    return parseExpectedVersion({ value });
+  } catch (err) {
+    // parseExpectedVersion throws only for a malformed basis; its message names the field.
+    return rejectRoute({ status: 400, error: err instanceof Error ? err.message : "expectedVersion is malformed", code: "VALIDATION_ERROR" });
+  }
+}
+
 export const ACCESS_OWNER_REQUIRED = rung({ errorClass: OwnerRequiredError, status: 409, body: (err) => ({ error: err.message, code: "OWNER_REQUIRED" }) });
 
 /** A still-referenced delete target (INV-09): 409 naming the id field the client sent. @complexity O(1). */

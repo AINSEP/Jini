@@ -14,7 +14,7 @@ export interface DeleteConfirmDialogProps {
  * Generic bulk-delete confirmation dialog. Keeps its own body-scroll-lock
  * behavior inline (a standard modal a11y idiom) — matching the same
  * disclosed deviation `ConnectorDetailDrawer` documents in
- * `archived UI source map`. Escape-to-close is shared plumbing (see
+ * `070311a07^:packages/ui/source-map.md` (section "features/asset-grid/"). Escape-to-close is shared plumbing (see
  * `useDismissOnOutsideOrEscape` below); the backdrop's own `onMouseDown`
  * already handles outside-click, so no `containerRef` is passed.
  */

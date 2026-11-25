@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import { RecordVersionConflictError, VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
 
 import { IdentityNotFoundError, type UserRecord } from "../../../core/types.js";
 import type { updateUser } from "../../../server/admin-crud-service.js";
@@ -9,6 +10,10 @@ import {
   adminUserWithGrants, principalIdParam, rejectUserError, rejectUserInTrash, USER_CONFLICT_OWN_CODE, USER_FORBIDDEN, USER_NOT_FOUND,
   USER_OWNER_REQUIRED, USER_VALIDATION, userActorId, hostRung, type HostErrorPredicate, type UserErrorRung, type IdentityServicesFn, type IsInTrashFn, type UserRoutePrincipal,
 } from "./shared.js";
+import { accessExpectedVersion } from "./access-shared.js";
+
+/** A stale profile basis: someone saved this user after the caller opened the editor. */
+const USER_VERSION_CONFLICT: UserErrorRung = { matches: ({ err }) => err instanceof RecordVersionConflictError, status: 409, code: VERSION_CONFLICT_CODE };
 
 /** The deps this route reads. */
 export interface UserUpdateRouteDeps {
@@ -27,11 +32,11 @@ export interface UserUpdateRouteDeps {
  * flagged here: the host refused it AFTER reading the session and the Trash guard, so the 400 is
  * raised in `handle` to keep a trashed target's 409 (and a missing session's 500) winning.
  */
-export interface UserUpdateInput { principalId: string; email: string | undefined; username: string | undefined; usernameIsInvalid: boolean }
+export interface UserUpdateInput { principalId: string; email: string | undefined; username: string | undefined; usernameIsInvalid: boolean; expectedVersion?: unknown }
 
 /** This route's ladder, in the hand-written order; the in-Trash rung is the host's class. @complexity O(1). */
 function userUpdateErrors({ deps }: { deps: UserUpdateRouteDeps }, _optional: Record<string, never> = {}): readonly UserErrorRung[] {
-  return [USER_CONFLICT_OWN_CODE, USER_VALIDATION, hostRung({ matches: deps.isUserInTrashError, status: 409, code: "USER_IN_TRASH" }), USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED];
+  return [USER_VERSION_CONFLICT, USER_CONFLICT_OWN_CODE, USER_VALIDATION, hostRung({ matches: deps.isUserInTrashError, status: 409, code: "USER_IN_TRASH" }), USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED];
 }
 
 /**
@@ -63,7 +68,7 @@ async function updateInTransaction(
       // The email setter clears an omitted value. HTTP PATCH retains an omitted field;
       // read and write in the same identity transaction so a competing edit cannot be lost.
       const current = email === undefined ? await services.repos.users.findByPrincipalId({ workspaceId, principalId }) : undefined;
-      return deps.updateUser({ deps: services, input: { workspaceId, callerPrincipalId, principalId } }, { email: email === undefined ? current?.email : email, username });
+      return deps.updateUser({ deps: services, input: { workspaceId, callerPrincipalId, principalId } }, { email: email === undefined ? current?.email : email, username, expectedVersion: accessExpectedVersion({ value: input.expectedVersion }) });
     },
   });
 }
@@ -84,6 +89,7 @@ export const userUpdateRoute = defineJsonRoute<UserUpdateInput, { user: AdminUse
       email: body.email !== undefined ? String(body.email) : undefined,
       username: usernameIsInvalid ? undefined : (body.username as string | undefined),
       usernameIsInvalid,
+      expectedVersion: body.expectedVersion,
     } });
   },
   handle: async ({ input, deps, context }) => {

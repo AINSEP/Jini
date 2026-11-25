@@ -255,7 +255,7 @@ function readOptionalExpiry({ value }: { value: unknown }, _options = {}): ISODa
   return new Date(parsed).toISOString();
 }
 function apiKeyPolicySnapshot({ snapshotPolicyId, workspaceId, keyId, label }: { snapshotPolicyId: string; workspaceId: UUID; keyId: string; label: string }): Parameters<ApiKeyServiceDeps['repos']['policies']['save']>[0] {
-  return {
+  return { version: 1,
       id: snapshotPolicyId,
       workspaceId,
       name: `api-key:${keyId}`,

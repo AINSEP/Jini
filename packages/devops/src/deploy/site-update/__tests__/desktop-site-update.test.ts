@@ -12,7 +12,7 @@ interface DesktopRig {
 }
 
 /** Recording app-updater + site-migrate + health ports over a pretend installed app and site database. */
-function setup(options: { health?: SiteUpdateVerification; failMigrate?: boolean; appIgnoresSwap?: boolean } = {}) {
+function setup(options: { health?: SiteUpdateVerification; failMigrate?: boolean; appIgnoresSwap?: boolean; managedRollback?: boolean } = {}) {
   const rig: DesktopRig = { calls: [], state: { appVersion: '1.2.0', dataVersion: '1.2.0' } };
   let staged: string | null = null;
   const app: DesktopAppUpdaterPort = {
@@ -35,12 +35,16 @@ function setup(options: { health?: SiteUpdateVerification; failMigrate?: boolean
     restore: async ({ backupId }) => { rig.calls.push(`site.restore:${backupId}`); rig.state.dataVersion = '1.2.0'; },
   };
   const shared = createFakeSiteUpdate({ runningVersion: '1.2.0', latest: { version: '1.3.0', notes: 'New editor.' } });
+  const rollbackDeployment = async ({ previousVersion, backupId }: { previousVersion: string; backupId: string }) => {
+    rig.calls.push(`managed.rollback:${previousVersion}:${backupId}`);
+    rig.state = { appVersion: previousVersion, dataVersion: previousVersion };
+  };
   const site = createDesktopSiteUpdate({
     feed: shared.feed,
     app,
     migrate,
     health: { check: async ({ expectedVersion }) => { rig.calls.push(`health:${expectedVersion}`); return options.health ?? { status: 'healthy' }; } },
-  });
+  }, options.managedRollback ? { rollbackDeployment } : {});
   return { rig, site, ports: { ...shared.ports, site } };
 }
 
@@ -99,6 +103,16 @@ describe('createDesktopSiteUpdate — through runSiteUpdate', () => {
     const result = await runSiteUpdate({ ports, plan: await planned(site), approval });
     expect(result.outcome).toBe('rolled-back');
     expect(rig.calls).toEqual(['app.stage:1.3.0', 'site.migrate:1.3.0', 'app.rollbackTo:1.2.0', 'site.restore:backup-1']);
+    expect(rig.state).toEqual({ appVersion: '1.2.0', dataVersion: '1.2.0' });
+  });
+
+  it('managed rollback delegates the binary and data recovery as one operation', async () => {
+    const { rig, site, ports } = setup({ health: { status: 'unhealthy', reason: 'The home page answered 500.' }, managedRollback: true });
+    const result = await runSiteUpdate({ ports, plan: await planned(site), approval });
+    expect(result.outcome).toBe('rolled-back');
+    expect(rig.calls).toEqual([
+      'app.stage:1.3.0', 'site.migrate:1.3.0', 'app.applyStaged:1.3.0', 'app.currentVersion', 'health:1.3.0', 'managed.rollback:1.2.0:backup-1',
+    ]);
     expect(rig.state).toEqual({ appVersion: '1.2.0', dataVersion: '1.2.0' });
   });
 });

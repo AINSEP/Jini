@@ -11,8 +11,8 @@ import type { UsersController } from "../hooks/use-users.hooks.js";
 const t = (key: string) => key;
 const alice: AdminIdentityUser = { principalId: "alice", workspaceId: "w", username: "alice", email: "alice@example.test",
   status: "active", roleIds: [], policyIds: [], createdAt: "2026-10-01", isOwner: false };
-const roleR1: AdminRole = { id: "r1", workspaceId: "w", name: "editor", isBuiltin: true };
-const policyP1: AdminPolicy = { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, isFrozen: false };
+const roleR1: AdminRole = { id: "r1", workspaceId: "w", name: "editor", isBuiltin: true, version: 1 };
+const policyP1: AdminPolicy = { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, version: 1, isFrozen: false };
 
 /** A fully typed controller (the page's `useUsersHook` seam) so each conditional slot can be driven open deterministically. */
 function controller(overrides: Partial<UsersController> = {}): UsersController {

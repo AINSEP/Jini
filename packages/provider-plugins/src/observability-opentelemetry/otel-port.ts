@@ -5,7 +5,7 @@ import type {
  ExporterFactory, ObservabilityConfigEnabled, ObservabilityHelpers, SpanScopePort,
  TraceSpanKind, TraceSpanPort, TracerPort, TracerProviderFactory,
 } from './contract.js';
-import type { AgentRunStatus, ObservabilityPort } from '@jini-ai/core/contracts/observability';
+import type { AgentRunStatus, AgentRunTrackingOutcome, ObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 
 export type { ExporterFactory, TraceSpanKind, TracerPort, TracerProviderFactory } from './contract.js';
@@ -170,6 +170,17 @@ function reportError({ ctx, error, context }: { ctx: OtelCtx; error: unknown; co
  }
 }
 
+function agentUsageAttributes({ usage }: { usage: AgentRunTrackingOutcome['usage'] }, _optional = {}): Attributes {
+ const attributes: Attributes = {};
+ if (!usage) return attributes;
+ // Unreported usage stays absent; a reported zero is still usage, and pricing is never estimated.
+ for (const [name, value] of [['gen_ai.usage.input_tokens', usage.inputTokens], ['gen_ai.usage.output_tokens', usage.outputTokens]] as const) {
+  if (value !== undefined && Number.isInteger(value) && value >= 0) attributes[name] = value;
+ }
+ if (usage.costUsd !== undefined && Number.isFinite(usage.costUsd) && usage.costUsd >= 0) attributes['gen_ai.usage.cost_usd'] = usage.costUsd;
+ return attributes;
+}
+
 function trackAgentRun({ ctx, runId, conversationId, agentName, traceparent }: { ctx: OtelCtx; runId: string; conversationId?: string; agentName?: string; traceparent?: string }): ReturnType<ObservabilityPort['trackAgentRun']> {
  const startedAt = ctx.metric ? performance.now() : 0;
  // A run outlives the request that started it, so it is its own trace rather than a long child.
@@ -177,8 +188,8 @@ function trackAgentRun({ ctx, runId, conversationId, agentName, traceparent }: {
   'gen_ai.operation.name': 'invoke_agent', ...(agentName ? { 'gen_ai.agent.name': agentName } : {}),
   ...(conversationId ? { 'gen_ai.conversation.id': conversationId } : {}), 'agent.run.id': runId,
  } }, { root: true, ...(traceparent ? { traceparent } : {}) });
- return { run: runIn({ ctx, span }), end: once(({ status, error }) => {
-  finishWithOutcome({ ctx, span, attributes: { 'agent.run.status': status } }, { error, ...(FAILED_RUN_STATUSES.has(status) ? { softFailure: status } : {}) });
+ return { run: runIn({ ctx, span }), end: once(({ status, error, usage }) => {
+  finishWithOutcome({ ctx, span, attributes: { 'agent.run.status': status, ...agentUsageAttributes({ usage }) } }, { error, ...(FAILED_RUN_STATUSES.has(status) ? { softFailure: status } : {}) });
   ctx.metric?.({ name: 'agent.run.duration', value: performance.now() - startedAt }, { kind: 'histogram', unit: 'ms' });
   ctx.metric?.({ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } });
  }) };
