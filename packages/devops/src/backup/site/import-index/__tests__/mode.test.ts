@@ -19,6 +19,8 @@ const indexed: ImportIndexState = { schema: IMPORT_INDEX_STATE_SCHEMA, mode: 'in
 const valid = (state: ImportIndexState): ImportIndexStateRead => ({ kind: 'valid', state });
 const stored: SiteImportRecord = { importId: IMPORT_ID, principalId: 'owner', requestId: 'key', source: { uploadId: UPLOAD_ID }, status: 'ready', createdAt: new Date(1_500).toISOString(), expiresAt: 3_601_500, displayName: 'Site', newSiteId: 'site-1', newSiteName: 'site-1' };
 
+const { requestId: _requestId, ...withoutRequest } = stored;
+
 /** A fake DB handle: `meta` answers the mode check, `replay`/`imports` answer an admission lookup. */
 function fakeHandle({ meta = { db_id: DB_ID, cutover_at: '1000' }, metaError, onRun }: { meta?: Record<string, string>; metaError?: unknown; onRun?: (sql: string) => void } = {}) {
   const close = vi.fn();
@@ -91,7 +93,7 @@ describe('import index mode resolution', () => {
     const fence = () => { state = markIndexedWrite({ state, clock: { nowMs: () => 5_000 }, writeState: ({ state: next }) => { disk.state = next; }, ensureIndexedWitness: () => { disk.witness = true; } }); };
     const admitted = admitImport({ db: handle.db, clock: { nowMs: () => 5_000 }, policy: { cutoverPolicy: 'enable', historyVisibleMs: 2_592_000_000, replayFenceMs: 31_536_000_000, legacyRetireMs: 2_592_000_000, sweepOnClockRollback: false },
       principalId: 'owner', source: { url: 'https://share.example/site' }, digestSource: () => undefined, requireBudget: () => {}, beforeWrite: fence,
-      makeRow: ({ now }) => ({ ...stored, requestId: undefined, source: { url: 'https://share.example/site' }, status: 'verifying', createdAt: new Date(now).toISOString() }) });
+      makeRow: ({ now }) => ({ ...withoutRequest, source: { url: 'https://share.example/site' }, status: 'verifying', createdAt: new Date(now).toISOString() }) });
     expect(admitted.kind).toBe('admitted');
     expect(firstRun).toEqual({ mode: 'indexed', witness: true });
     expect(disk.state).toEqual({ ...cutover, mode: 'indexed', firstIndexedWriteAt: 5_000 });

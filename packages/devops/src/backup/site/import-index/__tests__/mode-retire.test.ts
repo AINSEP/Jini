@@ -4,7 +4,7 @@ import { IMPORT_INDEX_STATE_SCHEMA, retireLegacySnapshot, type ImportIndexState,
 const DAY_30 = 2_592_000_000;
 const CUTOVER = 10_000;
 const indexed: ImportIndexState = { schema: IMPORT_INDEX_STATE_SCHEMA, mode: 'indexed', dbId: '33333333-3333-4333-8333-333333333333', cutoverAt: CUTOVER, firstIndexedWriteAt: CUTOVER + 1, legacyRetiredAt: 0 };
-const cutover: ImportIndexState = { ...indexed, mode: 'cutover', firstIndexedWriteAt: 0 };
+const cutover: ImportIndexState = { schema: IMPORT_INDEX_STATE_SCHEMA, mode: 'cutover', dbId: indexed.dbId, cutoverAt: CUTOVER, firstIndexedWriteAt: 0, legacyRetiredAt: 0 };
 const uuid = (n: number) => `${n.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`;
 
 type Entry = { kind: 'file' | 'directory' | 'symlink' | 'other'; mtimeMs: number };
