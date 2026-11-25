@@ -2,7 +2,7 @@
 export const CONSENT_LOCALES_C: Record<string, Record<string, string>> = {
   ko: {
     "Banner mode": "배너 모드",
-    "Jini banner": "Jini 배너",
+    "{productName} banner": "{productName} 배너",
     "My own": "내 배너",
     "None": "없음",
     "Your banner calls window.jiniConsent.set(...)": "내 배너에서 window.jiniConsent.set(...)을 호출합니다",
@@ -94,7 +94,7 @@ export const CONSENT_LOCALES_C: Record<string, Record<string, string>> = {
   },
   pl: {
     "Banner mode": "Tryb banera",
-    "Jini banner": "Baner Jini",
+    "{productName} banner": "Baner {productName}",
     "My own": "Własny",
     "None": "Brak",
     "Your banner calls window.jiniConsent.set(...)": "Twój baner wywołuje window.jiniConsent.set(...)",
@@ -186,7 +186,7 @@ export const CONSENT_LOCALES_C: Record<string, Record<string, string>> = {
   },
   hu: {
     "Banner mode": "Szalagmód",
-    "Jini banner": "Jini-szalag",
+    "{productName} banner": "{productName}-szalag",
     "My own": "Saját",
     "None": "Nincs",
     "Your banner calls window.jiniConsent.set(...)": "A saját szalag a window.jiniConsent.set(...) függvényt hívja",
@@ -278,7 +278,7 @@ export const CONSENT_LOCALES_C: Record<string, Record<string, string>> = {
   },
   fr: {
     "Banner mode": "Mode de bannière",
-    "Jini banner": "Bannière Jini",
+    "{productName} banner": "Bannière {productName}",
     "My own": "La mienne",
     "None": "Aucune",
     "Your banner calls window.jiniConsent.set(...)": "Votre bannière appelle window.jiniConsent.set(...)",
@@ -370,7 +370,7 @@ export const CONSENT_LOCALES_C: Record<string, Record<string, string>> = {
   },
   uk: {
     "Banner mode": "Режим банера",
-    "Jini banner": "Банер Jini",
+    "{productName} banner": "Банер {productName}",
     "My own": "Власний",
     "None": "Немає",
     "Your banner calls window.jiniConsent.set(...)": "Ваш банер викликає window.jiniConsent.set(...)",

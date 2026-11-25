@@ -26,7 +26,7 @@ function recordingUi() {
 
 const hooks = { useConsentPage, useConsentReadiness, useConsentPreview, useConsentPreviewScale, useAdminKit };
 
-const useGerman = () => consentTranslation({ locale: 'de' });
+const useGerman = () => consentTranslation({ locale: 'de', productName: 'Acme' });
 
 describe('CookieConsent', () => {
   it('passes the look section the kit light palette and previews through the injected frame', async () => {
@@ -35,7 +35,7 @@ describe('CookieConsent', () => {
     renderWithAdminKit(<CookieConsent hooks={hooks} agentHandle={agentHandle} tabId="look" port={fakeConsentPort({ get: () => Promise.resolve(consentSnapshot()) })} useTranslate={useGerman} errors={consentErrors} ui={ui} delays={{ previewMs: 0 }} />, { kit });
     await screen.findByText('LookFields');
     expect((seen.LookFields as { lightColors: unknown }).lightColors).toBe(kit.theme.defaultAdminTheme.light);
-    expect((seen.LookFields as ConsentScreenFieldsProps).dictionary).toBe(useGerman().dictionary);
+    expect((seen.LookFields as ConsentScreenFieldsProps).dictionary).toEqual(useGerman().dictionary);
     await waitFor(() => expect(screen.getByText('<p>page</p>')).toBeInTheDocument());
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(useGerman().t('Cookie Consent'));
   });
@@ -57,7 +57,7 @@ describe('CookieConsent', () => {
 
   it('renders only jini-* class names on every tab, so the host stylesheet owns the look', async () => {
     const classesOf = (root: Element) => [...root.querySelectorAll('[class]')].flatMap((el) => [...el.classList]);
-    const english = () => consentTranslation({ locale: 'en' });
+    const english = () => consentTranslation({ locale: 'en', productName: 'Acme' });
     const overview = renderWithAdminKit(<CookieConsent hooks={hooks} agentHandle={agentHandle} tabId="overview" port={fakeConsentPort({ get: () => Promise.resolve(consentSnapshot()) })} useTranslate={english} errors={consentErrors} ui={recordingUi().ui} />);
     await screen.findByText('Nothing blocks the banner.');
     const classes = classesOf(overview.container);

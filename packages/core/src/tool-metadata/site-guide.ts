@@ -8,7 +8,7 @@ export function createSiteGuideToolMetadata({ productName }: { productName: stri
   return {
     site_guide: {
       search: {
-        keywords: `how ${productName.toLowerCase()} works site guide learn building blocks forms widgets markers themes members SEO deploy plugins Jini`,
+        keywords: `how ${productName.toLowerCase()} works site guide learn building blocks forms widgets markers themes members SEO deploy plugins ${productName}`,
         queries: [`How does ${productName} work?`, "Design a planner directory site."],
       },
       approval: { class: "read", confirmation: "direct" },

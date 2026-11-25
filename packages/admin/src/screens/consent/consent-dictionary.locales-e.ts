@@ -2,7 +2,7 @@
 export const CONSENT_LOCALES_E: Record<string, Record<string, string>> = {
   bn: {
     "Banner mode": "ব্যানার মোড",
-    "Jini banner": "Jini ব্যানার",
+    "{productName} banner": "{productName} ব্যানার",
     "My own": "আমার নিজস্ব",
     "None": "কোনোটিই নয়",
     "Your banner calls window.jiniConsent.set(...)": "আপনার ব্যানার window.jiniConsent.set(...) কল করে",

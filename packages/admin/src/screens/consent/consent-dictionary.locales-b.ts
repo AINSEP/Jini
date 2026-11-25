@@ -2,7 +2,7 @@
 export const CONSENT_LOCALES_B: Record<string, Record<string, string>> = {
   "pt-BR": {
     "Banner mode": "Modo do banner",
-    "Jini banner": "Banner Jini",
+    "{productName} banner": "Banner {productName}",
     "My own": "Meu próprio",
     "None": "Nenhum",
     "Your banner calls window.jiniConsent.set(...)": "Seu banner chama window.jiniConsent.set(...)",
@@ -94,7 +94,7 @@ export const CONSENT_LOCALES_B: Record<string, Record<string, string>> = {
   },
   ru: {
     "Banner mode": "Режим баннера",
-    "Jini banner": "Баннер Jini",
+    "{productName} banner": "Баннер {productName}",
     "My own": "Свой",
     "None": "Нет",
     "Your banner calls window.jiniConsent.set(...)": "Ваш баннер вызывает window.jiniConsent.set(...)",
@@ -186,7 +186,7 @@ export const CONSENT_LOCALES_B: Record<string, Record<string, string>> = {
   },
   fa: {
     "Banner mode": "حالت بنر",
-    "Jini banner": "بنر Jini",
+    "{productName} banner": "بنر {productName}",
     "My own": "بنر خودم",
     "None": "هیچ‌کدام",
     "Your banner calls window.jiniConsent.set(...)": "بنر شما window.jiniConsent.set(...) را فراخوانی می‌کند",
@@ -278,7 +278,7 @@ export const CONSENT_LOCALES_B: Record<string, Record<string, string>> = {
   },
   ar: {
     "Banner mode": "وضع البانر",
-    "Jini banner": "بانر Jini",
+    "{productName} banner": "بانر {productName}",
     "My own": "بانري الخاص",
     "None": "بلا بانر",
     "Your banner calls window.jiniConsent.set(...)": "يستدعي بانرك window.jiniConsent.set(...)",
@@ -370,7 +370,7 @@ export const CONSENT_LOCALES_B: Record<string, Record<string, string>> = {
   },
   ja: {
     "Banner mode": "バナーモード",
-    "Jini banner": "Jini バナー",
+    "{productName} banner": "{productName} バナー",
     "My own": "独自のバナー",
     "None": "なし",
     "Your banner calls window.jiniConsent.set(...)": "独自のバナーで window.jiniConsent.set(...) を呼び出します",
