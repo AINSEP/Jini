@@ -287,6 +287,7 @@
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
       "./public-http/routes/members/reset-password": "universal",
+      "./public-http/routes/members/password-sign-in": "universal",
       "./public-http/routes/members/set-password": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
@@ -441,6 +442,7 @@
       "./admin-http/routes/publish-content/export": "node",
       "./admin-http/routes/publish-content/blob-get": "node",
       "./admin-http/routes/publish-content/blob-put": "node",
+      "./admin-http/routes/publish-content/blobs-probe": "node",
       "./admin-http/routes/sites/site-previews": "node",
       "./fs-files/custom-root-permission": "universal",
       "./fs-files/custom-root-store": "node",
@@ -874,6 +876,7 @@
         "./admin-http/routes/publish-content/export": "publish",
         "./admin-http/routes/publish-content/blob-get": "publish",
         "./admin-http/routes/publish-content/blob-put": "publish",
+        "./admin-http/routes/publish-content/blobs-probe": "publish",
         "./admin-http/http/workspace": "workspace",
         "./admin-http/routes/workspace/create": "workspace",
         "./admin-http/routes/workspace/delete": "workspace",
@@ -2382,6 +2385,11 @@
       "import": "./dist/public-http/routes/members/reset-password.js",
       "default": "./dist/public-http/routes/members/reset-password.js"
     },
+    "./public-http/routes/members/password-sign-in": {
+      "types": "./dist/public-http/routes/members/password-sign-in.d.ts",
+      "import": "./dist/public-http/routes/members/password-sign-in.js",
+      "default": "./dist/public-http/routes/members/password-sign-in.js"
+    },
     "./public-http/routes/members/set-password": {
       "types": "./dist/public-http/routes/members/set-password.d.ts",
       "import": "./dist/public-http/routes/members/set-password.js",
@@ -3151,6 +3159,11 @@
       "types": "./dist/admin-http/routes/publish-content/blob-put.d.ts",
       "import": "./dist/admin-http/routes/publish-content/blob-put.js",
       "default": "./dist/admin-http/routes/publish-content/blob-put.js"
+    },
+    "./admin-http/routes/publish-content/blobs-probe": {
+      "types": "./dist/admin-http/routes/publish-content/blobs-probe.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/blobs-probe.js",
+      "default": "./dist/admin-http/routes/publish-content/blobs-probe.js"
     },
     "./admin-http/routes/sites/site-previews": {
       "types": "./dist/admin-http/routes/sites/site-previews.d.ts",

@@ -4,7 +4,7 @@
  * `@jini-ai/core/contracts/server`.
  */
 import type { Handler, HttpMethod, InputParser, JsonRouteAuthorize, JsonRouteAuthorizeScope, RawRouteInputContext, RouteInputContext, RouteRequestFacts, ServerApiError } from '@jini-ai/core/contracts/server';
-import type { Request, Response } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 
 /** Host-owned workspace, authentication/authorization and exception policy.
  * Guards throw on rejection; the error port owns their wire envelope. Without an error port the
@@ -33,6 +33,23 @@ export interface JsonRoutePorts<Deps, Context = undefined> {
    * port throws at mount time, so a missing resolver is never a silently absent client address.
    */
   readonly requestFacts?: (requiredArgs: { readonly req: Request; readonly deps: Deps }) => RouteRequestFacts;
+  /**
+   * Opt-in writer for the body-cap 413 that `allowRouteBody` answers when a spec's `maxBodyBytes` is
+   * exceeded (JSON and raw mounts alike). Absent, core's `payloadTooLargeError` envelope is written
+   * unchanged. A host whose admin client already reads its own 413 body supplies this so a route moved
+   * onto a spec keeps that body; the cap still runs before the workspace port and the handler.
+   */
+  readonly payloadTooLarge?: (requiredArgs: { readonly res: Response; readonly maxBytes: number }) => void;
+}
+
+/** Optional mount settings shared by `mountJsonRoute` and `mountRawRoute`. */
+export interface RouteMountOptions {
+  /**
+   * Body parsers registered between the path and the handler of THIS route only
+   * (`app[method](path, ...bodyParsers, handler)`), as a hand-written route mounted its own
+   * `express.urlencoded`. Scoped to the one registration, never an `app.use`, so no other route sees it.
+   */
+  readonly bodyParsers?: readonly RequestHandler[];
 }
 
 /** The request-context opt-ins and static response headers a JSON or raw spec may declare. */

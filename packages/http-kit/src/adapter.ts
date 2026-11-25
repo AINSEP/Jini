@@ -9,7 +9,7 @@ import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
 import { passesSameOriginGuard } from './origin.js';
-import type { JsonRoutePorts, JsonRouteSpec, RouteRequestOptIns } from './types.js';
+import type { JsonRoutePorts, JsonRouteSpec, RouteMountOptions, RouteRequestOptIns } from './types.js';
 
 /**
  * Combines required route fields and optional settings into a fresh spec while pinning its generic
@@ -34,12 +34,12 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  * @returns Void; registers one handler, without starting a listener.
  * @complexity O(1) setup and per-request overhead, plus parsing, host ports and handling.
  */
-export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
+export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions = {}
 ): void {
   assertRequestFactsPort({ spec });
   // Read once at mount: the per-request callback stays within the complexity budget.
   const onReturnedError = spec.ports?.onReturnedError;
-  app[spec.method](spec.path, async (req: Request, res: Response) => {
+  app[spec.method](spec.path, ...(optional.bodyParsers ?? []), async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
     // ever writing a response" shape (its own doc: safe to register "before `open` is ever
@@ -144,17 +144,23 @@ function parsedBodyBytes(body: unknown): number {
  * core's `jsonRoute` limits when mounted behind `node-bridge`, so both mount paths agree. A spec
  * cap above the host parser's limit is effectively clamped to it: the parser refuses first.
  * GET/HEAD are exempt, as in core.
+ * The host's `ports.payloadTooLarge`, when mounted, writes the 413 instead of core's envelope.
  * @returns `false` when the refusal was written and the route must stop.
  * @complexity O(n) in the body size for the re-serialization; only when a cap is declared.
  */
 export function allowRouteBody({ req, res, spec }: {
   readonly req: Request;
   readonly res: Response;
-  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'>;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'> & { readonly ports?: { readonly payloadTooLarge?: JsonRoutePorts<unknown>['payloadTooLarge'] } | undefined };
 }, _optional: Record<string, never> = {}): boolean {
   const maxBytes = spec.maxBodyBytes;
   if (maxBytes === undefined || req.method === 'GET' || req.method === 'HEAD') return true;
   if (parsedBodyBytes(req.body) <= maxBytes) return true;
+  // The host's own 413 body (its admin client reads it); absent, core's envelope below is unchanged.
+  if (spec.ports?.payloadTooLarge) {
+    spec.ports.payloadTooLarge({ res, maxBytes });
+    return false;
+  }
   const error = payloadTooLargeError({ maxBytes });
   sendApiError({ res, status: statusForError({ error }), error });
   return false;

@@ -9,7 +9,7 @@ import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
 import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
-import type { RawRouteSpec } from './types.js';
+import type { RawRouteSpec, RouteMountOptions } from './types.js';
 
 /** The optional fields of a raw spec, settable in `defineRawRoute`'s second argument. */
 type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'bufferedReply';
@@ -30,12 +30,13 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
  * SEC-005 path. The returned `Response` is written with its status, every header (each `Set-Cookie`
  * on its own line) and its body: none ends the answer, a stream is piped and cancelled when the
  * client leaves, and `handle`'s `signal` aborts on that same disconnect.
+ * `optional.bodyParsers` are registered between the path and the handler of this one route (`RouteMountOptions`).
  * @throws At mount, when the spec opts into `requestFacts` without the host's resolver port.
  * @complexity O(1) setup; per request, the gates, the host ports, `handle` and the body copy.
  */
-export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}): void {
+export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions = {}): void {
   assertRequestFactsPort({ spec });
-  app[spec.method](spec.path, async (req: Request, res: Response) => {
+  app[spec.method](spec.path, ...(optional.bodyParsers ?? []), async (req: Request, res: Response) => {
     // Observed on `res`, not `req`, for the reason `mountJsonRoute` documents: a parsed request
     // body has already ended the request stream, so `req`'s `close` is not a disconnect.
     const abortController = new AbortController();

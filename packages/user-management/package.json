@@ -52,6 +52,11 @@
       "./admin-http/routes/users/list-policies": "universal",
       "./admin-http/routes/users/list-policy-permissions": "universal",
       "./admin-http/routes/users/remove-policy-permission": "universal",
+      "./admin-http/http/api-keys": "universal",
+      "./admin-http/routes/api-keys/shared": "universal",
+      "./admin-http/routes/api-keys/create-principal": "universal",
+      "./admin-http/routes/api-keys/issue": "universal",
+      "./admin-http/routes/api-keys/revoke": "universal",
       "./admin-http/auth": "node",
       "./identity/boot-session-token": "node",
       "./identity/builtin-role-grants": "universal",
@@ -345,6 +350,31 @@
       "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
       "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
       "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
+    },
+    "./admin-http/http/api-keys": {
+      "types": "./dist/admin-http/http/api-keys.d.ts",
+      "import": "./dist/admin-http/http/api-keys.js",
+      "default": "./dist/admin-http/http/api-keys.js"
+    },
+    "./admin-http/routes/api-keys/shared": {
+      "types": "./dist/admin-http/routes/api-keys/shared.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/shared.js",
+      "default": "./dist/admin-http/routes/api-keys/shared.js"
+    },
+    "./admin-http/routes/api-keys/create-principal": {
+      "types": "./dist/admin-http/routes/api-keys/create-principal.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/create-principal.js",
+      "default": "./dist/admin-http/routes/api-keys/create-principal.js"
+    },
+    "./admin-http/routes/api-keys/issue": {
+      "types": "./dist/admin-http/routes/api-keys/issue.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/issue.js",
+      "default": "./dist/admin-http/routes/api-keys/issue.js"
+    },
+    "./admin-http/routes/api-keys/revoke": {
+      "types": "./dist/admin-http/routes/api-keys/revoke.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/revoke.js",
+      "default": "./dist/admin-http/routes/api-keys/revoke.js"
     },
     "./admin-http/auth": {
       "types": "./dist/admin-http/auth/index.d.ts",
