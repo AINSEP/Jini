@@ -51,3 +51,8 @@ test("replacing a file with a 60 MiB video honours the video cap, a 60 MiB image
   png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   await assert.rejects(replaceMediaFile({ deps: f.replaceDeps, media, bytes: png, contentType: "image/png", principalId: "o" }, CAPS), /exceeds the upload size cap/);
 });
+
+test("an uploaded record carries captions: null, the shape the repository reads back", async () => {
+  const { media } = await uploadMedia({ deps: fixture().uploadDeps, input: { workspaceId: "ws", filename: "a.png", contentType: "image/png", bytes: new Uint8Array([1]), createdByPrincipal: "o" } });
+  assert.equal(media.captions, null);
+});

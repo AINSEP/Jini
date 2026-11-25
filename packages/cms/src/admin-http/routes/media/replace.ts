@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
@@ -63,7 +64,8 @@ function parseReplacement({ body, caps }: { body: unknown; caps: UploadCaps }, _
   // The cap depends on the SNIFFED type (a mislabeled file cannot borrow the video cap), so it is checked after the sniff.
   const maxUploadBytes = resolveUploadCap({ contentType: verified }, caps);
   if (bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: `uploaded file exceeds the ${maxUploadBytes / (1024 * 1024)} MB size cap` });
+    // Plain words naming both sizes, the same sentence upload, the Library and the chat composer use.
+    throw new MediaValidationError({ message: describeUploadOverLimit({ fileBytes: bytes.byteLength, limitBytes: maxUploadBytes }) });
   }
   return { bytes, contentType: verified, provenance: { kind: "upload" as const, path: filename } };
 }

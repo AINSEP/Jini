@@ -474,6 +474,8 @@ export async function uploadMedia(
     height: null,
     cssClass: null,
     htmlAttributes: null,
+    // Same shape the repository reads back (`null` = no captions); omitting it made a fresh upload differ from the stored row.
+    captions: null,
   };
   await deps.mediaRepo.save(media);
 
