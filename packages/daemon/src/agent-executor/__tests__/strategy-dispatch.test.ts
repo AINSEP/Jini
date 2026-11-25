@@ -6,7 +6,8 @@ import { fakeAgentDef, fakeAgentRuntimePort } from '../../ports/__tests__/agent-
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { wireChildLifecycle } from '../child-lifecycle.js';
-import { buildMcpBridgeDelivery } from '../mcp-bridge.js';
+import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+import { buildMcpBridgeDelivery, resolveMcpBridgeForRun } from '../mcp-bridge.js';
 import { createDef, createFakeChild, stopResult } from './r8a-rig.js';
 import { agentRuntimeFixture } from './runtime-fixture.js';
 import { createCliToolCallReceiver } from '../tool-call-receipts.js';
@@ -23,13 +24,13 @@ const toolUse = { type: 'tool_use', name: 'zz.lookup', input: { q: 1 } };
 const FAKES: readonly FakeRuntime[] = [
   {
     def: fakeAgentDef({ id: 'synthetic-alpha' }, { eventParser: 'alpha-dialect', externalMcpInjection: 'opencode-env-content' }),
-    strategies: { toolCallReceipt: ({ event }) => ({ ...event, bridgeCall: { name: 'alpha-correlation', input: event.input } }), mcpDelivery: { envContentVar: 'ALPHA_MCP_DOC' } },
+    strategies: { mcpBridgeMechanism: 'env-content', toolCallReceipt: ({ event }) => ({ ...event, bridgeCall: { name: 'alpha-correlation', input: event.input } }), mcpDelivery: { envContentVar: 'ALPHA_MCP_DOC' } },
     expectedReceipt: { ...toolUse, bridgeCall: { name: 'alpha-correlation', input: { q: 1 } } },
     expectedVar: 'ALPHA_MCP_DOC',
   },
   {
     def: fakeAgentDef({ id: 'synthetic-beta' }, { eventParser: 'beta-dialect', externalMcpInjection: 'mimo-env-content' }),
-    strategies: { toolCallReceipt: ({ event }) => ({ ...event, bridgeCall: { name: 'beta-correlation', input: event.input, buffered: true } }), mcpDelivery: { envContentVar: 'BETA_MCP_DOC' } },
+    strategies: { mcpBridgeMechanism: 'env-content', toolCallReceipt: ({ event }) => ({ ...event, bridgeCall: { name: 'beta-correlation', input: event.input, buffered: true } }), mcpDelivery: { envContentVar: 'BETA_MCP_DOC' } },
     expectedReceipt: { ...toolUse, bridgeCall: { name: 'beta-correlation', input: { q: 1 }, buffered: true } },
     expectedVar: 'BETA_MCP_DOC',
   },
@@ -71,7 +72,7 @@ describe.each(FAKES)('fake runtime $def.id', ({ def, strategies, expectedReceipt
   });
 
   it('delivers MCP config through the variable it bound, whatever the strategy name', () => {
-    const delivery = buildMcpBridgeDelivery({ cwd: '/w', runId: 'r', strategy: def.externalMcpInjection, options, credential: undefined, mcpDelivery: port.strategies.for({ def }).mcpDelivery });
+    const delivery = buildMcpBridgeDelivery({ cwd: '/w', runId: 'r', mechanism: 'env-content', options, credential: undefined, mcpDelivery: port.strategies.for({ def }).mcpDelivery });
     expect(delivery).toMatchObject({ kind: 'env-content', envVarName: expectedVar });
   });
 });
@@ -85,5 +86,27 @@ it('passes events through untouched when the binding supplies no receipt, even f
 });
 
 it('refuses an env-content strategy the binding bound no variable for', () => {
-  expect(() => buildMcpBridgeDelivery({ cwd: '/w', runId: 'r', strategy: 'opencode-env-content', options, credential: undefined })).toThrow(/bind the variable/);
+  expect(() => buildMcpBridgeDelivery({ cwd: '/w', runId: 'r', mechanism: 'env-content', options, credential: undefined })).toThrow(/bind the variable/);
+});
+
+it('identical host capabilities select the same delivery without a vendor id', () => {
+  for (const { def, strategies, expectedVar } of FAKES) {
+    const port = fakeAgentRuntimePort({}, { strategies: { for: () => strategies } });
+    expect(port.strategies.for({ def }).mcpBridgeMechanism).toBe('env-content');
+    const delivery = buildMcpBridgeDelivery({ cwd: '/w', runId: 'r', mechanism: 'env-content', options, credential: undefined,
+      mcpDelivery: port.strategies.for({ def }).mcpDelivery });
+    expect(delivery).toMatchObject({ kind: 'env-content', envVarName: expectedVar });
+  }
+});
+
+it('unbound configured delivery fails before acquiring a credential', async () => {
+  const credential = vi.fn(() => 'unused');
+  const cleanupStagedFiles = vi.fn(async () => {});
+  const failBeforeSpawn = vi.fn(async (failure: { code: string; message: string }): Promise<never> => { throw failure; });
+  await expect(resolveMcpBridgeForRun({ input: { runId: 'r', cwd: '/w', def: FAKES[0]!.def }, deps: {
+    mechanism: undefined, ...fakeRuntimePorts(), mcpJsonInjection: { ...options, credential }, cleanupStagedFiles, failBeforeSpawn,
+  } })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+  expect(credential).not.toHaveBeenCalled();
+  expect(cleanupStagedFiles).toHaveBeenCalledTimes(1);
+  expect(failBeforeSpawn).toHaveBeenCalledTimes(1);
 });

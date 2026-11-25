@@ -5262,18 +5262,18 @@ describe('buildMcpBridgeDelivery', () => {
   const base = { cwd: '/work/proj', runId: 'run-1', options, credential: undefined };
 
   it('returns null when the host configured no injection at all', () => {
-    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'acp-merge', options: undefined })).toBeNull();
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'acp-merge', options: undefined })).toBeNull();
   });
 
   it('returns null for a def declaring no externalMcpInjection strategy', () => {
-    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: undefined })).toBeNull();
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: undefined })).toBeNull();
   });
 
   // Run-scoped, not a shared `cwd/.mcp.json` — see `mcpJsonPathForRun`'s own doc for the cross-run
   // credential leak a shared filename caused (two runs in one cwd overwrite each other's bearer
   // token before either child has read it).
   it('maps claude-mcp-json to a run-scoped .mcp.jini-<runId>.json path, not a shared cwd/.mcp.json', () => {
-    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'claude-mcp-json' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'config-file' });
     expect(delivery).toMatchObject({
       kind: 'claude-mcp-json',
       mcpJsonPath: path.join('/work/proj', '.mcp.jini-run-1.json'),
@@ -5281,16 +5281,16 @@ describe('buildMcpBridgeDelivery', () => {
   });
 
   it('maps acp-merge to ACP session/new mcpServers entries', () => {
-    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'acp-merge' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'acp-merge' });
     expect(delivery).toMatchObject({ kind: 'acp-merge', mcpServers: [{ name: 'jini', command: '/usr/bin/jini-mcp' }] });
   });
 
   it('maps the two env-content strategies to their own env var, sharing one serialiser', () => {
-    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'opencode-env-content', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }) })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'env-content', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'OPENCODE_CONFIG_CONTENT',
     });
-    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'MIMOCODE_CONFIG_CONTENT',
     });
@@ -5300,7 +5300,7 @@ describe('buildMcpBridgeDelivery', () => {
   // scratch CODEX_HOME directory needs `fs.mkdtemp` (a real, non-deterministic effect), which this
   // pure, synchronous dispatch cannot perform. `prepareCodexHomeIfNeeded` stages it separately.
   it('maps codex-toml to a bare serverEntry with no path — the directory is staged separately', () => {
-    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'staged-home', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
     expect(delivery).toEqual({
       kind: 'codex-toml',
       serverEntry: {
@@ -5316,7 +5316,7 @@ describe('buildMcpBridgeDelivery', () => {
   // consumer applies `serverEntry.env` directly to the child's own environment (see
   // `computeChildEnv`'s tests below), never to a config document or a named carrier variable.
   it('maps env-passthrough to a bare serverEntry, carrying no path and no carrier variable', () => {
-    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'env-passthrough' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'env-passthrough' });
     expect(delivery).toEqual({
       kind: 'env-passthrough',
       serverEntry: {
@@ -5329,11 +5329,11 @@ describe('buildMcpBridgeDelivery', () => {
 
   it('threads the resolved credential into every mechanism, not just claude-mcp-json', () => {
     const withToken = { ...base, credential: 'run-scoped-secret' };
-    const claude = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'claude-mcp-json' });
-    const acp = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'acp-merge' });
-    const env = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
-    const codex = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
-    const passthrough = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'env-passthrough' });
+    const claude = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, mechanism: 'config-file' });
+    const acp = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, mechanism: 'acp-merge' });
+    const env = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, mechanism: 'env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
+    const codex = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, mechanism: 'staged-home', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
+    const passthrough = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, mechanism: 'env-passthrough' });
     expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
     expect(acp).toMatchObject({ mcpServers: [{ env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } }] });
     expect(env).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
@@ -5348,7 +5348,13 @@ describe('buildMcpBridgeDelivery', () => {
     const declaring = AGENT_DEFS.filter((def) => def.externalMcpInjection !== undefined);
     expect(declaring.length).toBeGreaterThan(0);
     const undelivered = declaring
-      .filter((def) => buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def), ...boundMcpHome(def) }) === null)
+      .filter((def) => {
+        const slots = agentRuntimeFixture().strategies.for({ def });
+        const mechanism = slots.mcpConfigFile ? 'config-file' : slots.mcpHome ? 'staged-home' : slots.mcpDelivery ? 'env-content' : slots.mcpBridge ? 'env-passthrough' : 'acp-merge';
+        expect(slots.mcpBridgeMechanism).toBe(mechanism);
+        return buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism,
+          ...boundMcpDelivery(def), ...boundMcpHome(def) }) === null;
+      })
       .map((def) => def.id);
     expect(undelivered).toEqual([]);
   });
@@ -5369,10 +5375,11 @@ describe('buildMcpBridgeDelivery', () => {
       'trae-cli',
       'vibe',
     ]);
-    // Driven from each real def's own declared strategy, not a repeated literal, so a def silently
-    // switching strategies shows up here.
+    // Each real ACP definition must retain its delivery; the declaration filter and id list
+    // above also pin definitions switching strategies.
     for (const def of acpMergeDefs) {
-      expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection })).toMatchObject({
+      expect(agentRuntimeFixture().strategies.for({ def }).mcpBridgeMechanism).toBe('acp-merge');
+      expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, mechanism: 'acp-merge' })).toMatchObject({
         kind: 'acp-merge',
       });
     }

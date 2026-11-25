@@ -1,5 +1,6 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 import type { RecoveryHookPolicy } from "./hook-policy.js";
 
@@ -47,7 +48,7 @@ export interface MigrateForwardDbOpsPort {
 
 export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
   workspaceId: string;
-  actorId: string;
+  actor: MutationActor;
   clock: ClockPort;
   idGen: IdGeneratorPort;
   dbOps: MigrateForwardDbOpsPort;
@@ -117,7 +118,7 @@ export function buildMigrateForwardHooks(input: BuildMigrateForwardHooksInput, _
         idempotencyKey: restorePointId,
         trigger: "migrate-forward",
         createdAt: now,
-        createdBy: input.actorId,
+        createdBy: input.actor.id,
         costClass: capabilities.restorePoint.costClass,
         kind: capabilities.restorePoint.kind,
         watermarkAtCapture: captured.watermarkAtCapture,
@@ -128,9 +129,9 @@ export function buildMigrateForwardHooks(input: BuildMigrateForwardHooksInput, _
         kind: "core.migration",
         restorePointId,
         outcome: "success",
-        detailJson: JSON.stringify({ artifactRef: captured.artifactRef }),
+        detailJson: JSON.stringify({ artifactRef: captured.artifactRef, actor: { id: input.actor.id, kind: input.actor.kind } }),
         actorWorkspaceId: input.workspaceId,
-        actorId: input.actorId,
+        actorId: input.actor.id,
         createdAt: now,
       });
       return { migrated: true as const };

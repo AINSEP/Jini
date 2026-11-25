@@ -1,7 +1,7 @@
 /** @file The vendor behaviour a runtime hands the daemon for one definition, as `AgentRuntimePort['strategies']`.
  * The daemon asks for it by definition and never names a CLI: a dialect or a delivery strategy the definition already
  * declares (`eventParser`, `externalMcpInjection`) selects the implementation here, in the one package that owns vendors. */
-import type { NativeCapabilities, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+import type { McpBridgeMechanism, NativeCapabilities, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './defs/antigravity/permissions.js';
 import { buildCodexMcpDelivery } from './defs/codex/mcp-delivery.js';
@@ -105,6 +105,15 @@ const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new 
   ['claude-mcp-json', { build: buildClaudeMcpDelivery, write: writeMcpJsonForRun, prepareHttp: prepareClaudeHttpMcpConfig }],
 ]);
 
+const MCP_BRIDGE_MECHANISM_BY_STRATEGY: Record<NonNullable<RuntimeAgentDef['externalMcpInjection']>, McpBridgeMechanism> = {
+  'claude-mcp-json': 'config-file',
+  'acp-merge': 'acp-merge',
+  'opencode-env-content': 'env-content',
+  'mimo-env-content': 'env-content',
+  'codex-toml': 'staged-home',
+  'env-passthrough': 'env-passthrough',
+};
+
 /** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`).
  * `CLAUDE_CONFIG_DIR` is not in the child baseline env, but the staging step reads the operator's real value from the host env. */
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV, CODEX_HOME_ENV];
@@ -113,10 +122,13 @@ type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInje
 
 /** The slots the declared `externalMcpInjection` strategy selects: how the MCP bridge reaches the CLI (an env-carried document, or a staged home). */
 function mcpStrategySlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  const mcpBridgeMechanism = def.externalMcpInjection !== undefined && Object.hasOwn(MCP_BRIDGE_MECHANISM_BY_STRATEGY, def.externalMcpInjection)
+    ? MCP_BRIDGE_MECHANISM_BY_STRATEGY[def.externalMcpInjection] : undefined;
   const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
   const envContent = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_BY_STRATEGY.get(def.externalMcpInjection);
   const mcpHome = def.externalMcpInjection === undefined ? undefined : MCP_HOME_BY_STRATEGY.get(def.externalMcpInjection);
   return {
+    ...(mcpBridgeMechanism === undefined ? {} : { mcpBridgeMechanism }),
     ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
     ...(envContent ? { envContent } : {}),
     ...(mcpHome ? { mcpHome } : {}),

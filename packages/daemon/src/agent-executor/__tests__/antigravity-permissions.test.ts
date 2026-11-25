@@ -33,7 +33,7 @@ function prepare() {
   return resolveMcpBridgeForRun({
     input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: antigravityDef },
     deps: {
-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter, ...boundMcpBridge(antigravityDef),
+      mechanism: 'env-passthrough', mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter, ...boundMcpBridge(antigravityDef),
       cleanupStagedFiles: async () => {},
       failBeforeSpawn: async ({ message }) => { throw new Error(message); },
     },
@@ -91,7 +91,7 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   const cleanupStagedFiles = vi.fn(async () => {});
   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
   const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
-  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), mcpBridge: { prepare: authorize } };
+  const deps = { mechanism: 'env-passthrough' as const, mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), mcpBridge: { prepare: authorize } };
   let ready = false;
   const pending = resolveMcpBridgeForRun({ input, deps }).then(value => { ready = true; return value; });
   await new Promise(resolve => setImmediate(resolve));
@@ -118,7 +118,7 @@ it('mints no credential and writes no personal permission without explicit conse
   const authorize = vi.fn(async () => {});
   const ports = fakeRuntimePorts();
   const input = { runId: 'unapproved', cwd: '/site', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
-  const deps = { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
+  const deps = { mechanism: 'env-passthrough' as const, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
     cleanupStagedFiles: async () => {}, ...ports, mcpBridge: { prepare: authorize },
     failBeforeSpawn: async ({ message }: { message: string }): Promise<never> => { throw new Error(message); } };
   await expect(resolveMcpBridgeForRun({ input, deps })).rejects.toThrow(/approval/);

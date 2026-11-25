@@ -6,6 +6,7 @@ import { createAgentExecutor } from '../../index.js';
 import { createFakeChild, createDef, createRig, launchAt, stopResult, flush, type SpawnPort } from './r8a-rig.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
 import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
+import * as childInput from '../child-input.js';
 
 /**
  * @file R8a pins written before step 5 edits the launcher (the cases step 0 left open):
@@ -19,6 +20,83 @@ import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
  */
 
 interface SpawnCall { readonly command: string; readonly args: readonly string[]; readonly options: Record<string, unknown> }
+
+it('a synchronous spawn failure releases an acquired lock and each staged home once', async () => {
+  const order: string[] = [];
+  const release = vi.fn(() => { order.push('release-lock'); });
+  const cleanupHome = vi.fn(async () => { order.push('cleanup-home'); });
+  const cleanupConfig = vi.fn(async () => { order.push('cleanup-config'); });
+  const dispatch = vi.spyOn(childInput, 'writePromptToStdin');
+  const def = createDef({ externalMcpInjection: 'codex-toml', mcpHttp: true,
+    runtimeLock: { acquire: async () => ({ release }) } });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agentRuntime = agentRuntimeFixture({ getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
+    resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' },
+    runtime: runtimeFixture({ spawn: () => { throw new Error('spawn failed'); } }),
+    agentRuntime: { ...agentRuntime, strategies: { for: () => ({
+      mcpHome: {
+        envVar: 'FIXTURE_HOME', deliveryKind: 'codex-toml',
+        buildDelivery: ({ serverEntry }) => ({ kind: 'codex-toml', serverEntry }),
+        withStagedHome: ({ env, homeDir }) => ({ ...env, FIXTURE_HOME: homeDir }),
+        turnsOffPersonalConfig: () => false,
+        stage: async () => { order.push('stage-home'); return { kind: 'staged', home: { path: '/fake/home', cleanup: cleanupHome } }; },
+      },
+      configDir: { envKey: 'FIXTURE_CONFIG', stage: async () => {
+        order.push('stage-config'); return { path: '/fake/config', cleanup: cleanupConfig };
+      } },
+    }) } },
+  }, { claudeConfigDirIsolationEnabled: true, mcpJsonInjection: {
+    command: 'fixture', daemonUrl: 'http://daemon.invalid',
+    prepareHttp: async () => ({ url: 'http://127.0.0.1:1234/mcp', token: 'fixture', close: async () => {} }),
+  } });
+  const { run } = await lifecycle.start({ contextRef: 'g06' });
+  await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+  expect(release).toHaveBeenCalledTimes(1);
+  expect(cleanupHome).toHaveBeenCalledTimes(1);
+  expect(cleanupConfig).toHaveBeenCalledTimes(1);
+  expect(order).toEqual(['stage-home', 'stage-config', 'release-lock', 'cleanup-home', 'cleanup-config']);
+  expect(dispatch).not.toHaveBeenCalled();
+  dispatch.mockRestore();
+});
+
+it('an immediate child exit cannot beat lifecycle registration', async () => {
+  const child = createFakeChild(8400);
+  const rig = createRig({ def: createDef(), spawn: () => {
+    queueMicrotask(() => { child.emit('spawn'); child.emit('exit', 0, null); child.emit('close', 0, null); });
+    return child as unknown as ChildProcess;
+  } });
+  const runId = await rig.start();
+  await rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' });
+  await flush();
+  expect(await rig.executor.sendUserMessage({ runId, text: 'late' })).toBe('not-running');
+  expect(rig.events.filter((event) => event === 'release')).toEqual(['release']);
+});
+
+it('prepare-phase failure before the lock uses cleanupStagedFiles only', async () => {
+  const acquire = vi.fn(async () => ({ release: vi.fn() }));
+  const close = vi.fn(async () => {});
+  const spawn = vi.fn();
+  const def = createDef({ externalMcpInjection: 'claude-mcp-json', mcpHttp: true, runtimeLock: { acquire } });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agentRuntime = agentRuntimeFixture({ getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
+    resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' }, runtime: runtimeFixture({ spawn }),
+    agentRuntime: { ...agentRuntime, strategies: { for: (required) => {
+      const slots = agentRuntime.strategies.for(required);
+      return { ...slots, ...(slots.mcpConfigFile === undefined ? {} : { mcpConfigFile: {
+        ...slots.mcpConfigFile, prepareHttp: async () => { throw new Error('HTTP config staging failed'); },
+      } }) };
+    } } },
+  }, { mcpJsonInjection: { command: 'fixture', daemonUrl: 'http://daemon.invalid',
+    prepareHttp: async () => ({ url: 'http://127.0.0.1:1234/mcp', token: 'fixture', close }),
+  } });
+  const { run } = await lifecycle.start({ contextRef: 'g06' });
+  await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+  expect(acquire).not.toHaveBeenCalled();
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(spawn).not.toHaveBeenCalled();
+});
 
 function recordingSpawn(children: ReadonlyArray<ReturnType<typeof createFakeChild>>): { spawn: SpawnPort; calls: SpawnCall[] } {
   const calls: SpawnCall[] = [];

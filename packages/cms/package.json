@@ -13,6 +13,19 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./public-http/routes/site/pages/extra-head": "universal",
+      "./public-http/http/site/bare-page": "universal",
+      "./public-http/http/site/render/components/marketing": "universal",
+      "./public-http/http/site/render/post-body": "node",
+      "./public-http/http/site/render/template-render-data": "node",
+      "./public-http/http/site/render/components/entry-lists": "node",
+      "./public-http/http/site/render/blocks": "node",
+      "./admin-http/routes/system/site-share-password": "universal",
+      "./admin-http/routes/publish-content/route-helpers": "universal",
+      "./admin-http/routes/publish-content/import-errors": "node",
+      "./admin-http/routes/assistant/stored-credential-probe": "universal",
+      "./admin-http/routes/media/stored-media-response": "universal",
+      "./admin-http/http/presentation": "universal",
       "./themes/token-aliases": "universal",
       "./themes/theme-slots": "universal",
       "./publish/transfer": "universal",
@@ -293,6 +306,7 @@
       "./public-http/routes/site/robots": "universal",
       "./public-http/routes/site/feed": "universal",
       "./public-http/routes/site/llms": "universal",
+      "./public-http/routes/site/comments-submit": "universal",
       "./public-http/routes/members/forgot-password": "universal",
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
@@ -435,6 +449,7 @@
       "./admin-http/routes/agent-plugins/memory": "universal",
       "./admin-http/routes/agent-plugins/admin-surfaces": "universal",
       "./admin-http/routes/agent-plugins/install": "universal",
+      "./admin-http/routes/agent-plugins/install-response": "universal",
       "./admin-http/http/agent-plugins": "universal",
       "./admin-http/http/change-sets": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
@@ -832,6 +847,9 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
+        "src/public-http/http/site/render/post-body.ts",
+        "src/public-http/http/site/render/template-render-data.ts",
+        "src/listing",
         "src/media/blob-key.ts",
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
@@ -847,10 +865,21 @@
         "src/publish/content/precheck-reasons.ts",
         "src/publish/transfer/apply-errors.ts",
         "src/seo/html-plain-text.ts",
+        "src/seo/absolute-url.ts",
         "src/entries/go-live.ts",
         "src/publish/content/media-references.ts"
       ],
       "entries": {
+        "./public-http/routes/site/pages/extra-head": "presentation",
+        "./public-http/http/site/bare-page": "presentation",
+        "./public-http/http/site/render/template-render-data": "media",
+        "./public-http/http/site/render/components/entry-lists": "media",
+        "./admin-http/routes/system/site-share-password": "admin-http",
+        "./admin-http/routes/publish-content/route-helpers": "publish",
+        "./admin-http/routes/publish-content/import-errors": "publish",
+        "./admin-http/routes/assistant/stored-credential-probe": "admin-http",
+        "./admin-http/routes/media/stored-media-response": "media",
+        "./admin-http/http/presentation": "presentation",
         "./admin-http/http/redirects": "redirects",
         "./admin-http/routes/redirects/get-by-id": "redirects",
         "./admin-http/routes/redirects/hits": "redirects",
@@ -1009,6 +1038,7 @@
         "./admin-http/routes/forms/create": "forms",
         "./admin-http/routes/forms/delete-submission": "forms",
         "./admin-http/routes/menus/shared": "navigation",
+        "./public-http/routes/site/comments-submit": "comments",
         "./admin-http/routes/comments/shared": "comments",
         "./admin-http/routes/comments/moderation-queue": "comments",
         "./admin-http/routes/comments/moderate": "comments",
@@ -1061,6 +1091,71 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./public-http/routes/site/pages/extra-head": {
+      "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
+      "import": "./dist/public-http/routes/site/pages/extra-head.js",
+      "default": "./dist/public-http/routes/site/pages/extra-head.js"
+    },
+    "./public-http/http/site/bare-page": {
+      "types": "./dist/public-http/http/site/bare-page.d.ts",
+      "import": "./dist/public-http/http/site/bare-page.js",
+      "default": "./dist/public-http/http/site/bare-page.js"
+    },
+    "./public-http/http/site/render/components/marketing": {
+      "types": "./dist/public-http/http/site/render/components/marketing.d.ts",
+      "import": "./dist/public-http/http/site/render/components/marketing.js",
+      "default": "./dist/public-http/http/site/render/components/marketing.js"
+    },
+    "./public-http/http/site/render/post-body": {
+      "types": "./dist/public-http/http/site/render/post-body.d.ts",
+      "import": "./dist/public-http/http/site/render/post-body.js",
+      "default": "./dist/public-http/http/site/render/post-body.js"
+    },
+    "./public-http/http/site/render/template-render-data": {
+      "types": "./dist/public-http/http/site/render/template-render-data.d.ts",
+      "import": "./dist/public-http/http/site/render/template-render-data.js",
+      "default": "./dist/public-http/http/site/render/template-render-data.js"
+    },
+    "./public-http/http/site/render/components/entry-lists": {
+      "types": "./dist/public-http/http/site/render/components/entry-lists.d.ts",
+      "import": "./dist/public-http/http/site/render/components/entry-lists.js",
+      "default": "./dist/public-http/http/site/render/components/entry-lists.js"
+    },
+    "./public-http/http/site/render/blocks": {
+      "types": "./dist/public-http/http/site/render/blocks.d.ts",
+      "import": "./dist/public-http/http/site/render/blocks.js",
+      "default": "./dist/public-http/http/site/render/blocks.js"
+    },
+    "./admin-http/routes/system/site-share-password": {
+      "types": "./dist/admin-http/routes/system/site-share-password.d.ts",
+      "import": "./dist/admin-http/routes/system/site-share-password.js",
+      "default": "./dist/admin-http/routes/system/site-share-password.js"
+    },
+    "./admin-http/routes/publish-content/route-helpers": {
+      "types": "./dist/admin-http/routes/publish-content/route-helpers.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/route-helpers.js",
+      "default": "./dist/admin-http/routes/publish-content/route-helpers.js"
+    },
+    "./admin-http/routes/publish-content/import-errors": {
+      "types": "./dist/admin-http/routes/publish-content/import-errors.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/import-errors.js",
+      "default": "./dist/admin-http/routes/publish-content/import-errors.js"
+    },
+    "./admin-http/routes/assistant/stored-credential-probe": {
+      "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
+      "import": "./dist/admin-http/routes/assistant/stored-credential-probe.js",
+      "default": "./dist/admin-http/routes/assistant/stored-credential-probe.js"
+    },
+    "./admin-http/routes/media/stored-media-response": {
+      "types": "./dist/admin-http/routes/media/stored-media-response.d.ts",
+      "import": "./dist/admin-http/routes/media/stored-media-response.js",
+      "default": "./dist/admin-http/routes/media/stored-media-response.js"
+    },
+    "./admin-http/http/presentation": {
+      "types": "./dist/admin-http/http/presentation.d.ts",
+      "import": "./dist/admin-http/http/presentation.js",
+      "default": "./dist/admin-http/http/presentation.js"
+    },
     "./themes/token-aliases": {
       "types": "./dist/themes/token-aliases.d.ts",
       "import": "./dist/themes/token-aliases.js",
@@ -2501,6 +2596,11 @@
       "import": "./dist/public-http/routes/site/feed.js",
       "default": "./dist/public-http/routes/site/feed.js"
     },
+    "./public-http/routes/site/comments-submit": {
+      "types": "./dist/public-http/routes/site/comments-submit.d.ts",
+      "import": "./dist/public-http/routes/site/comments-submit.js",
+      "default": "./dist/public-http/routes/site/comments-submit.js"
+    },
     "./public-http/routes/site/llms": {
       "types": "./dist/public-http/routes/site/llms.d.ts",
       "import": "./dist/public-http/routes/site/llms.js",
@@ -3220,6 +3320,11 @@
       "types": "./dist/admin-http/routes/agent-plugins/install.d.ts",
       "import": "./dist/admin-http/routes/agent-plugins/install.js",
       "default": "./dist/admin-http/routes/agent-plugins/install.js"
+    },
+    "./admin-http/routes/agent-plugins/install-response": {
+      "types": "./dist/admin-http/routes/agent-plugins/install-response.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/install-response.js",
+      "default": "./dist/admin-http/routes/agent-plugins/install-response.js"
     },
     "./admin-http/routes/media/byte-size": {
       "types": "./dist/admin-http/routes/media/byte-size.d.ts",

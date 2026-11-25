@@ -5,7 +5,7 @@ import { supportsMessageRelay } from './message-relay.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
 import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
 import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
-import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+import type { McpBridgeMechanism, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
   errorMessage,
@@ -128,32 +128,31 @@ function buildStagedHomeDelivery({ serverEntry }: McpDeliveryBuildInput, { mcpHo
   if (home === undefined) throw new TypeError('A staged-home MCP strategy needs the runtime to bind the home slot that builds its delivery');
   return home.buildDelivery({ serverEntry });
 }
-const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInjection']>, McpDeliveryBuilder> = {
-  'claude-mcp-json': (input, { mcpConfigFile }) => {
+const MCP_DELIVERY_BUILDERS: Record<McpBridgeMechanism, McpDeliveryBuilder> = {
+  'config-file': (input, { mcpConfigFile }) => {
     if (mcpConfigFile === undefined) throw new TypeError('A JSON-config-file MCP strategy needs the runtime to bind the slot that places its config file');
     return mcpConfigFile.build(input);
   },
   'acp-merge': ({ serverEntry }) => ({ kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers({ entry: serverEntry }) }),
-  'opencode-env-content': buildEnvContentDelivery,
-  'mimo-env-content': buildEnvContentDelivery,
-  'codex-toml': buildStagedHomeDelivery,
+  'env-content': buildEnvContentDelivery,
+  'staged-home': buildStagedHomeDelivery,
   'env-passthrough': ({ serverEntry }) => ({ kind: 'env-passthrough', serverEntry }),
 };
 
 /**
- * **The single dispatch point from an `externalMcpInjection` strategy to its delivery mechanism.**
+ * **The single dispatch point from a bound MCP mechanism to its delivery.**
  * Pure and synchronous — the one effectful input (the per-run bearer credential) arrives already
  * resolved, so every strategy's mapping is directly assertable without touching the filesystem,
  * the environment, or a keystore.
  *
- * Keyed off the declared *strategy*, never off `def.id`: a def gets a working bridge by declaring a
- * mechanism, not by being named in this file. That is what makes the 9 `'acp-merge'` defs work
+ * Keyed off the bound *mechanism*, never off `def.id`: a def gets a working bridge through its runtime
+ * binding, not by being named in this file. That is what makes the 9 `'acp-merge'` defs work
  * without any of their own files being touched.
  *
- * @param input.cwd - The run's working directory; only `'claude-mcp-json'` uses it, to place this
+ * @param input.cwd - The run's working directory; only `'config-file'` uses it, to place this
  * run's own config file (see {@link mcpJsonPathForRun}) — never `cwd/.mcp.json` itself.
  * @param input.runId - Scopes the bridge child to this run.
- * @param input.strategy - The def's declared `externalMcpInjection`, or `undefined` for a def with no native MCP transport.
+ * @param input.mechanism - The runtime's bound delivery mechanism, or `undefined` for a def with no native MCP transport.
  * @param input.options - The host's bridge options, or `undefined` when the host never configured injection.
  * @param input.mcpDelivery - The runtime's bound MCP delivery slot for this def; required only by the `*-env-content` strategies.
  * @param input.credential - Already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN` entirely.
@@ -165,20 +164,20 @@ const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInje
 export function buildMcpBridgeDelivery(input: {
   readonly cwd: string;
   readonly runId: string;
-  readonly strategy: RuntimeAgentDef['externalMcpInjection'];
+  readonly mechanism: McpBridgeMechanism | undefined;
   readonly options: McpJsonInjectionOptions | undefined;
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
   readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
   readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
   readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
-}): McpBridgeDelivery | null {
-  const { cwd, runId, strategy, options } = input;
-  if (options === undefined || strategy === undefined) return null;
+}, _optional: Record<string, never> = {}): McpBridgeDelivery | null {
+  const { cwd, runId, mechanism, options } = input;
+  if (options === undefined || mechanism === undefined) return null;
   const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   // Every declared strategy has a builder; a new one fails typechecking until registered.
-  if (!Object.hasOwn(MCP_DELIVERY_BUILDERS, strategy)) throw new TypeError(`Unknown MCP bridge strategy: ${String(strategy)}`);
-  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry }, { ...(input.mcpDelivery === undefined ? {} : { mcpDelivery: input.mcpDelivery }), ...(input.mcpConfigFile === undefined ? {} : { mcpConfigFile: input.mcpConfigFile }), ...(input.mcpHome === undefined ? {} : { mcpHome: input.mcpHome }) });
+  if (!Object.hasOwn(MCP_DELIVERY_BUILDERS, mechanism)) throw new TypeError(`Unknown MCP bridge strategy: ${String(mechanism)}`);
+  return MCP_DELIVERY_BUILDERS[mechanism]({ cwd, runId, serverEntry }, { ...(input.mcpDelivery === undefined ? {} : { mcpDelivery: input.mcpDelivery }), ...(input.mcpConfigFile === undefined ? {} : { mcpConfigFile: input.mcpConfigFile }), ...(input.mcpHome === undefined ? {} : { mcpHome: input.mcpHome }) });
 }
 
 function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
@@ -189,13 +188,14 @@ function bridgeCredentialOptions(input: { credential: string | undefined; messag
 }
 
 /** Inherited credentials and persistent settings require explicit approval, including standalone hosts. */
-function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }, injection: McpJsonInjectionOptions | undefined): boolean {
-  return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
+function needsInheritedMcpConsent(input: { mechanism: McpBridgeMechanism | undefined; nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }, injection: McpJsonInjectionOptions | undefined): boolean {
+  return input.mechanism === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
 /** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup (the bound `mcpBridge` slot).
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
 export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }; readonly deps: {
+    readonly mechanism: McpBridgeMechanism | undefined;
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
@@ -211,18 +211,19 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
   } }
 ): Promise<McpBridgeDelivery | null> {
-  if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
+  if (needsInheritedMcpConsent({ mechanism: deps.mechanism, ...(input.nativeCapabilities === undefined ? {} : { nativeCapabilities: input.nativeCapabilities }) }, deps.mcpJsonInjection)) {
     return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
       message: `${input.def.name} needs your approval before loading personal MCP settings and receiving this chat's run key.` });
   }
   try {
+    if (deps.mcpJsonInjection !== undefined && input.def.externalMcpInjection !== undefined && deps.mechanism === undefined) throw new TypeError('A declared MCP delivery needs the runtime to bind its mechanism');
     // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
     // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
     const credential = deps.mcpJsonInjection !== undefined ? await deps.mcpJsonInjection.credential?.({ runId: input.runId }) : undefined;
     const delivery = buildMcpBridgeDelivery({
       cwd: input.cwd,
       runId: input.runId,
-      strategy: input.def.externalMcpInjection,
+      mechanism: deps.mechanism,
       options: deps.mcpJsonInjection,
       credential,
       ...(deps.mcpDelivery === undefined ? {} : { mcpDelivery: deps.mcpDelivery }),

@@ -9,7 +9,7 @@
  * the token is never forwarded to another host.
  *
  * Unguessable without a random suffix: the key already carries the share's 16-letter (~91-bit) token
- * (`_share/<token>/<name>.tovu.zip`) and anonymous readers cannot list a Blob store. A suffix would
+ * (`_share/<token>/<artifact>`) and anonymous readers cannot list a Blob store. A suffix would
  * also make the URL underivable from the key, and `delete` (revoke) receives only the key.
  *
  * Plain JS by owner decision (2026-09-29), like `targets/vercel.mjs`.
@@ -30,8 +30,6 @@ const BLOB_API = "https://vercel.com/api/blob";
 const BLOB_API_VERSION = "13";
 /** The smallest edge cache Blob allows, so a revoked link stops serving within about a minute. */
 const BLOB_CACHE_MAX_AGE_SECONDS = "60";
-/** The token is 16 ASCII letters, the shape core's `SHARE_TOKEN` mints (a plugin cannot import core). */
-const SHARE_KEY = /^_share\/[A-Za-z]{16}\/[a-z0-9][a-z0-9-]{0,79}\.tovu\.zip$/;
 /** `vercel_blob_rw_<storeId>_<secret>`: the store id names the public host, as `@vercel/blob` reads it. */
 const BLOB_TOKEN = /^vercel_blob_rw_([A-Za-z0-9]+)_\w+$/;
 
@@ -64,10 +62,11 @@ async function blobApi(required) {
 
 /**
  * @param {{ key: string, kit: any }} required
+ * The host validates the exact share key, including its token and suffix (a plugin cannot import core).
  * @throws {DeployError} Not a share artifact key.
  */
 function requireKey(required) {
-  if (!SHARE_KEY.test(required.key)) throw new required.kit.DeployError("Invalid share artifact key.", 400);
+  if (required.kit.isShareArtifactKey?.({ key: required.key }) !== true) throw new required.kit.DeployError("Invalid share artifact key.", 400);
 }
 
 /**

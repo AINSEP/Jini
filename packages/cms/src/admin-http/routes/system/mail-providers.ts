@@ -37,6 +37,16 @@ export type MailProviderFailure =
   | { kind: "operation"; code: MailProviderOperationCode; message: string }
   | { kind: "store"; code: MailProviderStoreErrorCode };
 
+export function classifyMailProviderError({ error, operationFailure, storeErrors }: {
+  error: unknown;
+  operationFailure: (required: { error: unknown }) => Extract<MailProviderFailure, { kind: "operation" }> | undefined;
+  storeErrors: readonly (readonly [abstract new (...args: never[]) => Error, Extract<MailProviderFailure, { kind: "store" }>])[];
+}, _optional = {}): MailProviderFailure | undefined {
+  const operation = operationFailure({ error });
+  if (operation) return operation;
+  return storeErrors.find(([type]) => error instanceof type)?.[1];
+}
+
 const OPERATION_STATUS: Readonly<Record<MailProviderOperationCode, number>> = {
   MAIL_PROVIDER_CONTROL_UNAVAILABLE: 503, MAIL_PROVIDER_NOT_FOUND: 404, MAIL_PROVIDER_KEYLESS: 409, MAIL_PROVIDER_REFUSED: 409, MAIL_PROVIDER_INPUT: 400, MAIL_PROVIDER_CHANGED: 409,
 };

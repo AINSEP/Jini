@@ -13,6 +13,8 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./members/public-member-auth-response": "universal",
+      "./members/public-member-response": "universal",
       ".": "universal",
       "./session-bootstrap": "universal",
       "./server": "node",
@@ -181,6 +183,16 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./members/public-member-auth-response": {
+      "types": "./dist/members/public-member-auth-response.d.ts",
+      "import": "./dist/members/public-member-auth-response.js",
+      "default": "./dist/members/public-member-auth-response.js"
+    },
+    "./members/public-member-response": {
+      "types": "./dist/members/public-member-response.d.ts",
+      "import": "./dist/members/public-member-response.js",
+      "default": "./dist/members/public-member-response.js"
+    },
     ".": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",

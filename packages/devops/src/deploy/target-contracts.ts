@@ -23,6 +23,10 @@ export interface PluginSigV4Client {
   sign(input: string, init?: RequestInit): Promise<Request>;
 }
 export interface PluginDeployHostKit {
+  readonly isShareArtifactKey?: (
+    required: { readonly key: string },
+    optional?: Record<string, never>,
+  ) => boolean;
   /** Optional newer plugin ports; installed older modules keep their existing ABI. */
   now?(): number;
   probeContent?(required: { readonly url: string; readonly expected: string }, optional?: Record<string, never>): Promise<boolean>;

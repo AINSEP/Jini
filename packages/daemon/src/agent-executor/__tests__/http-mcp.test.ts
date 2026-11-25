@@ -78,7 +78,7 @@ it('agy keeps stdio and Aider creates no MCP host', async () => {
     const f = await fixture(prepare, runtime);
     expect(f.prepared).toBeNull();
     expect(prepare).not.toHaveBeenCalled();
-    const delivery = buildMcpBridgeDelivery({ cwd: '/fixture', runId: f.runId, strategy: runtime.externalMcpInjection,
+    const delivery = buildMcpBridgeDelivery({ cwd: '/fixture', runId: f.runId, mechanism: id === 'antigravity' ? 'env-passthrough' : undefined,
       options: { command: 'stdio', daemonUrl: 'http://daemon.invalid' }, credential: 'run-callback' });
     expect(delivery?.kind ?? null).toBe(id === 'antigravity' ? 'env-passthrough' : null);
     await f.lifecycle.finish({ runId: f.runId, status: 'succeeded', code: 0, signal: null, resumable: false });

@@ -63,7 +63,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent 
     mkdtemp: async () => '/tmp/fake-m2-home', removeDir: async () => {}, linkSessionStore: async () => {},
   };
   const delivery = await resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def },
-    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpHome(def) } });
+    deps: { mechanism: agent === 'claude' ? 'config-file' : 'staged-home', ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpHome(def) } });
   expect(delivery?.kind).toBe(agent === 'claude' ? 'claude-mcp-json' : 'codex-toml');
   if (agent === 'claude') {
     await writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', def, mcpBridge: delivery },
@@ -87,7 +87,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent 
 it('cleans up and fails before spawn if the startup ID resolver rejects', async () => {
   const cleanup = vi.fn(async () => {});
   await expect(resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def: getAgentDef({ id: 'claude' })! },
-    deps: { ...boundMcpConfigFile(), ...fakeRuntimePorts(), cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
+    deps: { mechanism: 'config-file', ...boundMcpConfigFile(), ...fakeRuntimePorts(), cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
       startupToolIds: () => { throw new Error('visibility unavailable'); },
     } },
   })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });

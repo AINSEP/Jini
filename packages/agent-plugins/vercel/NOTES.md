@@ -18,6 +18,7 @@ behaviours generically; the vendor detail lives here.
   `@vercel/blob` 2.8.2 `put()`/`del()` (API version 13, `x-vercel-blob-access: public` on put) and has
   not been exercised against live Vercel yet. The store's binding is its Blob origin, so revoke only
   deletes through the store the share was put in.
-  No random suffix: the `_share/<16-letter token>/` key is the unguessable part and `delete` only gets the key.
+  No random suffix: the host-validated `_share/<token>/` key is the unguessable part and `delete` only gets the key.
+  Sharing requires the host kit’s `isShareArtifactKey` predicate; an absent predicate refuses every key.
   Verify is an anonymous HEAD of `<store>.public.blob.vercel-storage.com/<key>?download=1` checking
   exact size and `application/zip`.

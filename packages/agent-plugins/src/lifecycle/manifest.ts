@@ -37,7 +37,7 @@
  *   spec-defined field — the host is the client the spec defers that decision to. This module accepts
  *   portable metadata in `plugin.json`'s `extensions.jini.mcpServers[serverId]`, with an explicit
  *   namespace option for custom clients. Legacy auth and sign-in defaults in MCP entries remain
- *   readable automatically, but those cannot supply operator read trust. Custom clients can use
+ *   readable with host-bound aliases, but those cannot supply operator read trust. Custom clients can use
  *   readServerMetadata to translate their own fields before the same validators run.
  *   `authMode: "oauth" | "none"` selects client auth; absent defaults to "none".
  *   `defaultTools: { allow?, write?, read? }` names sign-in grants and reviewed read tools.
@@ -56,9 +56,9 @@
  * caller that reads the file and hands the parsed value here.
  */
 import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
-import { resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, legacyAgentPluginMetadataWarning, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
+import { type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
 import type { AgentPluginExportMetadata, PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
-export { resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings, legacyAgentPluginMetadataWarning } from '../core/identity-namespace.js';
+export { type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings, legacyAgentPluginMetadataWarning } from '../core/identity-namespace.js';
 import { readAgentPluginMetadata, type AgentPluginMetadata } from './metadata.js';
 export * from './metadata.js';
 export * from './credential-card-metadata.js';
@@ -579,7 +579,7 @@ function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly
  * @throws Nothing — see {@link parseAgentPluginManifest}.
  * @complexity O(s) in the number of declared servers.
  */
-export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace?: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined } = {}): ParseAgentPluginMcpConfigResult {
+export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace?: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined } = {}): ParseAgentPluginMcpConfigResult {
   if (extensionNamespace !== undefined && !extensionNamespace.trim()) throw new Error("An extension namespace is required");
   if (!isJsonObject(value)) return { ok: false, errors: ["mcp.json must be a JSON object"] };
 
@@ -592,7 +592,7 @@ export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { reado
 /** Valid transports are independent siblings; a malformed declaration never hides their ids. */
 function parseMcpServers(
   { raw, extensionNamespace }: { readonly raw: Readonly<Record<string, unknown>>; readonly extensionNamespace: string | undefined },
-  optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined },
+  optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined },
 ): ParseAgentPluginMcpConfigResult {
   const namespace = resolveAgentPluginIdentityNamespace({ value: optional.pluginManifest }, extensionNamespace === undefined ? {} : { identityNamespace: extensionNamespace });
   const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace: namespace });
@@ -600,10 +600,10 @@ function parseMcpServers(
   const servers: Record<string, McpServerConfig> = Object.create(null);
   const warnings = [...readAgentPluginCompatibilityWarnings({ value: optional.pluginManifest }, { identityNamespace: namespace })];
   const portable = isPortableAgentPluginNamespace({ namespace: extensionNamespace });
-  const readServerMetadata = optional.readServerMetadata ?? (portable ? readCompatibleAgentPluginServerMetadata : undefined);
+  const readServerMetadata: AgentPluginServerMetadataReader | undefined = optional.readServerMetadata ?? (portable ? (required) => readCompatibleAgentPluginServerMetadata(required, { legacyMcpAliases: optional.legacyMcpAliases }) : undefined);
   for (const [serverId, rawServer] of entries) {
     const extension = Object.hasOwn(extensionServers, serverId) ? extensionServers[serverId] : undefined;
-    collectLegacyServerWarning({ rawServer, extension, portable, warnings });
+    collectLegacyServerWarning({ rawServer, extension, portable, warnings, legacyMcpAliases: optional.legacyMcpAliases });
     const parsed = parseDeclaredServer({ serverId, rawServer, extension }, { readServerMetadata });
     if (parsed) servers[serverId] = parsed;
   }
@@ -611,9 +611,9 @@ function parseMcpServers(
   return { ok: true, config: { serverIds: entries.map(([serverId]) => serverId), servers }, ...(warnings.length ? { warnings: [...new Set(warnings)] } : {}) };
 }
 
-function collectLegacyServerWarning({ rawServer, extension, portable, warnings }: { readonly rawServer: unknown; readonly extension: unknown; readonly portable: boolean; readonly warnings: string[] }): void {
-  if (!portable || !isJsonObject(rawServer)) return;
-  if (hasLegacyAgentPluginServerMetadata({ value: isJsonObject(extension) ? extension : {}, server: rawServer })) warnings.push(legacyAgentPluginMetadataWarning);
+function collectLegacyServerWarning({ rawServer, extension, portable, warnings, legacyMcpAliases }: { readonly rawServer: unknown; readonly extension: unknown; readonly portable: boolean; readonly warnings: string[]; readonly legacyMcpAliases?: LegacyMcpAliases | undefined }): void {
+  if (!portable || !isJsonObject(rawServer) || !legacyMcpAliases) return;
+  if (hasLegacyAgentPluginServerMetadata({ value: isJsonObject(extension) ? extension : {}, server: rawServer }, { legacyMcpAliases })) warnings.push(legacyMcpAliases.warning);
 }
 
 /** Typed extension reader: unknown namespaces have no semantics until a host supplies a reader. */

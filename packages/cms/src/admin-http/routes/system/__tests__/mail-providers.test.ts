@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  mailProviderActivateRoute, mailProviderCredentialPlanRoute, mailProviderRefusal, mailProvidersListRoute,
+  classifyMailProviderError, mailProviderActivateRoute, mailProviderCredentialPlanRoute, mailProviderRefusal, mailProvidersListRoute,
   type MailProviderFailure, type MailProviderActivateRouteDeps, type MailProviderCredentialPlanRouteDeps, type MailProvidersListRouteDeps,
 } from "../mail-providers.js";
 import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./mail-test-helpers.js";
@@ -110,4 +110,12 @@ describe("mail-provider route specs", () => {
     await expect(mailProviderActivateRoute.handle({ input: parsed, deps: makeDeps(), context: undefined, authorize: recordingAuthorize().authorize }, { signal }))
       .rejects.toThrow(/no authenticated principal/);
   });
+});
+
+it("operation failures win before the store table", () => {
+  const error = new StoreError("NOT_FOUND");
+  const storeErrors = [[StoreError, { kind: "store", code: "NOT_FOUND" }]] as const;
+  expect(classifyMailProviderError({ error, operationFailure: () => ({ kind: "operation", code: "MAIL_PROVIDER_REFUSED", message: "safe" }), storeErrors })).toEqual({ kind: "operation", code: "MAIL_PROVIDER_REFUSED", message: "safe" });
+  expect(classifyMailProviderError({ error, operationFailure: () => undefined, storeErrors })).toEqual({ kind: "store", code: "NOT_FOUND" });
+  expect(classifyMailProviderError({ error: new Error("unknown"), operationFailure: () => undefined, storeErrors })).toBeUndefined();
 });

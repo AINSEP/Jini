@@ -33,7 +33,7 @@ The intended convention is `(required, optional = {})`. Tables below record the 
 | `validatePluginManifest` | `{ value: unknown }` | — | `boolean` |
 | `validateMcpManifest` | `{ value: unknown }` | `Record<string, never> = {}` | `boolean` |
 | `parseAgentPluginManifest` | `{ value: unknown }` | — | `ParseAgentPluginManifestResult` |
-| `parseAgentPluginMcpConfig` | `{ value: unknown, extensionNamespace: string }` | `{ pluginManifest?: unknown, readServerMetadata?: AgentPluginServerMetadataReader } = {}` | `ParseAgentPluginMcpConfigResult` |
+| `parseAgentPluginMcpConfig` | `{ value: unknown, extensionNamespace: string }` | `{ pluginManifest?: unknown, readServerMetadata?: AgentPluginServerMetadataReader, legacyMcpAliases?: LegacyMcpAliases } = {}` | `ParseAgentPluginMcpConfigResult` |
 | `readAgentPluginExtension<T>` | `{ manifest: Pick<AgentPluginManifest, 'extensions'>, namespace: string, read: ({ value: Readonly<Record<string, unknown>> }) => T }` | `Record<string, never> = {}` | `T \| undefined` |
 
 The root exports `PluginManifest`, `PluginManifestAuthor`, `McpManifest`, and `McpServerEntry`. `PluginManifest` has required `name`, optional `$schema`, version, description, author object, homepage, repository, license, keywords, extensions, and open-ended keys. `McpManifest` has optional `$schema` and required `mcpServers`; typed server entries are stdio, streamable HTTP, or SSE. The shallow predicates do not establish all these field types.

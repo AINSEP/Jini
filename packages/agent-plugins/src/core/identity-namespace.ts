@@ -71,18 +71,27 @@ export function resolveAgentPluginLifecycleNamespace(
   return Object.hasOwn(extensions, 'tovu') ? 'tovu' : extensionNamespace;
 }
 
+type LegacyMcpField = 'authMode' | 'defaultTools' | 'tokenAuth' | 'renamedTools';
+
+export interface LegacyMcpAliases {
+  readonly names: Readonly<Partial<Record<LegacyMcpField, string>>>;
+  readonly warning: string;
+}
+
+const CANONICAL_MCP_KEYS = ['authMode', 'defaultTools', 'tokenAuth', 'renamedTools'] as const;
+
 /** Translate installed legacy MCP entries without granting read trust from transport data.
  * Portable names take precedence even when malformed, leaving validation to the shared parser.
  * @complexity O(k), bounded by the default-tools declaration. */
 export function readCompatibleAgentPluginServerMetadata(
   { value, server }: { readonly value: Readonly<Record<string, unknown>>; readonly server: Readonly<Record<string, unknown>> },
-  _optional = {},
+  { legacyMcpAliases }: { readonly legacyMcpAliases?: LegacyMcpAliases | undefined } = {},
 ): Readonly<Record<string, unknown>> {
-  return Object.fromEntries(['authMode', 'defaultTools', 'tokenAuth', 'renamedTools'].map(key => {
-    const legacyKey = `tovu${key[0]!.toUpperCase()}${key.slice(1)}`;
+  return Object.fromEntries(CANONICAL_MCP_KEYS.map(key => {
+    const legacyKey = legacyMcpAliases?.names[key];
     // Legacy adapters treated null aliases as absent; canonical null stays malformed.
-    const declared = value[key] !== undefined ? value[key] : value[legacyKey] ?? undefined;
-    const inline = server[key] !== undefined ? server[key] : server[legacyKey];
+    const declared = value[key] !== undefined ? value[key] : (legacyKey === undefined ? undefined : value[legacyKey] ?? undefined);
+    const inline = server[key] !== undefined ? server[key] : (legacyKey === undefined ? undefined : server[legacyKey]);
     return [key, declared !== undefined ? declared : inlineMetadata({ key, value: inline })];
   }));
 }
@@ -90,9 +99,9 @@ export function readCompatibleAgentPluginServerMetadata(
 /** Whether compatibility aliases were read, for the MCP parser's returned diagnostics. */
 export function hasLegacyAgentPluginServerMetadata(
   { value, server }: { readonly value: Readonly<Record<string, unknown>>; readonly server: Readonly<Record<string, unknown>> },
-  _optional = {},
+  { legacyMcpAliases }: { readonly legacyMcpAliases?: LegacyMcpAliases | undefined } = {},
 ): boolean {
-  return ['tovuAuthMode', 'tovuDefaultTools', 'tovuTokenAuth', 'tovuRenamedTools'].some(key => Object.hasOwn(value, key) || Object.hasOwn(server, key));
+  return Object.values(legacyMcpAliases?.names ?? {}).some(k => k !== undefined && (Object.hasOwn(value, k) || Object.hasOwn(server, k)));
 }
 
 /** Transport declarations keep sign-in defaults, but reviewed reads require plugin.json metadata. */

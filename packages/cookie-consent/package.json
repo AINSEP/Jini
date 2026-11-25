@@ -44,6 +44,7 @@
       "./node": "node",
       "./extensions.min.js": "browser",
       "./site/config": "universal",
+      "./site/pre-consent-cache": "universal",
       "./site/cookie-consent": "universal",
       "./site/validation": "universal",
       "./site/revisions": "universal",
@@ -70,6 +71,11 @@
   "main": "./dist/contract.js",
   "types": "./dist/contract.d.ts",
   "exports": {
+    "./site/pre-consent-cache": {
+      "types": "./dist/site/pre-consent-cache.d.ts",
+      "import": "./dist/site/pre-consent-cache.js",
+      "default": "./dist/site/pre-consent-cache.js"
+    },
     ".": {
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js",

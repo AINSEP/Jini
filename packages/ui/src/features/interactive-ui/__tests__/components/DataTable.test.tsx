@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -13,10 +14,25 @@ const rows = [
 ];
 
 describe('DataTable', () => {
+  it('the host stylesheet gives this provider a bounded scroll frame and sticky headers', () => {
+    const css = readFileSync(`${__dirname}/../../data-table.css`, 'utf8');
+    const selectors = new Set([...css.matchAll(/\.(jini-ui-data-table[\w-]*)/g)].map(match => match[1]));
+    const { container, rerender } = render(<DataTable columns={columns} rows={rows} />);
+    for (const sourceRows of [rows, []]) {
+      rerender(<DataTable columns={columns} rows={sourceRows} />);
+      expect(screen.getByRole('table')).toHaveClass('jini-ui-data-table');
+      const classes = [...container.querySelectorAll('[class]')].flatMap(node => [...node.classList])
+        .filter(name => name.startsWith('jini-ui-data-table'));
+      expect(classes.length).toBeGreaterThan(0);
+      for (const name of classes) expect(selectors.has(name)).toBe(true);
+    }
+    expect(css).not.toContain('.jini-data-table');
+  });
+
   it('carries scoped base styles, semantic headers and a horizontal scroll container', () => {
     const { container } = render(<DataTable columns={columns} rows={rows} />);
-    expect(screen.getByRole('table')).toHaveClass('jini-data-table');
-    expect(container.querySelector('.jini-data-table-scroll')).toContainElement(screen.getByRole('table'));
+    expect(screen.getByRole('table')).toHaveClass('jini-ui-data-table');
+    expect(container.querySelector('.jini-ui-data-table-scroll')).toContainElement(screen.getByRole('table'));
     expect(screen.getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col');
   });
 
