@@ -633,7 +633,7 @@
    "CredentialProbeInput": "interface:88fd87b0c2",
    "CredentialProbeStatus": "type:2560ba762b",
    "CredentialSetConnectionInput": "interface:588844e49c",
-   "CredentialSetKeyringPort": "interface:e6d02108bc",
+   "CredentialSetKeyringPort": "type:4b2d99d0ff",
    "CredentialSetProjectScope": "interface:46a3126f7c",
    "CredentialSetRecord": "interface:c308ed770c",
    "CredentialSetRepoPort": "interface:86670a95f3",

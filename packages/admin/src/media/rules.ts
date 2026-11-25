@@ -167,9 +167,13 @@ export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'i
   });
 }
 
-/** A calendar date in UTC, so cards do not shift an upload to yesterday across host timezones. */
-export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US' }: { locale?: string } = {}): string | null {
+/**
+ * The upload's calendar day in the owner's time zone: a 23:30 upload shows the day the owner uploaded
+ * it, not the UTC day (which is already tomorrow west of UTC). `timeZone` is an IANA zone injected by
+ * the host; omitted, it is the runtime's own zone (in the admin, the owner's browser).
+ */
+export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US', timeZone }: { locale?: string; timeZone?: string } = {}): string | null {
   const date = new Date(createdAt);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', ...(timeZone ? { timeZone } : {}) }).format(date);
 }

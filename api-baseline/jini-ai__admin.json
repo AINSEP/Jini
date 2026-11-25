@@ -822,7 +822,7 @@
    "diffMediaMetadata": "function:96341c6541",
    "embedPolicyToken": "variable:f8f2fbd665",
    "filterMediaByTab": "function:7d7673fb0f",
-   "formatUploadDate": "function:f7f85a7e27",
+   "formatUploadDate": "function:c7e76f4eeb",
    "isAllowedMediaHtmlAttributeName": "function:af43dd71ce",
    "isRetryableMediaError": "function:69edc13af6",
    "mediaApiToken": "variable:d07f322bd4",
@@ -3575,8 +3575,8 @@
   "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
   "symbols": {
    "MediaCardMetadataSource": "interface:dbea75d561",
-   "MediaMetadataFormatters": "interface:888daeb5f1",
-   "useMediaCardMetadata": "function:908e0588b8"
+   "MediaMetadataFormatters": "interface:1cc8be1467",
+   "useMediaCardMetadata": "function:b2ba8a3cba"
   }
  },
  "./screens/media/hooks/use-media-grid-size.hooks": {

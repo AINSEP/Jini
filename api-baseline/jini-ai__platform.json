@@ -662,7 +662,7 @@
    "MAIL_RETENTION_INTERVAL_MS": "variable:aaf08400a9",
    "MAX_CAPTURE_LIST": "variable:5a37cb63a0",
    "MailAttemptObserver": "type:0585a2291f",
-   "MailCaptureRepo": "interface:65902d12bd",
+   "MailCaptureRepo": "interface:32cd47a8c6",
    "MailRepoDeps": "interface:6d10a5624d",
    "MailRepoOptions": "interface:5f87470ecc",
    "MailRetentionOptions": "interface:41b7a46909",
