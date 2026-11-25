@@ -13,6 +13,8 @@
     "kind": "kernel",
     "runtime": "universal",
     "entries": {
+      "./contracts/site/media-tool-ports": "universal",
+      "./contracts/site/asset-transfer-tool-ports": "universal",
       "./tool-metadata/agent-pause": "universal",
       "./contracts/site/approval-i18n": "universal",
       ".": "universal",
@@ -354,6 +356,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./contracts/site/media-tool-ports": {
+      "types": "./dist/contracts/site/media-tool-ports.d.ts",
+      "import": "./dist/contracts/site/media-tool-ports.js",
+      "default": "./dist/contracts/site/media-tool-ports.js"
+    },
+    "./contracts/site/asset-transfer-tool-ports": {
+      "types": "./dist/contracts/site/asset-transfer-tool-ports.d.ts",
+      "import": "./dist/contracts/site/asset-transfer-tool-ports.js",
+      "default": "./dist/contracts/site/asset-transfer-tool-ports.js"
+    },
     "./tool-metadata/agent-pause": {
       "types": "./dist/tool-metadata/agent-pause.d.ts",
       "import": "./dist/tool-metadata/agent-pause.js",

@@ -757,7 +757,9 @@
       "./trash/site/move-to-trash": "universal",
       "./trash/site/adapters/member": "universal",
       "./trash/site/adapters/media": "node",
-      "./trash/site/adapters/post": "node"
+      "./trash/site/adapters/post": "node",
+      "./media/site-import/tool-registrations": "node",
+      "./asset-transfer/asset-destinations": "node"
     },
     "isolation": {
       "domains": {
@@ -4872,6 +4874,16 @@
       "types": "./dist/trash/site/adapters/post.d.ts",
       "import": "./dist/trash/site/adapters/post.js",
       "default": "./dist/trash/site/adapters/post.js"
+    },
+    "./media/site-import/tool-registrations": {
+      "types": "./dist/media/site-import/tool-registrations.d.ts",
+      "import": "./dist/media/site-import/tool-registrations.js",
+      "default": "./dist/media/site-import/tool-registrations.js"
+    },
+    "./asset-transfer/asset-destinations": {
+      "types": "./dist/asset-transfer/asset-destinations.d.ts",
+      "import": "./dist/asset-transfer/asset-destinations.js",
+      "default": "./dist/asset-transfer/asset-destinations.js"
     }
   },
   "files": [
