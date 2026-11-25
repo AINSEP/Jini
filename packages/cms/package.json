@@ -13,6 +13,9 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./publish/content/sql/raw-row-sqlite": "node",
+      "./publish/content/tool-helpers": "universal",
+      "./trash/visibility": "universal",
       "./admin-http/routes/system/publish-site/destinations": "universal",
       "./admin-http/routes/system/publish-site/trigger": "universal",
       "./admin-http/routes/settings/events": "universal",
@@ -1150,6 +1153,21 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./publish/content/sql/raw-row-sqlite": {
+      "types": "./dist/publish/content/sql/raw-row-sqlite.d.ts",
+      "import": "./dist/publish/content/sql/raw-row-sqlite.js",
+      "default": "./dist/publish/content/sql/raw-row-sqlite.js"
+    },
+    "./publish/content/tool-helpers": {
+      "types": "./dist/publish/content/tool-helpers.d.ts",
+      "import": "./dist/publish/content/tool-helpers.js",
+      "default": "./dist/publish/content/tool-helpers.js"
+    },
+    "./trash/visibility": {
+      "types": "./dist/trash/visibility.d.ts",
+      "import": "./dist/trash/visibility.js",
+      "default": "./dist/trash/visibility.js"
+    },
     "./admin-http/routes/system/publish-site/destinations": {
       "types": "./dist/admin-http/routes/system/publish-site/destinations.d.ts",
       "import": "./dist/admin-http/routes/system/publish-site/destinations.js",

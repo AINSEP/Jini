@@ -13,6 +13,7 @@
     "kind": "abstraction",
     "runtime": "node",
     "entries": {
+      "./secrets/root-key/reconcile": "node",
       ".": "node",
       "./fetch-with-timeout": "node",
       "./asset-cache": "node",
@@ -90,6 +91,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./secrets/root-key/reconcile": {
+      "types": "./dist/secrets/root-key/reconcile.d.ts",
+      "import": "./dist/secrets/root-key/reconcile.js",
+      "default": "./dist/secrets/root-key/reconcile.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

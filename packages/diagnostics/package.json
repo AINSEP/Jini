@@ -12,6 +12,7 @@
     "domain": "tooling",
     "kind": "diagnostics",
     "entries": {
+      "./redaction/repo-secret-scan": "universal",
       ".": "node",
       "./redaction/secrets-only": "universal",
       "./observability": "universal",
@@ -52,6 +53,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./redaction/repo-secret-scan": {
+      "types": "./dist/redaction/repo-secret-scan.d.ts",
+      "import": "./dist/redaction/repo-secret-scan.js",
+      "default": "./dist/redaction/repo-secret-scan.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

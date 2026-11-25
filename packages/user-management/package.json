@@ -13,6 +13,8 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./project-keys/sql/attachments": "node",
+      "./identity/sql/user-trash-adapter": "node",
       "./member-login/unlink-identity": "node",
       "./member-login/oidc-request": "node",
       "./members/public-member-auth-response": "universal",
@@ -192,6 +194,16 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./project-keys/sql/attachments": {
+      "types": "./dist/project-keys/sql/attachments.d.ts",
+      "import": "./dist/project-keys/sql/attachments.js",
+      "default": "./dist/project-keys/sql/attachments.js"
+    },
+    "./identity/sql/user-trash-adapter": {
+      "types": "./dist/identity/sql/user-trash-adapter.d.ts",
+      "import": "./dist/identity/sql/user-trash-adapter.js",
+      "default": "./dist/identity/sql/user-trash-adapter.js"
+    },
     "./member-login/unlink-identity": {
       "types": "./dist/member-login/unlink-identity.d.ts",
       "import": "./dist/member-login/unlink-identity.js",
