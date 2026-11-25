@@ -770,7 +770,8 @@
         "src/screens/plugins/selected-skills.ts",
         "src/screens/plugins/rules.ts",
         "src/screens/plugins/agent-plugins-visuals.tsx",
-        "src/agent-plugins/package-file-tree.ts"
+        "src/agent-plugins/package-file-tree.ts",
+        "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts"
       ],
       "forbidden": {
         "universal": [

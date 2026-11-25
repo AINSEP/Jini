@@ -24,7 +24,7 @@ export interface DockHeaderProps {
   readonly locale: string;
   /** The dock chrome's own translator (`useAssistantDockChrome().t`). */
   readonly t: (input: { key: string }, options?: Record<string, never>) => string;
-  /** The chat library's translator, for the delete-confirmation copy. */
+  /** `@jini-ai/chat/react`'s translator, for the delete-confirmation copy. */
   readonly chatI18n: I18nAdapter;
   /** The admin confirm-dialog request the dock renders as `<ConfirmDialog>`. */
   readonly conversationDelete: Pick<ReturnType<typeof useConfirmRequest>, "confirm">;
