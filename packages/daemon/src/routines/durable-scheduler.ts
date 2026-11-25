@@ -2,7 +2,7 @@ import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import { describeErrorForLog } from '@jini-ai/core';
 import type { SchedulerPort } from '../scheduler.js';
 import { nextRunAtForSchedule } from './schedule.js';
-import { ScheduledRunPersistenceError } from './scheduler.js';
+import { ScheduledRunPersistenceError } from './routine-errors.js';
 import type { ReconcileReason, Routine, RoutineDurablePersistence, RoutineRun, RoutineRunHandlerStart, RoutineRunTrigger } from './types.js';
 
 export class DurableScheduler {

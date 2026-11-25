@@ -24,6 +24,7 @@ import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import { describeErrorForLog } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import { createTimeoutScheduler, type SchedulerPort } from '../scheduler.js';
+import { RoutineActiveError, ScheduledRunPersistenceError } from './routine-errors.js';
 import { DurableScheduler, claimStrategy, type RoutineRunAttempt } from './durable-scheduler.js';
 import type { ReconcileReason, RoutineDurablePersistence } from './types.js';
 import { nextRunAtForSchedule } from './schedule.js';
@@ -46,26 +47,6 @@ function clearRoutinePlaceholderId(value: string): string {
   return value.startsWith('routine-pending-') ? '' : value;
 }
 
-/**
- * Distinguishes "a sibling daemon already won this scheduled slot, or the durable write itself
- * failed" from every other run-handler failure, so the scheduler can retry the same slot instead
- * of silently advancing to the next cadence (which would skip a fire the caller never actually
- * got).
- */
-export class ScheduledRunPersistenceError extends Error {
-  readonly routineId: string;
-  readonly slotAt: number;
-  readonly originalError: unknown;
-  constructor({ routineId, slotAt, originalError }: { readonly routineId: string; readonly slotAt: number; readonly originalError: unknown }
-  ) {
-    super(`Routine ${routineId} scheduled slot ${slotAt} could not be persisted`);
-    this.routineId = routineId;
-    this.slotAt = slotAt;
-    this.originalError = originalError;
-    this.name = 'ScheduledRunPersistenceError';
-  }
-}
-
 /** Preserve the underlying failure (including its code) for the redacted log diagnostic. */
 function scheduledRunFailureDetail(error: unknown): unknown {
   const cause = error instanceof ScheduledRunPersistenceError ? error.originalError : error;
@@ -77,10 +58,6 @@ function isScheduledRunPersistenceError(error: unknown): error is ScheduledRunPe
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-export class RoutineActiveError extends Error {
-  constructor() { super('Routine already has an active run'); this.name = 'RoutineActiveError'; }
 }
 
 export class RoutineService {
