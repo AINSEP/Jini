@@ -21,7 +21,7 @@ export interface ApiKeyRevokeRouteDeps {
  * retries a timed-out revoke never has to distinguish "it worked" from "it already had".
  *
  * 204 with no body (api.spec §3), mirroring `users/reset-password.ts`. The `?? ""` fallback on the
- * `:id` segment is kept: Express always fills a matched param, but a direct handler call can omit it
+ * `:id` segment is kept: the host router always fills a matched param, but a direct handler call can omit it
  * and must still answer the ordinary not-found.
  */
 export const apiKeyRevokeRoute = defineJsonRoute<{ keyId: string }, undefined, ApiKeyRevokeRouteDeps, UserRoutePrincipal>({
