@@ -20,7 +20,7 @@ function fixture() {
   vi.spyOn(driver, "acquireConnection").mockResolvedValue({
     async executeQuery<R>(query: CompiledQuery) {
       queries.push(query);
-      const rows = query.sql.startsWith("select") ? [toRow({ record, pointers: { env_secret_id: null, oauth_secret_id: null } })] : [];
+      const rows = /^\s*select/i.test(query.sql) ? [toRow({ record, pointers: { env_secret_id: null, oauth_secret_id: null } })] : [];
       return { rows: rows as unknown as R[], numAffectedRows: affected };
     },
     async *streamQuery<R>() { yield { rows: [] as R[] }; },
