@@ -79,7 +79,7 @@ async function runSearch({ runtime, deps, query }: { runtime: SiteSearchRouteRun
   const clock = deps.clock;
   const startedAt = clock?.nowMs();
   const result = await runtime.service.query({ siteId, workspaceId, query }, { audiences });
-  if (result.status !== 'ok' || true) deps.recordSearchPerformed({ properties: {
+  if (result.status === 'ok') deps.recordSearchPerformed({ properties: {
     resultCountBucket: searchResultCountBucket({ count: result.page.hits.length }),
     ...(startedAt === undefined || !clock ? {} : { durationBucket: searchDurationBucket({ elapsedMs: clock.nowMs() - startedAt }) }),
   } });

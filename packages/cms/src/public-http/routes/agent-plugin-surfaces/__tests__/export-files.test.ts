@@ -10,7 +10,12 @@ const signal = new AbortController().signal;
 type Plugin = { readonly pluginId: string; readonly root: string };
 type Owner = PluginExportOwner<Plugin>;
 
-const entry: AgentPluginExport = { styles: "components/a.css", assets: { mark: "components/mark.png", logo: "components/logo.svg", sneaky: "components/x.js", page: "components/y.html" }, scripts: ["components/widget.js", "https://assets.vendor.test/loader.js"] } as AgentPluginExport;
+/** A declared export; only the files the route reads are modelled, the rest of the manifest entry is not. */
+function declared(files: Partial<Pick<AgentPluginExport, "styles" | "assets" | "scripts">>): AgentPluginExport {
+  return files as unknown as AgentPluginExport;
+}
+
+const entry = declared({ styles: "components/a.css", assets: { mark: "components/mark.png", logo: "components/logo.svg", sneaky: "components/x.js", page: "components/y.html" }, scripts: ["components/widget.js", "https://assets.vendor.test/loader.js"] });
 const owner: Owner = { enabled: true, plugin: { pluginId: "demo", root: "/pkg" }, exports: { button: entry } };
 
 function harness({ allowed = true, owners = [owner] as readonly Owner[], body = "body" as string | Uint8Array, fault = {} as { limiter?: Error; list?: Error; read?: Error } } = {}) {
@@ -81,7 +86,7 @@ describe("createPluginExportFilesRoute", () => {
       ["declared html", harness(), { path: "components/y.html" }],
       ["js declared under assets", harness(), { path: "components/x.js" }],
       ["remote script", harness(), { path: "https://assets.vendor.test/loader.js" }],
-      ["no extension", harness({ owners: [{ ...owner, exports: { button: { styles: "LICENSE" } as AgentPluginExport } }] }), { path: "LICENSE" }],
+      ["no extension", harness({ owners: [{ ...owner, exports: { button: declared({ styles: "LICENSE" }) } }] }), { path: "LICENSE" }],
     ];
     for (const [name, { deps, calls }, input] of refused) {
       expect(await wire(await run(deps, input)), name).toEqual(NOT_FOUND);
@@ -90,7 +95,7 @@ describe("createPluginExportFilesRoute", () => {
   });
 
   it("serves a declared upper-case extension by its lower-cased type, byte bodies keeping that type untouched", async () => {
-    const upper: Owner = { ...owner, exports: { button: { assets: { mark: "components/MARK.PNG" } } as AgentPluginExport } };
+    const upper: Owner = { ...owner, exports: { button: declared({ assets: { mark: "components/MARK.PNG" } }) } };
     expect((await run(harness({ owners: [upper], body: new Uint8Array([9]) }).deps, { path: "components/MARK.PNG" })).headers.get("content-type")).toBe("image/png");
   });
 
