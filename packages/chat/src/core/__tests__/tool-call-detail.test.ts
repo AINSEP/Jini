@@ -91,6 +91,14 @@ describe('describeToolCallDetail', () => {
     expect(detail.outputText).toBe('saved [token removed]');
   });
 
+  it('redacts a secret before applying the cap, so a cut never leaves part of the secret visible (G19)', () => {
+    const syntheticSecret = 'sk-' + 'SyntheticSecret0123456789'.repeat(2);
+    const detail = describeToolCallDetail({ input: `token ${syntheticSecret}`, result: { content: `saved ${syntheticSecret}`, isError: false } }, { maxChars: 25 });
+    expect(detail.inputText).toBe('token [token removed]');
+    expect(detail.outputText).toBe('saved [token removed]');
+    expect(JSON.stringify(detail)).not.toMatch(/SyntheticSecret|sk-/);
+  });
+
   it('uses an injected redactor instead of the default policy', () => {
     const detail = describeToolCallDetail({ input: 'abc', result: { content: 'def', isError: false } }, { redact: ({ text }) => ({ text: text.toUpperCase(), secretRedacted: false, count: 0 }) });
     expect(detail.inputText).toBe('ABC');

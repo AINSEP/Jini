@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { createAgUiTranslationState, drainRunFramesToAgUi, type AgUiEvent } from '../event-projection.js';
+import { createAgUiTranslationState, drainRunFramesToAgUi, readConfirmationResume, type AgUiEvent } from '../event-projection.js';
 import { notices } from '../../run-events/__tests__/fixture.js';
 
 const translation = {
@@ -164,4 +164,42 @@ test('only an explicitly marked pending approval projects an interrupt', async (
     { type: 'TEXT_MESSAGE_END', messageId: 'msg_1' },
     { type: 'RUN_FINISHED', threadId: 't', runId: 'r', outcome: { type: 'interrupt', interrupts: [pendingApproval] } },
   ]);
+});
+
+test('a terminal end writes its own notices, then closes the open message, then the one terminal event (G19)', async () => {
+  const bytes = new TextEncoder().encode([
+    `event: agent\ndata: ${JSON.stringify({ payload: { type: 'text_delta', delta: 'partial' } })}`,
+    `event: end\ndata: ${JSON.stringify({ payload: { status: 'canceled', code: 0 } })}`,
+    `event: agent\ndata: ${JSON.stringify({ payload: { type: 'text_delta', delta: 'after the end' } })}`,
+  ].join('\n\n') + '\n\n');
+  const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } });
+  expect(outcome).toEqual({ status: 'canceled' });
+  expect(events.map(event => event.type), 'Notice, then segment close, then the terminal event; nothing after it').toEqual([
+    'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'CUSTOM', 'TEXT_MESSAGE_END', 'RUN_FINISHED',
+  ]);
+});
+
+const pausedRun = { threadId: 'thread', runId: 'original', interruptId: 'approval' };
+const resumeInput = { threadId: 'thread', runId: 'fresh', parentRunId: 'original', state: null, messages: [], tools: [], context: [], forwardedProps: {},
+  resume: [{ interruptId: 'approval', status: 'resolved', payload: 'allow' }] };
+
+test('a resume that names the paused thread, parent run and interrupt is decoded (G19 control)', () => {
+  expect(readConfirmationResume({ input: resumeInput, ...pausedRun })).toEqual({ decision: 'allow' });
+});
+
+test('a resume for a different thread is refused (G19)', () => {
+  expect(readConfirmationResume({ input: { ...resumeInput, threadId: 'foreign' }, ...pausedRun })).toBeUndefined();
+});
+
+test('a resume whose parent run is not the paused run is refused, even with a matching thread and interrupt (G19)', () => {
+  expect(readConfirmationResume({ input: { ...resumeInput, parentRunId: 'foreign' }, ...pausedRun })).toBeUndefined();
+  const { parentRunId: _omitted, ...withoutParent } = resumeInput;
+  expect(readConfirmationResume({ input: withoutParent, ...pausedRun })).toBeUndefined();
+});
+
+test('a resume answering a different interrupt is refused, even when it allows (G19)', () => {
+  expect(readConfirmationResume({ input: { ...resumeInput, resume: [{ interruptId: 'other', status: 'resolved', payload: 'allow' }] }, ...pausedRun })).toBeUndefined();
 });
