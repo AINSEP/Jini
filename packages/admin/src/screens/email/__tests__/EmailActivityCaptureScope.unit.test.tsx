@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { AdminKitProvider } from "../../../react/kit.js";
+import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { EmailActivityTab } from "../EmailActivityTab.js";
 import type { CaptureClearState, EmailActivityController } from "../hooks/use-email-activity.hooks.js";
 
@@ -34,7 +36,8 @@ function mount(count: number) {
     };
     return <EmailActivityTab controller={controller} locale="en-US" part="sends" />;
   }
-  render(<Activity />);
+  // The confirmation dialog reads the host kit, so mount under the same provider hosts use.
+  render(<AdminKitProvider kit={fakeAdminKit()}><Activity /></AdminKitProvider>);
   return { preview, confirm };
 }
 
