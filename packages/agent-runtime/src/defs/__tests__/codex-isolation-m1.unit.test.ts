@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { assertStagedHomeIsolated, CodexMcpIsolationError } from '../isolation.js';
+import { assertStagedHomeIsolated, CodexMcpIsolationError } from '../codex/isolation.js';
 
 it.each(['model="chosen"', 'mcp_servers="invalid-shape"', 'mcp_servers=[]'])('accepts a staged config with no declared server table: %s', homeConfig => {
   expect(assertStagedHomeIsolated({ homeConfig, path: '/staged/config.toml' })).toBeUndefined();

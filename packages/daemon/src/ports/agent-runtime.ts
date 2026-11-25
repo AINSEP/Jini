@@ -81,10 +81,10 @@ export interface AgentRuntimeStrategies {
       runId: string;
       entry: { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string>> } | { readonly url: string; readonly token: string };
       nativeToolAccess?: boolean | undefined;
-      nativeCapabilities?: Partial<NativeCapabilities>;
+      nativeCapabilities?: Partial<NativeCapabilities> | undefined;
       hostEnv: NodeJS.ProcessEnv;
       io: RunHomeSeams & { readFile(required: { path: string }): Promise<string>; writeFile(required: { path: string; content: string }): Promise<void> };
-      toolApprovalOwner?: 'host';
+      toolApprovalOwner?: 'host' | undefined;
     }): Promise<{ readonly kind: 'staged'; readonly home: PreparedRunHome } | { readonly kind: 'refused'; readonly message: string }>;
   };
 }

@@ -22,7 +22,7 @@ export interface CodexBridgeEntry {
 /** A private per-run HTTP listener: its URL and the bearer token that authorizes it. */
 export type CodexHttpEndpoint = { readonly url: string; readonly token: string };
 
-export type CodexToolApprovalOwner = 'host';
+export type CodexToolApprovalOwner = 'host' | undefined;
 
 /** The run-scoped filesystem seams staging uses: read/write are always supplied by the host, the rest default to the real filesystem. */
 export interface CodexHomeIo {

@@ -13,7 +13,7 @@ import { scheduler } from '../../__tests__/surface-fixture.js';
 import { createToolExecutor } from '../../tool-executor.js';
 import { withSurfaceExchangeLifetime } from '../../tool-recovery/surface-lifetime.js';
 import { computeChildEnv } from '../launch.js';
-import { boundMcpDelivery } from './runtime-fixture.js';
+import { boundMcpDelivery, boundMcpHome } from './runtime-fixture.js';
 import { prepareBoundRunHome } from './runtime-fixture.js';
 import { resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
 
@@ -64,7 +64,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   if (delivery.kind === 'codex-toml') {
     const home = await prepareBoundRunHome({ input: { runId, def, mcpBridge: delivery },
       deps: { hostEnv: {}, mcpJsonInjection: options, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
-    expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery }, { codexHomeDir: home!.path }).CODEX_HOME).toBe(home!.path);
+    expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery }, { stagedHome: { dir: home!.path, withStagedHome: boundMcpHome(def).mcpHome!.withStagedHome } }).CODEX_HOME).toBe(home!.path);
     const config = parse(written.get('/fixture/codex-home/config.toml')!) as { mcp_servers: { jini: { env: Record<string, string> } } };
     await home!.cleanup();
     return config.mcp_servers.jini.env;

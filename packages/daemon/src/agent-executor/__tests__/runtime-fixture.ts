@@ -135,5 +135,5 @@ export function boundMcpHome(required: Pick<RuntimeAgentDef, 'id' | 'externalMcp
 
 /** `prepareRunHomeIfNeeded` with the slot the production binding supplies for `input.def`, so a seam test runs the real staging. */
 export function prepareBoundRunHome(required: { input: Parameters<typeof prepareRunHomeIfNeeded>[0]['input']; deps: Omit<Parameters<typeof prepareRunHomeIfNeeded>[0]['deps'], 'mcpHome'> }, _optional: Record<string, never> = {}): ReturnType<typeof prepareRunHomeIfNeeded> {
-  return prepareRunHomeIfNeeded({ input: required.input, deps: { ...required.deps, ...boundMcpHome(required.input.def) } });
+  return prepareRunHomeIfNeeded({ input: required.input, deps: { ...required.deps, mcpHome: boundMcpHome(required.input.def).mcpHome } });
 }

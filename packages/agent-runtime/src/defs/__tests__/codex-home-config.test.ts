@@ -2,8 +2,8 @@ import { parse } from 'smol-toml';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildCodexHomeConfigToml, buildCodexMcpServerToml } from '../home-config.js';
-import { resolveSourceCodexHomeDir } from '../home-staging.js';
+import { buildCodexHomeConfigToml, buildCodexMcpServerToml } from '../codex/home-config.js';
+import { resolveSourceCodexHomeDir } from '../codex/home-staging.js';
 
 describe('host-owned bridge approval', () => {
   const entries = [
