@@ -225,6 +225,7 @@
       "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
       "./shell/components/InstallTabCard/InstallTabCard": "browser",
       "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+      "./shell/components/WidgetConfigFields/media-content-rules": "universal",
       "./shell/components/PlainTextBlocks": "browser",
       "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
       "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
@@ -867,6 +868,7 @@
         "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
         "./shell/components/InstallTabCard/InstallTabCard": "browser",
         "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+        "./shell/components/WidgetConfigFields/media-content-rules": "universal",
         "./shell/components/PlainTextBlocks": "browser",
         "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
         "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
@@ -2025,6 +2027,11 @@
       "types": "./dist/shell/components/InstallTabCard/InstallTabCard.d.ts",
       "import": "./dist/shell/components/InstallTabCard/InstallTabCard.js",
       "default": "./dist/shell/components/InstallTabCard/InstallTabCard.js"
+    },
+    "./shell/components/WidgetConfigFields/media-content-rules": {
+      "types": "./dist/shell/components/WidgetConfigFields/media-content-rules.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/media-content-rules.js",
+      "default": "./dist/shell/components/WidgetConfigFields/media-content-rules.js"
     },
     "./shell/components/MediaPickerDialog/media-picker-port.hooks": {
       "types": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.d.ts",
