@@ -102,7 +102,7 @@ export const opencodeAgentDef = {
     // `instructions` (an array of file paths or remote URLs — confirmed live an inline string is
     // silently ignored, never honored) is OpenCode's real, native system-prompt-append mechanism.
     // Live-verified against an installed `opencode-cli` (1.17.10), not inferred from docs alone —
-    // see `@jini-ai/daemon`'s `mergeEnvContentInstructions` for the full transcript summary:
+    // see `mergeEnvContentInstructions` (`./mcp-config.ts`) for the full transcript summary:
     //   1. The field is honored — a run configured with it visibly followed the instruction file's
     //      directive; an identical run without it did not.
     //   2. It appends, never replaces: the same run that followed the custom instruction ALSO still

@@ -13,7 +13,7 @@ import { scheduler } from '../../__tests__/surface-fixture.js';
 import { createToolExecutor } from '../../tool-executor.js';
 import { withSurfaceExchangeLifetime } from '../../tool-recovery/surface-lifetime.js';
 import { computeChildEnv } from '../launch.js';
-import { boundMcpDelivery, boundMcpConfigFile } from './runtime-fixture.js';
+import { boundEnvContent, boundMcpDelivery, boundMcpConfigFile } from './runtime-fixture.js';
 import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
 import { resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
 
@@ -69,7 +69,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
     await home!.cleanup();
     return config.mcp_servers.jini.env;
   }
-  const env = computeChildEnv({ spawnEnv: {}, mcpBridge: delivery });
+  const env = computeChildEnv({ spawnEnv: {}, mcpBridge: delivery }, boundEnvContent(def));
   if (delivery.kind === 'env-content') {
     expect(delivery.envVarName).toBe(def.externalMcpInjection === 'opencode-env-content' ? 'OPENCODE_CONFIG_CONTENT' : 'MIMOCODE_CONFIG_CONTENT');
     return JSON.parse(env[delivery.envVarName]!).mcp.jini.environment as Record<string, string>;

@@ -212,7 +212,7 @@
    "clearIdempotencyIndexEntryIfMatching": "function:56b49ccba1",
    "collectStderrTailSummary": "function:d20a1e163e",
    "collectStdoutTailSummary": "function:7c620c74af",
-   "computeChildEnv": "function:603035a5c8",
+   "computeChildEnv": "function:3e4c41a343",
    "computeRetentionDelayMs": "function:ca186332b7",
    "computeRetryBackoffMs": "function:8b0873930e",
    "computeRuntimeContext": "function:dd7d3d46ae",
@@ -254,8 +254,6 @@
    "isValidTimezone": "function:240be6a7c8",
    "isValidWallTime": "function:9427d5f265",
    "legacyDirHasPayload": "function:98ed51d13c",
-   "mergeEnvContentInstructions": "function:7b4feeeba8",
-   "mergeEnvContentMcpConfig": "function:64c6ab52fe",
    "messageContentWithImages": "function:94de7b63f2",
    "migrateLegacyDataDirSync": "function:2007708cb5",
    "nextHourlyRunAt": "function:261b639ccc",
@@ -743,11 +741,12 @@
   "types": "./dist/ports/agent-runtime.d.ts",
   "symbols": {
    "AgentRuntimePort": "interface:9bad2bfdba",
-   "AgentRuntimeStrategies": "interface:8f0c408d3f",
+   "AgentRuntimeStrategies": "interface:1037c7a783",
    "AgentStreamHandler": "interface:d72de2cf9b",
    "AgentStreamSink": "type:af3b37412a",
    "BaseUrlGuardPort": "interface:685d407b4b",
-   "BaseUrlValidationResult": "interface:2075b47da4"
+   "BaseUrlValidationResult": "interface:2075b47da4",
+   "EnvContentBridgeEntry": "type:540c5df7e2"
   }
  },
  "./ports/process": {

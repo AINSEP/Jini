@@ -136,3 +136,15 @@ export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalM
   const mcpBridge = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpBridge;
   return mcpBridge === undefined ? {} : { mcpBridge };
 }
+
+/** The env-content document slot the production binding supplies for a def (or a bare strategy), as the launcher passes it to `computeChildEnv`. */
+export function boundEnvContent(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { envContent?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['envContent']> } {
+  const envContent = agentRuntimeFixture().strategies.for({ def: { id: 'unbound', ...required } as RuntimeAgentDef }).envContent;
+  return envContent === undefined ? {} : { envContent };
+}
+
+/** The instructions-document slot the production binding supplies for a def (or a bare system-prompt strategy), as the launcher passes it to `computeChildEnv`. */
+export function boundInstructionsDocument(required: Pick<RuntimeAgentDef, 'systemPromptDelivery'>, _optional: Record<string, never> = {}): { instructionsDocument?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['instructionsDocument']> } {
+  const instructionsDocument = agentRuntimeFixture().strategies.for({ def: { id: 'unbound', ...required } as RuntimeAgentDef }).instructionsDocument;
+  return instructionsDocument === undefined ? {} : { instructionsDocument };
+}

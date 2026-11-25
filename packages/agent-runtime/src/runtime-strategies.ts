@@ -14,9 +14,13 @@ import { geminiToolCallReceipt } from './defs/gemini/tool-calls.js';
 import { OPENCODE_CONFIG_ENV } from './defs/opencode/constants.js';
 import { openCodeToolCallReceipt } from './defs/opencode/tool-calls.js';
 import { MIMO_CONFIG_ENV } from './defs/mimo/constants.js';
+import { mergeEnvContentInstructions, mergeEnvContentMcpConfig, withOpenCodeHttpMcp } from './defs/opencode/mcp-config.js';
 
 /** Structurally the daemon port's `AgentRuntimeStrategies['mcpBridge']`; the host checks the binding against that port. */
 type McpBridgeSlot = { prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void> };
+
+type EnvContentSlot = { mergeMcp: typeof mergeEnvContentMcpConfig };
+type InstructionsDocumentSlot = { merge: typeof mergeEnvContentInstructions };
 
 /** Structurally the daemon port's `AgentRuntimeStrategies['filesystem' | 'configDir' | 'mcpConfigFile' | 'subagentStart']`; the host checks each binding against that port. */
 type FilesystemSlot = { prepare?: typeof claudeFilesystemAdapter.prepare; unsupported?: typeof claudeFilesystemAdapter.unsupported; supported: typeof claudeFilesystemAdapter.supported };
@@ -45,6 +49,24 @@ const MCP_BRIDGE_BY_ID: ReadonlyMap<string, McpBridgeSlot> = new Map([
   ['antigravity', { prepare: (required) => prepareAntigravityBridge(required, { ensurePermission: ensureAntigravityMcpPermission }) }],
 ]);
 
+/** Keyed by the declared MCP delivery strategy, like the variable above: both CLIs read one OpenCode-schema document. */
+const ENV_CONTENT_BY_STRATEGY: ReadonlyMap<string, EnvContentSlot> = new Map([
+  ['opencode-env-content', { mergeMcp: mergeEnvContentMcpConfig }],
+  ['mimo-env-content', { mergeMcp: mergeEnvContentMcpConfig }],
+]);
+
+/** Keyed by the declared system-prompt delivery strategy: it is a def's own declaration, independent of how its MCP bridge is delivered. */
+const INSTRUCTIONS_DOCUMENT_BY_STRATEGY: ReadonlyMap<string, InstructionsDocumentSlot> = new Map([
+  ['config-instructions-file', { merge: mergeEnvContentInstructions }],
+]);
+
+/** Keyed by definition id: the HTTP endpoint rides the inline document only for the CLIs that read it from there, so the
+ * shared delivery strategy (also declared by the Mimo definition, which does not take it) is not enough to select it. */
+const HTTP_MCP_ENV_BY_ID: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new Map([
+  ['opencode', withOpenCodeHttpMcp],
+  ['opencode-acp', withOpenCodeHttpMcp],
+]);
+
 /** Claude's folder-limit policy applies to every definition whose probe reports support; its temp and degrade steps are Claude's own. */
 const FILESYSTEM_BY_ID: ReadonlyMap<string, FilesystemSlot> = new Map([['claude', claudeFilesystemAdapter]]);
 const SHARED_FILESYSTEM_SLOT: FilesystemSlot = { supported: claudeFilesystemAdapter.supported };
@@ -63,8 +85,24 @@ const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new 
  * `CLAUDE_CONFIG_DIR` is not in the child baseline env, but the staging step reads the operator's real value from the host env. */
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV];
 
+type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'systemPromptDelivery' | 'subagentStartHook'>;
+
+/** The slots a definition's own declarations select (dialect, MCP delivery strategy, system-prompt strategy). */
+function declaredSlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
+  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
+  const envContent = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_BY_STRATEGY.get(def.externalMcpInjection);
+  const instructionsDocument = def.systemPromptDelivery === undefined ? undefined : INSTRUCTIONS_DOCUMENT_BY_STRATEGY.get(def.systemPromptDelivery.strategy);
+  return {
+    ...(toolCallReceipt ? { toolCallReceipt } : {}),
+    ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
+    ...(envContent ? { envContent } : {}),
+    ...(instructionsDocument ? { instructionsDocument } : {}),
+  };
+}
+
 /** The claude-shaped staging slots a definition is bound to; each key is present only when bound. */
-function stagingSlotsForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
+function stagingSlotsForDef({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
   const configDir = CONFIG_DIR_BY_ID.get(def.id);
   const subagentStart = def.subagentStartHook === true ? SUBAGENT_START : undefined;
   const mcpConfigFile = def.externalMcpInjection === undefined ? undefined : MCP_CONFIG_FILE_BY_STRATEGY.get(def.externalMcpInjection);
@@ -75,17 +113,16 @@ function stagingSlotsForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'extern
   };
 }
 
-/** Strategies for one definition. O(1): three map lookups. A definition that declares nothing gets `{}`.
+/** The slots bound to one CLI by definition id, where a shared declared strategy is not enough to select them.
  * Except the shared folder-limit policy, which is bound for every definition (see `SHARED_FILESYSTEM_SLOT`). */
-export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
-  const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
-  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
+function idSlots({ def }: { def: Pick<RuntimeAgentDef, 'id'> }, _optional: Record<string, never> = {}) {
   const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
-  return {
-    filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT,
-    ...stagingSlotsForDef({ def }),
-    ...(toolCallReceipt ? { toolCallReceipt } : {}),
-    ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
-    ...(mcpBridge ? { mcpBridge } : {}),
-  };
+  const httpMcpEnv = HTTP_MCP_ENV_BY_ID.get(def.id);
+  return { filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT, ...(mcpBridge ? { mcpBridge } : {}), ...(httpMcpEnv ? { httpMcpEnv } : {}) };
+}
+
+/** Strategies for one definition. O(1): a handful of map lookups. A definition that declares nothing gets `{}`
+ * (plus the shared folder-limit policy, see `idSlots`). */
+export function strategiesForDef({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  return { ...declaredSlots({ def }), ...stagingSlotsForDef({ def }), ...idSlots({ def }) };
 }

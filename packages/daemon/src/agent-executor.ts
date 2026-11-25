@@ -40,8 +40,6 @@ export {
   unavailableJiniBridgeStatus,
   buildMcpJsonServerEntry,
   buildAcpMcpBridgeServers,
-  mergeEnvContentMcpConfig,
-  mergeEnvContentInstructions,
   buildCodexMcpServerToml,
   buildCodexHomeConfigToml,
   resolveSourceCodexHomeDir,
