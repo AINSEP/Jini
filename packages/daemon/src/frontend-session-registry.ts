@@ -79,6 +79,14 @@ export interface FrontendInvocation {
   readonly input: Record<string, unknown>;
 }
 
+/**
+ * Run-specific delivery for one authenticated binding. When a binding opts in, its invocations go
+ * here instead of the session-wide stream: registry-authenticated delivery chooses one browser.
+ * Delivery alone is not permission — the receiver must still `begin` the invocation against the
+ * live binding before it acts, and its result is refused until it has.
+ */
+export type FrontendInvocationDelivery = (required: { readonly runId: string; readonly invocation: FrontendInvocation }, optional?: Record<string, never>) => void;
+
 /** A surface's answer. A refusal is an outcome, not a transport failure. */
 export type FrontendOutcome =
   | { readonly ok: true; readonly output: unknown }
@@ -146,7 +154,7 @@ export interface FrontendSessionRegistry {
    * distinguish "never existed" from "detached" — telling a caller which one it guessed is how a
    * probe learns whether a token is worth retrying.
    */
-  bindRunByToken(args: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }): () => void;
+  bindRunByToken(args: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }, optional?: { readonly deliverInvocation?: FrontendInvocationDelivery }): () => void;
   /**
    * Routes one capability call to the surface bound to `runId` and resolves with its output.
    *
@@ -189,6 +197,8 @@ export interface CreateFrontendSessionRegistryOptions {
 
 interface PendingInvocation {
   readonly runId: string;
+  /** Set only for opted-in delivery: the exact binding that delivered it, which alone may claim it. */
+  readonly binding?: RunBinding;
   begun?: boolean;
   approvalPending?: boolean;
   approvalRecorded?: boolean;
@@ -197,6 +207,12 @@ interface PendingInvocation {
   readonly reject: (error: Error) => void;
   /** Removes the abort listener; called on every settlement path so a long run cannot leak them. */
   readonly dispose: () => void;
+}
+
+/** One run's binding. Compared by identity so a rebind (even to the same tab) is a new claim scope. */
+interface RunBinding {
+  readonly session: AttachedSession;
+  readonly deliverInvocation?: FrontendInvocationDelivery;
 }
 
 interface AttachedSession {
@@ -244,7 +260,7 @@ function createFrontendRegistryState() {
    * unbind closure left over from a previous attachment is inert instead of silently unrouting the
    * live surface that replaced it.
    */
-  const runBindings = new Map<string, AttachedSession>();
+  const runBindings = new Map<string, RunBinding>();
   /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
   const bindTokens = new Map<string, string>();
 
@@ -274,26 +290,30 @@ function coversCapability(claims: readonly string[], capabilityId: string): bool
 }
 
 /** Resolves the surface that may serve this call, or explains precisely what is missing. */
-function resolveTarget(runId: string, capabilityId: string, runBindings: ReadonlyMap<string, AttachedSession>): AttachedSession {
-  const session = runBindings.get(runId);
-  if (session === undefined) {
+function resolveTarget(runId: string, capabilityId: string, runBindings: ReadonlyMap<string, RunBinding>): RunBinding {
+  const binding = runBindings.get(runId);
+  if (binding === undefined) {
     throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
   }
+  const { session } = binding;
   if (!coversCapability(session.descriptor.capabilities, capabilityId)) {
     throw new Error(
       `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
       + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,
     );
   }
-  return session;
+  return binding;
 }
 
 function begin({ state, session, runId, invocationId }: {
   state: ReturnType<typeof createFrontendRegistryState>; session: AttachedSession; runId: string; invocationId: string;
 }): boolean {
-  if (state.runBindings.get(runId) !== session) return false;
+  const binding = state.runBindings.get(runId);
+  if (binding?.session !== session) return false;
   const entry = session.pending.get(invocationId);
   if (!entry || entry.runId !== runId || entry.begun) return false;
+  // `begin` must claim the invocation against the live binding that delivered it, not merely the same tab.
+  if (entry.binding && entry.binding !== binding) return false;
   entry.begun = true;
   return true;
 }
@@ -325,7 +345,7 @@ function createSessionAttachment(state: ReturnType<typeof createFrontendRegistry
         bindTokens.delete(bindToken);
         if (current === session) sessions.delete(descriptor.sessionId);
         for (const [runId, boundTo] of runBindings) {
-          if (boundTo === session) runBindings.delete(runId);
+          if (boundTo.session === session) runBindings.delete(runId);
         }
         for (const [, entry] of session.pending) {
           entry.dispose();
@@ -341,21 +361,23 @@ function createSessionAttachment(state: ReturnType<typeof createFrontendRegistry
 
 function createRunBindings(state: ReturnType<typeof createFrontendRegistryState>) {
   const { sessions, runBindings, bindTokens } = state;
-  function bindRun({ runId, sessionId }: { readonly runId: string; readonly sessionId: string }): () => void {
+  function bindRun({ runId, sessionId }: { readonly runId: string; readonly sessionId: string }, { deliverInvocation }: { readonly deliverInvocation?: FrontendInvocationDelivery } = {}): () => void {
     const session = sessions.get(sessionId);
     if (session === undefined) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" to unattached session "${sessionId}"`);
     }
-    runBindings.set(runId, session);
+    const binding: RunBinding = { session, ...(deliverInvocation ? { deliverInvocation } : {}) };
+    runBindings.set(runId, binding);
     return () => {
       // Only release a binding this call still owns: a run taken over by another surface must not
-      // have its newer binding torn down by the older one\'s cleanup. Compared by attachment
-      // identity, not session id, so re-attaching under the same id also counts as a takeover.
-      if (runBindings.get(runId) === session) runBindings.delete(runId);
+      // have its newer binding torn down by the older one\'s cleanup. Compared by binding identity,
+      // not session id, so re-attaching under the same id also counts as a takeover, and the
+      // delivery port retires with exactly the binding that stored it.
+      if (runBindings.get(runId) === binding) runBindings.delete(runId);
     };
   }
 
-  function bindRunByToken({ runId, bindToken, owner }: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }): () => void {
+  function bindRunByToken({ runId, bindToken, owner }: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }, optional: { readonly deliverInvocation?: FrontendInvocationDelivery } = {}): () => void {
     const sessionId = bindTokens.get(bindToken);
     // One message for both "no such token" and "the surface holding it detached". Distinguishing
     // them tells a caller whether a guess was close, which is the feedback a probe needs and the
@@ -363,9 +385,14 @@ function createRunBindings(state: ReturnType<typeof createFrontendRegistryState>
     if (sessionId === undefined || !sameFrontendOwner({ expected: sessions.get(sessionId)?.descriptor.owner, actual: owner })) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" — unknown or expired bind token`);
     }
-    return bindRun({ runId: runId, sessionId: sessionId });
+    return bindRun({ runId: runId, sessionId: sessionId }, optional);
   }
-  return { bindRun, bindRunByToken };
+  return { bindRun: (args: { readonly runId: string; readonly sessionId: string }) => bindRun(args), bindRunByToken };
+}
+
+function deliverTo({ binding, runId, invocation }: { readonly binding: RunBinding; readonly runId: string; readonly invocation: FrontendInvocation }): void {
+  if (binding.deliverInvocation) binding.deliverInvocation({ runId, invocation });
+  else binding.session.deliver(invocation);
 }
 
 function createFrontendInvoker(state: ReturnType<typeof createFrontendRegistryState>, newInvocationId: () => string) {
@@ -376,7 +403,8 @@ function createFrontendInvoker(state: ReturnType<typeof createFrontendRegistrySt
   // registry exists to report.
   async function invoke({ runId, capabilityId, input }: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, { signal, onApprovalStateChange }: { readonly signal?: AbortSignal; readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"] } = {}
   ): Promise<unknown> {
-    const target = resolveTarget(runId, capabilityId, runBindings);
+    const binding = resolveTarget(runId, capabilityId, runBindings);
+    const target = binding.session;
     const invocationId = newInvocationId();
 
     return new Promise<unknown>((resolve, reject) => {
@@ -395,10 +423,12 @@ function createFrontendInvoker(state: ReturnType<typeof createFrontendRegistrySt
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
-      target.pending.set(invocationId, { runId, resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
+      target.pending.set(invocationId, { runId, resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}),
+        ...(binding.deliverInvocation ? { binding } : {}) });
 
       try {
-        target.deliver({ invocationId, capabilityId, input });
+        // One destination, and only after the pending record exists so the receiver can claim it at once.
+        deliverTo({ binding, runId, invocation: { invocationId, capabilityId, input } });
       } catch (error) {
         // A dead channel must fail the call rather than leave it pending until the tool times out.
         target.pending.delete(invocationId);
@@ -428,6 +458,9 @@ function createFrontendSessionAccess(state: ReturnType<typeof createFrontendRegi
     const session = sessions.get(sessionId);
     const entry = session?.pending.get(invocationId);
     if (session === undefined || entry === undefined) return false;
+    // Opted-in results settle only after a claim: a result for an invocation nobody began came from
+    // an effect that was never permitted (or a forged answer), so it must not resolve the tool call.
+    if (entry.binding && !entry.begun) return false;
     session.pending.delete(invocationId);
     entry.dispose();
     entry.onApprovalStateChange?.({ pending: false });
@@ -437,7 +470,7 @@ function createFrontendSessionAccess(state: ReturnType<typeof createFrontendRegi
   }
 
   function sessionFor({ runId }: { readonly runId: string }): FrontendSessionDescriptor | undefined {
-    return runBindings.get(runId)?.descriptor;
+    return runBindings.get(runId)?.session.descriptor;
   }
 
   function capabilitiesFor({ runId }: { readonly runId: string }): readonly string[] {
@@ -449,7 +482,7 @@ function createFrontendSessionAccess(state: ReturnType<typeof createFrontendRegi
   }
   return { progress, settle, sessionFor, capabilitiesFor, ownsSession,
     begin: ({ runId, invocationId, owner }: { runId: string; invocationId: string; owner: FrontendSessionOwner }, _optional: Record<string, never> = {}): boolean => {
-      const session = runBindings.get(runId);
+      const session = runBindings.get(runId)?.session;
       if (!session || !sameFrontendOwner({ expected: session.descriptor.owner, actual: owner })) return false;
       return begin({ state, session, runId, invocationId });
     },

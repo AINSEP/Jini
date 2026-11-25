@@ -5,6 +5,7 @@ import { readFrames } from './fakes/sse-reader.js';
 import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '../../index.js';
 import { describeRoutes } from '../route-table.js';
 import type { FrontendHookInput } from '../frontend-hook-input.js';
+import { createFrontendControl } from '../frontend-control.js';
 
 import {
   FRONTEND_SESSION_STREAM_ROUTE_PATH,
@@ -16,6 +17,7 @@ import {
 
 const STREAM = `http://local${FRONTEND_SESSION_STREAM_ROUTE_PATH}`;
 const OWNER = { workspaceId: 'w1', principalId: 'p1', tabId: 't1' } as const;
+type FrontendSessionOwnerFixture = { readonly workspaceId: string; readonly principalId: string; readonly tabId: string };
 
 /** A timer the test fires by hand, recording what it was asked for. */
 function manualTimers() {
@@ -54,6 +56,7 @@ describe('frontendSessionRoutes', () => {
     expect(describeRoutes({ routes: setup({ registry, routePrefix: '/api/scoped', resolveOwner: async () => OWNER }).routes })).toEqual([
       { method: 'GET', path: '/api/scoped/stream', gates: ['frontend-session-owner'] },
       { method: 'POST', path: '/api/scoped/:sessionId/responses', gates: ['frontend-session-owner'] },
+      { method: 'POST', path: '/api/scoped/:sessionId/begin', gates: ['frontend-session-owner', 'same-origin'] },
     ]);
   });
 
@@ -319,6 +322,63 @@ describe('frontendSessionRoutes', () => {
         expect(host.reports[0]).toMatchObject({ logSource: 'frontend-sessions:owner', message: 'Forbidden', report: { source: 'frontend-session-owner', error: failure } });
       });
     });
+
+    it('begin requires the live session token, owner, run and invocation', async () => {
+      let invocations = 0; let tokens = 0; let sessions = 0;
+      let current: FrontendSessionOwnerFixture = OWNER;
+      const registry = createFrontendSessionRegistry({}, { newInvocationId: () => `inv-${++invocations}`, newBindToken: () => `bind-${++tokens}` });
+      const ctx = setup({ registry, resolveOwner: async () => current, newSessionId: () => `session-${++sessions}` });
+      const first = readFrames({ response: await ctx.fetch(new Request(`${STREAM}?capability=page.click`)) });
+      await first.next();
+      const second = readFrames({ response: await ctx.fetch(new Request(`${STREAM}?capability=page.click`)) });
+      await second.next();
+      const release = registry.bindRunByToken({ runId: 'run', bindToken: 'bind-1', owner: OWNER }, { deliverInvocation: () => undefined });
+      registry.invoke({ runId: 'run', capabilityId: 'page.click', input: {} }).catch(() => undefined);
+      const begin = (body: { runId: string; invocationId: string }, { session = 'session-1', token }: { session?: string; token?: string } = {}) => ctx.fetch(new Request(`http://local/api/frontend-sessions/${session}/begin`, {
+        method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'x-frontend-bind-token': token } : {}) }, body: JSON.stringify(body),
+      }));
+      const refused = async (body: { runId: string; invocationId: string }, options: { session?: string; token?: string }) => {
+        const response = await begin(body, options);
+        expect(response.status).toBe(200);
+        expect(await response.json(), 'A refusal carries no invocation data').toEqual({ begun: false });
+      };
+      const claim = { runId: 'run', invocationId: 'inv-1' };
+      expect((await begin(claim)).status, 'No bind token').toBe(403);
+      expect((await begin(claim, { token: 'wrong' })).status, 'Wrong bind token').toBe(403);
+      current = { ...OWNER, principalId: 'foreign' };
+      expect((await begin(claim, { token: 'bind-1' })).status, 'Foreign owner').toBe(403);
+      current = OWNER;
+      await refused(claim, { session: 'session-2', token: 'bind-2' });
+      await refused({ runId: 'other-run', invocationId: 'inv-1' }, { token: 'bind-1' });
+      await refused({ runId: 'run', invocationId: 'model-call' }, { token: 'bind-1' });
+      const won = await begin(claim, { token: 'bind-1' });
+      expect(await won.json()).toEqual({ begun: true });
+      await refused(claim, { token: 'bind-1' });
+
+      registry.invoke({ runId: 'run', capabilityId: 'page.click', input: {} }).catch(() => undefined);
+      release();
+      await refused({ runId: 'run', invocationId: 'inv-2' }, { token: 'bind-1' });
+      ctx.timers.pending[0]?.callback();
+      expect((await begin({ runId: 'run', invocationId: 'inv-2' }, { token: 'bind-1' })).status, 'Expired session').toBe(403);
+      await first.rest();
+      await second.cancel();
+    });
+  });
+
+  it('begin is not mounted without an owner hook', async () => {
+    const plain = setup({ registry: createFrontendSessionRegistry({}) });
+    expect(describeRoutes({ routes: plain.routes }).map(route => route.path)).not.toContain('/api/frontend-sessions/:sessionId/begin');
+    const response = await plain.fetch(new Request('http://local/api/frontend-sessions/session-1/begin', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: 'run', invocationId: 'inv-1' }) }));
+    expect(response.status).toBe(404);
+
+    const controlOptions = { capabilities: [{ id: 'page.click', description: 'Activate control' }], setTimer: manualTimers().setTimer, resolveBindToken: () => undefined };
+    const request = { runId: 'run', bindToken: 'bind-1', owner: OWNER, signal: new AbortController().signal };
+    const unowned = createFrontendControl(controlOptions);
+    expect(() => unowned.bindRequest(request, { deliverInvocation: () => undefined }), 'Opted-in delivery needs the owner gate').toThrow('needs an owner hook');
+    expect(() => unowned.bindRequest(request), 'Session-stream binds are unchanged').toThrow('unknown or expired bind token');
+    const owned = createFrontendControl({ ...controlOptions, session: { resolveOwner: async () => OWNER } });
+    expect(() => owned.bindRequest(request, { deliverInvocation: () => undefined })).toThrow('unknown or expired bind token');
+    expect(describeRoutes({ routes: owned.routes({ host: fakeDaemonRouteHost({}) }) }).map(route => route.path)).toContain('/api/frontend-sessions/:sessionId/begin');
   });
 
   it('asks the daemon\'s same-origin policy for the responses route when there is no owner hook', async () => {
