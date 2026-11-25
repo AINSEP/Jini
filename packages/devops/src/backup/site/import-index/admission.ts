@@ -33,7 +33,7 @@ function recordFence({ db, policy, principalId, requestId, source, digest, row, 
 }
 
 export function admitImport({ db, clock, policy, principalId, requestId, source, digestSource, requireBudget, makeRow, beforeWrite }: {
-  db: SqliteSyncClient; clock: { nowMs(): number }; policy: ImportHistoryPolicy; principalId: string; requestId?: string; source: SiteImportSource;
+  db: SqliteSyncClient; clock: { nowMs(): number }; policy: ImportHistoryPolicy; principalId: string; requestId?: string | undefined; source: SiteImportSource;
   digestSource: (required: { source: SiteImportSource }, optional?: Record<string, never>) => string | undefined;
   requireBudget: (required: Record<string, never>, optional?: Record<string, never>) => void;
   makeRow: (required: { now: number }, optional?: Record<string, never>) => SiteImportRecord;
