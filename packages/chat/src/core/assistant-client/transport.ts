@@ -4,7 +4,7 @@ import type { ChatMessage } from "../messages.js";
 import type { ChatTransport, ReattachRunOptions, RunHandlers, StartRunInput } from "../transport.js";
 import * as runEvents from "../run-events/entry.js";
 import type { RunAgentPayload, RunNotices } from "../run-events/entry.js";
-import type { AgUiRunClient } from "./ag-ui-transport.js";
+import type { AgUiRunClient, LocalRunLaunch } from "./ag-ui-transport.js";
 import type { DurableRunBinding } from "./durable-run-subscription.js";
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
@@ -870,16 +870,19 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   }
 
   /**
-   * The Local CLI path of `startRun`: durable user turn, then acceptance, then the followed run.
+   * The one Local CLI start preparation, shared by the direct acceptance and a durable AG-UI start:
+   * the contextRef launch projection (unseen tail or cold start, current-turn redaction signal,
+   * normalized attachment references), agent selection, message identity and conversation binding.
+   * Browser-forwarded context never chooses a session ID here; the daemon resolves it at admission.
    *
    * @param input - `startRun`'s input with its conversation identity already merged into `context`.
    * @param userMessage - The newest user message; acceptance carries it verbatim.
    * @param conversationId - The resolved conversation, or `undefined` when adoption failed.
    */
-  async function startLocalCliRun(
-    { input, handlers, userMessage, conversationId }: { input: StartRunInput; handlers: RunHandlers; userMessage: ChatMessage; conversationId: string | undefined },
-    { options }: { options: AssistantTransportOptions },
-  ): Promise<{ runId: string }> {
+  async function prepareLocalRunStart(
+    { input, userMessage, conversationId, options }: { input: StartRunInput; userMessage: ChatMessage; conversationId: string | undefined; options: AssistantTransportOptions },
+    _optional: Record<string, never> = {},
+  ): Promise<LocalRunLaunch> {
     // Local CLI path below. `resolveLocalCliPrompt`'s own doc has the full contract for why an
     // unresolved/absent agentId fails open to the full transcript rather than the bare message.
     const prompt = resolveLocalCliPrompt(input, options.getResumeCapableAgentIds?.({}, {}));
@@ -892,17 +895,44 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     // Acceptance commits the question and stub together even if the separate browser PUT fails
     // or the tab disappears. Carry the exact message ID/payload, never the rendered prompt.
     const base = buildLocalCliContextRef(input, prompt, conversationId);
-    const contextRef = { ...base, userMessage };
+    const messageId = typeof base.assistantMessageId === "string" ? base.assistantMessageId : undefined;
+    return { contextRef: { ...base, userMessage }, agentId: input.agentId, messageId, conversationId };
+  }
 
+  /**
+   * The Local CLI path of `startRun`: durable user turn, then acceptance, then the followed run.
+   * `cancelSignal` (explicit Stop) stays distinct from `signal` (detach).
+   */
+  async function startLocalCliRun(
+    { input, handlers, userMessage, conversationId }: { input: StartRunInput; handlers: RunHandlers; userMessage: ChatMessage; conversationId: string | undefined },
+    { options }: { options: AssistantTransportOptions },
+  ): Promise<{ runId: string }> {
+    const launch = await prepareLocalRunStart({ input, userMessage, conversationId, options });
     const response = await ports.acceptRun({
       ...(input.cancelSignal === undefined ? {} : { signal: input.cancelSignal }),
       requestSignal: input.cancelSignal ?? input.signal,
-      body: { contextRef: JSON.stringify(contextRef), agentId: input.agentId, idempotencyKey: base.assistantMessageId },
-      messageId: base.assistantMessageId,
+      body: { contextRef: JSON.stringify(launch.contextRef), agentId: launch.agentId, idempotencyKey: launch.messageId },
+      messageId: launch.messageId,
       ...(conversationId === undefined ? {} : { conversationId }),
     }, {});
 
     return finishLocalCliRun(response, handlers, input.signal);
+  }
+
+  /**
+   * The AG-UI path of `startRun`. With the host's opt-in durable binding, it runs the same Local CLI
+   * preparation (durable user turn included) before dispatch and resolves with the canonical
+   * accepted run ID; without one it keeps the existing delivery-only behavior.
+   */
+  async function startAgUiTurn(
+    { input, handlers, userMessage, conversationId }: { input: StartRunInput; handlers: RunHandlers; userMessage: ChatMessage; conversationId: string | undefined },
+    { options }: { options: AssistantTransportOptions },
+  ): Promise<{ runId: string }> {
+    const launch = ports.agUi.durableLocalCli ? await prepareLocalRunStart({ input, userMessage, conversationId, options }) : undefined;
+    // `historyForTranscript` here rather than inside `startAgUiRun`: that module importing this
+    // one would be a cycle, and this is its only caller. Same rule as the BYOK and Local CLI paths.
+    const projected = ports.projectInput({ input: { ...input, history: historyForTranscript(input.history as ChatMessage[]) } }, {});
+    return ports.agUi.startAgUiRun({ input: projected, handlers: capturePluginUsage(handlers), ...(launch ? { durable: { launch, bindRun: ports.bindRun } } : {}) }, {});
   }
 
   function createAssistantTransport(options: AssistantTransportOptions = {}): ChatTransport {
@@ -941,11 +971,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // BYOK's single-request shape never touches the daemon at all, so there is nothing for this
         // path (which wraps the daemon specifically) to intercept there — the toggle only ever
         // diverts the Local CLI branch below.
-        if (options.getAgUiEnabled?.({}, {})) {
-          // `historyForTranscript` here rather than inside `startAgUiRun`: that module importing this
-          // one would be a cycle, and this is its only caller. Same rule as the BYOK and Local CLI paths.
-          return ports.agUi.startAgUiRun({ input: ports.projectInput({ input: { ...input, history: historyForTranscript(input.history as ChatMessage[]) } }, {}), handlers: capturePluginUsage(handlers) }, {});
-        }
+        if (options.getAgUiEnabled?.({}, {})) return startAgUiTurn({ input, handlers, userMessage, conversationId }, { options });
 
         return startLocalCliRun({ input, handlers, userMessage, conversationId }, { options });
       },
@@ -988,7 +1014,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
           byokAbortControllers.get(runId)?.abort();
           return undefined;
         }
-        if (ports.agUi.isAgUiRunId({ runId }, {})) {
+        // A durable AG-UI start's canonical run is cancelled once by its binding, however Stop arrives.
+        if (ports.agUi.isAgUiRunId({ runId }, {}) || ports.agUi.isAcceptedAgUiRun?.({ runId }, {})) {
           return ports.agUi.stopAgUiRun({ runId }, {});
         }
         const response = await ports.fetch(`${ports.runsUrl}/${encodeURIComponent(runId)}/cancel`, {

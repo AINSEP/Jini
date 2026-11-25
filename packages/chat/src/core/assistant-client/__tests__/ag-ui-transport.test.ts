@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
-import { createAgUiRunClient, type AgUiClient } from "../ag-ui-transport.js";
+import { createAgUiRunClient, type AgUiClient, type AgUiDurableLocalCliBinding, type LocalRunLaunch } from "../ag-ui-transport.js";
+import { createAssistantTransportClient } from "../transport.js";
+import { notices } from "../../run-events/__tests__/fixture.js";
 import { createAgUiToAgentTranslationState } from "../../ag-ui/event-reduction.js";
 import type { ChatMessage } from "../../messages.js";
-import type { RunHandlers } from "../../transport.js";
+import type { RunHandlers, StartRunInput } from "../../transport.js";
 
 type Observer = { next: (event: unknown) => void; error: (error: unknown) => void; complete: () => void };
 
@@ -262,5 +264,125 @@ describe("createAgUiRunClient run lifetime", () => {
     agents[1]!.observer!.complete();
     expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "one" }]);
     expect(second.onDone).toHaveBeenCalledWith([{ kind: "text", text: "two" }]);
+  });
+});
+
+/** A durable Local CLI binding whose hooks record what the AG-UI client hands them. The host owns
+ *  the wire projection and accepted-ID interpretation; these fakes stand in for both. */
+function durableSetup(extra: { follow?: AgUiDurableLocalCliBinding["followAcceptedRun"] } = {}) {
+  const order: string[] = [];
+  const agents: ReturnType<typeof fakeAgent>[] = [];
+  const created: { url: string; threadId: string }[] = [];
+  let id = 0;
+  const binding = {
+    prepareRunInput: vi.fn<AgUiDurableLocalCliBinding["prepareRunInput"]>(({ wire, launch }) => {
+      order.push("prepare");
+      return { ...wire, forwardedProps: { ...wire.forwardedProps, launch: { contextRef: launch.contextRef, agentId: launch.agentId, messageId: launch.messageId, conversationId: launch.conversationId } } };
+    }),
+    readAcceptedRun: vi.fn<AgUiDurableLocalCliBinding["readAcceptedRun"]>(({ event }) =>
+      event.runId === "run-canon" ? { runId: "run-canon", messageId: "a-1", conversationId: "conv-1" } : undefined),
+    followAcceptedRun: vi.fn<AgUiDurableLocalCliBinding["followAcceptedRun"]>((required) => { order.push("follow"); extra.follow?.(required); }),
+    cancelAcceptedRun: vi.fn<AgUiDurableLocalCliBinding["cancelAcceptedRun"]>(async () => { order.push("cancel"); }),
+  };
+  const client = createAgUiRunClient({ ports: {
+    endpoint: "/api/ag-ui", runIdPrefix: "agui-", customEventNames: NAMES,
+    mintId: () => `id${(id += 1)}`,
+    createAgent: (input) => { created.push(input); const agent = fakeAgent(); agents.push(agent); return agent as AgUiClient; },
+    durableLocalCli: binding,
+  } });
+  const handlers = { onEvent: vi.fn(), onDone: vi.fn(), onError: vi.fn() } as unknown as RunHandlers & { onEvent: ReturnType<typeof vi.fn>; onDone: ReturnType<typeof vi.fn>; onError: ReturnType<typeof vi.fn> };
+  const bindRun = vi.fn((required: { runId: string; binding: { messageId: string; conversationId: string } }) => { order.push(`bind:${required.runId}`); });
+  return { client, agents, created, handlers, binding, order, bindRun };
+}
+
+const LAUNCH: LocalRunLaunch = { contextRef: { prompt: "hi", assistantMessageId: "a-1", conversationId: "conv-1" }, agentId: "agent-7", messageId: "a-1", conversationId: "conv-1" };
+const flushAll = () => new Promise(resolve => setTimeout(resolve, 0));
+
+describe("durable AG-UI Local CLI binding", () => {
+  it("AG-UI detach closes only the reader and explicit Stop cancels the canonical run once", async () => {
+    const { client, agents, handlers, binding, bindRun, order } = durableSetup();
+    const detach = new AbortController();
+    const stop = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: detach.signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    // The canonical accepted ID reaches ChatTransport; the client segment ID stays on the wire.
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    expect(agents[0]!.inputs[0]!.runId).toBe("agui-id1");
+    expect(order).toEqual(["prepare", "bind:run-canon", "follow"]);
+    expect(binding.followAcceptedRun.mock.calls[0]![0]).toMatchObject({ runId: "run-canon", messageId: "a-1", conversationId: "conv-1", signal: detach.signal });
+    // Unload/detach aborts the delivery segment only. It is not Stop.
+    detach.abort();
+    expect(agents[0]!.abortRun).toHaveBeenCalledTimes(1);
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+    // Explicit Stop, through ChatTransport.stopRun and then the cancel signal, cancels once.
+    await client.stopAgUiRun({ runId: "run-canon" });
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
+    stop.abort();
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledWith({ runId: "run-canon", messageId: "a-1", conversationId: "conv-1" }, {});
+    expect(client.isAcceptedAgUiRun?.({ runId: "run-canon" })).toBe(true);
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it("a Stop before acceptance cancels the accepted run once, without launching again", async () => {
+    const { client, agents, created, handlers, binding, bindRun } = durableSetup();
+    const stop = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: new AbortController().signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    stop.abort();
+    stop.signal.dispatchEvent(new Event("abort"));
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    // Acceptance won the race: the latched Stop cancels that accepted run itself.
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledWith({ runId: "run-canon", messageId: "a-1", conversationId: "conv-1" }, {});
+    // The orphaned-generation stopRun that follows does not cancel a second time.
+    await client.stopAgUiRun({ runId: "run-canon" });
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
+    expect(created).toHaveLength(1);
+    expect(agents[0]!.inputs).toHaveLength(1);
+    expect(binding.prepareRunInput).toHaveBeenCalledTimes(1);
+  });
+
+  it("a durable AG-UI start retains Local CLI launch and attachment context", async () => {
+    const { client: agUi, agents, binding, order } = durableSetup();
+    const bound: unknown[] = [];
+    const transport = createAssistantTransportClient({ ports: {
+      runsUrl: "/runs", byokTurnUrl: "/byok", byokRunIdPrefix: "byok:", notices,
+      mintId: () => "minted",
+      fetch: async () => { throw new Error("fetch is not used on the durable AG-UI start"); },
+      projectPrompt: ({ prompt }) => prompt,
+      // The display projection must never become launch context.
+      projectInput: ({ input }) => ({ ...input, history: input.history.map(message => ({ ...message, content: "DISPLAY-ONLY" })) }),
+      bindRun: (required) => { order.push(`bind:${required.runId}`); bound.push(required); },
+      runBinding: () => undefined,
+      followRun: () => { throw new Error("the AG-UI binding follows the accepted run"); },
+      acceptRun: async () => { throw new Error("a durable AG-UI start must not launch a second Local CLI run"); },
+      agUi,
+    } }, {}).createAssistantTransport({ options: {
+      getAgUiEnabled: () => true,
+      persistUserTurn: async ({ message }) => { order.push(`persist:${message.id}`); },
+    } }, {});
+    const attachment = { path: "uploads/a.png", name: "a.png" } as unknown as NonNullable<StartRunInput["attachments"]>[number];
+    const started = transport.startRun({
+      assistantMessageId: "a-1", agentId: "agent-7", attachments: [attachment],
+      history: [{ id: "u1", role: "user", content: "describe the image" }],
+      context: { conversationId: "conv-1", sessionId: "browser-chosen" }, signal: new AbortController().signal,
+    }, { onEvent: vi.fn(), onDone: vi.fn(), onError: vi.fn() });
+    await flushAll();
+    expect(order).toEqual(["persist:u1", "prepare"]);
+    const launch = binding.prepareRunInput.mock.calls[0]![0].launch;
+    expect(launch).toMatchObject({ agentId: "agent-7", messageId: "a-1", conversationId: "conv-1" });
+    expect(launch.contextRef).toMatchObject({
+      prompt: expect.stringContaining("describe the image"), assistantMessageId: "a-1",
+      attachmentIds: ["uploads/a.png"], conversationId: "conv-1",
+      userMessage: { id: "u1", role: "user", content: "describe the image" },
+    });
+    expect(JSON.stringify(launch)).not.toContain("DISPLAY-ONLY");
+    expect(launch.contextRef).not.toHaveProperty("sessionId");
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    expect(order).toEqual(["persist:u1", "prepare", "bind:run-canon", "follow"]);
+    expect(bound).toEqual([{ runId: "run-canon", binding: { messageId: "a-1", conversationId: "conv-1" } }]);
   });
 });
