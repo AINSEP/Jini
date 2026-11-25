@@ -255,6 +255,8 @@
       "./screens/plugins/add-plugin-tab-soon": "universal",
       "./screens/plugins/composer-capabilities": "universal",
       "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/AgentPluginMemoryPanel": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-memory.hooks": "browser",
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
       "./screens/plugins/plugins-memory-i18n": "universal",
@@ -2174,6 +2176,16 @@
       "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
       "import": "./dist/screens/plugins/agent-plugins-visuals.js",
       "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/AgentPluginMemoryPanel": {
+      "types": "./dist/screens/plugins/AgentPluginMemoryPanel.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginMemoryPanel.js",
+      "default": "./dist/screens/plugins/AgentPluginMemoryPanel.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-memory.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.js"
     },
     "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
       "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
