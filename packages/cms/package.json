@@ -278,6 +278,7 @@
       "./public-http/routes/members/shared": "universal",
       "./public-http/routes/members/sign-out": "universal",
       "./public-http/routes/agent-plugin-surfaces/files": "universal",
+      "./public-http/routes/agent-plugin-surfaces/export-files": "universal",
       "./public-http/routes/site/seo-route-shared": "universal",
       "./public-http/routes/site/sitemap": "universal",
       "./public-http/routes/site/robots": "universal",
@@ -2369,6 +2370,11 @@
       "types": "./dist/public-http/routes/agent-plugin-surfaces/files.d.ts",
       "import": "./dist/public-http/routes/agent-plugin-surfaces/files.js",
       "default": "./dist/public-http/routes/agent-plugin-surfaces/files.js"
+    },
+    "./public-http/routes/agent-plugin-surfaces/export-files": {
+      "types": "./dist/public-http/routes/agent-plugin-surfaces/export-files.d.ts",
+      "import": "./dist/public-http/routes/agent-plugin-surfaces/export-files.js",
+      "default": "./dist/public-http/routes/agent-plugin-surfaces/export-files.js"
     },
     "./public-http/routes/members/forgot-password": {
       "types": "./dist/public-http/routes/members/forgot-password.d.ts",
