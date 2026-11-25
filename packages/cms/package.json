@@ -539,6 +539,7 @@
       "./publish/content/connect-destination": "universal",
       "./publish/content/pull": "node",
       "./publish/content/disconnect-tool": "universal",
+      "./publish/content/publish-tool": "universal",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
       "./taxonomy/site/publish-term-ids": "universal",
@@ -3600,6 +3601,11 @@
       "types": "./dist/publish/content/disconnect-tool.d.ts",
       "import": "./dist/publish/content/disconnect-tool.js",
       "default": "./dist/publish/content/disconnect-tool.js"
+    },
+    "./publish/content/publish-tool": {
+      "types": "./dist/publish/content/publish-tool.d.ts",
+      "import": "./dist/publish/content/publish-tool.js",
+      "default": "./dist/publish/content/publish-tool.js"
     },
     "./trash/site/adapters/marker-sql": {
       "types": "./dist/trash/site/adapters/marker-sql.d.ts",

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
 import { createFileBlobIndex } from "../../transfer/index.js";
 import type { PackedEntity, RawFileInverse, RawFilePort } from "../../transfer/index.js";
+import { normalizeMode } from "../file-tree-policy.js";
 import { createRawFileContributor } from "../raw-file-contributor.js";
 import type { RawFileContributorConfig } from "../raw-file-contributor.js";
 import type { PublishContentDeps } from "../type-registry.js";
@@ -12,7 +13,9 @@ const allow: RawFileContributorConfig<Ports> = {
   policy: { checkRawFilePath: () => null, checkRawValues: () => null },
   limits: { files: 2, bytes: 10, scanBytes: 4 },
   copy: { tooManyFiles: "HOST-COPY: too many files", tooManyBytes: "HOST-COPY: too many bytes" },
-  mediaPorts: () => ({ repo: { list: async () => [] }, assetBlobRepo: { findByHash: async () => null } }) as never,
+  normalizeMode,
+  blobStorageKey: ({ workspaceId, sha256 }) => `ws/${workspaceId}/blobs/${sha256.slice(0, 2)}/${sha256}`,
+  isLibraryOnlyBlob: async () => false,
 };
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
@@ -85,7 +88,7 @@ describe("createRawFileContributor", () => {
   });
 
   it("blocks apply when the host exposes no media stores, so private library bytes are never read", async () => {
-    const f = setup({ ...allow, mediaPorts: () => undefined }, { "a.txt": "abc" }, ["a.txt"]);
+    const f = setup({ ...allow, isLibraryOnlyBlob: async () => true }, { "a.txt": "abc" }, ["a.txt"]);
     const [entity] = await f.pack();
     await expect(f.handler.apply({ entity: entity!, principalId: "u", idempotencyKey: "k" } as never)).rejects.toThrow("Library documents cannot be published");
   });

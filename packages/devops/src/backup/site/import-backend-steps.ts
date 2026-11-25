@@ -65,6 +65,7 @@ export interface SiteImportView {
 }
 export interface ParsedSiteImportInput { source: SiteImportSource; displayName?: string; requestId?: string }
 
+/** Throws the closed-contract refusal every import step reports; never returns. */
 export function refusal({ code, message }: { code: string; message: string }, _optional: Record<string, never> = {}): never { throw new SiteShareRefusal({ code, message }); }
 
 const INPUT_KEYS = ["url", "uploadId", "displayName", "requestId"];

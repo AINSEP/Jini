@@ -28,12 +28,14 @@ type Deps<P> = PublishContentDeps<P>;
 /** The slice of the config the size check reads. */
 type RawLimits = { readonly limits: { readonly bytes: number } };
 
+type HashInput = { relPath: string; file: RawFileSnapshot; normalizeMode: (args: { mode: number }, _optional?: object) => number };
+
 function sha(bytes: Uint8Array): string { return createHash("sha256").update(bytes).digest("hex"); }
-function stateFor({ relPath, file }: { relPath: string; file: RawFileSnapshot }, _optional = {}): Record<string, unknown> {
+function stateFor({ relPath, file, normalizeMode }: HashInput, _optional = {}): Record<string, unknown> {
   return { path: relPath, sha256: sha(file.bytes), size: file.bytes.byteLength, mode: normalizeMode({ mode: file.mode }) };
 }
-function hash({ relPath, file }: { relPath: string; file: RawFileSnapshot }, _optional = {}): string { return contentHash({ entityType: "raw-file", state: stateFor({ relPath, file }) }); }
-function version({ relPath, file }: { relPath: string; file: RawFileSnapshot }, _optional = {}): number { return Number.parseInt(hash({ relPath, file }).slice(0, 12), 16); }
+function hash({ relPath, file, normalizeMode }: HashInput, _optional = {}): string { return contentHash({ entityType: "raw-file", state: stateFor({ relPath, file, normalizeMode }) }); }
+function version({ relPath, file, normalizeMode }: HashInput, _optional = {}): number { return Number.parseInt(hash({ relPath, file, normalizeMode }).slice(0, 12), 16); }
 
 type RawFileApplyInput = Parameters<PublishContentHandler["apply"]>[0];
 type RawFileGateway<P> = Required<Pick<Deps<P>, "changeSets" | "outbox" | "authorize">>;
@@ -68,11 +70,10 @@ async function loadBlob<P>({ cfg, deps, entity }: { cfg: RawFileContributorConfi
 
   // A forged file entity must not turn private or purged Library bytes into a public file.
   // Missing policy dependencies fail closed rather than allowing an unguarded store read.
-  if (!media || await cfg.isDocumentOnlyBlob({ deps: { mediaRepo: media.repo, blobRepo: media.assetBlobRepo },
-    input: { workspaceId: deps.workspaceId, sha256: entity.state.sha256 as string } })) {
+  if (await cfg.isLibraryOnlyBlob({ deps, workspaceId: deps.workspaceId, sha256: entity.state.sha256 as string })) {
     throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: "Library documents cannot be published" });
   }
-  const storageKey = computeBlobStorageKey({ workspaceId: deps.workspaceId, sha256: entity.state.sha256 as string });
+  const storageKey = cfg.blobStorageKey({ workspaceId: deps.workspaceId, sha256: entity.state.sha256 as string });
   return await deps.backstop.blobs.exists({ storageKey }) ? deps.backstop.blobs.get({ storageKey }) : null;
 }
 
@@ -134,7 +135,7 @@ async function selectedFile<P>(
 
 /** Checks and indexes one snapshot for later blob transfer. @complexity O(b) in file bytes. */
 async function packFile<P>({ env, relPath, file }: { env: RawFileEnv<P>; relPath: string; file: RawFileSnapshot }, _options = {}): Promise<PackedEntity | null> {
-  const state = stateFor({ relPath, file });
+  const state = stateFor({ relPath, file, normalizeMode: env.cfg.normalizeMode });
   const entity: PackedEntity = { entityType: "raw-file", id: relPath, schemaVersion: 1, hashVersion: CONTENT_HASH_VERSION,
     contentHash: contentHash({ entityType: "raw-file", state }), requiredBlobs: [state.sha256 as string], state };
   const reason = await checkRawFile({ env, entity, sourceBytes: file.bytes });
@@ -185,7 +186,7 @@ async function inspectRawFile<P>({ env, id: relPath }: { env: RawFileEnv<P>; id:
   const { files, deps } = env;
   if (!files || pathReason({ cfg: env.cfg, deps, relPath })) return null;
   const file = await orFallback({ work: () => files.read({ relPath }), fallback: null, step: "Inspect publish file" });
-  return file ? { hash: hash({ relPath, file }), hashVersion: CONTENT_HASH_VERSION, version: version({ relPath, file }) } : null;
+  return file ? { hash: hash({ relPath, file, normalizeMode: env.cfg.normalizeMode }), hashVersion: CONTENT_HASH_VERSION, version: version({ relPath, file, normalizeMode: env.cfg.normalizeMode }) } : null;
 }
 
 async function precheckRawFile<P>({ env, entity }: { env: RawFileEnv<P>; entity: PackedEntity }, _optional = {}): Promise<string | null> {
@@ -217,7 +218,7 @@ async function replaceRawFile<P>(
   _optional = {}
 ): Promise<{ version: number }> {
   const current = await files.read({ relPath: input.entity.id });
-  const currentVersion = current ? version({ relPath: input.entity.id, file: current }) : undefined;
+  const currentVersion = current ? version({ relPath: input.entity.id, file: current, normalizeMode: env.cfg.normalizeMode }) : undefined;
   if (state.priorVersion !== input.expectedVersion || currentVersion !== input.expectedVersion) throw new PublishContentApplyRowError({ rowOutcome: "conflict", message: "This file changed on live after it was checked." });
   // Re-read through the shared isolation guard after authorization, immediately before writing.
   const bytes = await loadBlob({ cfg: env.cfg, deps: env.deps, entity: input.entity });
@@ -281,7 +282,7 @@ async function undoRawFile<P>(
   if (denied) return denied;
   if (isCoveredPath({ deps, relPath: entity.id })) return `File '${entity.id}' already publishes normally; it was left alone.`;
   const current = await files.read({ relPath: entity.id });
-  if (!current || hash({ relPath: entity.id, file: current }) !== afterHash) return `File '${entity.id}' changed on live after this send; it was left alone.`;
+  if (!current || hash({ relPath: entity.id, file: current, normalizeMode: cfg.normalizeMode }) !== afterHash) return `File '${entity.id}' changed on live after this send; it was left alone.`;
   await files.restore({ inverse: before });
   return null;
 }

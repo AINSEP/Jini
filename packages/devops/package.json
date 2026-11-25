@@ -96,6 +96,7 @@
       "./backup/site/bundled-export-file-policy": "node",
       "./backup/site/import-verifier-inventory": "node",
       "./backup/site/import-keep-off": "node",
+      "./backup/site/import-restore": "node",
       "./backup/site/share-zip": "node",
       "./backup/site/share-hosting": "node",
       "./backup/site/import-registry": "node",
@@ -473,6 +474,11 @@
       "types": "./dist/backup/site/import-restore-placement.d.ts",
       "import": "./dist/backup/site/import-restore-placement.js",
       "default": "./dist/backup/site/import-restore-placement.js"
+    },
+    "./backup/site/import-restore": {
+      "types": "./dist/backup/site/import-restore.d.ts",
+      "import": "./dist/backup/site/import-restore.js",
+      "default": "./dist/backup/site/import-restore.js"
     },
     "./backup/site/share-preparation-steps": {
       "types": "./dist/backup/site/share-preparation-steps.d.ts",

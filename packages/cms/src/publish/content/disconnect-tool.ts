@@ -29,7 +29,7 @@ export interface PublishContentDisconnectHost<D extends PublishContentDisconnect
   readonly settingsWriteFailure: { isInstance(required: { error: unknown }, optional?: Record<string, never>): boolean; readonly message: string };
 }
 
-export const catalog: AgentToolDefinition[] = [{
+export const catalog: readonly AgentToolDefinition[] = [{
   name: "publish_content_disconnect",
   description: "Disconnects this computer from its connected live publish destination, forgetting the connected peer and reversing its local deploy-config grant together. Call to stop publishing to that site; reconnect with publish_content_connect to undo. Returns {connected:false, site:null, candidateUrl, message, nextStep}; nextStep describes a deploy still needed for the grant change. Does not delete remote content or saved credential peers, revoke the live site's immediate deny list, or publish content. A settings write failure is refused with recovery guidance.",
   sideEffects: "mutates-durable-state",
