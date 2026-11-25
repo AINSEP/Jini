@@ -1,5 +1,6 @@
 import type {
-  DomainEvent,
+  AttributedDomainEvent,
+  NewChangeSetRecord,
   OutboxPort,
   ChangeSetItemRecord,
   ChangeSetRecord,
@@ -19,7 +20,7 @@ export class InMemoryChangeSetRepo implements ChangeSetRepoPort {
     this.outbox = outbox;
   }
 
-  async insert({ record, items }: { record: ChangeSetRecord; items: ChangeSetItemRecord[] }, { event }: { event?: DomainEvent } = {}): Promise<void> {
+  async insert({ record, items }: { record: NewChangeSetRecord; items: ChangeSetItemRecord[] }, { event }: { event?: AttributedDomainEvent | undefined } = {}): Promise<void> {
     this.rows.push(record);
     this.itemRows.push(...items);
     if (event) await this.outbox?.enqueue(event);
