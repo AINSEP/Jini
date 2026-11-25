@@ -717,7 +717,11 @@
       "./react/publish-content/hooks/publish-content-port.hooks": "universal",
       "./react/media/MediaEditDialog/MediaEditDialog": "browser",
       "./react/media/MediaPickerDialog/MediaPickerDialog": "browser",
-      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser"
+      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser",
+      "./forms/destinations/connection-port": "universal",
+      "./forms/destinations/port": "universal",
+      "./media/site-generation/provider-credential-save": "universal",
+      "./media/site-generation/providers-tools": "universal"
     },
     "isolation": {
       "domains": {
@@ -4628,6 +4632,26 @@
       "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.d.ts",
       "import": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js",
       "default": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js"
+    },
+    "./forms/destinations/connection-port": {
+      "types": "./dist/forms/destinations/connection-port.d.ts",
+      "import": "./dist/forms/destinations/connection-port.js",
+      "default": "./dist/forms/destinations/connection-port.js"
+    },
+    "./forms/destinations/port": {
+      "types": "./dist/forms/destinations/port.d.ts",
+      "import": "./dist/forms/destinations/port.js",
+      "default": "./dist/forms/destinations/port.js"
+    },
+    "./media/site-generation/provider-credential-save": {
+      "types": "./dist/media/site-generation/provider-credential-save.d.ts",
+      "import": "./dist/media/site-generation/provider-credential-save.js",
+      "default": "./dist/media/site-generation/provider-credential-save.js"
+    },
+    "./media/site-generation/providers-tools": {
+      "types": "./dist/media/site-generation/providers-tools.d.ts",
+      "import": "./dist/media/site-generation/providers-tools.js",
+      "default": "./dist/media/site-generation/providers-tools.js"
     }
   },
   "files": [

@@ -37,7 +37,9 @@
       "./tool-audit/repo.memory": "universal",
       "./tool-audit/repo": "node",
       "./tool-audit/tool-gaps.repo": "node",
-      "./web-evidence/agent-tools": "universal"
+      "./web-evidence/agent-tools": "universal",
+      "./web-evidence/web-screenshot/agent-tools": "universal",
+      "./web-evidence/web-screenshot/tool-registrations": "universal"
     },
     "runtime": "node",
     "optionalPeers": {
@@ -179,6 +181,16 @@
       "types": "./dist/web-evidence/agent-tools.d.ts",
       "import": "./dist/web-evidence/agent-tools.js",
       "default": "./dist/web-evidence/agent-tools.js"
+    },
+    "./web-evidence/web-screenshot/agent-tools": {
+      "types": "./dist/web-evidence/web-screenshot/agent-tools.d.ts",
+      "import": "./dist/web-evidence/web-screenshot/agent-tools.js",
+      "default": "./dist/web-evidence/web-screenshot/agent-tools.js"
+    },
+    "./web-evidence/web-screenshot/tool-registrations": {
+      "types": "./dist/web-evidence/web-screenshot/tool-registrations.d.ts",
+      "import": "./dist/web-evidence/web-screenshot/tool-registrations.js",
+      "default": "./dist/web-evidence/web-screenshot/tool-registrations.js"
     }
   },
   "files": [

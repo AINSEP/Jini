@@ -285,7 +285,9 @@
       "./tool-metadata/post": "universal",
       "./tool-metadata/image-transform": "universal",
       "./contracts/site/deployment-admin": "universal",
-      "./contracts/site/content-editor-ports": "universal"
+      "./contracts/site/content-editor-ports": "universal",
+      "./contracts/site/database-introspection": "universal",
+      "./contracts/site/external-mcp-tool-ports": "universal"
     },
     "isolation": {
       "entries": {
@@ -1712,6 +1714,16 @@
       "types": "./dist/contracts/site/content-editor-ports.d.ts",
       "import": "./dist/contracts/site/content-editor-ports.js",
       "default": "./dist/contracts/site/content-editor-ports.js"
+    },
+    "./contracts/site/database-introspection": {
+      "types": "./dist/contracts/site/database-introspection.d.ts",
+      "import": "./dist/contracts/site/database-introspection.js",
+      "default": "./dist/contracts/site/database-introspection.js"
+    },
+    "./contracts/site/external-mcp-tool-ports": {
+      "types": "./dist/contracts/site/external-mcp-tool-ports.d.ts",
+      "import": "./dist/contracts/site/external-mcp-tool-ports.js",
+      "default": "./dist/contracts/site/external-mcp-tool-ports.js"
     }
   },
   "files": [
