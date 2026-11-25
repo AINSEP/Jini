@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ExportReport as BaseExportReport } from "../../static-export/contracts.js";
 import { downloadForms, type DownloadHtmlSourceEdits } from "./static-download-html.js";
+import type { OwnedTempRootScope } from "./owned-temp-root.js";
 
 /** The exporter report as this packager reads it: the base report plus the public origin a host may record. */
 export type ExportReport = BaseExportReport & { publicOrigin?: string | undefined };
@@ -165,8 +166,15 @@ async function stampedCopy({ ports, host, outputDir, themeId, publicUrl }: { por
  * Missing render support, render/cleanup errors or zero written pages cannot block a backup.
  * @complexity O(export bytes + report entries), buffered like the existing backup ZIP.
  */
-export async function captureStaticSite({ ports, host }: { ports: StaticSitePorts; host: StaticCopyHost }, { themeId, publicUrl }: { themeId?: string | undefined; publicUrl?: string | undefined } = {}): Promise<StaticSiteCopy> {
+export async function captureStaticSite({ ports, host }: { ports: StaticSitePorts; host: StaticCopyHost }, { themeId, publicUrl, tempRoot }: { themeId?: string | undefined; publicUrl?: string | undefined; tempRoot?: OwnedTempRootScope | undefined } = {}): Promise<StaticSiteCopy> {
   if (!ports.render) return { reason: "Static exporter is unavailable in this context." };
+  if (tempRoot) {
+    // A host-owned root: `stampedCopy` reads every rendered file back into memory before `work` settles,
+    // so the owned root (and its lock) outlive that read and the host's temp-root tidy cannot remove it.
+    try {
+      return await tempRoot({ work: ({ root }) => stampedCopy({ ports, host, outputDir: root, themeId, publicUrl }).catch((error: unknown): StaticSiteCopy => ({ reason: String(error) })) });
+    } catch (error) { return { reason: `Static render folder could not be prepared: ${String(error)}` }; }
+  }
   let outputDir: string | undefined;
   let copy: StaticSiteCopy;
   try {

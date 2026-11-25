@@ -4,6 +4,7 @@ import path from "node:path";
 import { SiteShareRegistry, newShareIdentity, type SiteShareRecord } from "./share-registry.js";
 import type { ShareDelivery } from "./share-hosting.js";
 import { SiteShareRefusal } from "./share-refusal.js";
+import { requireOwnFolder, type ShareExpiryHost } from "./share-expiry.js";
 
 export const SHARE_DOWNLOAD_HEADERS = {
   "Content-Type": "application/zip",
@@ -21,6 +22,8 @@ export interface ShareServiceHost {
   readonly artifactSuffix: string;
   /** The delivery provider id meaning "this server's own share folder". */
   readonly ownFolderProvider: string;
+  /** Expiry choices, refusal copy and the expired-link message (the engine carries no wording). */
+  readonly expiry: ShareExpiryHost;
 }
 
 /** Persist safe notices and the site-sealed password with the export's existing registry row. */
@@ -30,8 +33,8 @@ function privateExportMetadata(required: { sealedPassword?: SiteShareRecord["sea
 }
 
 /** The one receiver for locally generated and authenticated management-uploaded artifacts. */
-export async function receiveSiteShareArtifact(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; token: string; file: string; archive: Buffer }, optional: { storage?: SiteShareRecord["storage"]; shareId?: string; sealedPassword?: SiteShareRecord["sealedPassword"] | undefined; notices?: readonly string[] | undefined; notes?: readonly string[] | undefined; credentialWarnings?: readonly CredentialWarning[] | undefined } = {}): Promise<SiteShareRecord> {
-  const row: SiteShareRecord = { shareId: optional.shareId ?? newShareIdentity({}).shareId, token: required.token, site: required.site, file: required.file, bytes: required.archive.length, sha256: createHash("sha256").update(required.archive).digest("hex"), url: null, status: "active", createdAt: new Date().toISOString(), revokedAt: null, ...(optional.storage ? { storage: optional.storage } : {}), ...privateExportMetadata(optional) };
+export async function receiveSiteShareArtifact(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; token: string; file: string; archive: Buffer }, optional: { storage?: SiteShareRecord["storage"]; shareId?: string; expiresAt?: string | null | undefined; sealedPassword?: SiteShareRecord["sealedPassword"] | undefined; notices?: readonly string[] | undefined; notes?: readonly string[] | undefined; credentialWarnings?: readonly CredentialWarning[] | undefined } = {}): Promise<SiteShareRecord> {
+  const row: SiteShareRecord = { shareId: optional.shareId ?? newShareIdentity({}).shareId, token: required.token, site: required.site, file: required.file, bytes: required.archive.length, sha256: createHash("sha256").update(required.archive).digest("hex"), url: null, status: "active", createdAt: new Date().toISOString(), revokedAt: null, ...(optional.storage ? { storage: optional.storage } : {}), ...(optional.expiresAt ? { expiresAt: optional.expiresAt } : {}), ...privateExportMetadata(optional) };
   if (!required.host.shareFile.test(row.file)) throw new SiteShareRefusal({ code: "INVALID_INPUT", message: "Invalid share file name." });
   await required.registry.reserveToken(row);
   try {
@@ -42,12 +45,14 @@ export async function receiveSiteShareArtifact(required: { host: ShareServiceHos
 }
 
 /** Persist before delivery; publish a URL only after an anonymous verification succeeds. O(bytes). */
-export async function createSiteShare(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; name: string; archive: Buffer }, optional: { delivery?: ShareDelivery | undefined; signal?: AbortSignal | undefined; filename?: string; identity?: { shareId: string; token: string }; sealedPassword?: SiteShareRecord["sealedPassword"] | undefined; notices?: readonly string[] | undefined; notes?: readonly string[] | undefined; credentialWarnings?: readonly CredentialWarning[] | undefined } = {}): Promise<SiteShareRecord> {
+export async function createSiteShare(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; name: string; archive: Buffer }, optional: { delivery?: ShareDelivery | undefined; expiresAt?: string | null | undefined; signal?: AbortSignal | undefined; filename?: string; identity?: { shareId: string; token: string }; sealedPassword?: SiteShareRecord["sealedPassword"] | undefined; notices?: readonly string[] | undefined; notes?: readonly string[] | undefined; credentialWarnings?: readonly CredentialWarning[] | undefined } = {}): Promise<SiteShareRecord> {
+  // The backend validated the choice before its job; the destination is re-resolved inside the job, so re-check it here.
+  if (optional.expiresAt) requireOwnFolder({ destination: optional.delivery, copy: required.host.expiry.copy, ownFolderProvider: required.host.ownFolderProvider, isOwnFolder: ({ storage }) => isOwnShareFolder({ host: required.host, storage }) });
   const identity = optional.identity ?? newShareIdentity({});
   // The derived stem always satisfies SHARE_FILE; receiveSiteShareArtifact re-checks it before any write.
   const file = optional.filename ?? `${shareFileStem({ name: required.name })}${required.host.artifactSuffix}`;
   const key = `_share/${identity.token}/${file}`;
-  const row = await receiveSiteShareArtifact({ host: required.host, registry: required.registry, site: required.site, archive: required.archive, token: identity.token, file }, { shareId: identity.shareId, sealedPassword: optional.sealedPassword, notices: optional.notices, notes: optional.notes, credentialWarnings: optional.credentialWarnings, ...(optional.delivery ? { storage: deliveryStorage({ delivery: optional.delivery, key }) } : {}) });
+  const row = await receiveSiteShareArtifact({ host: required.host, registry: required.registry, site: required.site, archive: required.archive, token: identity.token, file }, { shareId: identity.shareId, expiresAt: optional.expiresAt, sealedPassword: optional.sealedPassword, notices: optional.notices, notes: optional.notes, credentialWarnings: optional.credentialWarnings, ...(optional.delivery ? { storage: deliveryStorage({ delivery: optional.delivery, key }) } : {}) });
   if (optional.signal?.aborted) await cancelReceivedShare({ registry: required.registry, row });
   if (!optional.delivery || row.needsAcknowledgement) return row;
   return deliverShare({ host: required.host, registry: required.registry, row, delivery: optional.delivery, key, file, archive: required.archive }, { signal: optional.signal });
@@ -148,6 +153,7 @@ async function deleteRemoteArtifact(required: { row: SiteShareRecord; storage: N
 export async function acknowledgeSiteShare(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; shareId: string }, optional: { delivery?: ShareDelivery | undefined } = {}): Promise<SiteShareRecord> {
   const row = await required.registry.get({ site: required.site, shareId: required.shareId });
   if (!row || row.status === "revoked") throw new SiteShareRefusal({ code: "NOT_FOUND", message: "This export is missing or was revoked." });
+  if (row.status === "expired") throw new SiteShareRefusal({ code: "EXPIRED", message: required.host.expiry.expiredMessage({ row }) });
   if (!row.needsAcknowledgement) return row;
   const acknowledged = { ...row, needsAcknowledgement: false };
   const deliveryStorage = !row.credentialWarnings?.length ? row.storage : undefined;
@@ -177,6 +183,8 @@ export interface SiteShareService {
   revokeSiteShare(required: WithoutHost<Parameters<typeof revokeSiteShare>[0]>, optional?: Parameters<typeof revokeSiteShare>[1]): Promise<SiteShareRecord>;
   acknowledgeSiteShare(required: WithoutHost<Parameters<typeof acknowledgeSiteShare>[0]>, optional?: Parameters<typeof acknowledgeSiteShare>[1]): Promise<SiteShareRecord>;
   isOwnShareFolder(required: { storage: { provider: string; binding?: string } }): boolean;
+  /** The host's plain-words answer for an expired link. */
+  shareExpiredMessage(required: { row: Pick<SiteShareRecord, "expiresAt"> }): string;
 }
 
 /** Bind the share service to one host's public file shape, artifact suffix and own-folder provider id. */
@@ -188,5 +196,6 @@ export function createSiteShareService(required: { host: ShareServiceHost }, _op
     revokeSiteShare: (input, options) => revokeSiteShare({ host, ...input }, options),
     acknowledgeSiteShare: (input, options) => acknowledgeSiteShare({ host, ...input }, options),
     isOwnShareFolder: input => isOwnShareFolder({ host, ...input }),
+    shareExpiredMessage: input => host.expiry.expiredMessage(input),
   };
 }

@@ -170,6 +170,26 @@ describe("captureDatabaseSnapshot", () => {
     expect(existsSync(directories[0] ?? "")).toBe(false);
   });
 
+  it("captures inside an injected host-owned temp root and reads the bytes before the scope settles", async () => {
+    const { port, directories } = dbOps();
+    const root = tmp();
+    const events: string[] = [];
+    const tempRoot = async <T>({ work }: { work: (owned: { root: string }) => Promise<T> }): Promise<T> => {
+      events.push("lock");
+      try { return await work({ root }); } finally { events.push("release"); }
+    };
+    const out = await captureDatabaseSnapshot({ dbOps: port, scopeId: "s", snapshotDirPrefix: "unused-" }, { snapshotRoot: tmp(), tempRoot });
+    expect(out).toEqual({ ok: true, bytes: Buffer.from("snapshot"), watermarkAtCapture: 7 });
+    expect(directories).toEqual([root]);
+    expect(events).toEqual(["lock", "release"]);
+  });
+
+  it("answers the fixed snapshot failure when the injected temp root cannot be prepared", async () => {
+    const tempRoot = async (): Promise<never> => { throw new Error("lock busy /private/path"); };
+    const out = await captureDatabaseSnapshot({ dbOps: dbOps().port, scopeId: "s", snapshotDirPrefix: "x-" }, { tempRoot });
+    expect(out).toMatchObject({ ok: false, message: "the database snapshot failed; nothing was backed up" });
+  });
+
   it("refuses a restore mechanism that is not a cheap file snapshot, and an oversize snapshot", async () => {
     const refused = await captureDatabaseSnapshot({ dbOps: dbOps("pg-dump").port, scopeId: "s", snapshotDirPrefix: "x-" });
     expect(refused.ok).toBe(false);

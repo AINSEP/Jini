@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { BigIntStats, Dirent, Stats } from "node:fs";
 import { lstat, mkdtemp, readdir, readFile, realpath, rm, stat, unlink } from "node:fs/promises";
 import path from "node:path";
+import type { OwnedTempRootScope } from "./owned-temp-root.js";
 
 import type { DbOpsPort } from "@jini-ai/core/contracts/site/gated-mutations-ports";
 import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
@@ -580,13 +581,23 @@ const SNAPSHOT_FAILED = "the database snapshot failed; nothing was backed up";
  *   capture failure's own text stays in `logDetail`, which is for the server log only).
  * @complexity O(database size) — one full copy, one read, one unlink.
  */
-export async function captureDatabaseSnapshot(input: { dbOps: DbOpsPort; scopeId: string; snapshotDirPrefix: string }, optional: { maxBytes?: number; snapshotRoot?: string } = {}): Promise<DatabaseSnapshotResult> {
+export async function captureDatabaseSnapshot(input: { dbOps: DbOpsPort; scopeId: string; snapshotDirPrefix: string }, optional: { maxBytes?: number; snapshotRoot?: string; tempRoot?: OwnedTempRootScope } = {}): Promise<DatabaseSnapshotResult> {
   const { restorePoint } = await input.dbOps.getCapabilities();
   if (restorePoint.costClass !== "cheap" || restorePoint.kind !== "file-snapshot") {
     return {
       ok: false,
       message: `this site's database cannot be snapshotted into a backup file: only SQLite sites are supported (this database reports a '${restorePoint.kind}' restore mechanism)`,
     };
+  }
+  if (optional.tempRoot) {
+    // The restore-point read happens inside `work`: the host-owned root stays locked until the bytes are
+    // in memory, so the host's temp-root tidy can never remove the snapshot while it is still being read.
+    const scope = optional.tempRoot;
+    try {
+      return await scope({ work: ({ root }) => readRestorePoint(input, { ...(optional.maxBytes !== undefined ? { maxBytes: optional.maxBytes } : {}), directory: root }) });
+    } catch (err) {
+      return { ok: false, message: SNAPSHOT_FAILED, logDetail: describeErrorForLog({ err }) };
+    }
   }
   if (optional.snapshotRoot === undefined) return readRestorePoint(input, optional);
   let directory: string;

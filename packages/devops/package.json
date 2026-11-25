@@ -103,6 +103,8 @@
       "./backup/site/share-hosting": "node",
       "./backup/site/import-registry": "node",
       "./backup/site/share-registry": "node",
+      "./backup/site/share-expiry": "node",
+      "./backup/site/owned-temp-root": "node",
       "./backup/site/import-backend": "node",
       "./backup/site/import-backend-steps": "node",
       "./deploy/site/ports": "universal",
@@ -646,6 +648,16 @@
       "types": "./dist/backup/site/share-registry.d.ts",
       "import": "./dist/backup/site/share-registry.js",
       "default": "./dist/backup/site/share-registry.js"
+    },
+    "./backup/site/share-expiry": {
+      "types": "./dist/backup/site/share-expiry.d.ts",
+      "import": "./dist/backup/site/share-expiry.js",
+      "default": "./dist/backup/site/share-expiry.js"
+    },
+    "./backup/site/owned-temp-root": {
+      "types": "./dist/backup/site/owned-temp-root.d.ts",
+      "import": "./dist/backup/site/owned-temp-root.js",
+      "default": "./dist/backup/site/owned-temp-root.js"
     },
     "./backup/site/import-backend": {
       "types": "./dist/backup/site/import-backend.d.ts",

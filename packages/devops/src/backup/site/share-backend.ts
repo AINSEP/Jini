@@ -4,6 +4,7 @@ import type { CredentialWarning } from "./credential-warnings.js";
 import { SiteShareExportFailure, type SiteShareExportStep } from "./share-export-failure.js";
 import { SiteBackupPushJobs, type PushJobKey, type PushJobWait, type SiteBackupPushProgress } from "../push-jobs.js";
 import type { StaticSitePorts, StaticSiteCopy } from "./static-copy.js";
+import { isShareExpiryChoice, shareExpiresAt, type ShareExpiryHost } from "./share-expiry.js";
 import type { StaticExportOptions } from "./static-export-selection.js";
 import { SAVED_KEYS_PATH, type SiteSavedKeysPort } from "./saved-keys-port.js";
 import { SiteShareRefusal } from "./share-refusal.js";
@@ -17,7 +18,7 @@ export interface SiteShareRecord {
   readonly bytes: number;
   readonly sha256: string;
   readonly url: string | null;
-  readonly status: "active" | "revoked" | "failed";
+  readonly status: "active" | "revoked" | "failed" | "expired";
   readonly createdAt: string;
   readonly revokedAt: string | null;
   readonly hasEncryptedKeys?: boolean;
@@ -27,6 +28,7 @@ export interface SiteShareRecord {
   readonly needsAcknowledgement?: boolean;
   readonly notes?: readonly string[];
   readonly storage?: { readonly provider: string; readonly key: string; readonly url?: string; readonly binding?: string };
+  readonly expiresAt?: string | null;
 }
 /** The registry reads the backend performs itself; writes happen inside the host's share service. */
 export interface SiteShareRegistryLike {
@@ -47,7 +49,7 @@ export interface SiteShareContent {
 }
 type CapturedCopy = Exclude<StaticSiteCopy, { reason: string }>;
 type ZipProgressOptions = { signal?: AbortSignal; progress?: SiteBackupPushProgress; notices?: string[]; credentialWarnings?: CredentialWarning[] };
-type ShareOptions = { delivery?: unknown; signal?: AbortSignal; filename?: string; identity?: { shareId: string; token: string }; sealedPassword?: unknown; notices?: readonly string[]; notes?: readonly string[]; credentialWarnings?: readonly CredentialWarning[] };
+type ShareOptions = { delivery?: unknown; expiresAt?: string | null; signal?: AbortSignal; filename?: string; identity?: { shareId: string; token: string }; sealedPassword?: unknown; notices?: readonly string[]; notes?: readonly string[]; credentialWarnings?: readonly CredentialWarning[] };
 
 /** Host collaborators, policy and copy. Every member is REQUIRED: the engine carries no host defaults.
  * Archive, delivery and zip values are opaque here; they only travel between host collaborators.
@@ -74,6 +76,10 @@ export interface SiteShareHost {
   acknowledgeSiteShare(required: { registry: SiteShareRegistryLike; site: string; shareId: string }, optional: { delivery?: unknown }): Promise<SiteShareRecord>;
   revokeSiteShare(required: { registry: SiteShareRegistryLike; site: string; shareId: string }, optional: { delivery?: unknown }): Promise<SiteShareRecord>;
   isOwnShareFolder(required: { storage: { provider: string; binding?: string } }): boolean;
+  /** The delivery provider id meaning "this server's own share folder". */
+  readonly ownFolderProvider: string;
+  /** Expiry choices, refusal copy and the expired-link message (owner policy and wording stay host-side). */
+  readonly expiry: ShareExpiryHost;
 }
 
 export interface SiteShareBackend {
@@ -81,11 +87,13 @@ export interface SiteShareBackend {
   /** Current export/upload lifecycle, independent of polling and retained finished job records. */
   hasWork?(required: Record<string, never>, optional?: Record<string, never>): boolean;
   staticOptions(required: Record<string, never>, optional?: Record<string, never>): Promise<StaticExportOptions>;
-  create(required: { principalId: string; jobId?: string; signal: AbortSignal; includeSavedKeys?: boolean; format?: "static"; themeIds?: readonly string[]; publicUrl?: string }, optional?: { waitMs?: number }): Promise<unknown>;
+  create(required: { principalId: string; jobId?: string; signal: AbortSignal; includeSavedKeys?: boolean; expiresInDays?: number | null; format?: "static"; themeIds?: readonly string[]; publicUrl?: string }, optional?: { waitMs?: number }): Promise<unknown>;
   acknowledge(required: { shareId: string }, optional?: Record<string, never>): Promise<SiteShareView>;
   revealPassword(required: { principalId: string; shareId: string }, optional?: Record<string, never>): Promise<{ password: string }>;
   list(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly SiteShareView[]>;
   revoke(required: { shareId: string }, optional?: Record<string, never>): Promise<SiteShareView>;
+  /** Day choices a new export may ask for besides Never; empty unless new exports land in the own share folder. */
+  expiryChoices(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly number[]>;
 }
 export type SiteShareView = Omit<SiteShareRecord, "token" | "storage" | "sealedPassword"> & { downloadUrl: string; credentialWarnings: readonly CredentialWarning[]; needsAcknowledgement: boolean };
 /** A finished export, with what was left out of it (the share's scope notes) for the exporter only. */
@@ -212,7 +220,7 @@ export type SiteShareBackendRequired = {
 export type SiteShareBackendOptional = { now?: () => number; appVersion?: string; jiniVersion?: string };
 /** What every share operation reads: the ports, the job table, and the one-at-a-time lane (`lane.active`). */
 type ShareBackendContext = { required: SiteShareBackendRequired; jobs: SiteBackupPushJobs<ExportedShare>; lane: { active: string | null }; now: () => number; boundaryVersion: string | undefined; jiniVersion: string | undefined };
-type ShareExportInput = { signal: AbortSignal; progress: SiteBackupPushProgress; format?: "static" | undefined; themeIds?: readonly string[] | undefined; publicUrl?: string | undefined; includeSavedKeys?: boolean | undefined };
+type ShareExportInput = { signal: AbortSignal; progress: SiteBackupPushProgress; expiresAt: string | null; format?: "static" | undefined; themeIds?: readonly string[] | undefined; publicUrl?: string | undefined; includeSavedKeys?: boolean | undefined };
 type ShareExportStage = { step: SiteShareExportStep; appVersion: string | undefined };
 
 /** The static-site flavour of an export: capture the selected themes, archive and deliver them. */
@@ -226,7 +234,7 @@ async function exportStaticShare({ ctx, input, bounded, stage }: { ctx: ShareBac
   stage.step = "archive";
   const archive = await host.buildStaticSiteZip({ ...selection, zip: required.zip }, { signal: bounded, progress: input.progress, notices, credentialWarnings });
   stage.step = "delivery";
-  return await host.createSiteShare({ registry: required.registry, site: required.site, name: copy.filename, archive }, { signal: bounded, filename: copy.filename, notices, credentialWarnings });
+  return await host.createSiteShare({ registry: required.registry, site: required.site, name: copy.filename, archive }, { signal: bounded, filename: copy.filename, expiresAt: input.expiresAt, notices, credentialWarnings });
 }
 
 /** The full-backup flavour of an export: prepare the content, archive and deliver it. */
@@ -248,7 +256,7 @@ async function exportBackupShare({ ctx, input, bounded, stage }: { ctx: ShareBac
   const delivery = await required.delivery({});
   bounded.throwIfAborted();
   if (delivery) requireNoShareCredentialWarnings({ credentialWarnings });
-  const record = await host.createSiteShare({ registry: required.registry, site: required.site, name: content.site.folderName, archive }, { delivery, signal: bounded, identity, sealedPassword: content.sealedPassword, notices, notes, credentialWarnings });
+  const record = await host.createSiteShare({ registry: required.registry, site: required.site, name: content.site.folderName, archive }, { delivery, expiresAt: input.expiresAt, signal: bounded, identity, sealedPassword: content.sealedPassword, notices, notes, credentialWarnings });
   // Plugins left out of the archive are told to the exporter, never dropped silently.
   return notes.length > 0 ? { ...record, notes } : record;
 }
@@ -263,12 +271,12 @@ async function exportShare({ ctx, input }: { ctx: ShareBackendContext; input: Sh
 }
 
 /** Starts a new export job, refusing a resume of an unknown job and a second export on this site. */
-function startExport({ ctx, startRequired }: { ctx: ShareBackendContext; startRequired: { key: PushJobKey; resumedJobId: string | undefined; format?: "static" | undefined; themeIds?: readonly string[] | undefined; publicUrl?: string | undefined; includeSavedKeys?: boolean | undefined } }, _options = {}) {
+function startExport({ ctx, startRequired }: { ctx: ShareBackendContext; startRequired: { key: PushJobKey; resumedJobId: string | undefined; expiresAt: string | null; format?: "static" | undefined; themeIds?: readonly string[] | undefined; publicUrl?: string | undefined; includeSavedKeys?: boolean | undefined } }, _options = {}) {
   const { key } = startRequired;
   if (startRequired.resumedJobId) throw new SiteShareRefusal({ code: "JOB_NOT_FOUND", message: "Share job expired or belongs to another principal. Create a new export." });
   if (ctx.lane.active) throw new SiteShareRefusal({ code: "BUSY", message: "Another share export is running for this site. Wait for it to finish." });
   ctx.lane.active = key.planId;
-  return ctx.jobs.start({ key, progress: { filesDone: 0, filesTotal: 0, bytesDone: 0, bytesTotal: 0 }, run: ({ signal, progress }) => exportShare({ ctx, input: { signal, progress, format: startRequired.format, themeIds: startRequired.themeIds, publicUrl: startRequired.publicUrl, includeSavedKeys: startRequired.includeSavedKeys } }) });
+  return ctx.jobs.start({ key, progress: { filesDone: 0, filesTotal: 0, bytesDone: 0, bytesTotal: 0 }, run: ({ signal, progress }) => exportShare({ ctx, input: { signal, progress, expiresAt: startRequired.expiresAt, format: startRequired.format, themeIds: startRequired.themeIds, publicUrl: startRequired.publicUrl, includeSavedKeys: startRequired.includeSavedKeys } }) });
 }
 
 async function staticShareOptions({ ctx }: { ctx: ShareBackendContext }, _options = {}): Promise<StaticExportOptions> {
@@ -280,6 +288,32 @@ async function staticShareOptions({ ctx }: { ctx: ShareBackendContext }, _option
 }
 
 type ShareCreateInput = Parameters<SiteShareBackend["create"]>[0];
+type ExpiryDestination = { provider: string; binding?: string };
+
+/**
+ * The new export's `expiresAt`, validated before any job starts so an unsupported choice or a
+ * destination this server does not host is refused up front, never silently made Never. The
+ * destination is resolved only for a supported date: a static export has none (no own-folder row).
+ */
+async function newShareExpiry({ ctx, input }: { ctx: ShareBackendContext; input: ShareCreateInput }, _optional = {}): Promise<string | null> {
+  const { host } = ctx.required;
+  const days = input.expiresInDays ?? null;
+  const destination = isShareExpiryChoice({ days, choices: host.expiry.choices }) && input.format !== "static" ? await ctx.required.delivery({}) as ExpiryDestination | undefined : undefined;
+  return shareExpiresAt({ days, now: ctx.now(), destination, expiry: host.expiry, ownFolderProvider: host.ownFolderProvider, isOwnFolder: own => host.isOwnShareFolder(own) });
+}
+
+/**
+ * The day choices the admin may offer for the next export: all of them while new exports land in this
+ * server's own share folder (the only place a date is enforced), none otherwise. A failed destination
+ * lookup answers none instead of failing: Never is accepted everywhere, and create still resolves the
+ * destination itself and refuses a date in plain words. @complexity One delivery lookup.
+ */
+async function currentExpiryChoices({ ctx }: { ctx: ShareBackendContext }, _optional = {}): Promise<readonly number[]> {
+  let destination: ExpiryDestination | undefined;
+  try { destination = await ctx.required.delivery({}) as ExpiryDestination | undefined; }
+  catch { return []; }
+  return destination && ctx.required.host.isOwnShareFolder({ storage: destination }) ? ctx.required.host.expiry.choices : [];
+}
 
 async function createShare({ ctx, input, options }: { ctx: ShareBackendContext; input: ShareCreateInput; options: { waitMs?: number } }, _optional = {}): Promise<unknown> {
   const { required, jobs } = ctx;
@@ -287,7 +321,7 @@ async function createShare({ ctx, input, options }: { ctx: ShareBackendContext; 
   const selection = input.format === "static" ? required.host.parseStaticExportInput({ input: { jobId: input.jobId, themeIds: input.themeIds, publicUrl: input.publicUrl } }) : {};
   const jobId = input.jobId ?? randomUUID();
   const key = { planId: jobId, principalId: input.principalId, workspaceId: required.site + (input.format === "static" ? "/static" : "") };
-  const job = jobs.find(key) ?? startExport({ ctx, startRequired: { key, resumedJobId: input.jobId, format: input.format, themeIds: selection.themeIds, publicUrl: selection.publicUrl, includeSavedKeys: input.includeSavedKeys } });
+  const job = jobs.find(key) ?? startExport({ ctx, startRequired: { key, resumedJobId: input.jobId, expiresAt: await newShareExpiry({ ctx, input }), format: input.format, themeIds: selection.themeIds, publicUrl: selection.publicUrl, includeSavedKeys: input.includeSavedKeys } });
   const waited = await jobs.wait({ job, signal: input.signal, budgetMs: options.waitMs ?? 1500 });
   const outcome = waited.state === "done" ? { ...waited, result: await required.registry.get({ site: required.site, shareId: waited.result.shareId }) ?? waited.result } : waited;
   return createOutcome({ waited: outcome, jobId, format: input.format, host: required.host });
@@ -300,6 +334,7 @@ async function acknowledgeShare({ ctx, shareId }: { ctx: ShareBackendContext; sh
   try {
     const row = await required.registry.get({ site: required.site, shareId });
     if (!row || row.status === "revoked") throw new SiteShareRefusal({ code: "NOT_FOUND", message: "This export is missing or was revoked." });
+    if (row.status === "expired") throw new SiteShareRefusal({ code: "EXPIRED", message: required.host.expiry.expiredMessage({ row }) });
     const delivery = row.needsAcknowledgement && row.storage && !row.credentialWarnings?.length ? await required.delivery({ provider: row.storage.provider, binding: row.storage.binding }) : undefined;
     return view(await required.host.acknowledgeSiteShare({ registry: required.registry, site: required.site, shareId }, { delivery }), required.host);
   } finally { lane.active = null; }
@@ -342,5 +377,6 @@ export function createSiteShareBackend(required: SiteShareBackendRequired, { now
     revealPassword: (input) => revealSharePassword({ ctx, input }),
     list: async () => (await required.registry.list({ site: required.site })).map(row => view(row, required.host)),
     revoke: (input) => revokeShare({ ctx, shareId: input.shareId }),
+    expiryChoices: () => currentExpiryChoices({ ctx }),
   };
 }

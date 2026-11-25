@@ -6,6 +6,9 @@ import { SiteShareExportFailure } from "../share-export-failure.js";
 const SEALED = { keyId: "k1", ciphertext: "c2VhbGVk", iv: "aXY=", alg: "aes-256-gcm" } as unknown as NonNullable<SiteShareRecord["sealedPassword"]>;
 const row = (overrides: Partial<SiteShareRecord> = {}): SiteShareRecord => ({ shareId: "share-1", token: "TOKENTOKENTOKENA", site: "site-a", file: "site.zip", bytes: 3, sha256: "a".repeat(64), url: null,
   status: "active", createdAt: "2026-01-01T00:00:00Z", revokedAt: null, hasEncryptedKeys: true, sealedPassword: SEALED, ...overrides });
+/** A neutral expiry policy: the host's day choices, wording and expired-link message. */
+const EXPIRY = { choices: [7, 30, 90], copy: { choices: "7, 30 or 90 days, or never.", notHostedHere: "Only own-folder links can expire.", remote: ({ provider }: { provider: string }) => `${provider} links cannot expire.` },
+  expiredMessage: ({ row }: { row: { expiresAt?: string | null | undefined } }) => `Expired ${row.expiresAt ?? "?"}.` } as const;
 const unused = (): never => { throw new Error("unused host collaborator"); };
 
 function host(overrides: Partial<SiteShareHost> = {}): SiteShareHost {
@@ -14,7 +17,7 @@ function host(overrides: Partial<SiteShareHost> = {}): SiteShareHost {
     checkShareLimits: () => undefined, newShareIdentity: () => ({ shareId: "share-new", token: "TOKENTOKENTOKENB" }), allocateStaticExportThemes: () => [],
     parseStaticExportInput: () => ({}), captureStaticSite: unused, buildShareZip: async () => Buffer.from("zip"), buildStaticSiteZip: unused,
     createSiteShare: async ({ site }) => { const { sealedPassword: _sealed, ...plain } = row({ shareId: "share-new", site, hasEncryptedKeys: false }); return plain; },
-    acknowledgeSiteShare: unused, revokeSiteShare: unused, isOwnShareFolder: () => true, ...overrides };
+    acknowledgeSiteShare: unused, revokeSiteShare: unused, isOwnShareFolder: () => true, ownFolderProvider: "local-fs", expiry: EXPIRY, ...overrides };
 }
 
 function content(overrides: Partial<SiteShareContent> = {}): SiteShareContent {

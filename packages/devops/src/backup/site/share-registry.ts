@@ -1,9 +1,10 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rename, statfs, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, statfs, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { SiteShareRefusal } from "./share-refusal.js";
 import type { SealedSecret } from "@jini-ai/core/contracts/vault";
 import type { CredentialWarning } from "./credential-warnings.js";
+import { isShareExpired } from "./share-expiry.js";
 
 /** Host values the registry cannot own: its artifact naming, the public file-name shape and the archive size cap. */
 export interface ShareRegistryHost {
@@ -23,7 +24,7 @@ export interface SiteShareRecord {
   readonly bytes: number;
   readonly sha256: string;
   readonly url: string | null;
-  readonly status: "active" | "revoked" | "failed";
+  readonly status: "active" | "revoked" | "failed" | "expired";
   readonly createdAt: string;
   readonly revokedAt: string | null;
   readonly hasEncryptedKeys?: boolean;
@@ -33,6 +34,8 @@ export interface SiteShareRecord {
   readonly needsAcknowledgement?: boolean;
   readonly notes?: readonly string[];
   readonly storage?: { readonly provider: string; readonly key: string; readonly url?: string; readonly binding?: string };
+  /** Set only at creation from the owner's choice, never changed after. Absent or null: the link never expires. */
+  readonly expiresAt?: string | null;
 }
 const ID = /^[0-9a-f-]{36}$/;
 /** Owner decision 2026-10-25: share tokens are 16 ASCII letters (~91 bits), short enough to read
@@ -53,7 +56,9 @@ export const SHARE_TOKEN = new RegExp(`^${SHARE_TOKEN_PATTERN}$`);
 export class SiteShareRegistry {
   readonly directory: string;
   private readonly host: ShareRegistryHost;
-  constructor(required: { directory: string; host: ShareRegistryHost }, _optional: Record<string, never> = {}) { this.directory = required.directory; this.host = required.host; }
+  private readonly now: () => number;
+  /** @param optional.now The host clock (epoch ms) the public lookup compares `expiresAt` against; a host should inject its own. */
+  constructor(required: { directory: string; host: ShareRegistryHost }, optional: { now?: () => number } = {}) { this.directory = required.directory; this.host = required.host; this.now = optional.now ?? Date.now; }
   private meta({ id }: { id: string }, _optional: Record<string, never> = {}): string {
     if (!ID.test(id)) throw new SiteShareRefusal({ code: "INVALID_INPUT", message: "Invalid shareId." });
     return path.join(this.directory, `${id}.json`);
@@ -97,7 +102,27 @@ export class SiteShareRegistry {
       const revokedAt = await readFile(path.join(this.directory, `${row.shareId}.revoked`), "utf8");
       return { ...row, status: "revoked", revokedAt };
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    // Checked after `.revoked` so `revoked > expired`; like revocation, a racing whole-record `put`
+    // (acknowledge, delivery rewrite) cannot bring an expired link back to `active`.
+    try {
+      await readFile(path.join(this.directory, `${row.shareId}.expired`), "utf8");
+      return { ...row, status: "expired" };
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     return row;
+  }
+  /**
+   * The permanent, create-only expiry tombstone (content: the stated `expiresAt`), synced to disk
+   * before returning so the artifact is never unlinked while a reader could still see `active`.
+   * An existing tombstone is success: a crash between this and the unlink is retried by the next pass.
+   */
+  async markExpired(required: { shareId: string; expiresAt: string }, _optional: Record<string, never> = {}): Promise<void> {
+    this.meta({ id: required.shareId });
+    const file = path.join(this.directory, `${required.shareId}.expired`);
+    let handle: Awaited<ReturnType<typeof open>>;
+    try { handle = await open(file, "wx", 0o600); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") return; throw error; }
+    try { await handle.writeFile(required.expiresAt); await handle.sync(); }
+    finally { await handle.close(); }
   }
   async list(required: { site?: string }, _optional: Record<string, never> = {}): Promise<SiteShareRecord[]> {
     let names: string[];
@@ -117,7 +142,7 @@ export class SiteShareRegistry {
     try { shareId = await readFile(path.join(this.directory, `${required.token}.token`), "utf8"); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") { return null; } throw error; }
     const row = await this.get({ shareId });
-    return row && servesToken({ row, ...required }) ? row : null;
+    return row && servesToken({ row, ...required }) && !isShareExpired({ row, now: this.now() }) ? row : null;
   }
   async disable(required: { shareId: string; site: string }, _optional: Record<string, never> = {}): Promise<SiteShareRecord | null> {
     const row = await this.get(required);
