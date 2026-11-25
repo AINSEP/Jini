@@ -102,6 +102,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/registry':
         specifier: workspace:*
         version: link:../../packages/registry
@@ -279,6 +282,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -1444,6 +1450,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
+      '@jini-ai/provider-plugins':
+        specifier: workspace:^
+        version: link:../provider-plugins
       '@jini-ai/registry':
         specifier: workspace:^
         version: link:../registry

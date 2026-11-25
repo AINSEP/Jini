@@ -1,3 +1,8 @@
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { driveA2uiDemoRun } from './a2ui-demo-run.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
@@ -416,6 +421,8 @@ async function main(): Promise<void> {
       agentExecutor: runtimeExecutorOptions,
       // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+      // The proxy serves exactly these providers: the host picks the vendors, the daemon and server list none.
+      proxyProviders: [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()],
       baseUrlGuard: { validate: validateBaseUrl },
       // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
       osPorts: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell, clock: createSystemClock() },

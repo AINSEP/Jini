@@ -22,6 +22,7 @@ import { createRequire } from 'node:module';
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
 import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -92,8 +93,8 @@ export interface BuiltInFeatureOptions {
   };
   readonly remoteRunEvents?: { readonly tokenConfig?: RemoteToolBridgeTokenConfig };
   readonly xai?: { readonly listenerRef?: { current: OAuthCallbackListener | null } };
-  /** Required to activate `modelProxy`: provider tool-turn implementations are host-bound, never preset defaults. */
-  readonly modelProxy?: { readonly toolTurns: ProviderToolTurnPort };
+  /** Required to activate `modelProxy`: provider tool-turn implementations and the provider registrations (request parser plus runner call, per provider) are host-bound, never preset defaults; this package assembles no vendor. */
+  readonly modelProxy?: { readonly toolTurns: ProviderToolTurnPort; readonly providers: readonly ProxyProviderRegistration[] };
   /** Required to activate `research`: the host binds the base-URL guard the search provider checks against. */
   readonly research?: { readonly baseUrlGuard: BaseUrlGuardPort };
   /**

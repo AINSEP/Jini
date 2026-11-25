@@ -20,7 +20,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 
 /** Host-bound ports the egress features require; the preset ships no implementation of its own. */
 const egressPorts = {
-  modelProxy: { toolTurns: { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn(), ollama: vi.fn() } },
+  modelProxy: { toolTurns: { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn(), ollama: vi.fn() }, providers: [] },
   research: { baseUrlGuard: { validate: vi.fn(() => null) } },
 };
 

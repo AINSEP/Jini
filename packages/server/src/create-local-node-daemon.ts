@@ -41,6 +41,7 @@ import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
 import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
@@ -132,6 +133,8 @@ export interface CreateLocalNodeDaemonConfig<
   packs: Packs;
   /** Provider tool-turn implementations behind `/api/proxy`; the host binds them (this preset ships none). */
   toolTurns: ProviderToolTurnPort;
+  /** Provider registrations behind `/api/proxy` (request parser plus runner call per provider); the host imports the vendor factories and injects them (this preset ships none). */
+  proxyProviders: readonly ProxyProviderRegistration[];
   /** Base-URL guard the research provider validates against; the host binds it (this preset ships none). */
   baseUrlGuard: BaseUrlGuardPort;
   /**
@@ -314,7 +317,7 @@ function localFeatureOptions(
       ? {}
       : { delegatedToolCalls: { resolvePrincipal: config.resolveDelegatedPrincipal } }),
     xai: { listenerRef: xaiListenerRef },
-    modelProxy: { toolTurns: config.toolTurns },
+    modelProxy: { toolTurns: config.toolTurns, providers: config.proxyProviders },
     research: { baseUrlGuard: config.baseUrlGuard },
     daemonStatus: {
       getVersion: () => packageVersion,

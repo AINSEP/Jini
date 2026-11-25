@@ -2,6 +2,8 @@ import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 declare const open: SqliteSyncOpener;
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 declare const toolTurns: ProviderToolTurnPort;
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
+declare const proxyProviders: readonly ProxyProviderRegistration[];
 declare const baseUrlGuard: BaseUrlGuardPort;
 import type { KernelOsPorts } from './kernel-base.js';
 declare const osPorts: KernelOsPorts;
@@ -34,6 +36,7 @@ const greetPack = definePack({
 void createLocalNodeDaemon({
   open,
   toolTurns,
+  proxyProviders,
   baseUrlGuard,
   osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
@@ -46,6 +49,7 @@ void createLocalNodeDaemon({
 void createLocalNodeDaemon({
   open,
   toolTurns,
+  proxyProviders,
   baseUrlGuard,
   osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
@@ -57,6 +61,7 @@ void createLocalNodeDaemon({
 void createLocalNodeDaemon({
   open,
   toolTurns,
+  proxyProviders,
   baseUrlGuard,
   osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
@@ -70,6 +75,7 @@ const noDepsPack = definePack({ name: 'noDeps', deps: [], services: () => ({}) }
 void createLocalNodeDaemon({
   open,
   toolTurns,
+  proxyProviders,
   baseUrlGuard,
   osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
