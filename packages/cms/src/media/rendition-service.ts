@@ -41,6 +41,8 @@ import { mimeForTransformFormat } from "./transform-types.js";
 import { isLatestTransformVersion, isReferencedByPublishedContent } from "./transform-registry.js";
 import { withRenditionLock } from "./transform-lock.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
+import type { BlobGc } from "./blob-gc-fence.js";
+import { computeBlobStorageKey } from "./blob-key.js";
 import type { ImageTransformerPort } from "./image-transformer.js";
 
 export interface ResolveMediaRenditionDeps {
@@ -49,6 +51,8 @@ export interface ResolveMediaRenditionDeps {
   renditionRepo: AssetRenditionRepoPort;
   transformRepo: TransformDefinitionRepoPort;
   blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`), keyed by the output bytes' storage key. */
+  blobFence: Pick<BlobGc, "claimWrite">;
   imageTransformer: ImageTransformerPort;
   clock: Clock;
   idGen: IdGenerator;
@@ -130,8 +134,10 @@ function generateMediaRendition(
     });
     const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
     // Cleanup and uploads address these bytes by their output hash. Keep the ownership row
-    // inside that same lock so cleanup cannot delete a file between its write and row save.
-    return withSha256Lock({ key: outputSha256, criticalSection: async () => {
+    // inside that same lock so cleanup cannot delete a file between its write and row save; the
+    // blob fence extends that guarantee to unlinkers in other processes until the row exists.
+    const fenceTarget = { workspaceId: input.workspaceId, sha256: outputSha256, storageKey: computeBlobStorageKey({ workspaceId: input.workspaceId, sha256: outputSha256 }), kind: "rendition" as const };
+    return withSha256Lock({ key: outputSha256, criticalSection: () => deps.blobFence.claimWrite({ ...fenceTarget, work: async () => {
       const { storageKey } = await deps.blobStore.put({
         workspaceId: input.workspaceId,
         sha256: outputSha256,
@@ -149,7 +155,7 @@ function generateMediaRendition(
       };
       await deps.renditionRepo.save(row);
       return row;
-    } });
+    } }) });
   } });
 }
 
