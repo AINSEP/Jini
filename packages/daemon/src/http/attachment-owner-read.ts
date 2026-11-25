@@ -357,7 +357,7 @@ export async function readChatAttachmentForOwner(
 
   // Video preview has a tighter cap than upload. Refuse before allocating/reading its payload;
   // the identity gate below also proves that the current file still has this recorded size.
-  if (exceedsPreviewCap({ size: loaded.record.size, maxBytes: maxBytes })) return refuse("too-large");
+  if (exceedsPreviewCap({ size: loaded.record.size, ...(maxBytes === undefined ? {} : { maxBytes }) })) return refuse("too-large");
 
   return readUnchangedAttachment({ loaded, io });
 }
