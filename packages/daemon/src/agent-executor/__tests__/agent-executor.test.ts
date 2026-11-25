@@ -400,6 +400,7 @@ interface HarnessOptions {
   claudeConfigDirIsolationEnabled?: boolean;
   /** Ceiling on the `'until-close'` stdout accumulator — omitted by default so the real `DEFAULT_BUFFERED_STDOUT_MAX_BYTES` applies. */
   bufferedStdoutMaxBytes?: number;
+  promptAugmenter?: PromptAugmenter;
 }
 
 interface Harness {
@@ -466,7 +467,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
       ? { claudeConfigDirIsolationEnabled: options.claudeConfigDirIsolationEnabled }
       : {}), ...(options.bufferedStdoutMaxBytes !== undefined
       ? { bufferedStdoutMaxBytes: options.bufferedStdoutMaxBytes }
-      : {}) });
+      : {}), ...(options.promptAugmenter !== undefined ? { promptAugmenter: options.promptAugmenter } : {}) });
 
   return { lifecycle, executor, child, spawnCalls, stopProcessesCalls, onCleanupFailure };
 }
@@ -3815,6 +3816,97 @@ describe('AgentExecutor — plain-format argv prompt-budget guard (aider/deepsee
 
     expect(spawnCalls).toHaveLength(0);
     expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+  });
+
+  describe('argv prompt variants (argvPromptVariants)', () => {
+    const OVERLAY = 'HOST OVERLAY';
+    const composed = (prompt: string) => `${OVERLAY}\n\n---\n\n${prompt}`;
+    const FULL = 'F'.repeat(40_000);
+    const CATALOG = 'C'.repeat(10_000);
+    const POINTER = 'P'.repeat(100);
+    const BASE = 'base prompt';
+    const candidates = [
+      { id: 'full', prompt: FULL },
+      { id: 'catalog', prompt: CATALOG },
+      { id: 'pointer', prompt: POINTER },
+      { id: 'base', prompt: BASE },
+    ] as const;
+    const overlay: PromptAugmenter = { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => OVERLAY };
+
+    it.each(['C:\\fake\\aider.cmd', 'C:\\fake\\aider.exe'])('argv alternatives use the real composed argument for both Windows carriers (%s)', async (launchPath) => {
+      const def = createArgvBoundDef({ argvPromptPosition: 'last', maxPromptArgBytes: 60_000 });
+      const { lifecycle, executor, spawnCalls } = createHarness({ def, launchPath, promptAugmenter: overlay });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const spawnedAtSelection: number[] = [];
+      const onSelected = vi.fn(async () => { spawnedAtSelection.push(spawnCalls.length); });
+
+      await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, { argvPromptVariants: { candidates, onSelected } });
+
+      expect(spawnCalls).toHaveLength(1);
+      expect(spawnCalls[0]?.args).toEqual(['--message', composed(CATALOG)]);
+      expect(onSelected).toHaveBeenCalledTimes(1);
+      expect(onSelected).toHaveBeenCalledWith({ runId: run.id, id: 'catalog' });
+      expect(spawnedAtSelection).toEqual([0]);
+    });
+
+    it('argv fitting calls the adapter argument builder once', async () => {
+      const buildArgs = vi.fn(({ prompt }: { prompt: string }) => ['--message', prompt]);
+      const def = createArgvBoundDef({ argvPromptPosition: 'last', maxPromptArgBytes: 60_000, buildArgs });
+      const { lifecycle, executor, spawnCalls } = createHarness({ def, launchPath: 'C:\\fake\\aider.cmd' });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const onSelected = vi.fn(async () => {});
+
+      await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, { argvPromptVariants: { candidates, onSelected } });
+
+      expect(buildArgs).toHaveBeenCalledTimes(1);
+      expect(buildArgs.mock.calls[0]?.[0]).toMatchObject({ prompt: BASE });
+      expect(spawnCalls[0]?.args).toEqual(['--message', CATALOG]);
+      expect(onSelected).toHaveBeenCalledWith({ runId: run.id, id: 'catalog' });
+    });
+
+    it('an argv carrier mismatch never claims full guidance', async () => {
+      // Declares `last` but appends a trailing flag: the carrier check must refuse to replace anything.
+      const def = createArgvBoundDef({ argvPromptPosition: 'last', buildArgs: ({ prompt }) => ['--message', prompt, '--trailing'] });
+      const { lifecycle, executor, spawnCalls } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const onSelected = vi.fn(async () => {});
+
+      await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, { argvPromptVariants: { candidates: [{ id: 'full', prompt: 'short full' }, { id: 'base', prompt: BASE }], onSelected } });
+
+      expect(spawnCalls[0]?.args).toEqual(['--message', BASE, '--trailing']);
+      expect(onSelected).toHaveBeenCalledWith({ runId: run.id, id: 'base' });
+      expect(onSelected).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'full' }));
+    });
+
+    it('a refused selection callback releases staging and never spawns', async () => {
+      const lockEvents: string[] = [];
+      const runtimeLock: RuntimeLock = { acquire: async () => { lockEvents.push('acquire'); return { release: () => lockEvents.push('release') }; } };
+      const def = createArgvBoundDef({ argvPromptPosition: 'last', runtimeLock });
+      const { lifecycle, executor, spawnCalls } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const onSelected = vi.fn(async () => { throw new Error('secret-token-123 commit refused'); });
+
+      const failure = await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, { argvPromptVariants: { candidates: [{ id: 'full', prompt: 'full text' }], onSelected } }).then(() => null, (error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(AgentExecutorError);
+      expect((failure as AgentExecutorError).message).not.toContain('secret-token-123');
+      expect(onSelected).toHaveBeenCalledWith({ runId: run.id, id: 'full' });
+      expect(spawnCalls).toHaveLength(0);
+      expect(lockEvents).toEqual(['acquire', 'release']);
+      expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+    });
+
+    it('non-argv defs ignore variants entirely', async () => {
+      const def = createArgvBoundDef();
+      const { lifecycle, executor, spawnCalls } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const onSelected = vi.fn(async () => {});
+
+      await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, { argvPromptVariants: { candidates, onSelected } });
+
+      expect(spawnCalls[0]?.args).toEqual(['--message', BASE]);
+      expect(onSelected).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -140,7 +140,29 @@ export class AgentExecutorError extends Error {
   }
 }
 
+/** One host-drafted prompt an argv-bound run may carry instead of the base. */
+export type ArgvPromptVariant = {
+  readonly id: 'full' | 'catalog' | 'pointer' | 'base';
+  readonly prompt: string;
+};
+
+/**
+ * Host-drafted prompt alternatives for an argv-bound def that declares `argvPromptPosition: 'last'`.
+ * The executor tries `full`, `catalog`, `pointer`, then the unmodified base against the real argv
+ * and resolved binary, then reports the one it validated through `onSelected` before spawn. A
+ * rejection from `onSelected` refuses the run before any process starts. Ignored for every other def.
+ */
+export type ArgvPromptVariants = {
+  readonly candidates: readonly ArgvPromptVariant[];
+  readonly onSelected: (
+    required: { runId: string; id: ArgvPromptVariant['id'] },
+    optional?: { signal?: AbortSignal },
+  ) => Promise<void>;
+};
+
 export interface AgentExecutorRunInput {
+  /** Optional argv-fit alternatives; `prompt` stays the base (history, context, mandatory content). */
+  readonly argvPromptVariants?: ArgvPromptVariants;
   /** Host-selected mandatory filesystem boundary; no user grant may widen it. */
   readonly filesystemRoot?: string;
   readonly runId: string;
@@ -250,7 +272,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext" | "argvPromptVariants">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent queues the message

@@ -52,6 +52,9 @@ export const deepseekAgentDef = {
     // argv headroom under the Windows command-line limit for `exec
     // --auto --model <id>` and any internal quoting.
     maxPromptArgBytes: 30_000,
+    // `buildArgs` pushes the prompt verbatim as the final argv element (pinned by
+    // `defs/__tests__/argv-prompt-position.test.ts`), so prompt variants may fit that slot.
+    argvPromptPosition: 'last',
     streamFormat: 'plain',
     // No `externalMcpInjection`: CodeWhale (this dispatcher's underlying TUI)
     // does support native MCP via `DEEPSEEK_MCP_CONFIG=<path>` — an explicit

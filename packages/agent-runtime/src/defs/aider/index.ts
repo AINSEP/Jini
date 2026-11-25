@@ -74,6 +74,9 @@ export const aiderAgentDef = {
       return args;
     },
     maxPromptArgBytes: 30_000,
+    // `buildArgs` pushes the prompt verbatim as the final argv element (pinned by
+    // `defs/__tests__/argv-prompt-position.test.ts`), so prompt variants may fit that slot.
+    argvPromptPosition: 'last',
     streamFormat: 'plain',
     installUrl: 'https://aider.chat/docs/install.html',
     docsUrl: 'https://aider.chat',

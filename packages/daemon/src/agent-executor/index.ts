@@ -97,6 +97,8 @@ export {
   type AgentExecutorErrorCode,
   AgentExecutorError,
   type AgentExecutorRunInput,
+  type ArgvPromptVariant,
+  type ArgvPromptVariants,
   type AgentExecutor,
   type UserMessageDelivery,
   type CollectProcessTreePidsPort,
