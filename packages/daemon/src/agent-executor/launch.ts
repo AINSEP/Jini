@@ -1531,7 +1531,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // this (CLAUDE_CONFIG_DIR is an env var, not a flag), same as CODEX_HOME.
     preparedClaudeConfigDir = await prepareStagedConfigDirIfNeeded({ input: { runId: input.runId, def, configDir: agentRuntime.strategies.for({ def }).configDir }, deps: {
         enabled: claudeConfigDirIsolationEnabled,
-        claudeConfigDirIsolation,
+        isolationSeams: claudeConfigDirIsolation,
         hostEnv,
         releaseStagedResources,
         failBeforeSpawn,

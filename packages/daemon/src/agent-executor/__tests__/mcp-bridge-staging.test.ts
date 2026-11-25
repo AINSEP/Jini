@@ -103,7 +103,7 @@ it('stages an isolated Claude config dir on the real filesystem with only the fi
   writeFileSync(join(source, '.credentials.json'), fixtureCredential());
   writeFileSync(join(source, 'settings.json'), '{"personal":true}');
   const dir = await prepareStagedConfigDirIfNeeded({ input: { runId: '', def: getAgentDef({ id: 'claude' })!, ...boundConfigDir({ id: 'claude' }) },
-    deps: { enabled: true, claudeConfigDirIsolation: undefined, hostEnv: { CLAUDE_CONFIG_DIR: source },
+    deps: { enabled: true, isolationSeams: undefined, hostEnv: { CLAUDE_CONFIG_DIR: source },
       releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
   try {
     expect(dirname(dir!.path)).toBe(tmpdir());
@@ -122,7 +122,7 @@ it('removes a half-staged Claude config dir and fails before spawn when the logi
   const releaseStagedResources = vi.fn(async () => {});
   await expect(prepareStagedConfigDirIfNeeded({ input: { runId: 'run-1', def: getAgentDef({ id: 'claude' })!, ...boundConfigDir({ id: 'claude' }) },
     deps: { enabled: true, hostEnv: { CLAUDE_CONFIG_DIR: '/operator/claude' }, releaseStagedResources, failBeforeSpawn: refuse,
-      claudeConfigDirIsolation: {
+      isolationSeams: {
         mkdtemp: async ({ prefix }) => `/scratch/${prefix}abc`,
         readFile: async () => fixtureCredential(),
         writeFile: async () => { throw new Error('ENOSPC: no space left on device'); },

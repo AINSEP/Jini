@@ -11,6 +11,9 @@ import type {
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
 
+/** The definition-declared MCP strategy that stages a JSON config file (every `*-mcp-json` value), named structurally so the port stays vendor-neutral. */
+type McpJsonFileStrategy = Extract<NonNullable<RuntimeAgentDef['externalMcpInjection']>, `${string}-mcp-json`>;
+
 /** A stream parser the launcher feeds the child's stdout. */
 export interface AgentStreamHandler { feed(required: { chunk: string }): void; flush(): void }
 /** Every parser reports plain records with a `type` discriminant; the launcher translates them. */
@@ -47,7 +50,7 @@ export interface AgentRuntimeStrategies {
   };
   /** A run-scoped JSON MCP config file the CLI is pointed at. Generic over the host's server-entry shape, which the CLI only echoes. */
   readonly mcpConfigFile?: {
-    build<Entry extends { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> }>(required: { cwd: string; runId: string; serverEntry: Entry }): { kind: 'claude-mcp-json'; mcpJsonPath: string; serverEntry: Entry };
+    build<Entry extends { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> }>(required: { cwd: string; runId: string; serverEntry: Entry }): { kind: McpJsonFileStrategy; mcpJsonPath: string; serverEntry: Entry };
     write(required: { cwd: string; delivery: { readonly kind: string; readonly mcpJsonPath?: string; readonly serverEntry?: { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> } }; options: { readonly readFile?: (required: { path: string }) => Promise<string>; readonly writeFile?: (required: { path: string; content: string }) => Promise<void> }; serverName: string }, optional?: { inheritUserConfig?: boolean | undefined }): Promise<string>;
     prepareHttp(required: { cwd: string; endpoint: { readonly url: string; readonly token: string }; serverName: string }, optional?: { inheritUserMcp?: boolean; readFile?: (required: { path: string }) => Promise<string> }): Promise<{ path: string; cleanup: () => Promise<void> }>;
   };
