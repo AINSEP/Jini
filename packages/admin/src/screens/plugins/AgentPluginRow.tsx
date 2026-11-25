@@ -1,5 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { InfoTip } from "@jini-ai/ui/admin-widgets";
+import { InfoTip } from "../../react/kit.js";
 import { useId, type ReactNode } from "react";
 import { AgentPluginLinkedLock } from "./AgentPluginLinkedLock.js";
 import { AgentPluginMaturity, SOON_PLUGIN_TIP } from "./AgentPluginMaturity.js";

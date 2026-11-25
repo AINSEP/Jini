@@ -1,11 +1,9 @@
-import { CodeWithLines, CodeWrapToggle, RemixIcon, useCodeWrap } from "@jini-ai/ui";
-import { PreviewModalShell } from "@jini-ai/ui/preview-modal-shell";
+import { CodeWithLines, CodeWrapToggle, PreviewModalShell, RemixIcon, useAgentPluginFileTree, useCodeWrap } from "../../react/kit.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import { useId, type ReactNode } from "react";
 
 
-import { packageFileIconKind, type PackageFileIconKind } from "../../agent-plugins/index.js";
-import { useAgentPluginFileTree } from "../../agent-plugins/react/index.js";
+import { packageFileIconKind, type PackageFileIconKind } from "../../agent-plugins/package-file-tree.js";
 import { PACKAGE_FILE_TREE_LOCALE } from "./rules.js";
 import type { PackageFilesStatus, PackageFileView } from "./rules.js";
 import { CODE_PREVIEW_MODAL_ICONS } from "../../shell/components/CodeView/preview-modal-icons.js";

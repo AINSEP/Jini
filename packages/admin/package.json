@@ -759,6 +759,8 @@
         "src/media/html-attributes.ts",
         "src/screens/plugins/composer-capabilities.ts",
         "src/screens/plugins/selected-skills.ts",
+        "src/screens/plugins/rules.ts",
+        "src/screens/plugins/agent-plugins-visuals.tsx",
         "src/agent-plugins/package-file-tree.ts"
       ],
       "forbidden": {
@@ -1028,6 +1030,13 @@
         "./screens/settings/rules": "universal",
         "./screens/media/rules": "universal",
         "./shell/components/SecretInput/SecretInput": "browser",
+        "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
+        "./screens/plugins/plugins-visuals": "browser",
+        "./screens/plugins/AgentPluginMaturity": "browser",
+        "./screens/plugins/AgentPluginLinkedLock": "browser",
+        "./screens/plugins/hooks/use-plugin-row-focus.hooks": "browser",
+        "./screens/plugins/PluginProviderSettingField.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": "browser",
         "./screens/plugins/PluginProviderSettingField": "browser",
         "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
         "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
