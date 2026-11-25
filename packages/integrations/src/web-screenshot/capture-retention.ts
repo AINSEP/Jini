@@ -138,7 +138,8 @@ export function createCaptureFilePorts({ fs }: { fs: CaptureFs }, _optional: Rec
     async removeOwned({ root, relPath, identity }) {
       const file = path.join(root, relPath);
       const stat = await lstatOrNull(file);
-      if (!stat || entryOf({ relPath, stat }).kind !== "file" || entryOf({ relPath, stat }).identity !== identity) return false;
+      const now = stat && entryOf({ relPath, stat });
+      if (!now || now.kind !== "file" || now.identity !== identity) return false;
       await fs.unlink(file);
       return true;
     },
