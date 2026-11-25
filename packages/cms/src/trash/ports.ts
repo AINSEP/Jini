@@ -5,101 +5,16 @@
  * `trash` requires a caller-held display snapshot. Adapters expose only hide/unhide/purge, with no
  * describe method: a read that can throw must never become a dependency of trash listing.
  */
-import type { TrashActor } from "@jini-ai/core/contracts/site/cms-trash";
+import type { TrashActor, TrashDisplay, TrashMarkerResult } from "@jini-ai/core/contracts/site/cms-trash";
 
 export type { TrashActor } from "@jini-ai/core/contracts/site/cms-trash";
 
 export type TrashEntityType = string;
 
-/** The two display strings captured from columns at trash time. Never derived by the port. */
-export interface TrashDisplay {
-  title: string;
-  subtitle?: string | null;
-}
-
-/**
- * Outcome of a marker flip.
- *
- * `version` is the entity's version AFTER the flip — that is what lands in
- * `trashed_items.entity_version` and what the sweeper's compare-and-delete later checks, so a
- * restore (which bumps the version again) always wins a race against a purge. `null` for a domain
- * with no version column.
- *
- * `priorMarker` is OPTIONAL and additive (migration 0072): a status-marker adapter (`menu`, `term`,
- * `taxonomy`) reports the status the row carried immediately before `hide` flipped it to `trash`, so
- * `restore` can put it back exactly rather than to a fixed fallback. A caller that omits the key
- * entirely (timestamp adapters) keeps the exact `{ ok: true, version }` shape — do not set this to
- * `undefined`; leave the key out. `trash.contract.test.ts`'s pinned `assert.deepEqual(trashed, {
- * ok: true, version: 2 })` depends on that: Node's `assert.deepEqual` treats an extra own-enumerable
- * property, even one valued `undefined`, as a mismatch.
- *
- * `noop` is OPTIONAL and additive (T1c, `follow-ups.test.ts`): host table adapters' `hide`/`unhide`
- * set it to `true` on their idempotent "already in the target state" branch — the ONE signal that
- * distinguishes that branch from a real transition, both of which otherwise report the same
- * `ok: true`. `withFollowUps` (`@jini-ai/cms/trash`) reads it to decide whether a hook actually finished
- * something. Same leave-the-key-out rule as `priorMarker`: a real transition leaves it absent, so exact-shape assertions remain
- * valid, so their pinned exact-shape assertions are
- * unaffected.
- *
- * `"blocked"` (T1 item 2, migration-free — no new column) is a THIRD failure reason, alongside
- * `"not-found"`/`"version-changed"`: the row exists and the version matches, but the host's
- * declared blocker found rows that must move or be deleted first (a term with child terms). `code`
- * and `count` are always present together on this branch — the host registry defines their meaning.
- */
-export type TrashMarkerResult =
-  | { ok: true; version: number | null; priorMarker?: string | null; noop?: true; }
-  | { ok: false; reason: "not-found" | "version-changed"; }
-  | { ok: false; reason: "blocked"; code: string; count: number; };
-
-/** Outcome of a physical row removal. `still-referenced` retains the entity and its Trash index. */
-export type TrashPurgeOutcome = "purged" | "version-changed" | "already-gone" | "still-referenced";
-
-/**
- * One per domain. Built and registered into a plain `Map` at the composition root and resolved
- * **at call time**, never at registration time: this codebase's module registries (`ToolRegistry`,
- * routing's `phaseRegistry`) are append-only with no unregister, so anything that filters at
- * registration runs exactly once. Two real bugs already came from that.
- *
- * Persistent host implementations MUST be column-only SQL. No payload parse, no ORM entity hydration, no domain
- * write-service call that re-validates a record.
- */
-export interface TrashAdapter {
-  readonly entityType: TrashEntityType;
-  /**
-   * Move the domain's own marker to hidden.
-   *
-   * `at` is supplied by the caller rather than read from an adapter-local clock so the marker's
-   * timestamp is byte-identical to the one the calling domain writes into its revision ledger.
-     */
-  hide(required: {
-    workspaceId: string;
-    entityId: string;
-    at: string;
-    expectedVersion: number | null;
-
-  }, optional?: { actor?: TrashActor; }): Promise<TrashMarkerResult>;
-  /**
-   * Move it back. Same no-parse rule as {@link TrashAdapter.hide}.
-   *
-   * `priorMarker` (migration 0072) is what {@link TrashItem.priorMarker} stored at trash time —
-   * additive and optional, so every adapter's existing signature stays structurally compatible. A
-   * status-marker adapter restores to `priorMarker ?? restoreFallback`; a timestamp-marker adapter
-   * (timestamp adapters) ignores it, since clearing the marker column needs no prior value.
-     */
-  unhide(required: {
-    workspaceId: string;
-    entityId: string;
-    at: string;
-    expectedVersion: number | null;
-  }, optional?: { priorMarker?: string | null; actor?: TrashActor; }): Promise<TrashMarkerResult>;
-  /** Physically remove the row. Compare-and-delete on `expectedVersion`. */
-  purge(required: {
-    workspaceId: string;
-    entityId: string;
-    expectedVersion: number | null;
-
-  }, optional?: { actor?: TrashActor; }): Promise<TrashPurgeOutcome>;
-}
+export type { TrashDisplay } from "@jini-ai/core/contracts/site/cms-trash";
+export type { TrashMarkerResult } from "@jini-ai/core/contracts/site/cms-trash";
+export type { TrashPurgeOutcome } from "@jini-ai/core/contracts/site/cms-trash";
+export type { TrashAdapter } from "@jini-ai/core/contracts/site/cms-trash";
 
 /** One row of the Trash list. Rendered entirely from the snapshot — no entity read. */
 export interface TrashItem {

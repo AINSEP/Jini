@@ -13,6 +13,8 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./source-control/site/bundled-provider-registry": "universal",
+      "./static-export/site/route-manifest": "universal",
       ".": "node",
       "./source-control": "node",
       "./static-export": "node",
@@ -149,6 +151,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./source-control/site/bundled-provider-registry": {
+      "types": "./dist/source-control/site/bundled-provider-registry.d.ts",
+      "import": "./dist/source-control/site/bundled-provider-registry.js",
+      "default": "./dist/source-control/site/bundled-provider-registry.js"
+    },
+    "./static-export/site/route-manifest": {
+      "types": "./dist/static-export/site/route-manifest.d.ts",
+      "import": "./dist/static-export/site/route-manifest.js",
+      "default": "./dist/static-export/site/route-manifest.js"
+    },
     "./backup/site/import-index/backfill": {
       "types": "./dist/backup/site/import-index/backfill.d.ts",
       "import": "./dist/backup/site/import-index/backfill.js",

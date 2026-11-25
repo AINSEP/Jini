@@ -145,7 +145,9 @@
       "./project-keys/site-references": "universal",
       "./project-keys/service": "universal",
       "./project-keys/tools": "universal",
-      "./identity/user-purge": "universal"
+      "./identity/user-purge": "universal",
+      "./project-keys/sql/attachments": "node",
+      "./identity/sql/user-trash-adapter": "node"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -857,6 +859,16 @@
       "types": "./dist/identity/user-purge.d.ts",
       "import": "./dist/identity/user-purge.js",
       "default": "./dist/identity/user-purge.js"
+    },
+    "./project-keys/sql/attachments": {
+      "types": "./dist/project-keys/sql/attachments.d.ts",
+      "import": "./dist/project-keys/sql/attachments.js",
+      "default": "./dist/project-keys/sql/attachments.js"
+    },
+    "./identity/sql/user-trash-adapter": {
+      "types": "./dist/identity/sql/user-trash-adapter.d.ts",
+      "import": "./dist/identity/sql/user-trash-adapter.js",
+      "default": "./dist/identity/sql/user-trash-adapter.js"
     }
   },
   "files": [
