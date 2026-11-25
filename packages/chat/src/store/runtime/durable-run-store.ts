@@ -1,11 +1,14 @@
-import { sqliteReadVersion } from '../sql/read-version.js';
 import { acceptedInputEvent, acceptedInputUserEvent } from "../../core/accepted-input.js";
 import { redactUserMessage, redactUserText } from "../../core/user-text-redaction.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 import { recoveredRunEvents, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
+import {
+  casAdvanceProjection, conversationTranscript, deleteSession, insertAttempt, pollProjection, probeRun, saveAgentSession,
+  selectAttempt, selectBinding, selectRunRow, slotOccupied, writeAttemptMetadata, writeToolEvent,
+  type Metadata, type ReadOptions, type RunKernel, type RunMatch, type RunRow,
+} from "./durable-run-queries.js";
 import { chatKernelTables } from "../sql/boundary.js";
-import { sql, type Selectable, type Insertable, type Updateable } from "kysely";
 import { hasUnknownToolCall, CONTINUATION_DIVIDER } from "../../core/durable-runs/continuation.js";
 import { RECOVERY_WINDOW_MS } from "../../core/durable-runs/policies.js";
 import type { DurableRun, DurableRunHead, DurableRunStore } from "../../core/durable-runs/ports.js";
@@ -14,21 +17,11 @@ import type { ChatStore } from "../ports.js";
 import { createChatHistoryStore } from "./chat-history-store.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 import { runContentFromEvents } from "../../core/run-events/entry.js";
-import { appendedEventsJson } from "./events-json.js";
-import { toMessage, validatedEventsJson } from "../sql/store.js";
+import { toMessage } from "../sql/store.js";
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export const RUN_SLOT_BUSY = "Another answer in this chat is still running. This turn is queued in your browser.";
 export class RunSlotBusyError extends Error { constructor() { super(RUN_SLOT_BUSY); } }
-
-type RunRow = Selectable<ChatDatabase["ai_chat_messages"]> & { owner_id: string; owner_kind: string; scope_id: string };
-/** Where a run read finds its message row: by its id, or by the attempt id it currently holds. */
-type RunMatch = { column: "ai_chat_messages.id" | "ai_chat_messages.run_id"; value: string };
-/** `events`: parse the run's own saved events. `transcript`: also read every message of its conversation. */
-type ReadOptions = { events?: boolean; transcript?: boolean; includeTranscriptEvents?: boolean };
-/** A run read: its head, and the transcript only when that read loaded one. */
-type RunRead = { head: DurableRunHead; transcript: readonly ChatMessage[] };
-type Metadata = ChatDatabase["assistant_run_attempts"] | undefined;
 
 function isAcceptedUserShape({ message }: { message: ChatMessage }, _optional = {}): boolean {
   if (!message || typeof message.id !== "string" || !message.id) return false;
@@ -192,354 +185,314 @@ function sameOwner(
   return run.principalId === required.principalId && run.conversationId === required.conversationId;
 }
 
+type Deps = { kernel: RunKernel; isDaemonRunId: RunIdPolicy };
+/** A run read: its head, and the transcript only when that read loaded one. */
+type RunRead = { head: DurableRunHead; transcript: readonly ChatMessage[] };
+type Accept = Parameters<DurableRunStore["accept"]>[0];
+
+/** The conversation locator and attempt fields one captured session writes. */
+function capturedSessionFields(
+  { sessionId, child, confirmed }: { sessionId: string; child: { pid: number; startedAt: string } | undefined; confirmed: boolean }, _optional = {},
+) {
+  return { session_id: sessionId, session_confirmed: confirmed ? 1 : 0, ...(child ? { child_pid: child.pid, child_started_at: child.startedAt } : {}) };
+}
+
+/** The attempt row a first acceptance stores; the request is masked before it is serialized. */
+function acceptedAttemptRow({ required }: { required: Accept }, _optional = {}) {
+  return {
+    message_id: required.messageId, engine: "daemon", accepted_json: JSON.stringify(maskedRequest({ request: required.request }, {})),
+    recovery_count: 0, recovery_deadline: null, last_progress_at: required.now, cancel_reason: null,
+    recovery_elapsed_ms: 0, attempt_started_at: required.now,
+    session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: "[]",
+  };
+}
+
+/** Only a current, uncanceled attempt may move to its continuation. */
+function mayAdvance({ current, run }: { current: DurableRunHead; run: DurableRunHead }, _optional = {}): boolean {
+  return !current.cancelReason && current.runId === run.runId;
+}
+
+/** The attempt row a continuation stores: one more recovery, a window if none is open, and no session. */
+function advancedAttempt(
+  { run, current, now, projection }: { run: DurableRunHead; current: DurableRunHead; now: number; projection: readonly AgentEvent[] }, _optional = {},
+) {
+  const recoveryCount = current.recoveryCount + 1;
+  const recoveryDeadline = current.recoveryDeadline ?? now + RECOVERY_WINDOW_MS;
+  const reset = { session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(projection) };
+  return {
+    values: { message_id: run.messageId, engine: run.engine, accepted_json: JSON.stringify(run.request),
+      recovery_count: recoveryCount, recovery_deadline: recoveryDeadline, recovery_elapsed_ms: 0, attempt_started_at: now,
+      last_progress_at: current.lastProgressAt, cancel_reason: null, ...reset },
+    updates: { recovery_count: recoveryCount, recovery_deadline: recoveryDeadline, attempt_started_at: now, ...reset },
+  };
+}
+
+/** Whether a tool call may run now. The unknown-call check covers the attempt base and the canonical projection. */
+function toolGuardVerdict(
+  { run, required }: { run: DurableRunHead | null; required: Parameters<DurableRunStore["guardTool"]>[0] }, _optional = {},
+): "allowed" | "unknown" | "stale" {
+  if (!run || !attemptCanExecute({ run }, {})) return "stale";
+  const events = run.message.events ?? [];
+  const canonical = events.filter((event) => event.kind !== "tool_use" || event.name === required.toolId);
+  if (hasUnknownToolCall({ ...required, events: run.attemptBase }, {}) || hasUnknownToolCall({ ...required, events: canonical }, {})) return "unknown";
+  return "allowed";
+}
+
+/** The recovery window opened or paused by `active`, from the saved deadline and elapsed budget. */
+function nextRecoveryClock(
+  { row, now, active }: { row: { recovery_deadline: number | null; recovery_elapsed_ms: number }; now: number; active: boolean }, _optional = {},
+) {
+  let deadline = row.recovery_deadline;
+  let elapsed = row.recovery_elapsed_ms;
+  if (active && deadline === null) deadline = now + Math.max(0, RECOVERY_WINDOW_MS - elapsed);
+  if (!active && deadline !== null) { elapsed = Math.max(0, RECOVERY_WINDOW_MS - (deadline - now)); deadline = null; }
+  return { recovery_deadline: deadline, recovery_elapsed_ms: elapsed };
+}
+
+/** The terminal row a stop writes when it beats acceptance. */
+function stopTombstone({ required }: { required: Parameters<DurableRunStore["cancelPending"]>[0] }, _optional = {}): ChatMessage {
+  return { id: required.messageId, role: "assistant", content: "",
+    events: [{ kind: "status", label: "Stopped." }], runId: required.runId, runStatus: "canceled", createdAt: required.now, endedAt: required.now };
+}
+
+/** Accepted user receipts split queued inputs and hold folder references. Keep that small
+ * public metadata even when recovery omits prior assistant event payloads. */
+function transcriptEventProjection(options: ReadOptions): boolean | "user" {
+  if (options.includeTranscriptEvents === false && options.transcript) return 'user';
+  return options.includeTranscriptEvents ?? options.transcript === true;
+}
+
+function currentMessage({ row, transcript }: { row: RunRow; transcript: readonly ChatMessage[] }, options: ReadOptions = {}): ChatMessage | undefined {
+  return options.transcript && options.includeTranscriptEvents !== false
+    ? transcript.find(item => item.id === row.id) : toMessage(row);
+}
+
+/** Legacy accepted requests and recovery reconstruction consume prior text only. */
+async function readTranscript({ deps, row, metadata }: { deps: Deps; row: RunRow; metadata: Metadata }, options: ReadOptions = {}): Promise<ChatMessage[]> {
+  if (!options.transcript && metadata) return [];
+  const includeEvents = transcriptEventProjection(options);
+  return conversationTranscript({ ...deps, row }, { includeEvents });
+}
+
+/** One run's head, plus its transcript when that was read (`[]` otherwise). */
+async function readRun({ deps, match }: { deps: Deps; match: RunMatch }, options: ReadOptions = {}): Promise<RunRead | null> {
+  const row = await selectRunRow({ kernel: deps.kernel, match }, options);
+  if (!row || !row.run_id) return null;
+  const messageId = row.id;
+  const metadata = await selectAttempt({ kernel: deps.kernel, messageId });
+  // A legacy row's accepted request is derived from its transcript, so only it reads one here.
+  const transcript = await readTranscript({ deps, row, metadata }, options);
+  const message = currentMessage({ row, transcript }, options);
+  if (!message) return null; // Deletion may have cascaded between the two reads.
+  return { head: runHead({ row, runId: row.run_id, metadata, message, transcript }, { isDaemonRunId: deps.isDaemonRunId }),
+    transcript: transcript.map(item => item.id === messageId ? message : item) };
+}
+
+/** Locked read of one message; `transcript` decides whether it is a whole run or only its head. */
+async function lockedRead(
+  { deps, messageId, conversationId }: { deps: Deps; messageId: string; conversationId: string }, options: ReadOptions = {},
+): Promise<RunRead | null> {
+  return deps.kernel.transaction(async () => {
+    // Message, attempt metadata and transcript must describe the same generation. A CAS in
+    // the gap between independent reads must never pair a new projection with an old session.
+    await deps.kernel.lockKey(runLockKey({ messageId, conversationId, runId: "" }));
+    return readRun({ deps, match: { column: "ai_chat_messages.id", value: messageId } }, options);
+  });
+}
+
+/** Probe without the run lock, take it, then read: a run deleted or advanced in the gap reads as gone.
+ * One read under the lock serves the whole operation; the unlocked probe only names the lock.
+ * @returns The run as of the lock, or null when the attempt id is unknown or no longer current. */
+async function lockedRun({ deps, runId }: { deps: Deps; runId: string }, options: ReadOptions = {}): Promise<DurableRunHead | null> {
+  const probe = await probeRun({ kernel: deps.kernel, runId });
+  if (!probe) return null;
+  await deps.kernel.lockKey(runLockKey({ messageId: probe.id, conversationId: probe.conversation_id, runId }));
+  return (await readRun({ deps, match: { column: "ai_chat_messages.run_id", value: runId } }, options))?.head ?? null;
+}
+
+async function loadRun({ deps, messageId }: { deps: Deps; messageId: string }, { includeTranscriptEvents = true }: { includeTranscriptEvents?: boolean } = {}): Promise<DurableRun | null> {
+  const binding = await selectBinding({ kernel: deps.kernel, messageId });
+  if (!binding) return null;
+  // Full reads take the message from the transcript. Lean reads select its own events once,
+  // omitting prior assistant payloads while retaining accepted user receipts.
+  const read = await lockedRead({ deps, messageId, conversationId: binding.conversation_id },
+    { transcript: true, includeTranscriptEvents, events: !includeTranscriptEvents });
+  return read && { ...read.head, transcript: read.transcript };
+}
+
+/** Single-message read; message identity survives continuation while run_id changes.
+ * Legacy request reconstruction needs only transcript content, never its old event columns. */
+async function headRun({ deps, messageId }: { deps: Deps; messageId: string }, { events = true }: { events?: boolean } = {}): Promise<DurableRunHead | null> {
+  const binding = await selectBinding({ kernel: deps.kernel, messageId });
+  if (!binding) return null;
+  return (await lockedRead({ deps, messageId, conversationId: binding.conversation_id }, { events }))?.head ?? null;
+}
+
+async function findRun({ deps, runId, principalId }: { deps: Deps; runId: string; principalId?: string }): Promise<DurableRunHead | null> {
+  const row = await probeRun({ kernel: deps.kernel, runId });
+  if (!row) return null;
+  const run = (await lockedRead({ deps, messageId: row.id, conversationId: row.conversation_id }, { events: true }))?.head ?? null;
+  return principalId !== undefined && run?.principalId !== principalId ? null : run;
+}
+
+/** Slot and run locks, then the owner-scoped conversation; null when the caller does not own it. */
+async function lockOwnedConversation(
+  { deps, required }: { deps: Deps; required: RunRef & { principalId: string; workspaceId: string } }, _options = {},
+): Promise<ChatStore | null> {
+  const { kernel, isDaemonRunId } = deps;
+  await kernel.lockKey(`chat-slot:${required.conversationId}`);
+  await kernel.lockKey(runLockKey(required));
+  const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: required.workspaceId, ownerKind: "user", ownerId: required.principalId } }, {});
+  return await history.get({ id: required.conversationId }) ? history : null;
+}
+
+async function appendAcceptedQuestion(
+  { history, required, userMessage }: { history: ChatStore; required: Accept; userMessage: ChatMessage }, _options = {},
+): Promise<void> {
+  if (userMessage.id === required.messageId) throw new Error("User and assistant messages must have different IDs");
+  // A pending/failed browser PUT must never let the assistant take the first position.
+  // Nested appends join this transaction and retain the conversation lock through both
+  // writes, so either arrival order of the idempotent PUT yields user then assistant.
+  const saved = await history.appendMessage({ conversationId: required.conversationId, message: userMessage });
+  if (!saved || saved.role !== "user") throw new Error("Accepted user message could not be persisted");
+}
+
+/** @returns false when the answer id collides and no question was written. */
+async function appendQueuedAnswer(
+  { history, required, hasQuestion }: { history: ChatStore; required: Accept; hasQuestion: boolean }, _options = {},
+): Promise<boolean> {
+  const message: ChatMessage = { id: required.messageId, role: "assistant", content: "", events: [],
+    runId: required.runId, runStatus: "queued", createdAt: required.now, startedAt: required.now,
+    ...(required.request.agentId ? { agentId: required.request.agentId } : {}) };
+  const savedMessage = await history.appendMessage({ conversationId: required.conversationId, message });
+  if (savedMessage?.role === "assistant") return true;
+  // Returning null here would commit the question alone after an ID collision.
+  if (hasQuestion) throw new Error("Accepted assistant message could not be persisted");
+  return false;
+}
+
+async function acceptRun({ deps, required }: { deps: Deps; required: Accept }): Promise<DurableRun | null> {
+  return deps.kernel.transaction(async () => {
+    const history = await lockOwnedConversation({ deps, required });
+    if (!history) return null;
+    const existing = await loadRun({ deps, messageId: required.messageId }, { includeTranscriptEvents: false });
+    if (existing) return sameOwner({ run: existing, required }) ? existing : null;
+    if (await slotOccupied({ kernel: deps.kernel, conversationId: required.conversationId })) throw new RunSlotBusyError();
+    const userMessage = acceptedUserMessage({ request: required.request, now: required.now }, {});
+    if (userMessage) await appendAcceptedQuestion({ history, required, userMessage });
+    if (!await appendQueuedAnswer({ history, required, hasQuestion: userMessage !== null })) return null;
+    await insertAttempt({ kernel: deps.kernel, values: acceptedAttemptRow({ required }) });
+    return loadRun({ deps, messageId: required.messageId }, { includeTranscriptEvents: false });
+  });
+}
+
+async function advanceRun({ deps, args: { run, nextRunId, now, events } }: { deps: Deps; args: Parameters<DurableRunStore["advance"]>[0] }): Promise<boolean> {
+  const { kernel } = deps;
+  return kernel.transaction(async () => {
+    await kernel.lockKey(runLockKey(run));
+    // The projection rebase needs this run's events, never the rest of its conversation.
+    const current = (await lockedRead({ deps, ...run }, { events: true }))?.head;
+    if (!current || !mayAdvance({ current, run })) return false;
+    const projection = continuationEvents({ current, incoming: events }, {});
+    const content = runContentFromEvents({ events: projection });
+    if (!await casAdvanceProjection({ kernel, run, nextRunId, content, projection })) return false;
+    await writeAttemptMetadata({ kernel, ...advancedAttempt({ run, current, now, projection }) });
+    return true;
+  });
+}
+
+async function cancelRun({ deps, runId, reason }: { deps: Deps; runId: string; reason: string }): Promise<void> {
+  await deps.kernel.transaction(async () => {
+    const run = await lockedRun({ deps, runId });
+    if (!run) return;
+    await writeAttemptMetadata({ kernel: deps.kernel, values: { ...metadataForRun({ run }, {}), cancel_reason: reason }, updates: { cancel_reason: reason } });
+  });
+}
+
+async function cancelPendingRun({ deps, required }: { deps: Deps; required: Parameters<DurableRunStore["cancelPending"]>[0] }): Promise<DurableRun | null> {
+  return deps.kernel.transaction(async () => {
+    const history = await lockOwnedConversation({ deps, required });
+    if (!history) return null;
+    const existing = await loadRun({ deps, messageId: required.messageId }, { includeTranscriptEvents: false });
+    if (existing) {
+      if (!sameOwner({ run: existing, required })) return null;
+      await cancelRun({ deps, runId: existing.runId, reason: "user-stop" }); return loadRun({ deps, messageId: existing.messageId }, { includeTranscriptEvents: false });
+    }
+    // Stop may beat acceptance or its response. A terminal tombstone for the same logical
+    // identity makes any later duplicate acceptance a no-op, without reserving the chat slot.
+    await history.appendMessage({ conversationId: required.conversationId, message: stopTombstone({ required }) });
+    return loadRun({ deps, messageId: required.messageId }, { includeTranscriptEvents: false });
+  });
+}
+
+async function captureRunSession({ deps, args: { runId, sessionId, child, confirmed = true } }: { deps: Deps; args: Parameters<DurableRunStore["captureSession"]>[0] }): Promise<boolean> {
+  const { kernel } = deps;
+  return kernel.transaction(async () => {
+    const run = await lockedRun({ deps, runId });
+    if (!run || !attemptCanExecute({ run }, {})) return false;
+    const fields = capturedSessionFields({ sessionId, child, confirmed });
+    await writeAttemptMetadata({ kernel, values: { ...metadataForRun({ run }, {}), ...fields }, updates: fields });
+    // Session and generation share the same lock/transaction; an old callback cannot write
+    // the conversation's locator in the gap between a successful guard and a later CAS.
+    await saveAgentSession({ kernel, run, sessionId });
+    return true;
+  });
+}
+
+async function clearRunSession({ deps, runId, sessionId }: { deps: Deps; runId: string; sessionId: string }): Promise<void> {
+  await deps.kernel.transaction(async () => {
+    const run = await lockedRun({ deps, runId });
+    if (run) await deleteSession({ kernel: deps.kernel, run, sessionId });
+  });
+}
+
+async function guardRunTool({ deps, required }: { deps: Deps; required: Parameters<DurableRunStore["guardTool"]>[0] }): Promise<"allowed" | "unknown" | "stale"> {
+  return deps.kernel.transaction(async () => {
+    // The unknown-call check needs this run's saved events (one row), never other messages'.
+    const run = await lockedRun({ deps, runId: required.runId }, { events: true });
+    const verdict = toolGuardVerdict({ run, required });
+    if (verdict === "allowed" && run && required.toolUseId) {
+      await writeToolEvent({ kernel: deps.kernel, run, event: { kind: "tool_use", id: required.toolUseId, name: required.toolId, input: required.input } });
+    }
+    return verdict;
+  });
+}
+
+async function completeRunTool({ deps, args: { runId, toolUseId, content } }: { deps: Deps; args: Parameters<DurableRunStore["completeTool"]>[0] }): Promise<void> {
+  await deps.kernel.transaction(async () => {
+    const run = await lockedRun({ deps, runId });
+    if (run) await writeToolEvent({ kernel: deps.kernel, run, event: { kind: "tool_result", toolUseId, content, isError: false } });
+  });
+}
+
+async function runRecoveryClock({ deps, args: { runId, now, active } }: { deps: Deps; args: Parameters<DurableRunStore["recoveryClock"]>[0] }): Promise<void> {
+  const { kernel } = deps;
+  await kernel.transaction(async () => {
+    const run = await lockedRun({ deps, runId });
+    if (!run) return;
+    const row = await selectAttempt({ kernel, messageId: run.messageId }) ?? metadataForRun({ run }, {});
+    const clock = nextRecoveryClock({ row, now, active });
+    await writeAttemptMetadata({ kernel, values: { ...row, ...clock }, updates: clock });
+  });
+}
+
 /** Same kernel and message lock as checkpoint/settle. Claim changes run_id before any spawn;
  * old attempts cannot write projections or dispatch tools after that transaction commits. */
 export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy }, _optional = {}): DurableRunStore {
-  const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
-  /** The run's own message row, with its events only when asked: never another message's. */
-  async function runRow({ match }: { match: RunMatch }, { events = false }: ReadOptions = {}): Promise<RunRow | undefined> {
-    const eventsColumn = events ? sql<string | null>`${sql.ref("ai_chat_messages.events_json")}` : sql<string | null>`null`;
-    return kernel.run((db) => db.selectFrom("ai_chat_messages")
-      .innerJoin("ai_chats", "ai_chats.id", "ai_chat_messages.conversation_id")
-      .select(["ai_chat_messages.id", "conversation_id", "role", "content", "agent_id", "agent_name", "attachments_json",
-        "run_id", "run_status", "position", "ai_chat_messages.created_at", "started_at", "ended_at", "owner_kind", "owner_id", "scope_id"])
-      .select(eventsColumn.as("events_json"))
-      .where(match.column, "=", match.value).where("role", "=", "assistant").executeTakeFirst());
-  }
-
-  /** Conversation projection: callers can omit assistant event payloads; legacy heads need only content. */
-  async function conversationTranscript({ row }: { row: RunRow }, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}): Promise<ChatMessage[]> {
-    const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: row.scope_id, ownerKind: row.owner_kind as "user" | "guest", ownerId: row.owner_id } }, {});
-    return history.messages({ conversationId: row.conversation_id }, { includeEvents });
-  }
-
-  /** Legacy accepted requests and recovery reconstruction consume prior text only. */
-  async function readTranscript({ row, metadata }: { row: RunRow; metadata: Metadata }, options: ReadOptions = {}): Promise<ChatMessage[]> {
-    if (!options.transcript && metadata) return [];
-    const includeEvents = transcriptEventProjection(options);
-    return conversationTranscript({ row }, { includeEvents });
-  }
-
-  /** Accepted user receipts split queued inputs and hold folder references. Keep that small
-   * public metadata even when recovery omits prior assistant event payloads. */
-  function transcriptEventProjection(options: ReadOptions): boolean | "user" {
-    if (options.includeTranscriptEvents === false && options.transcript) return 'user';
-    return options.includeTranscriptEvents ?? options.transcript === true;
-  }
-
-  function currentMessage({ row, transcript }: { row: RunRow; transcript: readonly ChatMessage[] }, options: ReadOptions = {}): ChatMessage | undefined {
-    return options.transcript && options.includeTranscriptEvents !== false
-      ? transcript.find(item => item.id === row.id) : toMessage(row);
-  }
-
-  /** One run's head, plus its transcript when that was read (`[]` otherwise). */
-  async function readRun({ match }: { match: RunMatch }, options: ReadOptions = {}): Promise<RunRead | null> {
-    const row = await runRow({ match }, options);
-    if (!row || !row.run_id) return null;
-    const messageId = row.id;
-    const metadata = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", messageId).executeTakeFirst());
-    // A legacy row's accepted request is derived from its transcript, so only it reads one here.
-    const transcript = await readTranscript({ row, metadata }, options);
-    const message = currentMessage({ row, transcript }, options);
-    if (!message) return null; // Deletion may have cascaded between the two reads.
-    return { head: runHead({ row, runId: row.run_id, metadata, message, transcript }, { isDaemonRunId }),
-      transcript: transcript.map(item => item.id === messageId ? message : item) };
-  }
-
-  /** Locked read of one message; `transcript` decides whether it is a whole run or only its head. */
-  async function lockedRead(
-    { messageId, conversationId }: { messageId: string; conversationId: string }, options: ReadOptions = {},
-  ): Promise<RunRead | null> {
-    return kernel.transaction(async () => {
-      // Message, attempt metadata and transcript must describe the same generation. A CAS in
-      // the gap between independent reads must never pair a new projection with an old session.
-      await kernel.lockKey(runLockKey({ messageId, conversationId, runId: "" }));
-      return readRun({ match: { column: "ai_chat_messages.id", value: messageId } }, options);
-    });
-  }
-
-  async function load({ messageId }: { messageId: string }, { includeTranscriptEvents = true }: { includeTranscriptEvents?: boolean } = {}): Promise<DurableRun | null> {
-    const binding = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("conversation_id")
-      .where("id", "=", messageId).executeTakeFirst());
-    if (!binding) return null;
-    // Full reads take the message from the transcript. Lean reads select its own events once,
-    // omitting prior assistant payloads while retaining accepted user receipts.
-    const read = await lockedRead({ messageId, conversationId: binding.conversation_id },
-      { transcript: true, includeTranscriptEvents, events: !includeTranscriptEvents });
-    return read && { ...read.head, transcript: read.transcript };
-  }
-
-  /** Single-message read; message identity survives continuation while run_id changes.
-   * Legacy request reconstruction needs only transcript content, never its old event columns. */
-  async function head({ messageId }: { messageId: string }, { events = true }: { events?: boolean } = {}): Promise<DurableRunHead | null> {
-    const binding = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("conversation_id")
-      .where("id", "=", messageId).executeTakeFirst());
-    if (!binding) return null;
-    return (await lockedRead({ messageId, conversationId: binding.conversation_id }, { events }))?.head ?? null;
-  }
-
-  /** Read only one owned projection, without a run lock or accepted-request reconstruction.
-   * Native database versions follow checkpoint growth, replacements, attempts and settlement. SQL omits
-   * content/events on a hit; only changed rows cross into JS as raw JSON, never parsed events.
-   * @complexity One indexed row read; O(1) unchanged payload and JS space; changed payload is O(current message bytes).
-   */
-  async function poll(
-    { messageId, principalId, workspaceId }: { messageId: string; principalId: string; workspaceId: string },
-    { cursor }: { cursor?: string } = {},
-  ) {
-    // SQLite has no per-row version: combine this connection's writes with the external-commit
-    // generation. Unrelated writes may invalidate the cursor, but equal-length rewrites cannot
-    // hide. PostgreSQL supplies the row's own MVCC version. Neither reads the event column.
-    const version = kernel.dialect === 'sqlite'
-      ? sqliteReadVersion({ kernel })
-      : sql<string>`cast(ai_chat_messages.xmin as text)`;
-    const changed = sql<boolean>`${version} <> ${cursor ?? ''}`;
-    // Run writers persist compact JSON arrays on both engines. SQLite also tolerates malformed
-    // legacy rows through its native validator; PG14 has no safe try-cast (do not parse in JS).
-    const valid = kernel.dialect === 'sqlite' ? sql<number>`json_valid(events_json)` : sql<number>`1`;
-    const row = await kernel.run(db => db.selectFrom('ai_chat_messages')
-      .innerJoin('ai_chats', 'ai_chats.id', 'ai_chat_messages.conversation_id')
-      .select(['ai_chat_messages.id', 'conversation_id', 'role'])
-      .select([
-        sql<string | null>`case when ${changed} then run_id else null end`.as('run_id'),
-        sql<string | null>`case when ${changed} then run_status else null end`.as('run_status'),
-        sql<string | null>`case when ${changed} then agent_id else null end`.as('agent_id'),
-        sql<string | null>`case when ${changed} then agent_name else null end`.as('agent_name'),
-        sql<string | null>`case when ${changed} then attachments_json else null end`.as('attachments_json'),
-        sql<number>`case when ${changed} then ai_chat_messages.created_at else 0 end`.as('created_at'),
-        sql<number | null>`case when ${changed} then started_at else null end`.as('started_at'),
-        sql<number | null>`case when ${changed} then ended_at else null end`.as('ended_at')])
-      .select([version.as('cursor'),
-        sql<string>`case when ${changed} then content else '' end`.as('content'),
-        sql<string | null>`case when ${changed} then events_json else null end`.as('events_json'),
-        sql<number | null>`case when ${changed} then ${valid} else null end`.as('events_json_valid')])
-      .where('ai_chat_messages.id', '=', messageId).where('role', '=', 'assistant')
-      .where('owner_kind', '=', 'user').where('owner_id', '=', principalId).where('scope_id', '=', workspaceId)
-      .executeTakeFirst());
-    if (!row) return null;
-    if (row.cursor === cursor) return { cursor: row.cursor };
-    const metadata = JSON.stringify(toMessage({ ...row, events_json: null }));
-    const events = validatedEventsJson({ row });
-    const messageJson = events === undefined ? metadata : metadata.slice(0, -1) + ',"events":' + events + '}';
-    return { cursor: row.cursor, conversationId: row.conversation_id, messageJson };
-  }
-
-  /** Unlocked probe: the message and conversation an attempt id currently names. */
-  async function probeRun({ runId }: { runId: string }, _options = {}) {
-    return kernel.run((db) => db.selectFrom("ai_chat_messages").select(["id", "conversation_id"])
-      .where("run_id", "=", runId).where("role", "=", "assistant").executeTakeFirst());
-  }
-
-  async function find({ runId, principalId }: { runId: string; principalId?: string }, _options = {}): Promise<DurableRunHead | null> {
-    const row = await probeRun({ runId });
-    if (!row) return null;
-    const run = (await lockedRead({ messageId: row.id, conversationId: row.conversation_id }, { events: true }))?.head ?? null;
-    return principalId !== undefined && run?.principalId !== principalId ? null : run;
-  }
-
-  /** Slot and run locks, then the owner-scoped conversation; null when the caller does not own it. */
-  async function lockOwnedConversation(
-    { required }: { required: RunRef & { principalId: string; workspaceId: string } }, _options = {},
-  ): Promise<ChatStore | null> {
-    await kernel.lockKey(`chat-slot:${required.conversationId}`);
-    await kernel.lockKey(runLockKey(required));
-    const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: required.workspaceId, ownerKind: "user", ownerId: required.principalId } }, {});
-    return await history.get({ id: required.conversationId }) ? history : null;
-  }
-
-  async function assertSlotFree({ conversationId }: { conversationId: string }, _options = {}): Promise<void> {
-    const occupied = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("id")
-      .where("conversation_id", "=", conversationId).where("role", "=", "assistant")
-      .where("run_status", "in", ["queued", "running"]).executeTakeFirst());
-    if (occupied) throw new RunSlotBusyError();
-  }
-
-  async function appendAcceptedQuestion(
-    { history, required, userMessage }: { history: ChatStore; required: Parameters<DurableRunStore["accept"]>[0]; userMessage: ChatMessage }, _options = {},
-  ): Promise<void> {
-    if (userMessage.id === required.messageId) throw new Error("User and assistant messages must have different IDs");
-    // A pending/failed browser PUT must never let the assistant take the first position.
-    // Nested appends join this transaction and retain the conversation lock through both
-    // writes, so either arrival order of the idempotent PUT yields user then assistant.
-    const saved = await history.appendMessage({ conversationId: required.conversationId, message: userMessage });
-    if (!saved || saved.role !== "user") throw new Error("Accepted user message could not be persisted");
-  }
-
-  /** @returns false when the answer id collides and no question was written. */
-  async function appendQueuedAnswer(
-    { history, required, hasQuestion }: { history: ChatStore; required: Parameters<DurableRunStore["accept"]>[0]; hasQuestion: boolean }, _options = {},
-  ): Promise<boolean> {
-    const message: ChatMessage = { id: required.messageId, role: "assistant", content: "", events: [],
-      runId: required.runId, runStatus: "queued", createdAt: required.now, startedAt: required.now,
-      ...(required.request.agentId ? { agentId: required.request.agentId } : {}) };
-    const savedMessage = await history.appendMessage({ conversationId: required.conversationId, message });
-    if (savedMessage?.role === "assistant") return true;
-    // Returning null here would commit the question alone after an ID collision.
-    if (hasQuestion) throw new Error("Accepted assistant message could not be persisted");
-    return false;
-  }
-
-  async function accept(required: Parameters<DurableRunStore["accept"]>[0], _options = {}): Promise<DurableRun | null> {
-    return kernel.transaction(async () => {
-      const history = await lockOwnedConversation({ required });
-      if (!history) return null;
-      const existing = await load({ messageId: required.messageId }, { includeTranscriptEvents: false });
-      if (existing) return sameOwner({ run: existing, required }) ? existing : null;
-      await assertSlotFree({ conversationId: required.conversationId });
-      const userMessage = acceptedUserMessage({ request: required.request, now: required.now }, {});
-      if (userMessage) await appendAcceptedQuestion({ history, required, userMessage });
-      if (!await appendQueuedAnswer({ history, required, hasQuestion: userMessage !== null })) return null;
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({
-        message_id: required.messageId, engine: "daemon", accepted_json: JSON.stringify(maskedRequest({ request: required.request }, {})),
-        recovery_count: 0, recovery_deadline: null, last_progress_at: required.now, cancel_reason: null,
-        recovery_elapsed_ms: 0, attempt_started_at: required.now,
-        session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: "[]",
-      }).execute());
-      return load({ messageId: required.messageId }, { includeTranscriptEvents: false });
-    });
-  }
-
-  async function writeAttemptMetadata({ values, updates }: {
-    values: Insertable<ChatDatabase["assistant_run_attempts"]>;
-    updates: Updateable<ChatDatabase["assistant_run_attempts"]>;
-  }): Promise<void> {
-    await kernel.run(db => db.insertInto("assistant_run_attempts").values(values)
-      .onConflict(oc => oc.column("message_id").doUpdateSet(updates)).execute());
-  }
-
-  async function advance({ run, nextRunId, now, events }: Parameters<DurableRunStore["advance"]>[0], _options = {}): Promise<boolean> {
-    return kernel.transaction(async () => {
-      await kernel.lockKey(runLockKey(run));
-      // The projection rebase needs this run's events, never the rest of its conversation.
-      const current = (await lockedRead(run, { events: true }))?.head;
-      if (!current || current.cancelReason || current.runId !== run.runId) return false;
-      const projection = continuationEvents({ current, incoming: events }, {});
-      const result = await kernel.run((db) => db.updateTable("ai_chat_messages")
-        .set({ run_id: nextRunId, run_status: "queued", content: runContentFromEvents({ events: projection }), events_json: JSON.stringify(projection) })
-        .where("id", "=", run.messageId).where("run_id", "=", run.runId)
-        .where("run_status", "in", ["queued", "running"]).executeTakeFirst());
-      if (Number(result.numUpdatedRows) === 0) return false;
-      await writeAttemptMetadata({ values: {
-        message_id: run.messageId, engine: run.engine, accepted_json: JSON.stringify(run.request),
-        recovery_count: current.recoveryCount + 1, recovery_deadline: current.recoveryDeadline ?? now + RECOVERY_WINDOW_MS,
-        recovery_elapsed_ms: 0, attempt_started_at: now,
-        last_progress_at: current.lastProgressAt, cancel_reason: null, session_id: null,
-        session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(projection),
-      }, updates: {
-        recovery_count: current.recoveryCount + 1, recovery_deadline: current.recoveryDeadline ?? now + RECOVERY_WINDOW_MS,
-        attempt_started_at: now,
-        session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(projection),
-      } });
-      return true;
-    });
-  }
-
-  /** Probe without the run lock, take it, then read: a run deleted or advanced in the gap reads as gone.
-   * One read under the lock serves the whole operation; the unlocked probe only names the lock.
-   * @returns The run as of the lock, or null when the attempt id is unknown or no longer current. */
-  async function lockedRun({ runId }: { runId: string }, options: ReadOptions = {}): Promise<DurableRunHead | null> {
-    const probe = await probeRun({ runId });
-    if (!probe) return null;
-    await kernel.lockKey(runLockKey({ messageId: probe.id, conversationId: probe.conversation_id, runId }));
-    return (await readRun({ match: { column: "ai_chat_messages.run_id", value: runId } }, options))?.head ?? null;
-  }
-
-  async function cancel({ runId, reason }: Parameters<DurableRunStore["cancel"]>[0], _options = {}): Promise<void> {
-    await kernel.transaction(async () => {
-      const run = await lockedRun({ runId });
-      if (!run) return;
-      await writeAttemptMetadata({ values: { ...metadataForRun({ run }, {}), cancel_reason: reason }, updates: { cancel_reason: reason } });
-    });
-  }
-
-  async function cancelPending(required: Parameters<DurableRunStore["cancelPending"]>[0], _options = {}): Promise<DurableRun | null> {
-    return kernel.transaction(async () => {
-      const history = await lockOwnedConversation({ required });
-      if (!history) return null;
-      const existing = await load({ messageId: required.messageId }, { includeTranscriptEvents: false });
-      if (existing) {
-        if (!sameOwner({ run: existing, required })) return null;
-        await cancel({ runId: existing.runId, reason: "user-stop" }, {}); return load({ messageId: existing.messageId }, { includeTranscriptEvents: false });
-      }
-      // Stop may beat acceptance or its response. A terminal tombstone for the same logical
-      // identity makes any later duplicate acceptance a no-op, without reserving the chat slot.
-      await history.appendMessage({ conversationId: required.conversationId, message: { id: required.messageId, role: "assistant", content: "",
-        events: [{ kind: "status", label: "Stopped." }], runId: required.runId, runStatus: "canceled", createdAt: required.now, endedAt: required.now } });
-      return load({ messageId: required.messageId }, { includeTranscriptEvents: false });
-    });
-  }
-
-  async function saveAgentSession({ run, sessionId }: { run: DurableRunHead; sessionId: string }): Promise<void> {
-    await kernel.run((db) => db.insertInto("assistant_agent_sessions").values({ conversation_id: run.conversationId,
-      agent_id: run.request.agentId ?? "claude", session_id: sessionId, updated_at: Date.now() })
-      .onConflict((oc) => oc.columns(["conversation_id", "agent_id"]).doUpdateSet({ session_id: sessionId, updated_at: Date.now() })).execute());
-  }
-
-  async function captureSession({ runId, sessionId, child, confirmed = true }: Parameters<DurableRunStore["captureSession"]>[0], _options = {}): Promise<boolean> {
-    return kernel.transaction(async () => {
-      const run = await lockedRun({ runId });
-      if (!run || !attemptCanExecute({ run }, {})) return false;
-      const fields = { session_id: sessionId, session_confirmed: confirmed ? 1 : 0, ...(child ? { child_pid: child.pid, child_started_at: child.startedAt } : {}) };
-      await writeAttemptMetadata({ values: { ...metadataForRun({ run }, {}), ...fields }, updates: fields });
-      // Session and generation share the same lock/transaction; an old callback cannot write
-      // the conversation's locator in the gap between a successful guard and a later CAS.
-      await saveAgentSession({ run, sessionId });
-      return true;
-    });
-  }
-
-  async function clearSession({ runId, sessionId }: Parameters<DurableRunStore["clearSession"]>[0], _options = {}): Promise<void> {
-    await kernel.transaction(async () => {
-      const run = await lockedRun({ runId });
-      if (!run) return;
-      await kernel.run((db) => db.deleteFrom("assistant_agent_sessions").where("conversation_id", "=", run.conversationId)
-        .where("agent_id", "=", run.request.agentId ?? "claude").where("session_id", "=", sessionId).execute());
-      await kernel.run((db) => db.updateTable("assistant_run_attempts").set({ session_id: null, session_confirmed: 0 })
-        .where("message_id", "=", run.messageId).where("session_id", "=", sessionId).execute());
-    });
-  }
-
-  async function guardTool(required: Parameters<DurableRunStore["guardTool"]>[0], _options = {}): Promise<"allowed" | "unknown" | "stale"> {
-    return kernel.transaction(async () => {
-      // The unknown-call check needs this run's saved events (one row), never other messages'.
-      const run = await lockedRun({ runId: required.runId }, { events: true });
-      if (!run || !attemptCanExecute({ run }, {})) return "stale";
-      const events = run.message.events ?? [];
-      const canonical = events.filter((event) => event.kind !== "tool_use" || event.name === required.toolId);
-      if (hasUnknownToolCall({ ...required, events: run.attemptBase }, {}) || hasUnknownToolCall({ ...required, events: canonical }, {})) return "unknown";
-      if (required.toolUseId) await writeToolEvent(run, { kind: "tool_use", id: required.toolUseId, name: required.toolId, input: required.input });
-      return "allowed";
-    });
-  }
-
-  async function writeToolEvent(run: DurableRunHead, event: AgentEvent): Promise<void> {
-    await kernel.run((db) => db.updateTable("ai_chat_messages").set({ events_json: appendedEventsJson({ event }) })
-      .where("id", "=", run.messageId).where("run_id", "=", run.runId).where("run_status", "in", ["queued", "running"]).execute());
-    await kernel.run((db) => db.updateTable("assistant_run_attempts")
-      .set({ recovery_count: 0, recovery_deadline: null, recovery_elapsed_ms: 0, last_progress_at: Date.now() })
-      .where("message_id", "=", run.messageId).execute());
-  }
-
-  async function completeTool({ runId, toolUseId, content }: Parameters<DurableRunStore["completeTool"]>[0], _options = {}): Promise<void> {
-    await kernel.transaction(async () => {
-      const run = await lockedRun({ runId });
-      if (run) await writeToolEvent(run, { kind: "tool_result", toolUseId, content, isError: false });
-    });
-  }
-
-  async function recoveryClock({ runId, now, active }: Parameters<DurableRunStore["recoveryClock"]>[0], _options = {}): Promise<void> {
-    await kernel.transaction(async () => {
-      const run = await lockedRun({ runId });
-      if (!run) return;
-      const row = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", run.messageId).executeTakeFirst())
-        ?? metadataForRun({ run }, {});
-      let deadline = row.recovery_deadline;
-      let elapsed = row.recovery_elapsed_ms;
-      if (active && deadline === null) deadline = now + Math.max(0, RECOVERY_WINDOW_MS - elapsed);
-      if (!active && deadline !== null) { elapsed = Math.max(0, RECOVERY_WINDOW_MS - (deadline - now)); deadline = null; }
-      await writeAttemptMetadata({ values: { ...row, recovery_deadline: deadline, recovery_elapsed_ms: elapsed }, updates: { recovery_deadline: deadline, recovery_elapsed_ms: elapsed } });
-    });
-  }
-
-  return { load, head, poll, find, accept, advance, cancel, cancelPending, captureSession, clearSession, guardTool, completeTool, recoveryClock };
+  const deps: Deps = { kernel: chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {}), isDaemonRunId };
+  return {
+    load: ({ messageId }, options) => loadRun({ deps, messageId }, options),
+    head: ({ messageId }, options) => headRun({ deps, messageId }, options),
+    poll: (required, options) => pollProjection({ kernel: deps.kernel, ...required }, options),
+    find: (required) => findRun({ deps, ...required }),
+    accept: (required) => acceptRun({ deps, required }),
+    advance: (args) => advanceRun({ deps, args }),
+    cancel: (required) => cancelRun({ deps, ...required }),
+    cancelPending: (required) => cancelPendingRun({ deps, required }),
+    captureSession: (args) => captureRunSession({ deps, args }),
+    clearSession: (required) => clearRunSession({ deps, ...required }),
+    guardTool: (required) => guardRunTool({ deps, required }),
+    completeTool: (args) => completeRunTool({ deps, args }),
+    recoveryClock: (args) => runRecoveryClock({ deps, args }),
+  };
 }

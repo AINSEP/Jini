@@ -161,20 +161,6 @@
     "value": 117
   },
   {
-    "file": "packages/chat/src/store/runtime/durable-run-store.ts",
-    "function": "createDurableRunStore",
-    "line": 182,
-    "rule": "max-lines-per-function",
-    "value": 280
-  },
-  {
-    "file": "packages/chat/src/store/runtime/run-ledger.ts",
-    "function": "createChatRunLedger",
-    "line": 126,
-    "rule": "max-lines-per-function",
-    "value": 185
-  },
-  {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
     "line": 852,
