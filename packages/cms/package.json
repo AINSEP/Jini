@@ -26,6 +26,7 @@
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
       "./publish/content/peer-url": "universal",
+      "./publish/content/peer-transport": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -526,6 +527,7 @@
       "./publish/content/apply-row": "node",
       "./publish/content/backstop-service": "universal",
       "./publish/content/composite-blob-source": "node",
+      "./publish/content/gated-hooks": "node",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
       "./taxonomy/site/publish-term-ids": "universal",
@@ -1016,6 +1018,11 @@
       "types": "./dist/publish/content/peer-url.d.ts",
       "import": "./dist/publish/content/peer-url.js",
       "default": "./dist/publish/content/peer-url.js"
+    },
+    "./publish/content/peer-transport": {
+      "types": "./dist/publish/content/peer-transport.d.ts",
+      "import": "./dist/publish/content/peer-transport.js",
+      "default": "./dist/publish/content/peer-transport.js"
     },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
@@ -3521,6 +3528,11 @@
       "types": "./dist/publish/content/composite-blob-source.d.ts",
       "import": "./dist/publish/content/composite-blob-source.js",
       "default": "./dist/publish/content/composite-blob-source.js"
+    },
+    "./publish/content/gated-hooks": {
+      "types": "./dist/publish/content/gated-hooks.d.ts",
+      "import": "./dist/publish/content/gated-hooks.js",
+      "default": "./dist/publish/content/gated-hooks.js"
     },
     "./trash/site/adapters/marker-sql": {
       "types": "./dist/trash/site/adapters/marker-sql.d.ts",

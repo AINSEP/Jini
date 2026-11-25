@@ -75,6 +75,14 @@
       "./backup/site/share-refusal": "universal",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
+      "./backup/site/import-plugin-state": "node",
+      "./backup/site/import-restore-placement": "node",
+      "./backup/site/static-download-landing": "universal",
+      "./backup/site/static-copy": "node",
+      "./backup/site/static-download-layout": "node",
+      "./backup/site/static-site-packager": "node",
+      "./backup/site/package-file-inventory": "node",
+      "./backup/site/bundled-export-file-policy": "node",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
       "./deploy/site/deploy-config-registry": "node"
@@ -406,6 +414,46 @@
       "types": "./dist/backup/site/static-export-selection.d.ts",
       "import": "./dist/backup/site/static-export-selection.js",
       "default": "./dist/backup/site/static-export-selection.js"
+    },
+    "./backup/site/import-plugin-state": {
+      "types": "./dist/backup/site/import-plugin-state.d.ts",
+      "import": "./dist/backup/site/import-plugin-state.js",
+      "default": "./dist/backup/site/import-plugin-state.js"
+    },
+    "./backup/site/import-restore-placement": {
+      "types": "./dist/backup/site/import-restore-placement.d.ts",
+      "import": "./dist/backup/site/import-restore-placement.js",
+      "default": "./dist/backup/site/import-restore-placement.js"
+    },
+    "./backup/site/static-download-landing": {
+      "types": "./dist/backup/site/static-download-landing.d.ts",
+      "import": "./dist/backup/site/static-download-landing.js",
+      "default": "./dist/backup/site/static-download-landing.js"
+    },
+    "./backup/site/static-copy": {
+      "types": "./dist/backup/site/static-copy.d.ts",
+      "import": "./dist/backup/site/static-copy.js",
+      "default": "./dist/backup/site/static-copy.js"
+    },
+    "./backup/site/static-download-layout": {
+      "types": "./dist/backup/site/static-download-layout.d.ts",
+      "import": "./dist/backup/site/static-download-layout.js",
+      "default": "./dist/backup/site/static-download-layout.js"
+    },
+    "./backup/site/static-site-packager": {
+      "types": "./dist/backup/site/static-site-packager.d.ts",
+      "import": "./dist/backup/site/static-site-packager.js",
+      "default": "./dist/backup/site/static-site-packager.js"
+    },
+    "./backup/site/package-file-inventory": {
+      "types": "./dist/backup/site/package-file-inventory.d.ts",
+      "import": "./dist/backup/site/package-file-inventory.js",
+      "default": "./dist/backup/site/package-file-inventory.js"
+    },
+    "./backup/site/bundled-export-file-policy": {
+      "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
+      "import": "./dist/backup/site/bundled-export-file-policy.js",
+      "default": "./dist/backup/site/bundled-export-file-policy.js"
     },
     "./deploy/site/ports": {
       "types": "./dist/deploy/site/ports.d.ts",
