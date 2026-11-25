@@ -2,7 +2,7 @@ import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
 import { expect, it, vi } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { buildMcpJsonServerEntry, resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
-import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 
 it('locked Claude staging never imports project MCP servers, even with an opt-in present elsewhere', async () => {
   let reads = 0; let written = '';
@@ -72,7 +72,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent 
     expect(config.mcpServers.jini.env).toEqual({ JINI_RUN_ID: 'run', JINI_DAEMON_URL: 'http://site', JINI_DAEMON_TOKEN: 'run-credential',
       JINI_STARTUP_TOOL_IDS: '["run_visible"]', JINI_DIAGNOSTIC_TOOL_IDS: '["diagnostic_only"]' });
   } else {
-    const home = await prepareCodexHomeIfNeeded({ input: { runId: 'run', def, mcpBridge: delivery },
+    const home = await prepareBoundRunHome({ input: { runId: 'run', def, mcpBridge: delivery },
       deps: { hostEnv: {}, mcpJsonInjection: options, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
     const config = written.get('/tmp/fake-m2-home/config.toml')!;
     expect(config).toContain('JINI_STARTUP_TOOL_IDS = "[\\"run_visible\\"]"');

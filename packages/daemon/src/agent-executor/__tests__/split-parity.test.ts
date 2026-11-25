@@ -22,7 +22,7 @@ describe('agent executor split parity', () => {
       'stagePromptFile', 'stageLogFile', 'resolveMcpBridgeForRun', 'computeChildEnv',
       'computeRuntimeContext', 'buildAgentBuildArgsOptions', 'resolveSystemPromptOverlayDelivery',
       'buildRunArgs', 'writeMcpJsonIfNeeded', 'prepareSystemPromptOverlayFileIfNeeded',
-      'prepareCodexHomeIfNeeded', 'prepareClaudeConfigDirIfNeeded', 'guardWindowsCommandLineBudget',
+      'prepareRunHomeIfNeeded', 'prepareClaudeConfigDirIfNeeded', 'guardWindowsCommandLineBudget',
       'spawnAgentChildProcess', 'isStdinDrivenFormat', 'confirmChildSpawned', 'armHandoffWatcher',
       'runAcpDispatch', 'runPiRpcDispatch', 'createAgentExecutor', 'bridgePreflightEntry',
     ] as const;

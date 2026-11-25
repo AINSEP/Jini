@@ -1,5 +1,4 @@
-import type { McpHttpEndpoint, McpJsonInjectionOptions } from '../contracts.js';
-import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
+import { JINI_MCP_SERVER_KEY, type CodexBridgeEntry, type CodexHttpEndpoint, type CodexToolApprovalOwner } from './contracts.js';
 
 /**
  * TOML basic-string escaping for the narrow value shapes {@link buildCodexMcpServerToml} emits (a
@@ -62,7 +61,7 @@ const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
  * @complexity O(n) in the number of argv/env entries.
  * @overallScore 100/100
  */
-export function buildCodexMcpServerToml({ entry, toolApprovalOwner }: { readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>; readonly toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'] }, _options = {}): string {
+export function buildCodexMcpServerToml({ entry, toolApprovalOwner }: { readonly entry: CodexBridgeEntry | CodexHttpEndpoint; readonly toolApprovalOwner?: CodexToolApprovalOwner }, _options = {}): string {
   const approval = toolApprovalOwner === 'host' ? 'default_tools_approval_mode = "approve"\n' : '';
   if ('url' in entry) return buildCodexHttpMcpServerToml({ endpoint: entry }, { approval });
   const argsLiteral = entry.args.map(tomlString).join(', ');
@@ -80,7 +79,7 @@ export function buildCodexMcpServerToml({ entry, toolApprovalOwner }: { readonly
  * @returns One HTTP table using the existing timeout and TOML escaping owner.
  * @complexity O(endpoint bytes), without I/O.
  */
-function buildCodexHttpMcpServerToml({ endpoint }: { endpoint: Pick<McpHttpEndpoint, 'url' | 'token'> }, { approval = '' }: { approval?: string } = {}): string {
+function buildCodexHttpMcpServerToml({ endpoint }: { endpoint: CodexHttpEndpoint }, { approval = '' }: { approval?: string } = {}): string {
   return `[mcp_servers.${JINI_MCP_SERVER_KEY}]\nurl = ${tomlString(endpoint.url)}\n` +
     `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n${approval}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.http_headers]\n` +
     `Authorization = ${tomlString(`Bearer ${endpoint.token}`)}\n`;
@@ -220,9 +219,9 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  * @complexity O(n) in the existing config's length.
  */
 export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = true, inheritUserSettings = true, toolApprovalOwner }: {
-  readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>;
+  readonly existingRaw: string | undefined; readonly entry: CodexBridgeEntry | CodexHttpEndpoint;
   readonly inheritUserMcp?: boolean; readonly inheritUserSettings?: boolean;
-  readonly toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'];
+  readonly toolApprovalOwner?: CodexToolApprovalOwner;
 }, _optional: Record<string, never> = {}): string {
   const base = stripExistingJiniMcpServerTable(existingRaw ?? '', { allServers: !inheritUserMcp, mcpOnly: !inheritUserSettings });
   const blockBreak = base.endsWith('\n') ? '\n' : '\n\n';

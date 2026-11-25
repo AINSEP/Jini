@@ -106,7 +106,6 @@ export {
   type ContinuationOptions,
   type McpJsonInjectionOptions,
   type McpBridgeDelivery,
-  type PreparedCodexHome,
   type PreparedClaudeConfigDir,
   type ClaudeConfigDirSeams,
   type ClaudeConfigDirIsolationOptions,
@@ -161,8 +160,8 @@ export {
 export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
 export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
 export { mergeMcpJsonContent } from './mcp-json-file.js';
-export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
-export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
+export { prepareRunHomeIfNeeded } from './run-home.js';
+export type { PreparedRunHome } from '../ports/agent-runtime.js';
 export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
 export { bridgePreflightEntry } from './mcp-bridge-preflight-entry.js';
 export { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';

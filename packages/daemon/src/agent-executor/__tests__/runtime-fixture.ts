@@ -1,6 +1,7 @@
 import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeState } from '@jini-ai/agent-runtime';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
+import { prepareRunHomeIfNeeded } from '../run-home.js';
 import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import { nodeAtomicWriter, nodeFileLock, nodeProcessControl } from './node-os-ports.js';
 import { createSpawnPort, nodeCommandShell, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
@@ -124,4 +125,15 @@ export function boundMcpDelivery(required: Pick<RuntimeAgentDef, 'externalMcpInj
 export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']> } {
   const mcpBridge = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpBridge;
   return mcpBridge === undefined ? {} : { mcpBridge };
+}
+
+/** The staged-home slot the production binding supplies for a def (`undefined` for a def that stages no home). */
+export function boundMcpHome(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpHome?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpHome']> } {
+  const mcpHome = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpHome;
+  return mcpHome === undefined ? {} : { mcpHome };
+}
+
+/** `prepareRunHomeIfNeeded` with the slot the production binding supplies for `input.def`, so a seam test runs the real staging. */
+export function prepareBoundRunHome(required: { input: Parameters<typeof prepareRunHomeIfNeeded>[0]['input']; deps: Omit<Parameters<typeof prepareRunHomeIfNeeded>[0]['deps'], 'mcpHome'> }, _optional: Record<string, never> = {}): ReturnType<typeof prepareRunHomeIfNeeded> {
+  return prepareRunHomeIfNeeded({ input: required.input, deps: { ...required.deps, ...boundMcpHome(required.input.def) } });
 }

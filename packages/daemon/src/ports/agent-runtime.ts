@@ -6,7 +6,7 @@
 import type {
   AgentLaunchResolution, DefaultModelResolution, ModelCatalogSnapshot, ModelDiscoveryContext, ModelIdentityKind,
   NativeToolPolicyInput, PreparedAgentLogFile, PreparedPromptFile, RunPlan, RunPlanHost, RuntimeAgentDef, RuntimeBuildOptions,
-  RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError,
+  RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError, NativeCapabilities,
 } from '@jini-ai/core/contracts/agents';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
@@ -17,6 +17,43 @@ export interface AgentStreamHandler { feed(required: { chunk: string }): void; f
 export type AgentStreamSink = (event: Record<string, unknown>) => void;
 
 type LaunchProbe = { agentId: string; launchPath: string; env: RuntimeEnv };
+
+export interface RunHomeSeams {
+  /**
+   * `'codex-toml'` only. Creates a fresh, randomly-named directory the `mcpHome` slot stages
+   * as a run's scratch `CODEX_HOME`. **Must be non-deterministic (a real `mkdtemp`, not a
+   * caller-computed path)** — unlike `mcpJsonPathForRun`'s deterministic path inside the run's own
+   * `cwd`, this directory holds a copy of the operator's real Codex login credential, and
+   * `os.tmpdir()` is a shared location on a multi-user host: a guessable name there is a real
+   * pre-plant/symlink target for another local user. `fs.mkdtemp`'s random suffix plus its `0700`
+   * directory mode is the actual confidentiality control, matching the same reasoning
+   * `@jini-ai/agent-runtime`'s `log-file.ts`/`prompt-file.ts` already apply to their own staged temp
+   * dirs.
+   * @param prefix - A caller-composed, run-id-derived prefix (already sanitized) for the mkdtemp
+   * template; the real suffix mkdtemp appends is what makes the path unpredictable.
+   * @default `fs.mkdtemp(path.join(os.tmpdir(), prefix))`
+   */
+  readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
+  /**
+   * `'codex-toml'` only. Recursively removes the scratch `CODEX_HOME` directory `mkdtemp` above
+   * created — the directory-level analogue of `removeFile`, needed because this mechanism stages a
+   * whole directory (`config.toml` plus a copied `auth.json`), not one file.
+   * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
+   */
+  readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
+  /** `'codex-toml'` only. Links the run home's sessions/archived_sessions to the operator's
+   * persistent rollout store and authentication. Parity also links user home entries; config alone stays isolated.
+   * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
+  readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
+}
+
+/** A staged, run-scoped home directory: where the child reads its config from, and the release that removes it. */
+export type PreparedRunHome = {
+  /** Absolute path to hand to the spawned child through the slot's `envVar`. */
+  readonly path: string;
+  /** Recursively removes the staged directory — the live login link it may hold makes this a confidentiality cleanup, not just tidiness. Safe to call more than once. */
+  readonly cleanup: () => Promise<void>;
+};
 
 /** Vendor behaviour for one definition. Every slot is optional: a definition that needs none gets `{}`, and the launcher
  * then does nothing vendor-specific for it. The binding picks each slot from what the definition declares. */
@@ -29,6 +66,26 @@ export interface AgentRuntimeStrategies {
    * Runs through the host's lock and writer ports; a rejection fails the run before spawn. Absent: nothing to prepare. */
   readonly mcpBridge?: {
     prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void>;
+  };
+  /** A CLI that takes its MCP config from a run-scoped home directory the host stages before spawn. The directory may hold a
+   * link to the operator's real login and a bearer token, so `stage` owns isolation and the host owns release: a rejection or a
+   * `refused` result leaves nothing staged, and `cleanup` on a staged home removes links, never their targets. Absent: no staged home. */
+  readonly mcpHome?: {
+    /** The environment variable the spawned child reads the staged directory from; it is also kept from the host env. */
+    readonly envVar: string;
+    buildDelivery<E>(required: { serverEntry: E }): { readonly kind: 'codex-toml'; readonly serverEntry: E };
+    withStagedHome(required: { env: NodeJS.ProcessEnv; homeDir: string }): NodeJS.ProcessEnv;
+    /** True when the run turns off personal config, which only a staged home can do: with no staging available the host refuses the start. */
+    turnsOffPersonalConfig(required: { nativeCapabilities?: Partial<NativeCapabilities> }): boolean;
+    stage(required: {
+      runId: string;
+      entry: { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string>> } | { readonly url: string; readonly token: string };
+      nativeToolAccess?: boolean | undefined;
+      nativeCapabilities?: Partial<NativeCapabilities>;
+      hostEnv: NodeJS.ProcessEnv;
+      io: RunHomeSeams & { readFile(required: { path: string }): Promise<string>; writeFile(required: { path: string; content: string }): Promise<void> };
+      toolApprovalOwner?: 'host';
+    }): Promise<{ readonly kind: 'staged'; readonly home: PreparedRunHome } | { readonly kind: 'refused'; readonly message: string }>;
   };
 }
 

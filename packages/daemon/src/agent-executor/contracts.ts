@@ -1,7 +1,6 @@
-import type { CodexMcpHomeOptions } from './codex/contracts.js';
+import type { RunHomeSeams } from '../ports/agent-runtime.js';
 import type { ClaudeExecutorOptions } from './claude/contracts.js';
 import type { McpJsonServerEntry } from './mcp-json-file.js';
-export type { PreparedCodexHome } from './codex/contracts.js';
 export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsolationOptions } from './claude/contracts.js';
 
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
@@ -386,7 +385,7 @@ export interface McpHttpEndpoint {
   close(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
 
-export interface McpJsonInjectionOptions extends CodexMcpHomeOptions {
+export interface McpJsonInjectionOptions extends RunHomeSeams {
   /** The trusted host owns authorization and human confirmation for bridge calls. Codex may
    * approve the jini MCP transport without its own prompt; this grants no target-tool permission.
    * Omission preserves the CLI's default approval behavior. Applies only to the jini bridge. */

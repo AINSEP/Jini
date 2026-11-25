@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { buildCodexHomeConfigToml } from '../home-config.js';
-import { prepareCodexHomeIfNeeded } from '../home-staging.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 
 it('keeps personal MCP and CLI settings independently selectable in Codex staging', () => {
   const existingRaw = 'model = "personal-model"\n[mcp_servers.chrome]\ncommand = "chrome"\n[features]\nmulti_agent = true\n';
@@ -23,7 +23,7 @@ it('refuses an unrewritable inline MCP config instead of ignoring an OFF switch'
 });
 
 it('refuses to ignore a personal-MCP restriction when Codex home staging is unavailable', async () => {
-  await expect(prepareCodexHomeIfNeeded({ input: { runId: 'run', def: getAgentDef({ id: 'codex' })!,
+  await expect(prepareBoundRunHome({ input: { runId: 'run', def: getAgentDef({ id: 'codex' })!,
     mcpBridge: null, nativeToolAccess: true, nativeCapabilities: { userMcp: false },
   }, deps: { hostEnv: {}, mcpJsonInjection: undefined, releaseStagedResources: async () => {},
     failBeforeSpawn: async error => { throw error; },
@@ -63,25 +63,25 @@ const refuse = async (error: { readonly code: string; readonly message: string }
 
 it('refuses to ignore a personal-settings restriction when Codex home staging is unavailable', async () => {
   let released = 0;
-  await expect(prepareCodexHomeIfNeeded({ input: { runId: 'run', def: codexDef, mcpBridge: null, nativeCapabilities: { userSettings: false } },
+  await expect(prepareBoundRunHome({ input: { runId: 'run', def: codexDef, mcpBridge: null, nativeCapabilities: { userSettings: false } },
     deps: { hostEnv: {}, mcpJsonInjection: undefined, releaseStagedResources: async () => { released++; }, failBeforeSpawn: refuse } }))
     .rejects.toEqual({ runId: 'run', code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'AgentExecutor: disabling personal Codex configuration requires run-scoped home staging.' });
   expect(released).toBe(1);
 });
 
 it('stages nothing for a Codex run without restrictions when the host has no codex-toml bridge', async () => {
-  expect(await prepareCodexHomeIfNeeded({ input: { runId: 'run', def: codexDef, mcpBridge: null, nativeCapabilities: { userMcp: true, userSettings: true } },
+  expect(await prepareBoundRunHome({ input: { runId: 'run', def: codexDef, mcpBridge: null, nativeCapabilities: { userMcp: true, userSettings: true } },
     deps: { hostEnv: {}, mcpJsonInjection: undefined, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } })).toBeNull();
 });
 
 it('stages nothing for a non-Codex agent even with personal MCP off', async () => {
-  expect(await prepareCodexHomeIfNeeded({ input: { runId: 'run', def: getAgentDef({ id: 'claude' })!, mcpBridge: null, nativeCapabilities: { userMcp: false } },
+  expect(await prepareBoundRunHome({ input: { runId: 'run', def: getAgentDef({ id: 'claude' })!, mcpBridge: null, nativeCapabilities: { userMcp: false } },
     deps: { hostEnv: {}, mcpJsonInjection: undefined, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } })).toBeNull();
 });
 
 async function stagedConfig(input: { readonly nativeToolAccess?: boolean; readonly nativeCapabilities?: { readonly userMcp?: boolean; readonly userSettings?: boolean } }): Promise<string> {
   const written = new Map<string, string>();
-  await prepareCodexHomeIfNeeded({ input: { runId: 'run', def: codexDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, ...input },
+  await prepareBoundRunHome({ input: { runId: 'run', def: codexDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, ...input },
     deps: { hostEnv: { CODEX_HOME: '/home/codex' }, releaseStagedResources: async () => {}, failBeforeSpawn: refuse, mcpJsonInjection: {
       command: 'host-bridge', daemonUrl: 'http://site', linkSessionStore: async () => {}, removeDir: async () => {},
       mkdtemp: async ({ prefix }) => `/tmp/${prefix}x`,

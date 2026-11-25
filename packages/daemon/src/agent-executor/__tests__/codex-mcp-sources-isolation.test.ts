@@ -11,7 +11,7 @@ import { parse } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { type NativeCapabilities } from '@jini-ai/core/contracts/agents';
-import { prepareCodexHomeIfNeeded } from '../home-staging.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 
 const root = resolve('/fx');
 const home = join(root, 'home', '.codex');
@@ -42,7 +42,7 @@ const refuse = async (error: { readonly code: string; readonly message: string }
 /** Stages a run against the fixture; returns the staged config.toml text. */
 async function stage(files: Map<string, string>, nativeCapabilities: Partial<NativeCapabilities>): Promise<string> {
   let written = '';
-  await prepareCodexHomeIfNeeded({ input: { runId: 'run', def: codexAgentDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, nativeToolAccess: true, nativeCapabilities },
+  await prepareBoundRunHome({ input: { runId: 'run', def: codexAgentDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, nativeToolAccess: true, nativeCapabilities },
     deps: { hostEnv: { CODEX_HOME: home }, releaseStagedResources: async () => {}, failBeforeSpawn: refuse, mcpJsonInjection: {
       command: 'host-bridge', daemonUrl: 'http://site', linkSessionStore: async () => {}, removeDir: async () => {},
       mkdtemp: async ({ prefix }) => join(root, 'tmp', `${prefix}x`),
