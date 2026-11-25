@@ -94,6 +94,9 @@
       "./backup/site/static-site-packager": "node",
       "./backup/site/package-file-inventory": "node",
       "./backup/site/bundled-export-file-policy": "node",
+      "./backup/site/import-verifier-inventory": "node",
+      "./backup/site/import-keep-off": "node",
+      "./backup/site/share-zip": "node",
       "./backup/site/share-hosting": "node",
       "./backup/site/import-registry": "node",
       "./backup/site/share-registry": "node",
@@ -523,6 +526,21 @@
       "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
       "import": "./dist/backup/site/bundled-export-file-policy.js",
       "default": "./dist/backup/site/bundled-export-file-policy.js"
+    },
+    "./backup/site/import-verifier-inventory": {
+      "types": "./dist/backup/site/import-verifier-inventory.d.ts",
+      "import": "./dist/backup/site/import-verifier-inventory.js",
+      "default": "./dist/backup/site/import-verifier-inventory.js"
+    },
+    "./backup/site/import-keep-off": {
+      "types": "./dist/backup/site/import-keep-off.d.ts",
+      "import": "./dist/backup/site/import-keep-off.js",
+      "default": "./dist/backup/site/import-keep-off.js"
+    },
+    "./backup/site/share-zip": {
+      "types": "./dist/backup/site/share-zip.d.ts",
+      "import": "./dist/backup/site/share-zip.js",
+      "default": "./dist/backup/site/share-zip.js"
     },
     "./backup/site/share-hosting": {
       "types": "./dist/backup/site/share-hosting.d.ts",
