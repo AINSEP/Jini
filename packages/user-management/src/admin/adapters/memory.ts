@@ -101,8 +101,8 @@ function roleOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listRoles' | 'create
     const { roles, workspaceId, options } = ctx;
     return {
         async listRoles(_r, o = {}) { check(o); return { roles: [...roles.values()].map(r => ({ ...r })) }; },
-        async createRole(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(roles, n); const role = { id: ctx.id(), workspaceId, name: n, isBuiltin: false }; roles.set(role.id, role); return { role: { ...role } }; },
-        async updateRole(r, o = {}) { ctx.write(o); const old = ctx.editableRole(r.roleId), n = ctx.name(r.name); ctx.unique(roles, n, old.id); const role = { ...old, name: n }; roles.set(role.id, role); return { role: { ...role } }; },
+        async createRole(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(roles, n); const role = { id: ctx.id(), workspaceId, name: n, isBuiltin: false, version: 1 }; roles.set(role.id, role); return { role: { ...role } }; },
+        async updateRole(r, o = {}) { ctx.write(o); const old = ctx.editableRole(r.roleId), n = ctx.name(r.name); ctx.unique(roles, n, old.id); const role = { ...old, name: n, version: old.version + 1 }; roles.set(role.id, role); return { role: { ...role } }; },
         async deleteRole(r, o = {}) {
             ctx.write(o); ctx.editableRole(r.roleId); if (options.referencedRoleIds?.includes(r.roleId)) {
                 failRoles({ code: 'RESOURCE_CONFLICT', message: 'Role is still assigned.' });
@@ -116,12 +116,12 @@ function policyOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicies' | 'c
     const { policies, permissions, workspaceId, options } = ctx;
     return {
         async listPolicies(_r, o = {}) { check(o); return { policies: [...policies.values()].map(p => ({ ...p })) }; },
-        async createPolicy(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(policies, n); const policy: PolicyRecord = { id: ctx.id(), workspaceId, name: n, isBuiltin: false, isFrozen: false, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } }; },
+        async createPolicy(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(policies, n); const policy: PolicyRecord = { version: 1, id: ctx.id(), workspaceId, name: n, isBuiltin: false, isFrozen: false, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } }; },
         async updatePolicy(r, o = {}) {
             ctx.write(o); const old = ctx.editablePolicy(r.policyId); if (o.name === undefined && o.description === undefined) {
                 failRoles({ code: 'VALIDATION_ERROR', message: 'At least one of name or description is required.' });
             }
-            const n = o.name === undefined ? old.name : ctx.name(o.name); ctx.unique(policies, n, old.id); const policy = { ...old, name: n, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } };
+            const n = o.name === undefined ? old.name : ctx.name(o.name); ctx.unique(policies, n, old.id); const policy = { ...old, name: n, version: old.version + 1, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } };
         },
         async deletePolicy(r, o = {}) {
             ctx.write(o); ctx.editablePolicy(r.policyId); if (options.referencedPolicyIds?.includes(r.policyId)) {

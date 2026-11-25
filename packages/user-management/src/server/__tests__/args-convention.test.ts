@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import { createHash } from "node:crypto";
 import { expect, test } from "vitest";
@@ -51,9 +52,9 @@ test("session minting uses injected token operations and optional request metada
   const deps: AuthServiceDeps = {
     repos: createTransactionalInMemoryIdentityRepos({ repos: {
       principals, sessions,
-      users: new memory.InMemoryUserRepo({}),
-      roles: new memory.InMemoryRoleRepo({}),
-      policies: new memory.InMemoryPolicyRepo({}),
+      users: new memory.InMemoryUserRepo({ assertVersionedWrite }),
+      roles: new memory.InMemoryRoleRepo({ assertVersionedWrite }),
+      policies: new memory.InMemoryPolicyRepo({ assertVersionedWrite }),
       policyPermissions: new memory.InMemoryPolicyPermissionRepo({}),
       rolePolicies: new memory.InMemoryRolePolicyRepo({}),
       principalRoles: new memory.InMemoryPrincipalRoleRepo({}),

@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { AuthServiceDeps } from '../auth-service.js';
@@ -11,9 +12,9 @@ import { issueRecoveryCodes, recoverOwner, resetOwnerPassword, type RecoveryCode
 /** Real identity transitions, with deterministic clock/hash seams and a rollback-capable kit store. */
 async function fixture() {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
-    principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({}),
-    sessions: new memory.InMemorySessionRepo({}), roles: new memory.InMemoryRoleRepo({}),
-    policies: new memory.InMemoryPolicyRepo({}), policyPermissions: new memory.InMemoryPolicyPermissionRepo({}),
+    principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({ assertVersionedWrite }),
+    sessions: new memory.InMemorySessionRepo({}), roles: new memory.InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new memory.InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new memory.InMemoryPolicyPermissionRepo({}),
     rolePolicies: new memory.InMemoryRolePolicyRepo({}), principalRoles: new memory.InMemoryPrincipalRoleRepo({}),
     principalPolicies: new memory.InMemoryPrincipalPolicyRepo({}),
   } });

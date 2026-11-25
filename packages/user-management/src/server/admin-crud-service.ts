@@ -179,7 +179,7 @@ export async function enablePrincipal(required: {
 export async function updateUser(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; callerPrincipalId: UUID; principalId: UUID; };
-}, optional: { email?: string | undefined; username?: string | undefined } = {}): Promise<{ user: UserRecord }> {
+}, optional: { email?: string | undefined; username?: string | undefined; expectedVersion?: number | undefined } = {}): Promise<{ user: UserRecord }> {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
@@ -209,8 +209,9 @@ export async function updateUser(required: {
       // Preserve the old email setter contract, while a username-only call retains email.
       const email = input.username !== undefined && !Object.hasOwn(optional, "email")
         ? target.email : (input.email || undefined);
-      const updated: UserRecord = { ...target, username, email };
-      await deps.repos.users.save(updated);
+      // Profile fields only: credential reset and login bookkeeping are their own writes, never routed here.
+      const updated: UserRecord = { ...target, username, email, version: nextVersion({ target, expectedVersion: input.expectedVersion }) };
+      await deps.repos.users.save(updated, versionBasis({ expectedVersion: input.expectedVersion }));
       if (username !== target.username) {
         // Renaming never changes the principal id or credentials: existing sessions stay valid.
         await deps.usernameChanges!.record({
@@ -384,10 +385,24 @@ export async function resetUserPassword(required: {
  * @overallScore 100
  * See docs/decisions/DR-002-grant-authority-and-admin-safety.md.
  */
+/**
+ * The repo save options for an identity edit. The basis is the version the person opened the
+ * editor at; a server read made after that is not their basis, so it is never substituted here —
+ * doing so would let a second editor silently overwrite the first.
+ */
+function versionBasis(required: { expectedVersion: number | undefined }, _optional: Record<string, never> = {}): { expectedVersion?: number } {
+  return required.expectedVersion === undefined ? {} : { expectedVersion: required.expectedVersion };
+}
+
+/** The version an identity edit returns: one past the caller's basis (or the row just read, for legacy callers). */
+function nextVersion(required: { target: { version: number }; expectedVersion: number | undefined }, _optional: Record<string, never> = {}): number {
+  return (required.expectedVersion ?? required.target.version) + 1;
+}
+
 export async function updateRole(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; callerPrincipalId: UUID; roleId: UUID; name: string };
-}): Promise<{ role: RoleRecord }> {
+}, optional: { expectedVersion?: number | undefined } = {}): Promise<{ role: RoleRecord }> {
   const { deps, input } = required;
 
   await assertCallerHasAnyPermission({
@@ -407,8 +422,8 @@ export async function updateRole(required: {
   const name = (input.name ?? "").trim();
   if (!name) throw new IdentityValidationError({ message: "role name is required" });
 
-  const updated: RoleRecord = { ...target, name };
-  await deps.repos.roles.save(updated);
+  const updated: RoleRecord = { ...target, name, version: nextVersion({ target, expectedVersion: optional.expectedVersion }) };
+  await deps.repos.roles.save(updated, versionBasis({ expectedVersion: optional.expectedVersion }));
   return { role: updated };
 }
 
@@ -425,7 +440,7 @@ export async function updateRole(required: {
 export async function updatePolicy(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; callerPrincipalId: UUID; policyId: UUID; };
-}, optional: { name?: string | undefined; description?: string | undefined } = {}): Promise<{ policy: PolicyRecord }> {
+}, optional: { name?: string | undefined; description?: string | undefined; expectedVersion?: number | undefined } = {}): Promise<{ policy: PolicyRecord }> {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
@@ -454,8 +469,9 @@ export async function updatePolicy(required: {
     ...target,
     name,
     description: input.description !== undefined ? input.description : target.description,
+    version: nextVersion({ target, expectedVersion: input.expectedVersion }),
   };
-  await deps.repos.policies.save(updated);
+  await deps.repos.policies.save(updated, versionBasis({ expectedVersion: input.expectedVersion }));
   return { policy: updated };
 }
 

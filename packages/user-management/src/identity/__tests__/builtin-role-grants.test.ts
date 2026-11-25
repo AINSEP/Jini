@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -43,13 +44,13 @@ async function seedRoleWithPolicy(
   const roleId = `role-${required.role}`;
   const policyId = `policy-${required.role}`;
 
-  await fixture.roles.save({
+  await fixture.roles.save({ version: 1,
     id: roleId,
     workspaceId: WORKSPACE,
     name: required.role,
     isBuiltin: required.roleIsBuiltin ?? true,
   });
-  await fixture.policies.save({
+  await fixture.policies.save({ version: 1,
     id: policyId,
     workspaceId: WORKSPACE,
     name: `${required.role}-builtin-policy`,
@@ -74,9 +75,9 @@ async function seedRoleWithPolicy(
 
 function newFixture(): Fixture {
   return {
-    roles: new InMemoryRoleRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
     rolePolicies: new InMemoryRolePolicyRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
   };
 }
@@ -188,7 +189,7 @@ test("a non-built-in policy attached to a built-in role is skipped — operator 
   const fixture = newFixture();
   const role = await seedRoleWithPolicy(fixture, { role: "admin-attached" });
 
-  await fixture.policies.save({
+  await fixture.policies.save({ version: 1,
     id: "policy-operator-made",
     workspaceId: WORKSPACE,
     name: "operator-made-policy",
@@ -262,7 +263,7 @@ test("a dangling policy binding is skipped while a valid built-in binding still 
 
 test("a built-in role with no policy bindings receives no permission rows", async () => {
   const fixture = newFixture();
-  await fixture.roles.save({ id: "unbound", workspaceId: WORKSPACE, name: "unbound", isBuiltin: true });
+  await fixture.roles.save({ version: 1, id: "unbound", workspaceId: WORKSPACE, name: "unbound", isBuiltin: true });
   const registry = createBuiltinRoleGrantRegistry({}, { grants: [
     { role: "unbound", permission: "test.unbound", reason: "no implicit policy creation" },
   ] });

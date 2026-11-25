@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import { NodeSessionTokens } from "../session-tokens.js";
 import assert from "node:assert/strict";
@@ -38,10 +39,10 @@ function buildDeps(nowIso: string): { deps: AuthServiceDeps; repos: IdentityRepo
   let currentNow = nowIso;
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -66,7 +67,7 @@ async function seedOneUser(
     status: options.status ?? "active",
     createdAt: "2026-01-01T00:00:00.000Z",
   });
-  await repos.users.save({
+  await repos.users.save({ version: 1,
     principalId,
     workspaceId: WORKSPACE,
     username: options.username ?? "ed",

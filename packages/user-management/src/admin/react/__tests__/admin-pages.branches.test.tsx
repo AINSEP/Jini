@@ -189,8 +189,8 @@ describe('users page', () => {
   });
 });
 
-const authors = { id: 'r', workspaceId: 'w', name: 'Authors', isBuiltin: false };
-const readers = { id: 'p', workspaceId: 'w', name: 'Readers', description: 'Read things', isBuiltin: false, isFrozen: false };
+const authors = { id: 'r', workspaceId: 'w', name: 'Authors', isBuiltin: false, version: 1 };
+const readers = { id: 'p', workspaceId: 'w', name: 'Readers', description: 'Read things', isBuiltin: false, isFrozen: false, version: 1 };
 async function mountRoles({ permissions, api }: { permissions: string[]; api: RolesApiPort }) {
   const feature = roles({});
   const admin = createAdmin({ modules: [feature], ports: { rolesApi: api } }, { permissions });

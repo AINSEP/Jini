@@ -9,7 +9,7 @@ async function updateDeps() {
   const trash = trashIndex();
   return { deps: { workspaceId: WORKSPACE_ID, updateUser, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError }, services, ownerId, alice, trash };
 }
-const input = (principalId: string, overrides: Partial<{ email: string | undefined; username: string | undefined; usernameIsInvalid: boolean }> = {}) =>
+const input = (principalId: string, overrides: Partial<{ email: string | undefined; username: string | undefined; usernameIsInvalid: boolean; expectedVersion: unknown }> = {}) =>
   ({ principalId, email: undefined, username: undefined, usernameIsInvalid: false, ...overrides });
 
 describe("userUpdateRoute", () => {
@@ -49,6 +49,24 @@ describe("userUpdateRoute", () => {
     expect(changed.ok && changed.value.user).toMatchObject({ principalId: alice, email: "new@example.test", roleIds: [], policyIds: [] });
     const kept = await userUpdateRoute.handle({ input: input(alice), deps, context: { id: ownerId } });
     expect(kept.ok && kept.value.user.email).toBe("new@example.test");
+  });
+
+  it("carries the client's basis unparsed and refuses a malformed one 400 before any write", async () => {
+    expect(userUpdateRoute.parse(raw({ principalId: "p1" }, { expectedVersion: "3" }))).toEqual({ ok: true, value: input("p1", { expectedVersion: "3" }) });
+    const { deps, services, ownerId, alice } = await updateDeps();
+    expect(await refusalOf(() => userUpdateRoute.handle({ input: input(alice, { email: "x@example.test", expectedVersion: "3" }), deps, context: { id: ownerId } })))
+      .toEqual({ status: 400, body: { error: "'expectedVersion' must be a non-negative integer when present", code: "VALIDATION_ERROR" } });
+    expect((await services.repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: alice }))?.email).not.toBe("x@example.test");
+  });
+
+  it("answers the second profile editor from the same version 409 VERSION_CONFLICT and keeps the first save", async () => {
+    const { deps, services, ownerId, alice } = await updateDeps();
+    const opened = (await services.repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: alice }))!;
+    const first = await userUpdateRoute.handle({ input: input(alice, { email: "first@example.test", expectedVersion: opened.version }), deps, context: { id: ownerId } });
+    expect(first.ok && first.value.user).toMatchObject({ email: "first@example.test", version: opened.version + 1 });
+    expect(await refusalOf(() => userUpdateRoute.handle({ input: input(alice, { email: "second@example.test", expectedVersion: opened.version }), deps, context: { id: ownerId } })))
+      .toMatchObject({ status: 409, body: { code: "VERSION_CONFLICT" } });
+    expect((await services.repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: alice }))?.email).toBe("first@example.test");
   });
 
   it("maps a missing target to 404 and an unauthorized caller to 403", async () => {

@@ -5,8 +5,8 @@ import { rolesMessagesEn as m } from '../messages.en.js';
 import { RolesApiError } from '../ports.js';
 import type { PolicyPermissionRecord, PolicyRecord, RoleRecord } from '../models.js';
 
-const role: RoleRecord = { id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
-const policy: PolicyRecord = { id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
+const role: RoleRecord = { version: 1, id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
+const policy: PolicyRecord = { version: 1, id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
 const row: PolicyPermissionRecord = { id: 'pp', workspaceId: 'w', policyId: 'p', permission: 'content.read', resourceType: null, constraintJson: null };
 
 describe('canManageRoles (pin)', () => {
