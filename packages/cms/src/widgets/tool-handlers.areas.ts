@@ -115,7 +115,7 @@ export const widgetsSetRegionPlacementsHandler = ({ deps }: WidgetsHandlerArgs):
 
   const { areaEntry } = await mutateWidgetAreaPlacements({
     deps: deps.composeRegionDeps(),
-    input: { workspaceId: deps.workspaceId, actor: { principalId: ctx.principal.id }, areaEntryId: binding.areaEntryId, baseVersion, placements },
+    input: { workspaceId: deps.workspaceId, actor: { principalId: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND }, areaEntryId: binding.areaEntryId, baseVersion, placements },
   });
   return { area: toWidgetAreaToolView(areaEntry) };
 };

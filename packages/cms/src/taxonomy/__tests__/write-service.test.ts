@@ -1072,3 +1072,55 @@ test("a taxonomy assignment handed another principal's actor is refused before a
   assert.equal(deps.watermarkStamps, 0);
   assert.equal(events.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// P10-H2.J — create, rename and the guarded hard deletes stamp the same trusted actor as
+// assign/unassign. The execution channel supplies attribution, the principal ID still governs
+// authorization, and the two are not interchangeable.
+// ---------------------------------------------------------------------------
+
+function deletableDeps() {
+  const recorder = transactionRecorder();
+  return Object.assign(baseDeps(), {
+    terms: deletableTermsDeps([{ id: "term-1", taxonomyId: "tax-1" }], recorder),
+    entryTerms: countableEntryTermsDeps({}, recorder),
+    taxonomies: { async findById({ id }: { id: string }) { return { id, hierarchical: true }; }, async insert(row: unknown) { return row; }, async delete() {} },
+    transaction: recorder.transaction,
+  });
+}
+
+test("a term delete by an agent records kind agent on its event", async () => {
+  const deps = deletableDeps();
+  await deleteTerm({ deps, principalId: "owner-1", actor: { id: "owner-1", kind: "agent" }, termId: "term-1" });
+
+  assert.deepEqual((deps.outboxEvents[0] as { actor?: unknown }).actor, { id: "owner-1", kind: "agent" });
+  assert.equal((deps.outboxEvents[0] as { actorId?: string }).actorId, "owner-1");
+});
+
+test("a term delete handed another principal's actor is refused before any write", async () => {
+  const deps = deletableDeps();
+  await assert.rejects(
+    deleteTerm({ deps, principalId: "owner-1", actor: { id: "someone-else", kind: "user" }, termId: "term-1" }),
+    ConflictingMutationActorError,
+  );
+  assert.deepEqual(deps.terms.deleted, []);
+  assert.equal(deps.outboxEvents.length, 0);
+});
+
+test("taxonomy delete, create, term create and rename each stamp the vouched actor, and none without one", async () => {
+  const actor = { id: "owner-1", kind: "user" as const };
+  const writes = [
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => deleteTaxonomy({ deps, principalId: "owner-1", actor: a, taxonomyId: "tax-1" }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => createTaxonomy({ deps, principalId: "owner-1", actor: a, name: "Tags", hierarchical: false }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => createTerm({ deps, principalId: "owner-1", actor: a, taxonomyId: "tax-1", name: "Tag" }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => renameTerm({ deps, principalId: "owner-1", actor: a, termId: "term-1", newName: "Renamed" }),
+  ];
+  for (const write of writes) {
+    const stamped = deletableDeps();
+    await write(stamped, actor);
+    assert.deepEqual((stamped.outboxEvents.at(-1) as { actor?: unknown }).actor, actor, write.toString());
+    const unstamped = deletableDeps();
+    await write(unstamped);
+    assert.equal((unstamped.outboxEvents.at(-1) as { actor?: unknown }).actor, undefined, write.toString());
+  }
+});

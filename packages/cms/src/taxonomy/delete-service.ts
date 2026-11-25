@@ -1,4 +1,5 @@
-import type { TransactionalRepoPort } from "@jini-ai/core/contracts/events";
+import type { MutationActor, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../core/mutation-actor.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 // Type-only — `list.ts` imports `Taxonomy`/`Term` back from this file, so a value-level import
 // here would be circular. `DeleteTaxonomyRequired.deps.terms` needs `TermListPort.listByTaxonomy`
@@ -93,6 +94,9 @@ export interface DeleteTermRequired {
     transaction: TransactionalRepoPort["transaction"];
   };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   termId: string;
 }
 
@@ -122,6 +126,9 @@ export async function deleteTerm(
   _optional: Record<string, never> = {}
 ): Promise<{ deletedTermId: string }> {
   const { deps, principalId, termId } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   return deps.transaction({
@@ -159,6 +166,7 @@ export async function deleteTerm(
           termId,
           taxonomyId: current.taxonomyId,
           actorId: principalId,
+          ...(actor ? { actor } : {}),
           occurredAt: now,
         }
       });
@@ -177,6 +185,9 @@ export interface DeleteTaxonomyRequired {
     transaction: TransactionalRepoPort["transaction"];
   };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   taxonomyId: string;
 }
 
@@ -204,6 +215,9 @@ export async function deleteTaxonomy(
   _optional: Record<string, never> = {}
 ): Promise<{ deletedTaxonomyId: string; deletedTermIds: string[] }> {
   const { deps, principalId, taxonomyId } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   return deps.transaction({
@@ -245,6 +259,7 @@ export async function deleteTaxonomy(
           taxonomyId,
           deletedTermIds,
           actorId: principalId,
+          ...(actor ? { actor } : {}),
           occurredAt: now,
         }
       });

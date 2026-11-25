@@ -47,7 +47,7 @@ export const widgetUpdateRoute = defineJsonRoute<WidgetUpdateInput, { widget: Wi
         deps: deps.widgetsDeps(),
         input: {
           workspaceId: deps.workspaceId,
-          actor: { principalId: widgetActorId({ context }) },
+          actor: { principalId: widgetActorId({ context }), kind: "user" },
           widgetInstanceId: input.id,
           baseVersion: input.baseVersion,
           ...(input.title === undefined ? {} : { title: input.title }),
