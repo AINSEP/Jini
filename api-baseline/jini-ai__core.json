@@ -1953,6 +1953,12 @@
    "ThemeSlotDescriptor": "interface:db04614bc6"
   }
  },
+ "./contracts/site/custom-credential-publish-compatibility": {
+  "types": "./dist/contracts/site/custom-credential-publish-compatibility.d.ts",
+  "symbols": {
+   "PublishCompatibilityPort": "interface:40a90c0ac8"
+  }
+ },
  "./contracts/site/daemon": {
   "types": "./dist/contracts/site/daemon.d.ts",
   "symbols": {
@@ -2226,6 +2232,15 @@
    "AsarHeaderNode": "interface:11eea7b90d",
    "AsarMismatch": "interface:f296a9828b",
    "AsarVerification": "interface:bcfe772663"
+  }
+ },
+ "./contracts/site/page-html-store": {
+  "types": "./dist/contracts/site/page-html-store.d.ts",
+  "symbols": {
+   "PagesHtmlDocumentStoreFactory": "type:38cec27a93",
+   "PagesHtmlDocumentStorePort": "interface:c37c1b3182",
+   "PagesHtmlDocumentStoreScope": "interface:2be584b4e8",
+   "PluginEmbedDiagnostic": "interface:d3011be33d"
   }
  },
  "./contracts/site/platform-mail": {

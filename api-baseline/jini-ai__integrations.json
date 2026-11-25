@@ -768,6 +768,15 @@
    "processDueDeliveries": "function:8004f1e327"
   }
  },
+ "./webhooks/site/http.memory": {
+  "types": "./dist/webhooks/site/http.memory.d.ts",
+  "symbols": {
+   "RecordedHttpCall": "interface:42abb6ff42",
+   "RecordingHttpClient": "class:673c1eb898",
+   "RecordingHttpClientOptions": "interface:ad03b2c310",
+   "ScriptedHttpResponse": "type:41c81edbed"
+  }
+ },
  "./webhooks/site/repo.memory": {
   "types": "./dist/webhooks/site/repo.memory.d.ts",
   "symbols": {
