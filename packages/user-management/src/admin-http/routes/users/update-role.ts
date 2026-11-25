@@ -3,7 +3,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { updateRole } from "../../../server/admin-crud-service.js";
 import { toAdminRoleResponse, type AdminRoleResponse } from "../../http/users.js";
 import {
-  ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, rejectAccessError,
+  ACCESS_FORBIDDEN, ACCESS_VERSION_CONFLICT, accessExpectedVersion, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
@@ -13,7 +13,7 @@ export interface RoleUpdateRouteDeps extends AccessServiceRouteDeps {
   updateRole: typeof updateRole;
 }
 
-const ROLE_UPDATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
+const ROLE_UPDATE_ERRORS = [ACCESS_VERSION_CONFLICT, ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
 /**
  * PATCH roles/:roleId — `UPDATE_ROLE` (SPEC-006 0.6.0, REQ-18) — rename a non-built-in role. Gated

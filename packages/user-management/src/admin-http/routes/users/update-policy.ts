@@ -3,7 +3,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { updatePolicy } from "../../../server/admin-crud-service.js";
 import { toAdminPolicyResponse, type AdminPolicyResponse } from "../../http/users.js";
 import {
-  ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, optionalString, rejectAccessError,
+  ACCESS_FORBIDDEN, ACCESS_VERSION_CONFLICT, accessExpectedVersion, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, optionalString, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
@@ -16,7 +16,7 @@ export interface PolicyUpdateRouteDeps extends AccessServiceRouteDeps {
 /** The two writable PATCH fields — `undefined` means "leave unchanged" — plus the target id. */
 interface PolicyUpdateInput { policyId: string; name: string | undefined; description: string | undefined }
 
-const POLICY_UPDATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
+const POLICY_UPDATE_ERRORS = [ACCESS_VERSION_CONFLICT, ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
 /**
  * PATCH policies/:policyId — `UPDATE_POLICY` (SPEC-006 0.6.0, REQ-18) — rename/re-describe a
