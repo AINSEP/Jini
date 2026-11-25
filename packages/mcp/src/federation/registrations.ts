@@ -168,6 +168,91 @@ export interface FederatedRegistrationResult {
 }
 
 /**
+ * Shapes one remote call's result for the model: image blocks are hoisted onto the daemon's typed
+ * media channel and everything else is wrapped as untrusted data.
+ */
+function federatedResultForModel({ result, config, tool }: {
+  result: RemoteToolResult;
+  config: FederatedMcpConnectionConfig;
+  tool: AdmittedFederatedTool;
+}) {
+  // R7's media carve-out (trust.ts): image blocks are pulled out of `result.content` BEFORE the
+  // untrusted-data envelope is built, so they reach the model through the daemon's typed
+  // `media` channel (`extractResultMedia`) intact — see `extractFederatedImageBlocks`'s own doc
+  // for why stringifying them into the byte-capped text boundary instead would corrupt them.
+  const { images, remainder } = extractFederatedImageBlocks({
+    content: result.content,
+    maxResultBytes: config.maxResultBytes,
+  });
+
+  // R7. Every federated result reaches the model inside an untrusted-data boundary, including
+  // the remote's own `isError` claim — which is reported as data rather than acted on, because
+  // a remote lying about its own success is not a case this side can adjudicate.
+  return {
+    federated: { connectionId: config.connectionId, tool: tool.remoteName, remoteReportedError: result.isError === true },
+    untrusted: wrapUntrustedResult({
+      connectionLabel: config.label,
+      remoteName: tool.remoteName,
+      result: { content: remainder, structuredContent: result.structuredContent },
+      maxResultBytes: config.maxResultBytes,
+    }),
+    // The ONLY field `@jini-ai/daemon`'s `extractResultMedia` reads to hoist inline media onto
+    // the `tool_result` wire event — see `demo-image-tool.ts` for the identical shape proven
+    // end to end through the chat pane. Omitted (not an empty array) when there is nothing to
+    // hoist, so a text-only result's return shape is byte-identical to before this existed.
+    ...(images.length > 0 ? { content: images } : {}),
+  };
+}
+
+/**
+ * The one `ToolHandler` for an admitted federated tool: gate, ask, forward `tools/call`, and wrap
+ * the result. This handler is the tool's single authorization evaluator.
+ */
+function federatedToolHandler({ session, config, deps, tool, call }: {
+  session: McpSessionPort;
+  config: FederatedMcpConnectionConfig;
+  deps: FederationDeps;
+  tool: AdmittedFederatedTool;
+  call: FederatedCallTarget;
+}): ToolHandler {
+  return async (ctx, options = {}) => {
+    await assertCallAllowed({ ctx, deps, config, call });
+
+    // Fixed ONCE, before any card is drawn: the frozen copy the human sees is the same object that
+    // is sent, so nothing that happens to `ctx.input` while the card waits can change what runs.
+    const args = frozenArguments(ctx.input);
+    const declined = await askBeforeCall({ ctx: { ...ctx, ...options }, deps, config, tool, args, call });
+    if (declined) return declined;
+
+    let result: RemoteToolResult;
+    try {
+      result = await session.callTool({ name: tool.remoteName, arguments: args }, { signal: ctx.signal });
+    } catch (error) {
+      // A token valid at boot can die mid-session; nothing here re-probes it proactively (no
+      // periodic refresh exists), so this is where that discovery actually happens. Handed to
+      // `onAuthFailed` so the SAME durable state and terminal, non-retryable error this file's
+      // `assertConnectionUsable` doc already promises apply here too — not just to a connection
+      // already known dead at the call's start.
+      if (error instanceof McpAuthFailedError && deps.onAuthFailed) await deps.onAuthFailed({ connectionId: config.connectionId, error: error });
+      throw error;
+    }
+
+    return federatedResultForModel({ result, config, tool });
+  };
+}
+
+/** The published descriptor: provenance metadata, the remote's untrusted schema, and the operator's read-only marker. */
+function federatedToolDescriptor({ tool, config }: { tool: AdmittedFederatedTool; config: FederatedMcpConnectionConfig }): ToolRegistration["descriptor"] {
+  return {
+    id: tool.toolId,
+    metadata: { mcpSource: { id: config.connectionId, host: config.sourceHost ?? "unknown", ...(config.provisionedByPluginId ? { pluginId: config.provisionedByPluginId } : {}) } },
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    ...(isOperatorDeclaredReadOnly({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations, readList: config.readOnlyRemoteNames }) ? { readOnly: true } : {}),
+  };
+}
+
+/**
  * Builds the `ToolRegistration`s for one federated connection from its already-listed tool surface.
  *
  * Split from the connect/list I/O on purpose: this function is pure given a session, so every trust
@@ -199,69 +284,14 @@ export function buildFederatedMcpRegistrations(params: {
       origin: config.origin,
       requiresWriteGrant: federatedToolRequiresWriteGrant({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations }, { readList: config.readOnlyRemoteNames }),
     };
-    const handler: ToolHandler = async (ctx, options = {}) => {
-      await assertCallAllowed({ ctx, deps, config, call });
-
-      // Fixed ONCE, before any card is drawn: the frozen copy the human sees is the same object that
-      // is sent, so nothing that happens to `ctx.input` while the card waits can change what runs.
-      const args = frozenArguments(ctx.input);
-      const declined = await askBeforeCall({ ctx: { ...ctx, ...options }, deps, config, tool, args, call });
-      if (declined) return declined;
-
-      let result: RemoteToolResult;
-      try {
-        result = await session.callTool({ name: tool.remoteName, arguments: args }, { signal: ctx.signal });
-      } catch (error) {
-        // A token valid at boot can die mid-session; nothing here re-probes it proactively (no
-        // periodic refresh exists), so this is where that discovery actually happens. Handed to
-        // `onAuthFailed` so the SAME durable state and terminal, non-retryable error this file's
-        // `assertConnectionUsable` doc already promises apply here too — not just to a connection
-        // already known dead at the call's start.
-        if (error instanceof McpAuthFailedError && deps.onAuthFailed) await deps.onAuthFailed({ connectionId: config.connectionId, error: error });
-        throw error;
-      }
-
-      // R7's media carve-out (trust.ts): image blocks are pulled out of `result.content` BEFORE the
-      // untrusted-data envelope is built, so they reach the model through the daemon's typed
-      // `media` channel (`extractResultMedia`) intact — see `extractFederatedImageBlocks`'s own doc
-      // for why stringifying them into the byte-capped text boundary instead would corrupt them.
-      const { images, remainder } = extractFederatedImageBlocks({
-        content: result.content,
-        maxResultBytes: config.maxResultBytes,
-      });
-
-      // R7. Every federated result reaches the model inside an untrusted-data boundary, including
-      // the remote's own `isError` claim — which is reported as data rather than acted on, because
-      // a remote lying about its own success is not a case this side can adjudicate.
-      return {
-        federated: { connectionId: config.connectionId, tool: tool.remoteName, remoteReportedError: result.isError === true },
-        untrusted: wrapUntrustedResult({
-          connectionLabel: config.label,
-          remoteName: tool.remoteName,
-          result: { content: remainder, structuredContent: result.structuredContent },
-          maxResultBytes: config.maxResultBytes,
-        }),
-        // The ONLY field `@jini-ai/daemon`'s `extractResultMedia` reads to hoist inline media onto
-        // the `tool_result` wire event — see `demo-image-tool.ts` for the identical shape proven
-        // end to end through the chat pane. Omitted (not an empty array) when there is nothing to
-        // hoist, so a text-only result's return shape is byte-identical to before this existed.
-        ...(images.length > 0 ? { content: images } : {}),
-      };
-    };
 
     return {
-      descriptor: {
-        id: tool.toolId,
-        metadata: { mcpSource: { id: config.connectionId, host: config.sourceHost ?? "unknown", ...(config.provisionedByPluginId ? { pluginId: config.provisionedByPluginId } : {}) } },
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        ...(isOperatorDeclaredReadOnly({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations, readList: config.readOnlyRemoteNames }) ? { readOnly: true } : {}),
-      },
+      descriptor: federatedToolDescriptor({ tool, config }),
       // Pass-through, matching `buildDomainRegistrations`'s identical choice and for the identical
       // §2 reason: the handler above IS this tool's one gate, and a `ToolPolicy` check would. See docs/decisions/DR-003-trusted-federation-composition.md.
       // be a second evaluator of the same rule.
       policy: { authorize: () => "allow" },
-      handler,
+      handler: federatedToolHandler({ session, config, deps, tool, call }),
     };
   });
 

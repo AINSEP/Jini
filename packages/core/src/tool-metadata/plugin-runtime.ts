@@ -1,11 +1,8 @@
 import type { ToolMetadataById } from '../tool-metadata-types.js';
 import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
-/** plugin-runtime registration declarations; shared placement rationale is in the host aggregator.
- * The install tool's search keywords name the host's plugin package term, so the host passes it in
- * (`pluginKeyword`) and the package never names one. */
-export function createPluginRuntimeToolMetadata({ pluginKeyword }: { pluginKeyword: string }, _optional: Record<string, never> = {}) {
-  return {
+/** Plugin source (draft working copy) tools: static declarations, independent of host vocabulary. */
+const PLUGIN_SOURCE_METADATA = {
   plugin_source_create: { search: { keywords: 'plugin source code create scaffold site local server content filter fields types' }, approval: { class: 'edit', confirmation: 'direct' } },
   plugin_source_open: { search: { keywords: 'plugin source open draft edit installed working copy' }, approval: { class: 'edit', confirmation: 'direct' } },
   plugin_source_list: { search: { keywords: 'plugin source draft list files code' }, approval: { class: 'read', confirmation: 'direct' } },
@@ -18,12 +15,10 @@ export function createPluginRuntimeToolMetadata({ pluginKeyword }: { pluginKeywo
     search: { keywords: 'plugin source draft delete file permanently remove' }, approval: { class: 'delete', confirmation: 'plan' } },
   plugin_source_seal: { search: { keywords: 'plugin source seal validate integrity install version patch reload code' }, approval: { class: 'edit', confirmation: 'direct' } },
   plugin_source_rollback: { search: { keywords: 'plugin source rollback previous version restore code' }, approval: { class: 'edit', confirmation: 'direct' } },
-  "plugins_install": {
-    search: {
-      keywords: `plugin plugins install add new upload folder zip attachment local package upgrade replace version site plugin ${pluginKeyword} extension addon add-on`,
-    },
-    approval: { class: 'edit', confirmation: 'direct' },
-  },
+} as const satisfies ToolMetadataById<ToolApprovalPolicy>;
+
+/** Install/list/enable/uninstall tools after the host-worded install entry; static declarations. */
+const PLUGIN_LIFECYCLE_METADATA = {
   "plugins_list": {
     search: {
       keywords: "plugin plugins extensions installed available list have installed my",
@@ -78,4 +73,19 @@ export function createPluginRuntimeToolMetadata({ pluginKeyword }: { pluginKeywo
     approval: { class: 'trash', confirmation: 'plan' },
   },
 } as const satisfies ToolMetadataById<ToolApprovalPolicy>;
+
+/** plugin-runtime registration declarations; shared placement rationale is in the host aggregator.
+ * The install tool's search keywords name the host's plugin package term, so the host passes it in
+ * (`pluginKeyword`) and the package never names one. */
+export function createPluginRuntimeToolMetadata({ pluginKeyword }: { pluginKeyword: string }, _optional: Record<string, never> = {}) {
+  return {
+    ...PLUGIN_SOURCE_METADATA,
+    "plugins_install": {
+      search: {
+        keywords: `plugin plugins install add new upload folder zip attachment local package upgrade replace version site plugin ${pluginKeyword} extension addon add-on`,
+      },
+      approval: { class: 'edit', confirmation: 'direct' },
+    },
+    ...PLUGIN_LIFECYCLE_METADATA,
+  } as const satisfies ToolMetadataById<ToolApprovalPolicy>;
 }
