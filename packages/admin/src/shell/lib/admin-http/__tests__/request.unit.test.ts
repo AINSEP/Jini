@@ -149,6 +149,19 @@ describe("createAdminHttp — session invalidation", () => {
   });
 });
 
+describe("createAdminHttp — empty error copy", () => {
+  it("hands the failed response's headers to requestFailed so the host copy can name its request id", async () => {
+    const real = recorder([jsonResponse({}, { status: 404, headers: { "x-trace": "id-7" } })]);
+    const seen: Array<string | null | undefined> = [];
+    const ports = { ...real.ports, messages: { ...real.ports.messages, requestFailed: ({ method, path, status }: { method: string; path: string; status: number }, optional?: { headers?: Headers }) => {
+      seen.push(optional?.headers?.get("x-trace"));
+      return `failed ${method} ${path} ${status}`;
+    } } };
+    await expect(createAdminHttp({ ports, timeoutMs: 50 }).request({ path: "/report" })).rejects.toMatchObject({ status: 404, message: "failed GET /report 404" });
+    expect(seen).toEqual(["id-7"]);
+  });
+});
+
 describe("createAdminHttp — page unload", () => {
   it("a navigation-cancelled fetch is an AbortError and no outage, and later requests report normally after pageshow", async () => {
     const r = recorder([networkDown(), networkDown(), networkDown()]);

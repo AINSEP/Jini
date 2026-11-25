@@ -40,7 +40,8 @@ export interface CreateAdminHttpPorts<E extends AdminHttpError, B extends string
   messages: {
     timeout(required: { ms: number }, optional?: Empty): string;
     unreachable(required: { status?: number }, optional?: Empty): string;
-    requestFailed(required: { method: string; path: string; status: number }, optional?: Empty): string;
+    /** `optional.headers` are the failed response's, so a host can name its own request/error id header. */
+    requestFailed(required: { method: string; path: string; status: number }, optional?: { headers?: Headers }): string;
   };
   reconnect: AdminHttpReconnect;
   shouldRetry(required: {
@@ -183,7 +184,7 @@ function failedResponseError<E extends AdminHttpError, B extends string, F exten
   const { ports } = ctx;
   // Only a 401 carrying UNAUTHENTICATED invalidates the session: a relayed vendor 401 does not.
   if (res.status === 401 && ports.decodeApiError({ body }).code === "UNAUTHENTICATED") ports.sessionInvalidated({});
-  const defaultError = responseError(ctx, { status: res.status, body, wasUnparseable, method, path });
+  const defaultError = responseError(ctx, { status: res.status, body, wasUnparseable, method, path, headers: res.headers });
   const error = options.errorFactory?.({ response: res, error: defaultError }) ?? defaultError;
   if (ports.isUpstreamRefused({ response: res })) ctx.upstreamRefused.add(error);
   return error;
@@ -196,12 +197,12 @@ function failedResponseError<E extends AdminHttpError, B extends string, F exten
  */
 function responseError<E extends AdminHttpError, B extends string, F extends string>(
   { ports }: Context<E, B, F>,
-  { status, body, wasUnparseable, method, path }: {
-    status: number; body: Record<string, unknown>; wasUnparseable: boolean; method: string; path: string;
+  { status, body, wasUnparseable, method, path, headers }: {
+    status: number; body: Record<string, unknown>; wasUnparseable: boolean; method: string; path: string; headers: Headers;
   },
 ): E {
   const noAppEnvelope = lacksAppEnvelope({ status, wasUnparseable });
-  const fallbackMessage = noAppEnvelope ? ports.messages.unreachable({ status }) : ports.messages.requestFailed({ method, path, status });
+  const fallbackMessage = noAppEnvelope ? ports.messages.unreachable({ status }) : ports.messages.requestFailed({ method, path, status }, { headers });
   const decoded = ports.decodeApiError({ body }, { fallbackMessage });
   return ports.createError({ message: decoded.message, status }, { code: noAppEnvelope ? API_UNREACHABLE_CODE : decoded.code, body });
 }
