@@ -118,6 +118,7 @@
       "./contracts/site/daemon-http": "universal",
       "./contracts/site/host-node": "universal",
       "./contracts/site/lifecycle-host-tools": "universal",
+      "./contracts/site/site-import-history": "universal",
       "./contracts/site/platform-site-dir": "universal",
       "./contracts/site/search": "universal",
       "./contracts/site/assistant-host-ports": "universal",
@@ -330,6 +331,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./contracts/site/site-import-history": {
+      "types": "./dist/contracts/site/site-import-history.d.ts",
+      "import": "./dist/contracts/site/site-import-history.js",
+      "default": "./dist/contracts/site/site-import-history.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

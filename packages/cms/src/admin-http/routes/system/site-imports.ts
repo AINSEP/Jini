@@ -9,6 +9,32 @@
  * class and byte formatter are injected as {@link SiteImportFailureCollaborators}.
  */
 
+import { defineJsonRoute, err, ok, type Result } from '@jini-ai/core/contracts/server';
+import type { SiteImportPage, SiteImportPageInput } from '@jini-ai/core/contracts/site/site-import-history';
+
+export type SiteImportListQuery = { cursor?: string };
+export interface SiteImportListPrincipal { principalId: string }
+export interface SiteImportListRouteDeps {
+  listPage: (required: SiteImportPageInput, optional?: Record<string, never>) => Promise<SiteImportPage>;
+}
+
+export function parseSiteImportListQuery({ query }: { query: Record<string, unknown> }, _optional: Record<string, never> = {}): Result<{ cursor?: string }> {
+  if (Object.keys(query).some(key => key !== 'cursor') || ('cursor' in query && (typeof query.cursor !== 'string' || query.cursor.length < 1 || query.cursor.length > 96 || !/^[A-Za-z0-9_-]+$/.test(query.cursor)))) {
+    return err({ error: { code: 'INVALID_CURSOR', message: 'This list of imports changed. Reload it to see the newest imports.' } });
+  }
+  return ok({ value: query.cursor === undefined ? {} : { cursor: query.cursor as string } });
+}
+
+export const siteImportListRouteSpec = defineJsonRoute<SiteImportListQuery, SiteImportPage, SiteImportListRouteDeps, SiteImportListPrincipal>({
+  method: 'get',
+  path: '/api/admin/v1/workspaces/:workspaceId/site-imports',
+  parse: ({ query }) => parseSiteImportListQuery({ query }),
+  async handle({ input, deps, context }) {
+    if (!context?.principalId) return err({ error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } });
+    return ok({ value: await deps.listPage({ ...input, principalId: context.principalId }, {}) });
+  },
+});
+
 /** One HTTP answer: status plus the JSON body. */
 export interface SiteImportReply {
   readonly status: number;

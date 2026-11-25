@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   importIncident, importStep, importUnavailableReply, mapImportFailure, ownerSetupBody, parseOwnerSetupBody, uploadBusyReply,
-  workspaceUnavailableReply, type SiteImportFailureCollaborators,
+  workspaceUnavailableReply, parseSiteImportListQuery, siteImportListRouteSpec, type SiteImportFailureCollaborators,
 } from '../site-imports.js';
 
 class Refusal extends Error {
@@ -13,6 +13,34 @@ const collaborators: SiteImportFailureCollaborators = {
   formatByteSize: ({ bytes }) => `${bytes / 1024 / 1024} MiB`,
 };
 const map = (error: unknown, step = 'ZIP upload') => mapImportFailure({ step, error, collaborators });
+
+describe('site import list route', () => {
+  it('accepts {} and one cursor', () => {
+    expect(parseSiteImportListQuery({ query: {} })).toEqual({ ok: true, value: {} });
+    expect(parseSiteImportListQuery({ query: { cursor: 'abc_-12' } })).toEqual({ ok: true, value: { cursor: 'abc_-12' } });
+    expect(siteImportListRouteSpec.method).toBe('get');
+    expect(siteImportListRouteSpec.path).toBe('/api/admin/v1/workspaces/:workspaceId/site-imports');
+  });
+
+  it('rejects duplicate, array and unknown query keys', () => {
+    for (const query of [{ cursor: ['one', 'two'] }, { cursor: ['one'] }, { principalId: 'other' }, { cursor: '' }, { cursor: 'a'.repeat(97) }, { cursor: 'bad=' }]) {
+      expect(parseSiteImportListQuery({ query })).toEqual({ ok: false, error: { code: 'INVALID_CURSOR', message: 'This list of imports changed. Reload it to see the newest imports.' } });
+    }
+  });
+
+  it('fails closed without authenticated context', async () => {
+    const listPage = vi.fn();
+    await expect(siteImportListRouteSpec.handle({ input: {}, deps: { listPage } })).resolves.toEqual({ ok: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } });
+    expect(listPage).not.toHaveBeenCalled();
+  });
+
+  it('dispatches with the authenticated principal', async () => {
+    const page = { imports: [], nextCursor: 'next' };
+    const listPage = vi.fn(async () => page);
+    expect(await siteImportListRouteSpec.handle({ input: { cursor: 'position' }, context: { principalId: 'authenticated' }, deps: { listPage } })).toEqual({ ok: true, value: page });
+    expect(listPage).toHaveBeenCalledWith({ principalId: 'authenticated', cursor: 'position' }, {});
+  });
+});
 
 describe('importStep', () => {
   it.each([

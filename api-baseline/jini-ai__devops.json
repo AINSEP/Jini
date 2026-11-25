@@ -1,1633 +1,1746 @@
 {
- ".": {
-  "types": "./dist/index.d.ts",
-  "symbols": {}
- },
- "./agent-jobs": {
-  "types": "./dist/agent-jobs/entry.d.ts",
-  "symbols": {
-   "AgentCliRunnerPort": "interface:33d7df242b",
-   "AgentEventDecoderPort": "interface:8b5106e9db",
-   "AgentJob": "interface:6e1b32b7b4",
-   "AgentJobOptions": "interface:4ca3bd2293",
-   "AgentJobResult": "interface:109ca0065f",
-   "CodexInvocation": "interface:11be8186d1",
-   "JobFilesystemPort": "interface:aabe5bb8cc",
-   "ParsedCodexRun": "type:347a5607a3",
-   "PromptDirectoryPort": "interface:dad738d6a7",
-   "buildCodexInvocation": "function:b6bcc26a55",
-   "createNodeAgentCliRunner": "function:c460c13df1",
-   "createNodeJobFilesystem": "function:483daa6b12",
-   "parseCodexRun": "function:324bc1937c",
-   "readPromptJobs": "function:0da545b429",
-   "runAgentJobs": "function:21d3174cea"
+  ".": {
+    "types": "./dist/index.d.ts",
+    "symbols": {}
+  },
+  "./agent-jobs": {
+    "types": "./dist/agent-jobs/entry.d.ts",
+    "symbols": {
+      "AgentCliRunnerPort": "interface:33d7df242b",
+      "AgentEventDecoderPort": "interface:8b5106e9db",
+      "AgentJob": "interface:6e1b32b7b4",
+      "AgentJobOptions": "interface:4ca3bd2293",
+      "AgentJobResult": "interface:109ca0065f",
+      "CodexInvocation": "interface:11be8186d1",
+      "JobFilesystemPort": "interface:aabe5bb8cc",
+      "ParsedCodexRun": "type:347a5607a3",
+      "PromptDirectoryPort": "interface:dad738d6a7",
+      "buildCodexInvocation": "function:b6bcc26a55",
+      "createNodeAgentCliRunner": "function:c460c13df1",
+      "createNodeJobFilesystem": "function:483daa6b12",
+      "parseCodexRun": "function:324bc1937c",
+      "readPromptJobs": "function:0da545b429",
+      "runAgentJobs": "function:21d3174cea"
+    }
+  },
+  "./backup/plan-store": {
+    "types": "./dist/backup/plan-store.node.d.ts",
+    "symbols": {
+      "DEFAULT_MAX_PLANS": "variable:3d69949a21",
+      "DEFAULT_MAX_TOTAL_PLANS": "variable:24fd581b1d",
+      "DEFAULT_PLAN_TTL_MS": "variable:78f6bdf64c",
+      "SiteBackupPlan": "type:d0d8388e97",
+      "SiteBackupPlanStore": "class:39bdd77d6e",
+      "TakeSiteBackupPlanResult": "type:d5f20e0e65"
+    }
+  },
+  "./backup/push-jobs": {
+    "types": "./dist/backup/push-jobs.d.ts",
+    "symbols": {
+      "FINISHED_JOB_TTL_MS": "variable:eea1e6538d",
+      "PushJob": "interface:cbf3a0ad50",
+      "PushJobKey": "interface:ba15ab3142",
+      "PushJobWait": "type:abd07071a0",
+      "SiteBackupPushJobs": "class:8ebcef8092",
+      "SiteBackupPushProgress": "interface:17e5c15a76"
+    }
+  },
+  "./backup/site/archive-extensions": {
+    "types": "./dist/backup/site/archive-extensions.d.ts",
+    "symbols": {
+      "ArchiveExtensionsDeps": "interface:46646f617d",
+      "ArchiveExtensionsLifecycle": "interface:69c3751298",
+      "InstalledAgentPluginRecord": "interface:854333b759",
+      "prepareArchiveExtensions": "function:414515a3d7"
+    }
+  },
+  "./backup/site/archive-manifest": {
+    "types": "./dist/backup/site/archive-manifest.d.ts",
+    "symbols": {
+      "ARCHIVE_DATABASE_PATH": "variable:2fc9859206",
+      "ARCHIVE_MANIFEST_PATH": "variable:da2a0bd614",
+      "ArchiveFile": "interface:d3578d5bd1",
+      "ArchiveManifest": "interface:50a3cdf610",
+      "ArchiveManifestCodec": "interface:41a124f929",
+      "ArchiveManifestDeps": "interface:ee46bc1fa1",
+      "ArchiveMedia": "interface:27990e4109",
+      "ArchivePlugin": "interface:528aed03d3",
+      "ArchiveSchemaIdentity": "interface:7a988e581c",
+      "createArchiveManifestCodec": "function:6baa7d1b1b",
+      "requireArchiveFileRecord": "function:bf92f8221c"
+    }
+  },
+  "./backup/site/archive-media": {
+    "types": "./dist/backup/site/archive-media.d.ts",
+    "symbols": {
+      "ArchiveMediaCopy": "interface:72250ba212",
+      "ArchiveMediaEntry": "interface:d692660547",
+      "ArchiveMediaHost": "interface:7e854366c1",
+      "ArchiveMediaImageTransformer": "interface:88dd17a49a",
+      "ArchiveMediaOperations": "interface:0ffe61d1b9",
+      "ArchiveMediaPathPolicy": "interface:be816a3259",
+      "ArchiveMediaRewriter": "type:8a25f800a9",
+      "ArchiveMediaSharePolicy": "interface:8a9ebab07a",
+      "ArchiveMediaSource": "interface:e41e8501f0",
+      "ArchiveMediaTransformParams": "interface:a96d563774",
+      "bufferArchiveMedia": "function:01d45ac62c"
+    }
+  },
+  "./backup/site/bundled-export-file-policy": {
+    "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
+    "symbols": {
+      "BundledExportFileDisposition": "type:e655be382a",
+      "BundledExportFilePolicy": "type:50c9dde374",
+      "BundledExportFilePolicyDeps": "interface:e7a5826ef0",
+      "ClassifyBundledExportFile": "type:d46e4e70c5",
+      "ReadBundledExportFile": "type:ea414b8822",
+      "createBundledExportFilePolicy": "function:634172e3a4"
+    }
+  },
+  "./backup/site/credential-warnings": {
+    "types": "./dist/backup/site/credential-warnings.d.ts",
+    "symbols": {
+      "CredentialRedactor": "type:ef675c664d",
+      "CredentialWarning": "interface:2cdd927433",
+      "addCredentialWarning": "function:d1b5338ed7",
+      "warnCredentialContent": "function:8055565f09"
+    }
+  },
+  "./backup/site/import-backend": {
+    "types": "./dist/backup/site/import-backend.d.ts",
+    "symbols": {
+      "SiteImportBackend": "interface:826cb08d21",
+      "SiteImportBackendOptional": "type:173f1167e3",
+      "SiteImportBackendRequired": "type:a3f0262a64",
+      "SiteImportCreateOptions": "interface:331a0cae1a",
+      "SiteImportCreateSite": "type:36a7893248",
+      "SiteImportHost": "interface:c98d785009",
+      "SiteImportSanitizer": "type:207bb2630d",
+      "SiteImportSource": "type:c25b2a9c5f",
+      "SiteImportView": "interface:13e7cb59f1",
+      "SiteImportWorkspace": "interface:91a4069071",
+      "createSiteImportBackend": "function:e053f30e6a",
+      "parseSiteImportInput": "function:e281238161"
+    }
+  },
+  "./backup/site/import-backend-steps": {
+    "types": "./dist/backup/site/import-backend-steps.d.ts",
+    "symbols": {
+      "ImportHttpClient": "interface:d376f38381",
+      "ParsedSiteImportInput": "interface:cc0c0eb7fe",
+      "SiteImportCopy": "interface:1244a26d13",
+      "SiteImportSource": "type:c25b2a9c5f",
+      "SiteImportStepsHost": "interface:6db477f2b9",
+      "SiteImportView": "interface:13e7cb59f1",
+      "consumeUpload": "function:aa39a2f52f",
+      "deadlineSignal": "function:102e08fd2b",
+      "downloadShareArchive": "function:3df6cf4adb",
+      "importSiteSlug": "function:92b59ae6db",
+      "parseImportInput": "function:abea9c50ef",
+      "reconcileInterruptedImports": "function:d52836ba7f",
+      "refusal": "function:50a1201444",
+      "requireFreeSpace": "function:1dcd9b4313",
+      "requireOwnerSetup": "function:c3466512d7",
+      "requireStagingBudget": "function:5bd9f69a11",
+      "siteImportView": "function:66ef496eed",
+      "startImportedSite": "function:b2a5c721dc"
+    }
+  },
+  "./backup/site/import-database": {
+    "types": "./dist/backup/site/import-database.d.ts",
+    "symbols": {
+      "ImportDatabase": "interface:520435e943",
+      "ImportDatabaseHost": "interface:c2729c67ce",
+      "ImportFileLock": "type:c392a2ea64",
+      "ImportWorkerChild": "interface:ff05336e8f",
+      "RebuildImportDatabaseOptions": "interface:0ec4e3ce3e",
+      "createImportDatabase": "function:b5fbfceb83",
+      "importWorkerLaunch": "function:4a8ccc7721",
+      "rebuildImportDatabase": "function:bf5dcef422",
+      "tidyImportDatabases": "function:ce5bbfd6d8"
+    }
+  },
+  "./backup/site/import-keep-off": {
+    "types": "./dist/backup/site/import-keep-off.d.ts",
+    "symbols": {
+      "KeepOffHost": "interface:0b492f96e4",
+      "KeepOffNotices": "interface:2b0d406b22",
+      "KeepOffStore": "interface:3d1b10de33",
+      "keepImportedCodeOff": "function:8abf488e82",
+      "pageBodyMayRunScript": "function:f7da8a52de",
+      "unrecognisedThemes": "function:f6b23df39f"
+    }
+  },
+  "./backup/site/import-plugin-state": {
+    "types": "./dist/backup/site/import-plugin-state.d.ts",
+    "symbols": {
+      "ImportPluginLifecycle": "interface:4bd4c102cc",
+      "ImportPluginStateDeps": "interface:47d648f839",
+      "ImportedArchivePlugin": "interface:f223ebdd69",
+      "ImportedExtensionState": "interface:0e585574bc",
+      "InstalledImportPlugin": "interface:39bbaa0736",
+      "restoreImportedPluginState": "function:0d24caefbf"
+    }
+  },
+  "./backup/site/import-registry": {
+    "types": "./dist/backup/site/import-registry.d.ts",
+    "symbols": {
+      "SiteImportDurableDeps": "interface:e14234aece",
+      "SiteImportRecord": "interface:6a5c293246",
+      "SiteImportRegistry": "class:e1ee1cb883",
+      "SiteImportUpload": "interface:5b79fa78c8",
+      "importSourceDigest": "function:63c903a7b8",
+      "withoutQuery": "function:dccdb94066"
+    }
+  },
+  "./backup/site/import-restore": {
+    "types": "./dist/backup/site/import-restore.d.ts",
+    "symbols": {
+      "ImportKeepOffRequest": "interface:2284460d8b",
+      "ImportRestore": "interface:7c8cc9afd6",
+      "ImportRestoreArchivePaths": "interface:b00705e72e",
+      "ImportRestoreHost": "interface:5265359e19",
+      "RestoreStagedImportOptions": "interface:43aeab1c12",
+      "RestoreStagedImportRequest": "interface:e946fce39d",
+      "createImportRestore": "function:39144d998e"
+    }
+  },
+  "./backup/site/import-restore-placement": {
+    "types": "./dist/backup/site/import-restore-placement.d.ts",
+    "symbols": {
+      "CompiledBuild": "type:7af2dee81d",
+      "ImportPlacementChecks": "interface:d515cab0ce",
+      "ThemeManifestFindings": "interface:e879f03912",
+      "explainThemeTree": "function:bbfbe24365",
+      "inspectThemeManifests": "function:400e80b861",
+      "liveThemeTrees": "function:b7366e20f8",
+      "restoreDestination": "function:a0108eca0b",
+      "writeExclusive": "function:c6e933964b"
+    }
+  },
+  "./backup/site/import-verifier": {
+    "types": "./dist/backup/site/import-verifier.d.ts",
+    "symbols": {
+      "SiteImportManifest": "interface:7ba23c186b",
+      "SiteImportProjection": "interface:7d228c9429",
+      "SiteImportVerifierHost": "interface:bb7c03bfa3",
+      "VerifiedSiteImport": "interface:b3779361db",
+      "verifySiteImport": "function:48c12b2a9e"
+    }
+  },
+  "./backup/site/import-verifier-inventory": {
+    "types": "./dist/backup/site/import-verifier-inventory.d.ts",
+    "symbols": {
+      "ArchiveScan": "interface:82bce54bcc",
+      "ImportInventoryHost": "interface:d304bfb63b",
+      "InventoryRecord": "interface:b7075feb90",
+      "SupportedShareManifest": "type:871bbb608c",
+      "buildManifestInventory": "function:3774116df8",
+      "checkArchiveMatchesInventory": "function:dcfe8cf2ec",
+      "ignoredArchivePath": "function:98a5ee4af6",
+      "parseShareManifest": "function:4aa6d129e7",
+      "readListedFiles": "function:d7bd17e192",
+      "refuseArchive": "function:934adba0c4",
+      "scanArchiveMetadata": "function:4f3be5b0db",
+      "sha256Hex": "function:a5cef4a904"
+    }
+  },
+  "./backup/site/import-verifier-projection": {
+    "types": "./dist/backup/site/import-verifier-projection.d.ts",
+    "symbols": {
+      "DocumentAdmission": "type:92b3b72155",
+      "ProjectionDeps": "interface:cc4c1056de",
+      "ProjectionDocument": "interface:fa14460ffc",
+      "ProjectionManifest": "interface:b46d0bba8b",
+      "ProjectionMedia": "interface:5fb8a05058",
+      "ShareProjection": "interface:ea2f0a2dcd",
+      "admitProjectedDocuments": "function:94f5d545d7",
+      "applyShareProjection": "function:e17c46a524"
+    }
+  },
+  "./backup/site/package-file-inventory": {
+    "types": "./dist/backup/site/package-file-inventory.d.ts",
+    "symbols": {
+      "BundledImportPluginIdsDeps": "interface:d266e24e3d",
+      "BundledPackageFilesDeps": "interface:9df0a7d08f",
+      "BundledPackageInventory": "type:0a02a6de73",
+      "BundledSourceArchiveEntry": "type:39ba96ec0a",
+      "CreateBundledSourceArchiveReader": "type:a6649fc1df",
+      "ListBundledAgentPluginServers": "type:9d6074c68c",
+      "PackBundledSourceDirectory": "type:447742c19b",
+      "readBundledImportPluginIds": "function:84f81f5c6f",
+      "readBundledPackageFiles": "function:b9b29170d5"
+    }
+  },
+  "./backup/site/saved-keys": {
+    "types": "./dist/backup/site/saved-keys.d.ts",
+    "symbols": {
+      "SiteSavedKeysDeps": "interface:510349483c",
+      "createSiteSavedKeys": "function:9c51f2e436",
+      "leaveSavedKeysOut": "variable:65efaf2c9b"
+    }
+  },
+  "./backup/site/saved-keys-port": {
+    "types": "./dist/backup/site/saved-keys-port.d.ts",
+    "symbols": {
+      "ENCRYPTED_KEYS_DESCRIPTOR": "variable:1d47de8385",
+      "SAVED_KEYS_PATH": "variable:e4c5519f34",
+      "SiteSavedKeysPort": "interface:93429690ff"
+    }
+  },
+  "./backup/site/share-backend": {
+    "types": "./dist/backup/site/share-backend.d.ts",
+    "symbols": {
+      "SiteShareBackend": "interface:6903e0408e",
+      "SiteShareBackendOptional": "type:4454898eed",
+      "SiteShareBackendRequired": "type:909be77621",
+      "SiteShareContent": "interface:bccde24f67",
+      "SiteShareHost": "interface:f5a5915fbe",
+      "SiteShareRecord": "interface:b2a024c282",
+      "SiteShareRegistryLike": "interface:597b8fa94c",
+      "SiteShareView": "type:5fe33073be",
+      "createSiteShareBackend": "function:19c1d2e5a9"
+    }
+  },
+  "./backup/site/share-export-failure": {
+    "types": "./dist/backup/site/share-export-failure.d.ts",
+    "symbols": {
+      "SiteShareExportFailure": "class:481430087c",
+      "SiteShareExportStep": "type:ee08280859"
+    }
+  },
+  "./backup/site/share-file-policy": {
+    "types": "./dist/backup/site/share-file-policy.d.ts",
+    "symbols": {
+      "PackageFileInventory": "type:8cea910047",
+      "SHARED_PLUGIN_MEMORY": "variable:967cd175c5",
+      "ShareFilePolicy": "interface:75ee360d18",
+      "ShareFilePolicyDeps": "interface:031afb956f",
+      "createShareFilePolicy": "function:d57197ff88",
+      "sharePathAlias": "function:940fa70eb8"
+    }
+  },
+  "./backup/site/share-hosting": {
+    "types": "./dist/backup/site/share-hosting.d.ts",
+    "symbols": {
+      "ShareDelivery": "interface:3657d3dc45",
+      "ShareHosting": "interface:354f480beb",
+      "ShareHostingDeps": "interface:8cbe05d2c9",
+      "ShareHostingRegistry": "interface:376029ac14",
+      "SharePeerDeps": "interface:b25112e907",
+      "SharePeerRequest": "interface:8d3983d6df",
+      "createShareHosting": "function:5f7ba93470"
+    }
+  },
+  "./backup/site/share-preparation": {
+    "types": "./dist/backup/site/share-preparation.d.ts",
+    "symbols": {
+      "SharePreparationDeps": "interface:bee0156e89",
+      "SharePreparationPorts": "interface:82aacef674",
+      "SharePreparedContent": "interface:e6757bbe01",
+      "prepareShareContent": "function:3a1fcc3696"
+    }
+  },
+  "./backup/site/share-preparation-steps": {
+    "types": "./dist/backup/site/share-preparation-steps.d.ts",
+    "symbols": {
+      "ShareBlobStore": "interface:02b6e81508",
+      "ShareCollectedFiles": "interface:565869db95",
+      "ShareDatabaseProjection": "interface:2c71730849",
+      "ShareDatabaseSanitizer": "type:c955960e9e",
+      "ShareLedger": "interface:4638ca39fc",
+      "ShareMediaReference": "interface:f27acb70ed",
+      "SharePlannedFile": "interface:84da50d5f7",
+      "ShareSnapshotResult": "type:08f82a62f1",
+      "ShareSteps": "interface:ccb6a90382",
+      "ShareStepsDeps": "interface:a22cd4dcc3",
+      "createShareSteps": "function:a8a1e06bbc"
+    }
+  },
+  "./backup/site/share-refusal": {
+    "types": "./dist/backup/site/share-refusal.d.ts",
+    "symbols": {
+      "SiteShareRefusal": "class:1b7589023b",
+      "archiveRefusalName": "function:de88fa9382"
+    }
+  },
+  "./backup/site/share-registry": {
+    "types": "./dist/backup/site/share-registry.d.ts",
+    "symbols": {
+      "SHARE_TOKEN": "variable:c5485d16c5",
+      "SHARE_TOKEN_ALPHABET": "variable:aa68aef46e",
+      "SHARE_TOKEN_LENGTH": "variable:a44fdbdba8",
+      "SHARE_TOKEN_PATTERN": "variable:7442fe6ad1",
+      "ShareRegistryHost": "interface:5e97561682",
+      "SiteShareRecord": "interface:b2a024c282",
+      "SiteShareRegistry": "class:a4bb069f0e",
+      "newShareIdentity": "function:b313806455"
+    }
+  },
+  "./backup/site/share-service": {
+    "types": "./dist/backup/site/share-service.d.ts",
+    "symbols": {
+      "SHARE_DOWNLOAD_HEADERS": "variable:469ef24815",
+      "ShareServiceHost": "interface:fab6edff63",
+      "SiteShareService": "interface:f39d2957b1",
+      "acknowledgeSiteShare": "function:94ba60a7e9",
+      "createSiteShare": "function:ddd01fcb5c",
+      "createSiteShareService": "function:1e3c0e9654",
+      "isOwnShareFolder": "function:a308e803a6",
+      "receiveSiteShareArtifact": "function:ffde8d1591",
+      "revokeSiteShare": "function:ac0746d072",
+      "shareFileStem": "function:0ca6a6d536"
+    }
+  },
+  "./backup/site/share-zip": {
+    "types": "./dist/backup/site/share-zip.d.ts",
+    "symbols": {
+      "ShareZipHost": "interface:5dbf757185",
+      "ShareZipPlan": "interface:db45ba5e88",
+      "ZipFolderFiles": "type:4bd33efa62",
+      "buildShareZip": "function:014bfb5e94",
+      "buildStaticSiteZip": "function:f9c2e5f02d",
+      "claimArchivePaths": "function:f11c64a2e8"
+    }
+  },
+  "./backup/site/sources": {
+    "types": "./dist/backup/site/sources.d.ts",
+    "symbols": {
+      "CollectedSiteBackupFiles": "interface:5e528d0dbb",
+      "DatabaseSnapshotResult": "type:ced4550d6e",
+      "PlannedDiskFile": "interface:c83c86fa5f",
+      "ReadPlannedFileResult": "type:9e9770f7a3",
+      "ReviewedFile": "interface:a7e2dcbf86",
+      "ReviewedFileHandle": "interface:285350528f",
+      "ReviewedFileSystem": "interface:083246be4b",
+      "SITE_BACKUP_DATABASE_PATH": "variable:269a9c60f7",
+      "SITE_BACKUP_SCOPES": "variable:7015a6aac5",
+      "SiteBackupHostLimit": "interface:a8fd54f04f",
+      "SiteBackupInclude": "type:30737c6ee1",
+      "SiteBackupLimits": "interface:07c5037295",
+      "SiteBackupLimitsResult": "type:dcbbf23c13",
+      "SiteBackupManifestIdentity": "interface:8e4216f11d",
+      "SiteBackupManifestInput": "interface:ea261760ee",
+      "SiteBackupReadHandle": "type:f9d26a7d9d",
+      "SiteBackupScope": "type:f6430b4f70",
+      "SiteBackupSourceDeps": "interface:b20ab7a75d",
+      "SiteBackupSources": "interface:f39c015328",
+      "SiteBackupWalkFileSystem": "interface:590197912d",
+      "SitePluginPackageListing": "interface:88259f8c45",
+      "SkippedSiteBackupFile": "interface:63501c971f",
+      "buildSiteBackupManifest": "function:41486c1396",
+      "captureDatabaseSnapshot": "function:4c529cdbdd",
+      "checkSiteBackupLimits": "function:467c5dbdcb",
+      "collectSiteBackupFiles": "function:ec4ae503e2",
+      "formatByteSize": "function:e838c8214c",
+      "readPlannedFile": "function:f09d128bde",
+      "skipOversizedFiles": "function:f8ab314da7"
+    }
+  },
+  "./backup/site/static-copy": {
+    "types": "./dist/backup/site/static-copy.d.ts",
+    "symbols": {
+      "ExportReport": "type:c20f2c6ae5",
+      "StaticCopyHost": "interface:742a901d89",
+      "StaticSiteCopy": "type:4dc09d54cf",
+      "StaticSiteMetadata": "interface:87b1b11a9c",
+      "StaticSitePorts": "interface:a822db87e1",
+      "captureStaticSite": "function:72e4c752f8",
+      "isStaticSitePath": "function:e572364a40",
+      "prepareStaticReport": "function:c14835bc80",
+      "readmeText": "function:f4a24e2d8e"
+    }
+  },
+  "./backup/site/static-download-html": {
+    "types": "./dist/backup/site/static-download-html.d.ts",
+    "symbols": {
+      "DownloadHtmlSourceEdits": "interface:b23bf3819a",
+      "Edit": "type:c020bb9e69",
+      "Element": "interface:3bcd1d5934",
+      "HtmlAncestor": "interface:7b2d0cb774",
+      "SourceRange": "interface:ad563323e9",
+      "downloadDocumentBase": "function:48d188f2d2",
+      "downloadForms": "function:6330245aeb"
+    }
+  },
+  "./backup/site/static-download-landing": {
+    "types": "./dist/backup/site/static-download-landing.d.ts",
+    "symbols": {
+      "ExtractPlainText": "type:96101beff1",
+      "LANDING_FILE": "variable:b853752a6f",
+      "LandingPage": "interface:7ca48bef3e",
+      "LandingTheme": "interface:d1bd4cb58a",
+      "landingPages": "function:774fa27b4a",
+      "staticLandingPage": "function:7865bb2105"
+    }
+  },
+  "./backup/site/static-download-layout": {
+    "types": "./dist/backup/site/static-download-layout.d.ts",
+    "symbols": {
+      "StaticDownloadCopy": "interface:ecb1cace18",
+      "StaticDownloadHost": "interface:e0ecb64035",
+      "StaticUrlLocation": "interface:6f3c7d8701",
+      "StaticUrlParsing": "interface:34ffa6e1b1",
+      "staticDownloadLayout": "function:4cc7425a0a"
+    }
+  },
+  "./backup/site/static-export-selection": {
+    "types": "./dist/backup/site/static-export-selection.d.ts",
+    "symbols": {
+      "StaticExportAllocationPolicy": "interface:6f0c4dcd22",
+      "StaticExportInput": "interface:9f5c36b9df",
+      "StaticExportOptions": "interface:00657bfbe5",
+      "StaticExportSelectionPolicy": "interface:e081b9b525",
+      "StaticExportTheme": "interface:13d657accf",
+      "allocateStaticExportThemes": "function:5edb6ac170",
+      "parseStaticExportInput": "function:f39a4563a0"
+    }
+  },
+  "./backup/site/static-site-packager": {
+    "types": "./dist/backup/site/static-site-packager.d.ts",
+    "symbols": {
+      "StaticSitePackagerDeps": "interface:0d64c21880",
+      "createStaticSitePackager": "function:017675ee1b"
+    }
+  },
+  "./backup/upload": {
+    "types": "./dist/backup/upload.node.d.ts",
+    "symbols": {
+      "BackupUploadEntry": "type:f2670b6c86",
+      "PendingFile": "interface:f6ca73402a",
+      "PushFailure": "interface:c21910bf78",
+      "SITE_BACKUP_UPLOAD_CONCURRENCY": "variable:eba3552066",
+      "UploadPlannedContentInput": "interface:9c8541f9cf",
+      "uploadPlannedContent": "function:83038ecac9"
+    }
+  },
+  "./checks/complexity-debt": {
+    "types": "./dist/checks/complexity-debt.d.ts",
+    "symbols": {
+      "BaselineDiff": "interface:7f98a108bc",
+      "ComplexityRunVerdict": "interface:27ac27d9ca",
+      "ComplexityViolation": "interface:79a6f3a9e1",
+      "EslintFileResult": "interface:78c9211d91",
+      "EslintMessage": "interface:d591d7b7cb",
+      "diffAgainstBaseline": "function:45e9435e88",
+      "evaluateRun": "function:92423b1ad7",
+      "rejectUnusableEslintRun": "function:c75f824797",
+      "violationKey": "function:c3ae513a44"
+    }
+  },
+  "./checks/coverage": {
+    "types": "./dist/checks/coverage/index.d.ts",
+    "symbols": {
+      "AreaFloor": "interface:0535d1f186",
+      "AreaFloorResult": "interface:6490b5386b",
+      "BlockStatus": "type:275c577266",
+      "BlockVerdict": "interface:99af6d25f9",
+      "CoverageArea": "interface:5f73f99663",
+      "CoverageAxis": "type:b55dbf42d9",
+      "CoverageFloor": "interface:65019cea54",
+      "DEFAULT_BASELINE_COMMENT": "variable:f5b02b267d",
+      "DiffPort": "interface:33092b4fed",
+      "DiskAreaResult": "interface:5c1ffde58e",
+      "FileCoverage": "interface:f44dc96d2b",
+      "FileTierEvaluation": "interface:4b604b7791",
+      "FloorResult": "interface:dbc62cf548",
+      "GatedVerdict": "interface:f98d801b5b",
+      "IntegrityReport": "interface:be9233fdec",
+      "LcovBlock": "interface:aaf1c5c806",
+      "LcovCounters": "interface:a0a2b6b8e2",
+      "ParsedArgs": "interface:f543060cd1",
+      "RunnerGlobs": "interface:ea755c5422",
+      "SourceClassificationRules": "interface:95ffd814ed",
+      "SourceClassifier": "type:993117ab1b",
+      "SourceReaderPort": "interface:9bd4942f05",
+      "TestPass": "interface:22b5f00402",
+      "TierResult": "interface:74d35b7df3",
+      "TierThresholds": "interface:6f59fe3498",
+      "applyBaseline": "function:41d8b0b0c2",
+      "checkCoverageDiff": "function:8d5821bae4",
+      "checkCoverageIntegrity": "function:5d4d47da65",
+      "classifyBlock": "function:27acb98e80",
+      "evaluateArea": "function:b87de46695",
+      "evaluateDiskArea": "function:2c28124330",
+      "evaluateFileTiers": "function:494fb64584",
+      "evaluateFloor": "function:6894e52234",
+      "formatDiskArea": "function:4c7c4e9117",
+      "isInExcludedDir": "function:ecd07dadb2",
+      "isIntegrationTestFile": "function:18dea4c2e4",
+      "isMeasurableSource": "function:1789994b7e",
+      "isMeasurableSourceFile": "function:03bece0784",
+      "isPureReExportBarrelSource": "function:5fa81883ce",
+      "loadLcov": "function:07fe51a718",
+      "loadRouteCoverage": "function:42e0559e9d",
+      "mergeCoverage": "function:a471839d37",
+      "parseArgs": "function:7eaebc1f29",
+      "parseBaseline": "function:28db293955",
+      "parseLcov": "function:b33706de34",
+      "parseLcovBlocks": "function:1b9df328fe",
+      "parseNodeTestScript": "function:3b7da107e7",
+      "pct": "function:55074f0a8e",
+      "resolveBaseRef": "function:0708c41176",
+      "runnerSplitDrift": "function:f82618bb98",
+      "serializeBaseline": "function:7452b5f279",
+      "toRepoRelative": "function:bab7de8f6e",
+      "withoutTrailingSlashes": "function:c7d5cf1b07"
+    }
+  },
+  "./checks/env-access": {
+    "types": "./dist/checks/env-access.d.ts",
+    "symbols": {
+      "ENV_ACCESS_RULES": "variable:cc740d81dc",
+      "EnvAccessSource": "interface:1169651cc3",
+      "createEnvAccessInspector": "function:f9be6ef611"
+    }
+  },
+  "./checks/live-verify-checks": {
+    "types": "./dist/checks/live-verify-checks.d.ts",
+    "symbols": {
+      "CheckLog": "interface:5dc8ff7fb1",
+      "createCheckLog": "function:dd0ef74f80"
+    }
+  },
+  "./checks/memory-soak": {
+    "types": "./dist/checks/memory-soak.d.ts",
+    "symbols": {
+      "MemoryCheckpoint": "interface:08e3454278",
+      "MemoryFloorVerdict": "interface:2788d15339",
+      "evaluateMemoryFloors": "function:dc8119194a"
+    }
+  },
+  "./checks/node": {
+    "types": "./dist/checks/node.d.ts",
+    "symbols": {
+      "HARDWIRING_RULES": "variable:8ee605bf47",
+      "HardwiringSource": "interface:10a1ed9d2a",
+      "HardwiringViolation": "interface:d82aab580a",
+      "createHardwiringInspector": "function:417d246f35",
+      "createNodeEnvLoader": "function:6b54c5529e",
+      "createNodeFilesystem": "function:e0dbff6be5",
+      "createNodeProcessRunner": "function:9b0bd95283",
+      "createNpmInstaller": "function:e08ee767bd",
+      "createResolver": "function:f02e7787c0",
+      "diffHardwiringDebt": "function:cf51c79a30",
+      "displayGraphFile": "function:ad7234a875",
+      "installedPublicFunctions": "function:e8965c876c",
+      "runHardwiring": "function:2fc2f0e6d6",
+      "sourceFiles": "function:1872565a70"
+    }
+  },
+  "./checks/published-types": {
+    "types": "./dist/checks/published-types/index.d.ts",
+    "symbols": {
+      "CheckLoggerPort": "interface:30311d5853",
+      "CompileProject": "interface:d87c5b3e09",
+      "DependencyManifest": "interface:122cda0085",
+      "FilesystemPort": "interface:aea11d749e",
+      "LinksProject": "interface:8b80f3c3e9",
+      "PackageInstallerPort": "interface:cb6d61e781",
+      "ProcessRequest": "interface:319e44317b",
+      "ProcessResult": "interface:fa25656cb6",
+      "ProcessRunnerPort": "interface:c179cf7158",
+      "PublishedTypesProject": "type:9acc603950",
+      "PublishedTypesReport": "interface:6fac1d94ac",
+      "PublishedTypesResult": "interface:f41ec45c04",
+      "PublishedTypesStatus": "type:88bab8d3a6",
+      "TypecheckDiagnosis": "interface:4edda3a477",
+      "TypecheckLog": "interface:948001ccd4",
+      "check": "function:587fc64ff2",
+      "diagnosePublishedTypes": "function:7961500c1d",
+      "parseDiagnosticBlocks": "function:c44414f02f",
+      "registryDependencies": "function:ec5254ad05"
+    }
+  },
+  "./checks/quality-gates": {
+    "types": "./dist/checks/quality-gates.d.ts",
+    "symbols": {
+      "DEFAULT_MAX_DISABLED_DAYS": "variable:f9564932f4",
+      "GateEntry": "interface:830f0f9360",
+      "GateExitCode": "type:d607d695c1",
+      "GateManifest": "interface:1b1b79d094",
+      "asGateEntryArray": "function:8e390d655e",
+      "daysBetween": "function:1ff72ca685",
+      "detectGateDrift": "function:ff32da2fc6",
+      "formatSummary": "function:3691b71df3",
+      "isFailure": "function:d7285533f2",
+      "validateManifest": "function:445b7a9d21"
+    }
+  },
+  "./deploy": {
+    "types": "./dist/deploy/index.d.ts",
+    "symbols": {
+      "ArtifactStorePort": "interface:bb2dc3636a",
+      "ArtifactUpload": "interface:e688309feb",
+      "CheckForUpdateFromFeedOptions": "interface:ce25e073bc",
+      "CompareSiteVersionsOptions": "interface:b52a32f6fd",
+      "CreateDeployPublishToolRegistrationArgs": "interface:1b03ee417d",
+      "CreateDeployPublishToolRegistrationOptions": "interface:6019560dad",
+      "DEFAULT_DEPLOY_PUBLISH_ROLE": "variable:5dd6c0717f",
+      "DEPLOY_PUBLISH_TOOL_ID": "variable:78fe78cc05",
+      "DeployConfigGeneratorDescriptor": "interface:21db844179",
+      "DeployConfigGeneratorModule": "interface:a7ad3ef8a7",
+      "DeployConfigGeneratorRegistry": "interface:e398f5dc83",
+      "DeployConfigKit": "interface:2831f909ee",
+      "DeployCredentialCheck": "type:d569ad5fd7",
+      "DeployCredentialCheckContext": "interface:a3fcf33c7e",
+      "DeployCredentialDiagnostic": "interface:04632d6f9d",
+      "DeployCredentialSetupRequired": "class:34b7ee7c55",
+      "DeployError": "class:1d879c1ca1",
+      "DeployErrorDetails": "type:76aa9d33fb",
+      "DeployFetchTimeouts": "interface:0bd6dd21cd",
+      "DeployFile": "interface:f26aa335ea",
+      "DeployHostKit": "interface:7e07a90e89",
+      "DeployHostingSetup": "interface:90f6309d28",
+      "DeployLinkStatus": "type:fdd1f9a30c",
+      "DeployOpsBoundedRequest": "interface:3f38c3ac63",
+      "DeployOpsContext": "interface:a4408e198b",
+      "DeployOpsDeployInput": "interface:873ce85434",
+      "DeployOpsDeployResult": "interface:7db2b7a767",
+      "DeployOpsDescriptor": "interface:7d4b7d1fca",
+      "DeployOpsInput": "interface:81dcd85193",
+      "DeployOpsLogs": "interface:efe9d1dad9",
+      "DeployOpsModule": "interface:33995b2368",
+      "DeployOpsRegistrationHost": "interface:7943142bbc",
+      "DeployOpsRegistry": "interface:5b8b445fbd",
+      "DeployOpsResponse": "interface:f88a0827f7",
+      "DeployOpsRuntime": "interface:94702eaaeb",
+      "DeployOpsSecretAppliesOn": "type:ae90b37c00",
+      "DeployOpsSecretCapabilities": "interface:d8cee89bcc",
+      "DeployOpsSecretCards": "interface:aa53af40f5",
+      "DeployOpsSecretInfo": "interface:bc389d6190",
+      "DeployOpsSecretList": "interface:497dd5a5ec",
+      "DeployOpsSecretRead": "type:bbc9995228",
+      "DeployOpsSecretWrite": "interface:e6d2961c5d",
+      "DeployOpsSendRequest": "interface:68bdcb6a7a",
+      "DeployOpsState": "type:ccc75cd347",
+      "DeployOpsStatus": "interface:d9cf6f98fc",
+      "DeployOpsTargets": "interface:b13c809d98",
+      "DeployOpsToolIds": "interface:185b83c450",
+      "DeployOpsWaitResult": "interface:6b8bf6ad7b",
+      "DeployPublishInput": "interface:5c9ad8abb9",
+      "DeployPublishOptions": "interface:f4282d45ca",
+      "DeployPublishProgress": "interface:3548b9aaf7",
+      "DeployPublishResult": "interface:6973dce29b",
+      "DeployPublishToolInput": "interface:49b59d13ab",
+      "DeployRequest": "interface:ec4e9f4af3",
+      "DeployTarget": "interface:4b53e78b1f",
+      "DeployTargetCreateContext": "interface:1a23404b6c",
+      "DeployTargetCredential": "type:ab3baf1da1",
+      "DeployTargetCredentialSpec": "interface:ee70a55b7f",
+      "DeployTargetDescriptor": "interface:d9c453427c",
+      "DeployTargetEnvFallback": "interface:76c18a6494",
+      "DeployTargetFieldSpec": "interface:4f80f4f847",
+      "DeployTargetInspection": "interface:abac2022f6",
+      "DeployTargetModule": "interface:d2f07c4e6d",
+      "DeployTargetProjectNameCopy": "interface:732c85b80c",
+      "DeployTargetRegistry": "interface:583df435fb",
+      "DeployTargetToken": "variable:9958063246",
+      "DeploymentDescriptor": "interface:0ab402d0a6",
+      "DeploymentSecret": "interface:28ae3b09b1",
+      "DeploymentUrlCheck": "interface:49d20d98e9",
+      "DeploymentUrlGuard": "interface:7689ec8524",
+      "DesktopAppUpdaterPort": "interface:23a65afee8",
+      "DesktopSiteMigratePort": "interface:54466069f7",
+      "DesktopSiteUpdateOptions": "interface:84fea00978",
+      "FakeSiteUpdate": "interface:f2a3fb61d5",
+      "FakeSiteUpdateFailPoint": "type:7400bc748d",
+      "FakeSiteUpdateOptions": "interface:3ccb829f6c",
+      "HostDeployPublishInput": "type:aaadd4dea0",
+      "HostDeployTarget": "interface:c58c133611",
+      "ImageTagForVersionOptions": "interface:bcd0346722",
+      "ImageTagPort": "interface:66cfa1f24f",
+      "InstalledDeployTarget": "interface:050287c1a7",
+      "InstalledDeployTargetInventory": "interface:4bf984fc51",
+      "LoadInstalledDeployTargets": "type:421c5cac03",
+      "LoadedDeployConfigGenerator": "interface:951ce5e40c",
+      "LoadedDeployOps": "interface:581e07aa35",
+      "LoadedDeployTarget": "interface:06dfe937f9",
+      "MAX_MODULE_SLEEP_MS": "variable:b2fed9f341",
+      "MAX_RESPONSE_CHARS": "variable:f3dc2f37c7",
+      "MAX_WAIT_SECONDS": "variable:f2835a9fc4",
+      "MigrationReadiness": "type:0444df8afd",
+      "MigrationReadinessPort": "interface:ac79395a09",
+      "PluginDeployCredentialCheckContext": "type:ecd07541ac",
+      "PluginDeployHostKit": "interface:e1cec3bde9",
+      "PluginDeployTargetCreateContext": "type:4a6532bbb7",
+      "PluginDeployTargetModule": "interface:252ba4c9b8",
+      "PluginSigV4Client": "interface:7b807ccce4",
+      "ProtectedResponseDetector": "type:cdf7837a7a",
+      "PublishJobSnapshot": "interface:61be187c22",
+      "PublishJobStore": "interface:1ce127218c",
+      "ReachabilityArgs": "interface:c9d8ea2b81",
+      "ReachabilityFetchPort": "type:5953302e70",
+      "ReachabilityOptions": "interface:c5bae66675",
+      "ReachabilityWaitArgs": "interface:f5f91bb7b4",
+      "ReachabilityWaitOptions": "interface:6b90a737a3",
+      "ReachabilityWaitResult": "interface:a7cde66a64",
+      "ReleaseFeedPort": "interface:b3e0db1887",
+      "RenderDeployConfigOptions": "interface:4e24722009",
+      "RenderedDeployConfig": "interface:8c20ce41c0",
+      "ResponseHeaderSet": "type:f7e60b66e3",
+      "RunSiteUpdateOptions": "interface:25f26a4f77",
+      "SECRET_NAME_PATTERN": "variable:f57057cc78",
+      "SecretComparison": "type:99d5d25570",
+      "SecretConfirm": "type:99788ad966",
+      "SecretConfirmRequest": "interface:ad8caf6ccf",
+      "SecretNotConfirmed": "interface:5afdcdd8b8",
+      "SecretTargetInput": "interface:9d4d3daf67",
+      "SecretValueSource": "type:171527a4b1",
+      "SelfHostedSiteUpdateOptions": "interface:72fd1d4e7b",
+      "SetSecretInput": "interface:e00bc7f62a",
+      "SetSecretResult": "interface:9e9e69d390",
+      "SigV4Client": "interface:652f4d287e",
+      "SigV4ClientOptions": "interface:cded8fe7ac",
+      "SiteBackupPort": "interface:7928e4aebf",
+      "SiteDataRestorePort": "interface:59aeec0cd3",
+      "SiteHealthPort": "interface:ab9e663404",
+      "SiteRelease": "interface:58ee02d86d",
+      "SiteUpdateApproval": "interface:0b623b400a",
+      "SiteUpdateAvailable": "interface:58c739fdb8",
+      "SiteUpdateCallOptions": "interface:6ca55b7f98",
+      "SiteUpdateError": "class:823dbf45f5",
+      "SiteUpdateErrorCode": "type:d127a52d58",
+      "SiteUpdateOutcome": "type:0b4ff54985",
+      "SiteUpdatePlan": "interface:b93fcb5b88",
+      "SiteUpdatePort": "interface:a61ed03e81",
+      "SiteUpdatePorts": "interface:982b68a18e",
+      "SiteUpdateRunResult": "interface:407d184e82",
+      "SiteUpdateStep": "type:ccb64c23af",
+      "SiteUpdateStepLog": "interface:95d378aac1",
+      "SiteUpdateStepStatus": "type:f1f8f181dd",
+      "SiteUpdateVerification": "type:21f4ea7342",
+      "UnknownRecord": "type:e89e7ae755",
+      "UnsetSecretInput": "interface:4bfd0f42af",
+      "UnsetSecretResult": "interface:ea7400856c",
+      "WaitClock": "interface:ca6708b10d",
+      "aborted": "variable:77c0385941",
+      "asDeployConfigGeneratorModule": "function:727dbf7a03",
+      "asDeployOpsModule": "function:796e8d5ebe",
+      "asDeployTargetModule": "function:4f7274652b",
+      "assertNoConfigInjection": "function:a6652ba652",
+      "assertNotRedirected": "function:93e6f566b9",
+      "boundContext": "function:e416576700",
+      "buildDeployOpsRegistrations": "function:1b6075121f",
+      "checkDeploymentUrl": "function:e3a1275809",
+      "checkForUpdateFromFeed": "function:8ff4a89baf",
+      "collectTypedDeploySecret": "function:43f5ebe582",
+      "compareSiteVersions": "function:c10498da5d",
+      "createDeployPublishToolRegistration": "function:f641365a34",
+      "createDesktopSiteUpdate": "function:d8e542d1a0",
+      "createFakeSiteUpdate": "function:ba6ca6d887",
+      "createPublishJobStore": "function:8ab4079b30",
+      "createRoleGatedDeployPublishPolicy": "function:1b6b934d23",
+      "createSelfHostedSiteUpdate": "function:f6f9d88624",
+      "denyAllDeployPublishPolicy": "variable:85433ee79d",
+      "imageTagForVersion": "function:890dece9b7",
+      "isContainedDeployConfigPath": "function:230924d750",
+      "isSiteVersion": "function:493047d324",
+      "normalizeDeploymentUrl": "function:210f06d0de",
+      "parseDeployConfigsFile": "function:7981a3cd37",
+      "parseDeployOpsFile": "function:c58211c36c",
+      "parseDeployTargetsFile": "function:feaa540634",
+      "publishDeploy": "function:e56766daea",
+      "publishJobRecoveryMessage": "function:34fdc7514b",
+      "redirectGuardInit": "function:26b0e6dbaa",
+      "requireDeployPlatform": "function:282ee9d49f",
+      "runDeploy": "function:4b9c3b2c8e",
+      "runDeployOps": "function:f6d14f4f16",
+      "runListSecrets": "function:a6b4c20e73",
+      "runSetSecret": "function:275308c0e7",
+      "runSiteUpdate": "function:4ca962010b",
+      "runUnsetSecret": "function:61b8113514",
+      "safeDnsLabel": "function:069aa5040b",
+      "safeProjectLabel": "function:2fa5b05b68",
+      "waitForDeployOps": "function:4f2005ab15",
+      "waitForReachableDeploymentUrl": "function:adbaed2eb7"
+    }
+  },
+  "./deploy/node": {
+    "types": "./dist/deploy/node.d.ts",
+    "symbols": {
+      "NodeReachabilityRequired": "interface:11afde115e",
+      "ReachabilityLookupRequired": "interface:1283922f08",
+      "ValidatingLookup": "type:3eca63b8e0",
+      "createNodeReachabilityPorts": "function:e587e38759",
+      "createReachabilityDispatcher": "function:cb575782f3",
+      "createReachabilityLookup": "function:c0f13a08c2"
+    }
+  },
+  "./deploy/react": {
+    "types": "./dist/deploy/react/index.d.ts",
+    "symbols": {
+      "DeploymentOverviewArgs": "interface:ce0af6af20",
+      "DeploymentOverviewController": "interface:95e2ab607b",
+      "HistoryTab": "function:0210002295",
+      "HistoryTabProps": "interface:8b7a3b6daf",
+      "PublishRunResult": "function:d70d98c179",
+      "PublishRunResultProps": "interface:fa67bd1211",
+      "useDeploymentOverview": "function:b25f987ee9"
+    }
+  },
+  "./deploy/site/agent-tools": {
+    "types": "./dist/deploy/site/agent-tools.d.ts",
+    "symbols": {
+      "AgentToolActorClassRule": "type:ef6ae62ddc",
+      "AgentToolDefinition": "type:b4d7d744be",
+      "AgentToolSideEffect": "type:11eb2b47d7",
+      "deploymentsAgentToolCatalog": "variable:9ddd7e91ed"
+    }
+  },
+  "./deploy/site/deploy-config": {
+    "types": "./dist/deploy/site/deploy-config.d.ts",
+    "symbols": {
+      "HealthCheckSource": "interface:a702b2cbfe",
+      "HostDeployNotesReadPorts": "interface:6022d90132",
+      "appendHostDeployNotes": "function:e0cad63cae",
+      "buildDeploymentDescriptor": "function:e687e481a5",
+      "createDeployConfigKit": "function:5434fa5fdb"
+    }
+  },
+  "./deploy/site/deploy-config-registry": {
+    "types": "./dist/deploy/site/deploy-config-registry.d.ts",
+    "symbols": {
+      "DeployConfigContributionSpec": "interface:2210fbe5db",
+      "DeployConfigGeneratorSource": "interface:9b95dba29e",
+      "DeployConfigPluginSource": "interface:2232ee90e0",
+      "DeployConfigRegistryPorts": "interface:5449f3c345",
+      "DeployWorkflowContributionDefinition": "interface:ea7f2b867c",
+      "LoadDeployWorkflowContributions": "type:d92b4020a9",
+      "createDeployConfigGeneratorSource": "function:7fcff9d64a",
+      "loadDeployWorkflowFiles": "function:df82cfd561",
+      "readBundledDeployConfigDescriptors": "function:a82f9bc477",
+      "readDeployConfigTargetIdsFromSource": "function:a2eca8c4a0"
+    }
+  },
+  "./deploy/site/deploy-targets/types": {
+    "types": "./dist/deploy/site/deploy-targets/types.d.ts",
+    "symbols": {
+      "DeployCredentialCheck": "type:d569ad5fd7",
+      "DeployCredentialCheckContext": "type:ecd07541ac",
+      "DeployFetchTimeouts": "interface:0bd6dd21cd",
+      "DeployHostingSetup": "interface:90f6309d28",
+      "DeployTargetCreateContext": "type:4a6532bbb7",
+      "DeployTargetCredentialSpec": "interface:ee70a55b7f",
+      "DeployTargetDescriptor": "interface:d9c453427c",
+      "DeployTargetEnvFallback": "interface:76c18a6494",
+      "DeployTargetFieldSpec": "interface:4f80f4f847",
+      "DeployTargetInspection": "type:58bd8f07bb",
+      "DeployTargetModule": "type:8c2fad882f",
+      "DeployTargetProjectNameCopy": "interface:732c85b80c",
+      "DeployTargetRegistry": "type:bdb7f7e665",
+      "HostDeployPublishInput": "type:aaadd4dea0",
+      "HostDeployTarget": "interface:c58c133611",
+      "InstalledDeployTarget": "interface:050287c1a7",
+      "InstalledDeployTargetInventory": "interface:4bf984fc51",
+      "LoadInstalledDeployTargets": "type:421c5cac03",
+      "LoadedDeployTarget": "type:fd2cf15798",
+      "ResponseHeaderSet": "type:f7e60b66e3",
+      "SigV4Client": "interface:7b807ccce4",
+      "SigV4ClientOptions": "interface:cded8fe7ac"
+    }
+  },
+  "./deploy/site/dockerfile": {
+    "types": "./dist/deploy/site/dockerfile.d.ts",
+    "symbols": {
+      "DockerfileSourceSnapshot": "interface:3f8a5611ae",
+      "DockerfileWriteResult": "type:fe46faae73",
+      "readDockerfileSource": "function:63af9893e3",
+      "writeDockerfileSource": "function:c688acb2cb",
+      "writeDockerfileSourceWithIfMatch": "function:0e2c54cd53"
+    }
+  },
+  "./deploy/site/export-run": {
+    "types": "./dist/deploy/site/export-run.d.ts",
+    "symbols": {
+      "DescribeExportError": "type:7a7dd222c7",
+      "ExportEngine": "type:6fca04723b",
+      "ExportRunCounts": "interface:9466f113a8",
+      "ExportRunDiagnostics": "type:e16939cf74",
+      "ExportRunReportLike": "interface:97aac8e2a9",
+      "ExportRunSnapshot": "interface:d7718c7d15",
+      "ExportRunStatus": "type:40a5c173f5",
+      "ExportRunner": "interface:865f74cc58",
+      "StartExportRunOptions": "interface:f28372fa4b",
+      "createExportRunner": "function:8a5b9725bb"
+    }
+  },
+  "./deploy/site/ports": {
+    "types": "./dist/deploy/site/ports.d.ts",
+    "symbols": {
+      "DeploymentError": "interface:4586ca681b",
+      "DeploymentErrorCode": "type:1c1371b4ae",
+      "DeploymentProviderContext": "interface:d5f26c3982",
+      "DeploymentProviderPort": "interface:416ee4e665",
+      "DeploymentRunStatusUpdate": "interface:b850d7e7b6",
+      "PollDeploymentRunInput": "interface:4231f9870d",
+      "PollDeploymentRunResult": "type:2959ae63ed",
+      "StartDeploymentRunInput": "interface:255b7c4544",
+      "StartDeploymentRunResult": "type:52e7ee410b"
+    }
+  },
+  "./deploy/site/publish-credentials/account-label-heal-scheduler": {
+    "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
+    "symbols": {
+      "AccountLabelHealScheduler": "interface:73da82cba0",
+      "AccountLabelHealSchedulerDeps": "interface:d7c68c64c0",
+      "createAccountLabelHealScheduler": "function:5538dfac79",
+      "idsNeedingAccountLabelHeal": "function:1dee8bf473"
+    }
+  },
+  "./deploy/site/publish-credentials/execution-mode": {
+    "types": "./dist/deploy/site/publish-credentials/execution-mode.d.ts",
+    "symbols": {
+      "PublishExecutionMode": "type:eeefd91d38",
+      "executionModeFromEnv": "function:ea2fde4f18"
+    }
+  },
+  "./deploy/site/publish-credentials/types": {
+    "types": "./dist/deploy/site/publish-credentials/types.d.ts",
+    "symbols": {
+      "PublishConnectionInput": "type:183b1f6757",
+      "PublishCredentialScope": "type:84f657504c",
+      "PublishCredentialSummary": "interface:758efbc0b1",
+      "PublishProviderId": "type:19a51e291b"
+    }
+  },
+  "./deploy/site/static-publish/domain-publish-rows": {
+    "types": "./dist/deploy/site/static-publish/domain-publish-rows.d.ts",
+    "symbols": {
+      "domainPublishRows": "function:9a4fbd15c2"
+    }
+  },
+  "./deploy/site/static-publish/types": {
+    "types": "./dist/deploy/site/static-publish/types.d.ts",
+    "symbols": {
+      "PublishCredentialSource": "interface:d95a991021",
+      "ResolvedPublishCredentialSuccess": "type:c8a98e2144",
+      "StaticPublishConfig": "interface:9d86e0a6b1",
+      "StaticPublishOutcome": "type:cb820bef93",
+      "StaticPublishTargetId": "type:da0f649d10"
+    }
+  },
+  "./deploy/site/types": {
+    "types": "./dist/deploy/site/types.d.ts",
+    "symbols": {
+      "DeploymentProviderId": "type:2c008c35a0",
+      "DeploymentRunStatus": "type:15a11c0906",
+      "DeploymentTargetRecord": "interface:aaac23171f",
+      "ReleaseRecord": "interface:f8f379c1ba",
+      "ReleaseSource": "type:ab41093661"
+    }
+  },
+  "./dns": {
+    "types": "./dist/dns/index.d.ts",
+    "symbols": {
+      "AuthoritativeDnsPort": "interface:bd126ca34f",
+      "AuthoritativeDnsToken": "variable:084153ef99",
+      "CaaTag": "type:d259a83370",
+      "CaaValue": "interface:ce86be6543",
+      "DEFAULT_DNS_TTL": "variable:2819899e85",
+      "DEFAULT_MX_PRIORITY": "variable:742e9d2d61",
+      "DNS_ADDRESS_TYPES": "variable:5aca6869f0",
+      "DNS_PROVIDER_CONTRACT": "variable:dc40e2371c",
+      "DOMAIN_BINDING_SWEEP_FAILED_LINE": "variable:a573d37842",
+      "DOMAIN_BINDING_SWEEP_INTERVAL_MS": "variable:5ff9b5259b",
+      "DOMAIN_BINDING_SWEEP_LIMIT": "variable:3a7464c8dc",
+      "DOMAIN_BINDING_SWEEP_STOP_GRACE_MS": "variable:a55b4da1a9",
+      "DOMAIN_BINDING_SWEEP_STOP_LATE_LINE": "variable:95ef259ac2",
+      "DelegationCheck": "interface:3cc4574708",
+      "DelegationState": "type:8857898243",
+      "DnsApproval": "interface:282ecb0f7a",
+      "DnsApprovalCheck": "type:5e061d4f74",
+      "DnsApprovalRefusal": "type:f43f624938",
+      "DnsApprover": "type:1a69604a8a",
+      "DnsCaaRecord": "interface:08a323bc48",
+      "DnsChange": "interface:66a6343204",
+      "DnsChangePlan": "interface:e0e52ec346",
+      "DnsInstructionRow": "interface:6fbf6e100b",
+      "DnsInstructions": "interface:16a05dbcfc",
+      "DnsInventory": "type:12a14ad8fd",
+      "DnsMxRecord": "interface:87f21574f1",
+      "DnsPlainRecord": "interface:3a5f80081a",
+      "DnsPlanBlocker": "interface:10dedabf17",
+      "DnsPlanBlockerCode": "type:df0a0f12a0",
+      "DnsPlanRequirement": "type:0257cd8f19",
+      "DnsProvider": "interface:183821ab86",
+      "DnsProviderCapabilities": "interface:8989d787b4",
+      "DnsProviderContext": "interface:fe2885711f",
+      "DnsProviderRegistry": "type:1df3a3b543",
+      "DnsProviderRegistryToken": "variable:5231e0e867",
+      "DnsRecord": "type:cba77dcf56",
+      "DnsRecordType": "type:c79c3d0428",
+      "DnsRecordValue": "type:bcb0b4859b",
+      "DnsVerification": "interface:2220a77859",
+      "DnsZone": "interface:02631e1932",
+      "DomainBindingSweepScheduler": "interface:3c70c13c9c",
+      "DomainBindingSweepTimer": "interface:378a81a124",
+      "DomainBindingSweeper": "interface:d971df327f",
+      "DomainBindingSweeperOptional": "interface:29f088ae42",
+      "FIRST_CHECK_DELAY_MS": "variable:dc206a51e9",
+      "MANUAL_DNS_PROVIDER_ID": "variable:1f45a6bc74",
+      "MAX_CHECK_DELAY_MS": "variable:a98554c219",
+      "ManualDnsProviderOptions": "interface:ace78df69c",
+      "MxValue": "interface:dcfe4577fd",
+      "NameserverObservation": "interface:811455fcbb",
+      "PROPAGATION_CAP_MS": "variable:fc79f62624",
+      "PlanDnsChangesInput": "interface:412e6d915e",
+      "PlanDnsChangesOptions": "interface:fbc49bd85d",
+      "PropagationState": "type:97b605f059",
+      "RecordVerification": "interface:b93ea9296c",
+      "TXT_CHUNK_BYTES": "variable:47454be159",
+      "aggregatePropagation": "function:9d1e5ceb14",
+      "answerMatches": "function:f9ee634a56",
+      "bindDnsApproval": "function:55da7ad050",
+      "buildRecord": "function:634a1d0c7b",
+      "canonicalIpv6": "function:05a9e4be0b",
+      "canonicalJson": "function:d330687071",
+      "checkDelegation": "function:148e9e76d1",
+      "checkDnsApproval": "function:dbc1d3b194",
+      "chunkTxt": "function:0f66f28a1a",
+      "createDnsProviderRegistry": "function:648ce07b26",
+      "createManualDnsProvider": "function:8cca0acf33",
+      "dnsProviderDefinition": "function:1cdc8e989f",
+      "dnsProviderShapeError": "function:22db51b040",
+      "dnsValueKey": "function:03014ec62a",
+      "fingerprintPlan": "function:1181af70af",
+      "isExpired": "function:efc7626d66",
+      "isMxValue": "function:b6afc1efe0",
+      "isSpfValue": "function:31f0420804",
+      "mergeSpf": "function:cd2e65d679",
+      "nextCheckDelayMs": "function:f5b6737cfc",
+      "normalizeDnsName": "function:27855e3c2b",
+      "parseAnswerValue": "function:287d5d0c16",
+      "parseCaaText": "function:fe24572345",
+      "parseMxText": "function:3c8c6d84cf",
+      "planDnsChanges": "function:9e7962bd03",
+      "relativeHost": "function:3af0c531e8",
+      "renderDnsInstructions": "function:6b90cca2a0",
+      "requirementValue": "function:18e7ab7f1c",
+      "sameValueSet": "function:dee26eca51",
+      "settlePort": "function:ef9f5014dd",
+      "spfSatisfies": "function:85c9fb5864",
+      "startDomainBindingSweeper": "function:0f3b970dff",
+      "unquoteTxt": "function:ea91a3546b",
+      "verifyRequirements": "function:707cab6a69"
+    }
+  },
+  "./dns/node": {
+    "types": "./dist/dns/node/index.d.ts",
+    "symbols": {
+      "AUTHORITATIVE_DNS_TIMEOUT_MS": "variable:1ee4c20783",
+      "DNS_RCODE_NXDOMAIN": "variable:bc71e162f0",
+      "DNS_TYPE_NS": "variable:bf1fd89b45",
+      "DnsExchange": "type:8f93104d67",
+      "DnsResolverLike": "type:10aa9be420",
+      "NodeAuthoritativeDnsResolverOptions": "interface:2fa3aa7b19",
+      "NsReply": "interface:cd5829d31c",
+      "UdpDnsExchangeOptions": "interface:3f0e1f7f3e",
+      "createNodeAuthoritativeDnsResolver": "function:40c55d17ef",
+      "createUdpDnsExchange": "function:899baf324b",
+      "decodeNsReply": "function:abb782b0c8",
+      "encodeNsQuery": "function:b2759e5242"
+    }
+  },
+  "./dns/site/binding.repo": {
+    "types": "./dist/dns/site/binding.repo.d.ts",
+    "symbols": {
+      "DomainBinding": "interface:93610f4b02",
+      "DomainBindingKernel": "interface:f7134cdc11",
+      "DomainBindingSqlTag": "interface:779e1f589e",
+      "DomainBindingStatus": "type:926b456352",
+      "DomainBindingStore": "interface:498f549e63",
+      "createDomainBindingStore": "function:802716cc48"
+    }
+  },
+  "./dns/site/dns-changes": {
+    "types": "./dist/dns/site/dns-changes.d.ts",
+    "symbols": {
+      "DnsChangePorts": "interface:c2c6f98690",
+      "DnsChangeRequest": "interface:3af4d05a79",
+      "DomainDnsBlocker": "interface:ec818ae6c5",
+      "DomainDnsInspection": "interface:6176bad9ce",
+      "DomainDnsPlan": "interface:6e55960cc8",
+      "DomainDnsVerifyResult": "interface:ae87623919",
+      "VERIFY_WRITE_ATTEMPTS": "variable:58494adb52",
+      "domainDnsInstructions": "function:1b81696329",
+      "inspectDomainDns": "function:f46f3b7e12",
+      "planDomainDns": "function:196c40d234",
+      "verifyDomainDns": "function:cfba4efc45",
+      "verifyDueDomainBindings": "function:9385510fd8"
+    }
+  },
+  "./dns/site/dns-tools": {
+    "types": "./dist/dns/site/dns-tools.d.ts",
+    "symbols": {
+      "buildDnsChangeRegistrations": "function:9f86ee7bb3",
+      "contributeDomainDnsAndChangeTools": "function:f9a3d13cae",
+      "dnsChangeAgentToolCatalog": "variable:9878a2ca86",
+      "dnsChangeDerivedRisk": "variable:f97088a5f9",
+      "readDnsChangeInput": "function:928b43d9e6"
+    }
+  },
+  "./dns/site/mail-dns-status": {
+    "types": "./dist/dns/site/mail-dns-status.d.ts",
+    "symbols": {
+      "MailDnsCheck": "interface:82196d4882",
+      "MailDnsNameserverView": "interface:aa7c75f7ee",
+      "MailDnsRecordStatus": "type:cbb2c1ddf5",
+      "MailDnsRecordView": "interface:e10d6327e9",
+      "MailDnsState": "type:7647a36af9",
+      "MailDnsStatus": "interface:29fdccf9e1",
+      "MailDnsStatusPorts": "type:b87d86191b",
+      "MailDnsTracking": "interface:3a39f036f0",
+      "mailDnsRecordStatus": "function:f7e738e69e",
+      "readMailDnsStatus": "function:054412cd6b",
+      "verifyMailDnsStatus": "function:4858b1581c"
+    }
+  },
+  "./dns/site/mail-dns-tools": {
+    "types": "./dist/dns/site/mail-dns-tools.d.ts",
+    "symbols": {
+      "buildMailDnsRegistrations": "function:182431c082",
+      "mailDnsAgentToolCatalog": "variable:84867e29e3",
+      "mailDnsDerivedRisk": "variable:ac1a8eaa15",
+      "mailDnsPorts": "function:87979c8472"
+    }
+  },
+  "./dns/site/mail-requirements": {
+    "types": "./dist/dns/site/mail-requirements.d.ts",
+    "symbols": {
+      "DMARC_HINT_PROVIDER_ID": "variable:18f1043b34",
+      "DMARC_HINT_VALUE": "variable:4656c48471",
+      "DnsRequirementInclude": "type:b43b8de708",
+      "MailRequirementsPort": "type:695b9b461f",
+      "withMailRequirements": "function:d1b7e19d64"
+    }
+  },
+  "./dns/site/tool-deps": {
+    "types": "./dist/dns/site/tool-deps.d.ts",
+    "symbols": {
+      "DnsChangeToolDeps": "interface:5d2e6fd2d5"
+    }
+  },
+  "./dns/site/tools": {
+    "types": "./dist/dns/site/tools.d.ts",
+    "symbols": {
+      "DomainDnsChecksPort": "interface:dc5a55eaca",
+      "DomainDnsToolDeps": "interface:f79497993f",
+      "PublicNameValidators": "interface:18ea272cba",
+      "buildDomainDnsRegistrations": "function:0e833c8045",
+      "domainDnsAgentToolCatalog": "variable:6e1b23641c",
+      "domainDnsDerivedRisk": "variable:a230b88922",
+      "toolInputPublicNames": "function:b44b4fb661"
+    }
+  },
+  "./local-dev": {
+    "types": "./dist/local-dev/index.d.ts",
+    "symbols": {
+      "AUTO_START_PORT_ATTEMPTS": "variable:91ec693935",
+      "DEFAULT_LOCAL_BIND_HOST": "variable:a5b8f5d757",
+      "EnvLoaderPort": "interface:fa376cae54",
+      "EnvironmentFilesystemPort": "interface:b193968ce5",
+      "LOOPBACK_HOSTS": "variable:5b8a1b5f9b",
+      "PortListener": "interface:40e22c0e10",
+      "ServerListenerPort": "interface:633ac4e28e",
+      "createDevServerRetirement": "function:363a7b3022",
+      "isLoopbackHost": "function:f899e63763",
+      "isPortFree": "function:1bbd0d6989",
+      "listenServer": "function:9f9da9ca97",
+      "listenersOn": "function:bab29a5b16",
+      "loadRepoRootEnvFile": "function:f100a3c514",
+      "parseLsofListeners": "function:c5d7ac8fe3",
+      "pickFreePort": "function:e9972c9f80",
+      "reserveBootListener": "function:8e75373c9f",
+      "resolveBindHost": "function:e1e889313f",
+      "selectNodeRuntime": "function:06f63872fb",
+      "sourceTreeStamp": "function:5e5cdd8bfa"
+    }
+  },
+  "./local-dev/dev-proxy-upstream": {
+    "types": "./dist/local-dev/dev-proxy-upstream.d.ts",
+    "symbols": {
+      "ClientResponsePort": "interface:282e22e9aa",
+      "ProxiedRequestPort": "interface:11ca1c05aa",
+      "ProxyEventsPort": "interface:e2fa2105e1",
+      "UpstreamRefusal": "interface:c482e60f45",
+      "UpstreamResponsePort": "interface:9a7c5ea3b4",
+      "installUpstreamCloseHandling": "function:1a6de33808"
+    }
+  },
+  "./packaging/electron": {
+    "types": "./dist/packaging/electron/entry.d.ts",
+    "symbols": {
+      "ArchiveReaderPort": "interface:f79ed25248",
+      "AsarHeaderNode": "interface:11eea7b90d",
+      "AsarMismatch": "interface:f296a9828b",
+      "AsarVerification": "interface:bcfe772663",
+      "DistImportInput": "interface:6dd3815d2c",
+      "FileInfo": "interface:c7ec5dea29",
+      "ImportAliasPort": "interface:18862daa5b",
+      "ImportReaderPort": "interface:a18391e8af",
+      "IsolatedPackagedTreeOptions": "interface:532e15d727",
+      "IsolatedPackagedTreeRequired": "interface:13ec9c48e2",
+      "MovingRootsRequired": "interface:c137c87849",
+      "OptionalPeerManifest": "interface:7c82c423a5",
+      "PackageResolverPort": "interface:4571046e35",
+      "PackagedTreeIsolationError": "class:3986b0efe2",
+      "PackagedTreeTargets": "interface:613183ecb6",
+      "PackagingFilesystemPort": "interface:1f4c33e607",
+      "PrebuildBuilt": "interface:b05ddd0dde",
+      "ProcessRunnerPort": "interface:94081a36e4",
+      "PruneTally": "interface:18729cd382",
+      "RuntimeResolverPort": "interface:3917b3acab",
+      "SleepPort": "interface:d1c88edebe",
+      "SnapshotPort": "interface:964e6cb583",
+      "StagedClosureAudit": "interface:eaaf4a947e",
+      "StagedClosureInput": "interface:22e88c1a6e",
+      "StalenessShell": "interface:97f6878de6",
+      "StripTally": "interface:99ee0e5b60",
+      "Target": "interface:3ee1b41e6f",
+      "TreeFingerprint": "interface:896dc37deb",
+      "TreeQuietFormatters": "interface:b451c62a98",
+      "UpdateFileEntry": "interface:d07df067d2",
+      "UpdateManifest": "interface:a08c169a9a",
+      "WorkspacePackagePackerPort": "interface:3b26246b2e",
+      "assertClosureComplete": "function:fdcbf09f04",
+      "assertDistImportsDeclared": "function:2910dce6f6",
+      "assertPackagedTreeIsolation": "function:338301894d",
+      "auditStagedClosure": "function:a7bd1cc2de",
+      "bundledNpmFailures": "function:293d12bfa2",
+      "createAsarArchiveReader": "function:99507f1843",
+      "createNodePackageResolver": "function:2da6d148b4",
+      "createNodePackagingFilesystem": "function:e2626b189d",
+      "createNodeRuntimeResolver": "function:ada19008ca",
+      "declaredDependencies": "function:49aed9c0ed",
+      "diskBytes": "function:857f5da58c",
+      "filesUnderPrefixes": "function:647e5df41d",
+      "fingerprintTree": "function:af7b6a12ee",
+      "fingerprintsDiffer": "function:07f1332d59",
+      "formatMismatchReport": "function:3008846495",
+      "hasNativeBinaryMagic": "function:fbe7a2d8f8",
+      "isBundleInput": "function:200211737f",
+      "isEmptyVerification": "function:2913f6ecfe",
+      "isExcluded": "function:580536736e",
+      "mergeMacManifests": "function:ae27772d57",
+      "missingClosureDependencies": "function:8c5328afd2",
+      "newestMtime": "function:e9ff218ad0",
+      "observeMovingPaths": "function:5d0aa9417a",
+      "optionalPeerClassification": "function:d888b7dc5b",
+      "optionalPeerContractProblems": "function:374b0f486a",
+      "parseNpmLsPaths": "function:1dd7776ead",
+      "prebuildTarget": "function:e135cac04f",
+      "productionDependencyOutput": "function:0df4c6b0f7",
+      "pruneNativePrebuilds": "function:c0ff56beb0",
+      "resolveNpmLsCommand": "function:3956b7cb07",
+      "resolveTargets": "function:8eede240e8",
+      "sampleMovingRoots": "function:efab7bf16b",
+      "shellStalenessFailure": "function:0158383aca",
+      "stageBundledNpm": "function:b64314e4b6",
+      "stageDir": "function:61335362c4",
+      "stagePackedWorkspace": "function:968e7b92b6",
+      "stagePayloadFiles": "function:417add52eb",
+      "stageTransitiveDependencies": "function:9ec6f7f8c0",
+      "stagedPackageDirs": "function:3775c154ee",
+      "stripNonRuntimeFiles": "function:c212c60d55",
+      "strippableReason": "function:b0ce66d4ae",
+      "toArchiveEntryPath": "function:c4b8b2e24e",
+      "treeQuietProblems": "function:77ba1b9feb",
+      "undeclaredDistImports": "function:02491b62e7",
+      "verifyAsarAgainstSource": "function:b4edf5fb02",
+      "walkPayloadFiles": "function:8205803cd6",
+      "withIsolatedPackagedTree": "function:79d56c9cca"
+    }
+  },
+  "./packaging/electron/move-to-applications": {
+    "types": "./dist/packaging/electron/move-to-applications.d.ts",
+    "symbols": {
+      "DeclineFileRead": "type:b2296a0e56",
+      "DeclinedVersionStore": "interface:f22b84b3a2",
+      "MoveConflictDecision": "type:b52fe3b4aa",
+      "MoveConflictType": "type:c9ef68edf1",
+      "MovePromptDeps": "interface:a1503358e3",
+      "MovePromptEnvironment": "interface:a406185542",
+      "MovePromptMessages": "interface:27a8bf01e4",
+      "MovePromptOutcome": "type:5d6aea0a5c",
+      "OrFallbackSync": "type:8d931724af",
+      "ReadTextFile": "type:3f925eee21",
+      "applicationsTargetPath": "function:c925bb19a7",
+      "bundlePathFromExecPath": "function:297ea66fa0",
+      "compareVersions": "function:da113e2ece",
+      "decideMoveConflict": "function:0030c31efb",
+      "movePromptSkipReason": "function:5055461493",
+      "readBundleVersion": "function:b3f8d8c07c",
+      "readDeclinedVersion": "function:29e4e2d9be",
+      "recordDeclinedVersion": "function:e3c24561df",
+      "runMoveToApplicationsPrompt": "function:8a047d7d45"
+    }
+  },
+  "./packaging/electron/typescript": {
+    "types": "./dist/packaging/electron/typescript.d.ts",
+    "symbols": {
+      "RuntimeImportRef": "interface:99778021f7",
+      "RuntimeImportSyntax": "type:f1eddff87d",
+      "createTypeScriptImportReader": "function:c9ddd9c667",
+      "runtimeImportReferences": "function:531655912e"
+    }
+  },
+  "./source-control": {
+    "types": "./dist/source-control/entry.d.ts",
+    "symbols": {
+      "BackupRepositoryState": "interface:bc5cb18ef9",
+      "BuildProviderArgs": "interface:e481111394",
+      "BuildProvidersArgs": "interface:cd0a7b53bb",
+      "BuildSourceControlProviderResult": "type:c5d46bcccc",
+      "CatalogPackage": "type:bb57d9201b",
+      "CommitBackupTreeInput": "interface:0ad1d62af6",
+      "CommitErrorStage": "type:dae76baabf",
+      "CommitExportArgs": "interface:ff4bd4425d",
+      "CommitFailureCode": "type:f0764ab534",
+      "CommitFile": "interface:03eb3853fc",
+      "CommitFilesResult": "type:b201ca36ec",
+      "CommitLayoutPort": "interface:c3f532e0b5",
+      "CommitOptions": "interface:1e8e19703c",
+      "CommitOrchestrationArgs": "interface:026819bd98",
+      "CommitSiteInput": "interface:0ad442161a",
+      "CredentialResolverPort": "interface:aa1e20b051",
+      "CredentialedRepositoryTarget": "interface:fa29d6b46f",
+      "DescribedTransportError": "interface:6def5b16a5",
+      "DescriptorExtensionReader": "type:67bd2cc832",
+      "DescriptorExtensions": "type:c565ef1712",
+      "DescriptorPathPolicy": "interface:f60c3ebd2e",
+      "FileSourcePort": "interface:127f927451",
+      "FileWritePlan": "interface:88083a0f99",
+      "FileWritePlanResult": "type:6217eb5962",
+      "FileWriteState": "interface:6b50b171e4",
+      "HttpClientPort": "interface:42a9bae498",
+      "InspectBackupRepositoryFailureCode": "type:f8bed6db07",
+      "InspectBackupRepositoryResult": "type:692c9d875c",
+      "LoadedSourceControlProvider": "interface:ab54b32e1a",
+      "PreviewCommitExportResult": "type:5ed925e9b5",
+      "ProviderCallFailure": "type:2961268603",
+      "ProviderCatalogPort": "interface:3f2dc84b9e",
+      "RepositoryPathError": "class:f1d07d6c35",
+      "RepositoryTarget": "interface:c0621ec30d",
+      "RepositoryTargetValidator": "type:6efc89f021",
+      "SharedBuildProviderArgs": "interface:8af46cae5c",
+      "SharedLoadedProvider": "interface:35e9f587df",
+      "SharedProviderRegistry": "interface:ef3824a9bb",
+      "SourceControlCommitOutcome": "type:f0a71eb7ac",
+      "SourceControlCommitResult": "type:7ada8883ba",
+      "SourceControlFetchPort": "type:4474ef50da",
+      "SourceControlHostFacts": "interface:1fe0e4b711",
+      "SourceControlProvider": "type:2c6433f810",
+      "SourceControlProviderDescriptor": "interface:c0e37370b5",
+      "SourceControlProviderKit": "interface:be67c1e551",
+      "SourceControlProviderModule": "interface:7a8bc423d5",
+      "SourceControlProviderOperations": "interface:cf4c84708e",
+      "SourceControlProviderRegistry": "interface:e0d89dfafe",
+      "UploadedBackupBlob": "interface:4903f64670",
+      "WriteFile": "interface:11670123cd",
+      "buildLoadedSourceControlProvider": "function:702110e463",
+      "buildSourceControlProvider": "function:52f85d518e",
+      "buildSourceControlProviderForApi": "function:b62b9c2d55",
+      "buildSourceControlProviders": "function:ebc5efe34c",
+      "commitSiteToSourceControl": "function:3426f89181",
+      "createSourceControlFetchAdapter": "function:5b828b26c3",
+      "createSourceControlProviderKit": "function:10ff640ced",
+      "findReservedPath": "function:15ca8139b9",
+      "isUnderWorkflowPath": "function:e0414fbc56",
+      "loadSourceControlProviderRegistry": "function:ddf81b9bfe",
+      "normalizeRepositoryFolder": "function:6082f45eda",
+      "originOf": "function:81da5a6551",
+      "parseSourceControlProvidersFile": "function:abdd3dac9d",
+      "pickSourceControlProviderForApi": "function:5d540d3434",
+      "prefixRepositoryPath": "function:25b0d87963",
+      "previewCommitExport": "function:426eba3d6c",
+      "repositoryPathContained": "function:b4a8ced830",
+      "repositoryTargetError": "function:81e67f4cd0",
+      "sourceControlProviderModuleError": "function:3981d9cf76",
+      "toCommitFile": "function:645edd8120",
+      "validateCommitTarget": "function:21ef3e2965"
+    }
+  },
+  "./source-control/react": {
+    "types": "./dist/source-control/react/SourceControl.d.ts",
+    "symbols": {
+      "SourceControl": "function:214e3783f6",
+      "SourceControlProps": "interface:a30e9a52ee",
+      "SourceControlTabBarProps": "interface:e1412356eb"
+    }
+  },
+  "./source-control/site/commit-schema": {
+    "types": "./dist/source-control/site/commit-schema.d.ts",
+    "symbols": {
+      "executeCommitSchema": "variable:796197dff5"
+    }
+  },
+  "./source-control/site/commit-target": {
+    "types": "./dist/source-control/site/commit-target.d.ts",
+    "symbols": {
+      "validateCommitTarget": "function:256895ef89"
+    }
+  },
+  "./source-control/site/credential-form": {
+    "types": "./dist/source-control/site/credential-form.d.ts",
+    "symbols": {
+      "SourceControlCredentialField": "interface:21ffdd7a68",
+      "SourceControlCredentialForm": "interface:7884791326",
+      "parseSourceControlCredentialForm": "function:ca5756ecb3"
+    }
+  },
+  "./source-control/site/provider-kit": {
+    "types": "./dist/source-control/site/provider-kit.d.ts",
+    "symbols": {
+      "SourceControlKitHost": "interface:230655f114",
+      "createSourceControlProviderKit": "function:e3bd0ad9c2"
+    }
+  },
+  "./source-control/site/provider-module": {
+    "types": "./dist/source-control/site/provider-module.d.ts",
+    "symbols": {
+      "BackupTreeEntry": "type:20769faa73",
+      "CommitBackupTreeInput": "interface:0738d731d0",
+      "CommitFile": "interface:03eb3853fc",
+      "CommitFilesResult": "type:0eea05fdc3",
+      "CommitSiteInput": "interface:348a5a60f8",
+      "CredentialedRepositoryTarget": "interface:fa29d6b46f",
+      "DescribedTransportError": "interface:6def5b16a5",
+      "FileWritePlan": "interface:88083a0f99",
+      "FileWritePlanResult": "type:d81b922ed9",
+      "FileWriteState": "interface:6b50b171e4",
+      "InlineBackupText": "interface:317e9df181",
+      "InspectBackupRepositoryFailureCode": "type:a67487bda8",
+      "InspectBackupRepositoryResult": "type:692c9d875c",
+      "ProviderCallFailure": "type:d9c0a115eb",
+      "RepositoryTarget": "interface:c0621ec30d",
+      "RepositoryTargetValidator": "type:8416ee5ef5",
+      "SourceControlCommitResult": "type:945bacc4d1",
+      "SourceControlHostFacts": "interface:1fe0e4b711",
+      "SourceControlKitHttpClient": "interface:f7ceb2011b",
+      "SourceControlProvider": "type:2c6433f810",
+      "SourceControlProviderKit": "interface:c8764f8a1d",
+      "SourceControlProviderModule": "interface:15d18c10d4",
+      "SourceControlProviderOperations": "interface:9664bb08fa",
+      "UploadedBackupBlob": "interface:4903f64670",
+      "WriteFile": "interface:11670123cd"
+    }
+  },
+  "./source-control/site/saved-key-bindings": {
+    "types": "./dist/source-control/site/saved-key-bindings.d.ts",
+    "symbols": {
+      "sourceControlSavedApiKeyLabels": "variable:012e0321f2"
+    }
+  },
+  "./source-control/site/static-site-packager-port": {
+    "types": "./dist/source-control/site/static-site-packager-port.d.ts",
+    "symbols": {
+      "StaticSiteIdentity": "interface:b93dfac9c9",
+      "StaticSitePackage": "type:98da619f67",
+      "StaticSitePackagerPort": "interface:807e9016b6"
+    }
+  },
+  "./static-export": {
+    "types": "./dist/static-export/entry.d.ts",
+    "symbols": {
+      "AppFactoryPort": "interface:1b16049c63",
+      "AppSession": "interface:aaf1d239d9",
+      "ArtifactWriterPort": "interface:de7a9978b6",
+      "AssetSourcePort": "interface:9e3b61e74d",
+      "DroppedReference": "interface:37fb820a88",
+      "ExportFailureSummary": "interface:269c985c4c",
+      "ExportFetchPort": "type:6ef9c5e29c",
+      "ExportOutputNotEmptyError": "class:738403f26f",
+      "ExportPathError": "class:b441e19fd4",
+      "ExportReport": "interface:1a49d78914",
+      "ExportSiteArgs": "interface:2d83805662",
+      "ExportSiteOptions": "interface:fe4485ba02",
+      "ExportedAsset": "interface:13fd262a49",
+      "ExportedRoute": "interface:43aa07a4e6",
+      "FailedAsset": "interface:1727f438ab",
+      "FailedRoute": "interface:a5b9ba26a2",
+      "ManifestActiveTheme": "interface:963e4d0e3b",
+      "ManifestRoute": "interface:ca206df0ac",
+      "ManifestSkip": "interface:993737f9d4",
+      "RouteManifest": "interface:3cc4cc07b1",
+      "RouteManifestPort": "interface:d77e76329c",
+      "ThemeLayoutPort": "interface:450fcfa541",
+      "createExportFetchAdapter": "function:697d8d0896",
+      "exportSite": "function:e3a1f75b4e",
+      "exportUrlLocations": "function:e98b62d983",
+      "extractAssetUrls": "function:5b6fc41b34",
+      "extractCssUrls": "function:bbfa58329a",
+      "extractHtmlReferences": "function:1abfeecec6",
+      "firstExportFailure": "function:ccc5e639f5",
+      "normalizeBasePath": "function:1ffa19bef8",
+      "outputFileForUrl": "function:b1d6d78a8c",
+      "redirectOutcomeFor": "function:7bff7c906a",
+      "renderRedirectStub": "function:70e8610c2f",
+      "rewriteAssetBodyForBasePath": "function:886d591b88",
+      "rewriteRouteBodyForBasePath": "function:0c4f9089c5",
+      "safeRelativeOutputFile": "function:e39d74f030"
+    }
+  },
+  "./static-export/failure-summary": {
+    "types": "./dist/core/export-failure-summary.d.ts",
+    "symbols": {
+      "ExportFailureSummary": "interface:269c985c4c",
+      "firstExportFailure": "function:ccc5e639f5"
+    }
+  },
+  "./static-export/node": {
+    "types": "./dist/static-export/node-adapters.d.ts",
+    "symbols": {
+      "createNodeAppFactory": "function:7296ec1368",
+      "createNodeArtifactWriter": "function:195878936a",
+      "createNodeAssetSource": "function:cf1ae459d4"
+    }
+  },
+  "./static-export/site/export-preflight": {
+    "types": "./dist/static-export/site/export-preflight.d.ts",
+    "symbols": {
+      "ExportPreflightCopy": "interface:fe582fbb85",
+      "createExportPreflight": "function:35df0dbfee",
+      "findContactEmailPlaceholder": "function:5ffdeb8b89",
+      "findThirdPartyScriptHosts": "function:5172479fef"
+    }
+  },
+  "./static-export/site/ports": {
+    "types": "./dist/static-export/site/ports.d.ts",
+    "symbols": {
+      "ManifestActiveTheme": "interface:98267e09aa",
+      "ManifestRoute": "interface:6aa35e53e8",
+      "ManifestRouteKind": "type:aa63d029bb",
+      "ManifestSkip": "interface:993737f9d4",
+      "RouteManifest": "interface:3cc4cc07b1"
+    }
+  },
+  "./static-export/site/public-origin-policy": {
+    "types": "./dist/static-export/site/public-origin-policy.d.ts",
+    "symbols": {
+      "exportPublicOrigin": "function:4d2b0322be",
+      "rewriteExportOriginResponse": "function:1608c8b961",
+      "rewriteRenderOrigins": "function:5beb95d093"
+    }
+  },
+  "./static-export/site/theme-preview-manifest": {
+    "types": "./dist/static-export/site/theme-preview-manifest.d.ts",
+    "symbols": {
+      "PreviewExportManifestPorts": "interface:81fd0c7990",
+      "buildPreviewExportManifest": "function:999a708a6b"
+    }
+  },
+  "./backup/site/import-index/admission": {
+    "types": "./dist/backup/site/import-index/admission.d.ts",
+    "symbols": {
+      "admitImport": "function:7c8e852e70",
+      "lookupFence": "function:971d8dc146",
+      "sameFence": "function:e5abe3a5e6"
+    }
+  },
+  "./backup/site/import-index/backfill": {
+    "types": "./dist/backup/site/import-index/backfill.d.ts",
+    "symbols": {
+      "BackfillResult": "type:80faca0686",
+      "backfillImportIndex": "function:7a95644619",
+      "commitBackfill": "function:b45441f66b",
+      "deriveBackfillRows": "function:893a95e97a",
+      "pickFenceOwners": "function:829e8aacd9",
+      "scanLegacy": "function:3126318a55",
+      "validateLegacyRow": "function:743677a9f8"
+    }
+  },
+  "./backup/site/import-index/errors": {
+    "types": "./dist/backup/site/import-index/errors.d.ts",
+    "symbols": {
+      "ImportHistoryUnavailable": "class:522a53d5e7",
+      "importHistoryMissing": "function:8f7bf2b6d3",
+      "mapSqliteError": "function:e75a8ccea6"
+    }
+  },
+  "./backup/site/import-index/mode": {
+    "types": "./dist/backup/site/import-index/mode.d.ts",
+    "symbols": {
+      "CutoverIndexState": "type:3dedc18d01",
+      "IMPORT_INDEX_STATE_SCHEMA": "variable:751d36e24e",
+      "ImportIndexModeHandle": "interface:eb336f4020",
+      "ImportIndexState": "type:6f1bab45a3",
+      "ImportIndexStateRead": "type:d198ab5cba",
+      "IndexedIndexState": "type:5871fa2009",
+      "IndexedWitnessFs": "type:98c342971d",
+      "LegacyIndexState": "type:f6a7f60ab4",
+      "LegacyRetireFs": "interface:96f9a421ed",
+      "ModeEvidence": "type:6acea3ab6e",
+      "ResolveModeArgs": "interface:cbc053c0c1",
+      "ResolvedMode": "type:3d9bd93fd0",
+      "RetryReason": "type:ad3a0a06f7",
+      "confirmLegacyAuthority": "function:35164e9952",
+      "indexStatePaths": "function:1358072b59",
+      "markIndexedWrite": "function:edc91e3f4c",
+      "parseIndexState": "function:c60427b90b",
+      "readIndexState": "function:747f90dc5d",
+      "resolveMode": "function:4df90487c7",
+      "retireLegacySnapshot": "function:9b678a49da",
+      "writeIndexState": "function:2d6cd0b012",
+      "writeIndexedWitness": "function:3f3ef91a42"
+    }
+  },
+  "./backup/site/import-index/open": {
+    "types": "./dist/backup/site/import-index/open.d.ts",
+    "symbols": {
+      "ImportIndexIntegrityKey": "type:06307ec0bc",
+      "ImportIndexIntegrityMemo": "interface:ddd26c034f",
+      "createImportIndexIntegrityMemo": "function:322c59c2db",
+      "openImportIndex": "function:70f5041d71"
+    }
+  },
+  "./backup/site/import-index/paging": {
+    "types": "./dist/backup/site/import-index/paging.d.ts",
+    "symbols": {
+      "decodeCursor": "function:f80e185a8a",
+      "encodeCursor": "function:aada07c7b4",
+      "listAll": "function:633841a40e",
+      "listPage": "function:a3d0f786f5"
+    }
+  },
+  "./backup/site/import-index/payload-namespace": {
+    "types": "./dist/backup/site/import-index/payload-namespace.d.ts",
+    "symbols": {
+      "ImportPayloadFs": "interface:022423093c",
+      "countStagedPayloads": "function:a981c41c46",
+      "ensurePayloadNamespace": "function:40f5020db9",
+      "expirePayloads": "function:390239d6eb",
+      "payloadPaths": "function:0084f8c783"
+    }
+  },
+  "./backup/site/import-index/rows": {
+    "types": "./dist/backup/site/import-index/rows.d.ts",
+    "symbols": {
+      "assertTransition": "function:5eb1fde580",
+      "isTerminal": "function:fb7c227e40",
+      "minimalOutcome": "function:21292ea363",
+      "replayFenceFor": "function:108c6f6adb",
+      "toRowParams": "function:fa0dabadc5"
+    }
+  },
+  "./backup/site/import-index/store": {
+    "types": "./dist/backup/site/import-index/store.d.ts",
+    "symbols": {
+      "ImportIndexStore": "interface:a4efe5cd87",
+      "createImportIndexStore": "function:012dbcfbbb"
+    }
+  },
+  "./backup/site/import-index/sweep": {
+    "types": "./dist/backup/site/import-index/sweep.d.ts",
+    "symbols": {
+      "sweepExpired": "function:26fb7dbb40"
+    }
+  },
+  "./backup/site/react/ShowMoreImports": {
+    "types": "./dist/backup/site/react/ShowMoreImports.d.ts",
+    "symbols": {
+      "ShowMoreImports": "function:24b66d487c",
+      "ShowMoreImportsButton": "type:6af292bfc0"
+    }
   }
- },
- "./backup/plan-store": {
-  "types": "./dist/backup/plan-store.node.d.ts",
-  "symbols": {
-   "DEFAULT_MAX_PLANS": "variable:3d69949a21",
-   "DEFAULT_MAX_TOTAL_PLANS": "variable:24fd581b1d",
-   "DEFAULT_PLAN_TTL_MS": "variable:78f6bdf64c",
-   "SiteBackupPlan": "type:d0d8388e97",
-   "SiteBackupPlanStore": "class:39bdd77d6e",
-   "TakeSiteBackupPlanResult": "type:d5f20e0e65"
-  }
- },
- "./backup/push-jobs": {
-  "types": "./dist/backup/push-jobs.d.ts",
-  "symbols": {
-   "FINISHED_JOB_TTL_MS": "variable:eea1e6538d",
-   "PushJob": "interface:cbf3a0ad50",
-   "PushJobKey": "interface:ba15ab3142",
-   "PushJobWait": "type:abd07071a0",
-   "SiteBackupPushJobs": "class:8ebcef8092",
-   "SiteBackupPushProgress": "interface:17e5c15a76"
-  }
- },
- "./backup/site/archive-extensions": {
-  "types": "./dist/backup/site/archive-extensions.d.ts",
-  "symbols": {
-   "ArchiveExtensionsDeps": "interface:46646f617d",
-   "ArchiveExtensionsLifecycle": "interface:69c3751298",
-   "InstalledAgentPluginRecord": "interface:854333b759",
-   "prepareArchiveExtensions": "function:414515a3d7"
-  }
- },
- "./backup/site/archive-manifest": {
-  "types": "./dist/backup/site/archive-manifest.d.ts",
-  "symbols": {
-   "ARCHIVE_DATABASE_PATH": "variable:2fc9859206",
-   "ARCHIVE_MANIFEST_PATH": "variable:da2a0bd614",
-   "ArchiveFile": "interface:d3578d5bd1",
-   "ArchiveManifest": "interface:50a3cdf610",
-   "ArchiveManifestCodec": "interface:41a124f929",
-   "ArchiveManifestDeps": "interface:ee46bc1fa1",
-   "ArchiveMedia": "interface:27990e4109",
-   "ArchivePlugin": "interface:528aed03d3",
-   "ArchiveSchemaIdentity": "interface:7a988e581c",
-   "createArchiveManifestCodec": "function:6baa7d1b1b",
-   "requireArchiveFileRecord": "function:bf92f8221c"
-  }
- },
- "./backup/site/archive-media": {
-  "types": "./dist/backup/site/archive-media.d.ts",
-  "symbols": {
-   "ArchiveMediaCopy": "interface:72250ba212",
-   "ArchiveMediaEntry": "interface:d692660547",
-   "ArchiveMediaHost": "interface:7e854366c1",
-   "ArchiveMediaImageTransformer": "interface:88dd17a49a",
-   "ArchiveMediaOperations": "interface:0ffe61d1b9",
-   "ArchiveMediaPathPolicy": "interface:be816a3259",
-   "ArchiveMediaRewriter": "type:8a25f800a9",
-   "ArchiveMediaSharePolicy": "interface:8a9ebab07a",
-   "ArchiveMediaSource": "interface:e41e8501f0",
-   "ArchiveMediaTransformParams": "interface:a96d563774",
-   "bufferArchiveMedia": "function:01d45ac62c"
-  }
- },
- "./backup/site/bundled-export-file-policy": {
-  "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
-  "symbols": {
-   "BundledExportFileDisposition": "type:e655be382a",
-   "BundledExportFilePolicy": "type:50c9dde374",
-   "BundledExportFilePolicyDeps": "interface:e7a5826ef0",
-   "ClassifyBundledExportFile": "type:d46e4e70c5",
-   "ReadBundledExportFile": "type:ea414b8822",
-   "createBundledExportFilePolicy": "function:634172e3a4"
-  }
- },
- "./backup/site/credential-warnings": {
-  "types": "./dist/backup/site/credential-warnings.d.ts",
-  "symbols": {
-   "CredentialRedactor": "type:ef675c664d",
-   "CredentialWarning": "interface:2cdd927433",
-   "addCredentialWarning": "function:d1b5338ed7",
-   "warnCredentialContent": "function:8055565f09"
-  }
- },
- "./backup/site/import-backend": {
-  "types": "./dist/backup/site/import-backend.d.ts",
-  "symbols": {
-   "SiteImportBackend": "interface:826cb08d21",
-   "SiteImportBackendOptional": "type:173f1167e3",
-   "SiteImportBackendRequired": "type:a3f0262a64",
-   "SiteImportCreateOptions": "interface:331a0cae1a",
-   "SiteImportCreateSite": "type:36a7893248",
-   "SiteImportHost": "interface:c98d785009",
-   "SiteImportSanitizer": "type:207bb2630d",
-   "SiteImportSource": "type:c25b2a9c5f",
-   "SiteImportView": "interface:13e7cb59f1",
-   "SiteImportWorkspace": "interface:91a4069071",
-   "createSiteImportBackend": "function:e053f30e6a",
-   "parseSiteImportInput": "function:e281238161"
-  }
- },
- "./backup/site/import-backend-steps": {
-  "types": "./dist/backup/site/import-backend-steps.d.ts",
-  "symbols": {
-   "ImportHttpClient": "interface:d376f38381",
-   "ParsedSiteImportInput": "interface:cc0c0eb7fe",
-   "SiteImportCopy": "interface:1244a26d13",
-   "SiteImportSource": "type:c25b2a9c5f",
-   "SiteImportStepsHost": "interface:6db477f2b9",
-   "SiteImportView": "interface:13e7cb59f1",
-   "consumeUpload": "function:aa39a2f52f",
-   "deadlineSignal": "function:102e08fd2b",
-   "downloadShareArchive": "function:3df6cf4adb",
-   "importSiteSlug": "function:92b59ae6db",
-   "parseImportInput": "function:abea9c50ef",
-   "reconcileInterruptedImports": "function:d52836ba7f",
-   "refusal": "function:50a1201444",
-   "requireFreeSpace": "function:1dcd9b4313",
-   "requireOwnerSetup": "function:c3466512d7",
-   "requireStagingBudget": "function:5bd9f69a11",
-   "siteImportView": "function:66ef496eed",
-   "startImportedSite": "function:b2a5c721dc"
-  }
- },
- "./backup/site/import-database": {
-  "types": "./dist/backup/site/import-database.d.ts",
-  "symbols": {
-   "ImportDatabase": "interface:520435e943",
-   "ImportDatabaseHost": "interface:c2729c67ce",
-   "ImportFileLock": "type:c392a2ea64",
-   "ImportWorkerChild": "interface:ff05336e8f",
-   "RebuildImportDatabaseOptions": "interface:0ec4e3ce3e",
-   "createImportDatabase": "function:b5fbfceb83",
-   "importWorkerLaunch": "function:4a8ccc7721",
-   "rebuildImportDatabase": "function:bf5dcef422",
-   "tidyImportDatabases": "function:ce5bbfd6d8"
-  }
- },
- "./backup/site/import-keep-off": {
-  "types": "./dist/backup/site/import-keep-off.d.ts",
-  "symbols": {
-   "KeepOffHost": "interface:0b492f96e4",
-   "KeepOffNotices": "interface:2b0d406b22",
-   "KeepOffStore": "interface:3d1b10de33",
-   "keepImportedCodeOff": "function:8abf488e82",
-   "pageBodyMayRunScript": "function:f7da8a52de",
-   "unrecognisedThemes": "function:f6b23df39f"
-  }
- },
- "./backup/site/import-plugin-state": {
-  "types": "./dist/backup/site/import-plugin-state.d.ts",
-  "symbols": {
-   "ImportPluginLifecycle": "interface:4bd4c102cc",
-   "ImportPluginStateDeps": "interface:47d648f839",
-   "ImportedArchivePlugin": "interface:f223ebdd69",
-   "ImportedExtensionState": "interface:0e585574bc",
-   "InstalledImportPlugin": "interface:39bbaa0736",
-   "restoreImportedPluginState": "function:0d24caefbf"
-  }
- },
- "./backup/site/import-registry": {
-  "types": "./dist/backup/site/import-registry.d.ts",
-  "symbols": {
-   "SiteImportDurableDeps": "interface:e14234aece",
-   "SiteImportRecord": "interface:6a5c293246",
-   "SiteImportRegistry": "class:e1ee1cb883",
-   "SiteImportUpload": "interface:5b79fa78c8",
-   "importSourceDigest": "function:63c903a7b8",
-   "withoutQuery": "function:dccdb94066"
-  }
- },
- "./backup/site/import-restore": {
-  "types": "./dist/backup/site/import-restore.d.ts",
-  "symbols": {
-   "ImportKeepOffRequest": "interface:2284460d8b",
-   "ImportRestore": "interface:7c8cc9afd6",
-   "ImportRestoreArchivePaths": "interface:b00705e72e",
-   "ImportRestoreHost": "interface:5265359e19",
-   "RestoreStagedImportOptions": "interface:43aeab1c12",
-   "RestoreStagedImportRequest": "interface:e946fce39d",
-   "createImportRestore": "function:39144d998e"
-  }
- },
- "./backup/site/import-restore-placement": {
-  "types": "./dist/backup/site/import-restore-placement.d.ts",
-  "symbols": {
-   "CompiledBuild": "type:7af2dee81d",
-   "ImportPlacementChecks": "interface:d515cab0ce",
-   "ThemeManifestFindings": "interface:e879f03912",
-   "explainThemeTree": "function:bbfbe24365",
-   "inspectThemeManifests": "function:400e80b861",
-   "liveThemeTrees": "function:b7366e20f8",
-   "restoreDestination": "function:a0108eca0b",
-   "writeExclusive": "function:c6e933964b"
-  }
- },
- "./backup/site/import-verifier": {
-  "types": "./dist/backup/site/import-verifier.d.ts",
-  "symbols": {
-   "SiteImportManifest": "interface:7ba23c186b",
-   "SiteImportProjection": "interface:7d228c9429",
-   "SiteImportVerifierHost": "interface:bb7c03bfa3",
-   "VerifiedSiteImport": "interface:b3779361db",
-   "verifySiteImport": "function:48c12b2a9e"
-  }
- },
- "./backup/site/import-verifier-inventory": {
-  "types": "./dist/backup/site/import-verifier-inventory.d.ts",
-  "symbols": {
-   "ArchiveScan": "interface:82bce54bcc",
-   "ImportInventoryHost": "interface:d304bfb63b",
-   "InventoryRecord": "interface:b7075feb90",
-   "SupportedShareManifest": "type:871bbb608c",
-   "buildManifestInventory": "function:3774116df8",
-   "checkArchiveMatchesInventory": "function:dcfe8cf2ec",
-   "ignoredArchivePath": "function:98a5ee4af6",
-   "parseShareManifest": "function:4aa6d129e7",
-   "readListedFiles": "function:d7bd17e192",
-   "refuseArchive": "function:934adba0c4",
-   "scanArchiveMetadata": "function:4f3be5b0db",
-   "sha256Hex": "function:a5cef4a904"
-  }
- },
- "./backup/site/import-verifier-projection": {
-  "types": "./dist/backup/site/import-verifier-projection.d.ts",
-  "symbols": {
-   "DocumentAdmission": "type:92b3b72155",
-   "ProjectionDeps": "interface:cc4c1056de",
-   "ProjectionDocument": "interface:fa14460ffc",
-   "ProjectionManifest": "interface:b46d0bba8b",
-   "ProjectionMedia": "interface:5fb8a05058",
-   "ShareProjection": "interface:ea2f0a2dcd",
-   "admitProjectedDocuments": "function:94f5d545d7",
-   "applyShareProjection": "function:e17c46a524"
-  }
- },
- "./backup/site/package-file-inventory": {
-  "types": "./dist/backup/site/package-file-inventory.d.ts",
-  "symbols": {
-   "BundledImportPluginIdsDeps": "interface:d266e24e3d",
-   "BundledPackageFilesDeps": "interface:9df0a7d08f",
-   "BundledPackageInventory": "type:0a02a6de73",
-   "BundledSourceArchiveEntry": "type:39ba96ec0a",
-   "CreateBundledSourceArchiveReader": "type:a6649fc1df",
-   "ListBundledAgentPluginServers": "type:9d6074c68c",
-   "PackBundledSourceDirectory": "type:447742c19b",
-   "readBundledImportPluginIds": "function:84f81f5c6f",
-   "readBundledPackageFiles": "function:b9b29170d5"
-  }
- },
- "./backup/site/saved-keys": {
-  "types": "./dist/backup/site/saved-keys.d.ts",
-  "symbols": {
-   "SiteSavedKeysDeps": "interface:510349483c",
-   "createSiteSavedKeys": "function:9c51f2e436",
-   "leaveSavedKeysOut": "variable:65efaf2c9b"
-  }
- },
- "./backup/site/saved-keys-port": {
-  "types": "./dist/backup/site/saved-keys-port.d.ts",
-  "symbols": {
-   "ENCRYPTED_KEYS_DESCRIPTOR": "variable:1d47de8385",
-   "SAVED_KEYS_PATH": "variable:e4c5519f34",
-   "SiteSavedKeysPort": "interface:93429690ff"
-  }
- },
- "./backup/site/share-backend": {
-  "types": "./dist/backup/site/share-backend.d.ts",
-  "symbols": {
-   "SiteShareBackend": "interface:6903e0408e",
-   "SiteShareBackendOptional": "type:4454898eed",
-   "SiteShareBackendRequired": "type:909be77621",
-   "SiteShareContent": "interface:bccde24f67",
-   "SiteShareHost": "interface:f5a5915fbe",
-   "SiteShareRecord": "interface:b2a024c282",
-   "SiteShareRegistryLike": "interface:597b8fa94c",
-   "SiteShareView": "type:5fe33073be",
-   "createSiteShareBackend": "function:19c1d2e5a9"
-  }
- },
- "./backup/site/share-export-failure": {
-  "types": "./dist/backup/site/share-export-failure.d.ts",
-  "symbols": {
-   "SiteShareExportFailure": "class:481430087c",
-   "SiteShareExportStep": "type:ee08280859"
-  }
- },
- "./backup/site/share-file-policy": {
-  "types": "./dist/backup/site/share-file-policy.d.ts",
-  "symbols": {
-   "PackageFileInventory": "type:8cea910047",
-   "SHARED_PLUGIN_MEMORY": "variable:967cd175c5",
-   "ShareFilePolicy": "interface:75ee360d18",
-   "ShareFilePolicyDeps": "interface:031afb956f",
-   "createShareFilePolicy": "function:d57197ff88",
-   "sharePathAlias": "function:940fa70eb8"
-  }
- },
- "./backup/site/share-hosting": {
-  "types": "./dist/backup/site/share-hosting.d.ts",
-  "symbols": {
-   "ShareDelivery": "interface:3657d3dc45",
-   "ShareHosting": "interface:354f480beb",
-   "ShareHostingDeps": "interface:8cbe05d2c9",
-   "ShareHostingRegistry": "interface:376029ac14",
-   "SharePeerDeps": "interface:b25112e907",
-   "SharePeerRequest": "interface:8d3983d6df",
-   "createShareHosting": "function:5f7ba93470"
-  }
- },
- "./backup/site/share-preparation": {
-  "types": "./dist/backup/site/share-preparation.d.ts",
-  "symbols": {
-   "SharePreparationDeps": "interface:bee0156e89",
-   "SharePreparationPorts": "interface:82aacef674",
-   "SharePreparedContent": "interface:e6757bbe01",
-   "prepareShareContent": "function:3a1fcc3696"
-  }
- },
- "./backup/site/share-preparation-steps": {
-  "types": "./dist/backup/site/share-preparation-steps.d.ts",
-  "symbols": {
-   "ShareBlobStore": "interface:02b6e81508",
-   "ShareCollectedFiles": "interface:565869db95",
-   "ShareDatabaseProjection": "interface:2c71730849",
-   "ShareDatabaseSanitizer": "type:c955960e9e",
-   "ShareLedger": "interface:4638ca39fc",
-   "ShareMediaReference": "interface:f27acb70ed",
-   "SharePlannedFile": "interface:84da50d5f7",
-   "ShareSnapshotResult": "type:08f82a62f1",
-   "ShareSteps": "interface:ccb6a90382",
-   "ShareStepsDeps": "interface:a22cd4dcc3",
-   "createShareSteps": "function:a8a1e06bbc"
-  }
- },
- "./backup/site/share-refusal": {
-  "types": "./dist/backup/site/share-refusal.d.ts",
-  "symbols": {
-   "SiteShareRefusal": "class:1b7589023b",
-   "archiveRefusalName": "function:de88fa9382"
-  }
- },
- "./backup/site/share-registry": {
-  "types": "./dist/backup/site/share-registry.d.ts",
-  "symbols": {
-   "SHARE_TOKEN": "variable:c5485d16c5",
-   "SHARE_TOKEN_ALPHABET": "variable:aa68aef46e",
-   "SHARE_TOKEN_LENGTH": "variable:a44fdbdba8",
-   "SHARE_TOKEN_PATTERN": "variable:7442fe6ad1",
-   "ShareRegistryHost": "interface:5e97561682",
-   "SiteShareRecord": "interface:b2a024c282",
-   "SiteShareRegistry": "class:a4bb069f0e",
-   "newShareIdentity": "function:b313806455"
-  }
- },
- "./backup/site/share-service": {
-  "types": "./dist/backup/site/share-service.d.ts",
-  "symbols": {
-   "SHARE_DOWNLOAD_HEADERS": "variable:469ef24815",
-   "ShareServiceHost": "interface:fab6edff63",
-   "SiteShareService": "interface:f39d2957b1",
-   "acknowledgeSiteShare": "function:94ba60a7e9",
-   "createSiteShare": "function:ddd01fcb5c",
-   "createSiteShareService": "function:1e3c0e9654",
-   "isOwnShareFolder": "function:a308e803a6",
-   "receiveSiteShareArtifact": "function:ffde8d1591",
-   "revokeSiteShare": "function:ac0746d072",
-   "shareFileStem": "function:0ca6a6d536"
-  }
- },
- "./backup/site/share-zip": {
-  "types": "./dist/backup/site/share-zip.d.ts",
-  "symbols": {
-   "ShareZipHost": "interface:5dbf757185",
-   "ShareZipPlan": "interface:db45ba5e88",
-   "ZipFolderFiles": "type:4bd33efa62",
-   "buildShareZip": "function:014bfb5e94",
-   "buildStaticSiteZip": "function:f9c2e5f02d",
-   "claimArchivePaths": "function:f11c64a2e8"
-  }
- },
- "./backup/site/sources": {
-  "types": "./dist/backup/site/sources.d.ts",
-  "symbols": {
-   "CollectedSiteBackupFiles": "interface:5e528d0dbb",
-   "DatabaseSnapshotResult": "type:ced4550d6e",
-   "PlannedDiskFile": "interface:c83c86fa5f",
-   "ReadPlannedFileResult": "type:9e9770f7a3",
-   "ReviewedFile": "interface:a7e2dcbf86",
-   "ReviewedFileHandle": "interface:285350528f",
-   "ReviewedFileSystem": "interface:083246be4b",
-   "SITE_BACKUP_DATABASE_PATH": "variable:269a9c60f7",
-   "SITE_BACKUP_SCOPES": "variable:7015a6aac5",
-   "SiteBackupHostLimit": "interface:a8fd54f04f",
-   "SiteBackupInclude": "type:30737c6ee1",
-   "SiteBackupLimits": "interface:07c5037295",
-   "SiteBackupLimitsResult": "type:dcbbf23c13",
-   "SiteBackupManifestIdentity": "interface:8e4216f11d",
-   "SiteBackupManifestInput": "interface:ea261760ee",
-   "SiteBackupReadHandle": "type:f9d26a7d9d",
-   "SiteBackupScope": "type:f6430b4f70",
-   "SiteBackupSourceDeps": "interface:b20ab7a75d",
-   "SiteBackupSources": "interface:f39c015328",
-   "SiteBackupWalkFileSystem": "interface:590197912d",
-   "SitePluginPackageListing": "interface:88259f8c45",
-   "SkippedSiteBackupFile": "interface:63501c971f",
-   "buildSiteBackupManifest": "function:41486c1396",
-   "captureDatabaseSnapshot": "function:4c529cdbdd",
-   "checkSiteBackupLimits": "function:467c5dbdcb",
-   "collectSiteBackupFiles": "function:ec4ae503e2",
-   "formatByteSize": "function:e838c8214c",
-   "readPlannedFile": "function:f09d128bde",
-   "skipOversizedFiles": "function:f8ab314da7"
-  }
- },
- "./backup/site/static-copy": {
-  "types": "./dist/backup/site/static-copy.d.ts",
-  "symbols": {
-   "ExportReport": "type:c20f2c6ae5",
-   "StaticCopyHost": "interface:742a901d89",
-   "StaticSiteCopy": "type:4dc09d54cf",
-   "StaticSiteMetadata": "interface:87b1b11a9c",
-   "StaticSitePorts": "interface:a822db87e1",
-   "captureStaticSite": "function:72e4c752f8",
-   "isStaticSitePath": "function:e572364a40",
-   "prepareStaticReport": "function:c14835bc80",
-   "readmeText": "function:f4a24e2d8e"
-  }
- },
- "./backup/site/static-download-html": {
-  "types": "./dist/backup/site/static-download-html.d.ts",
-  "symbols": {
-   "DownloadHtmlSourceEdits": "interface:b23bf3819a",
-   "Edit": "type:c020bb9e69",
-   "Element": "interface:3bcd1d5934",
-   "HtmlAncestor": "interface:7b2d0cb774",
-   "SourceRange": "interface:ad563323e9",
-   "downloadDocumentBase": "function:48d188f2d2",
-   "downloadForms": "function:6330245aeb"
-  }
- },
- "./backup/site/static-download-landing": {
-  "types": "./dist/backup/site/static-download-landing.d.ts",
-  "symbols": {
-   "ExtractPlainText": "type:96101beff1",
-   "LANDING_FILE": "variable:b853752a6f",
-   "LandingPage": "interface:7ca48bef3e",
-   "LandingTheme": "interface:d1bd4cb58a",
-   "landingPages": "function:774fa27b4a",
-   "staticLandingPage": "function:7865bb2105"
-  }
- },
- "./backup/site/static-download-layout": {
-  "types": "./dist/backup/site/static-download-layout.d.ts",
-  "symbols": {
-   "StaticDownloadCopy": "interface:ecb1cace18",
-   "StaticDownloadHost": "interface:e0ecb64035",
-   "StaticUrlLocation": "interface:6f3c7d8701",
-   "StaticUrlParsing": "interface:34ffa6e1b1",
-   "staticDownloadLayout": "function:4cc7425a0a"
-  }
- },
- "./backup/site/static-export-selection": {
-  "types": "./dist/backup/site/static-export-selection.d.ts",
-  "symbols": {
-   "StaticExportAllocationPolicy": "interface:6f0c4dcd22",
-   "StaticExportInput": "interface:9f5c36b9df",
-   "StaticExportOptions": "interface:00657bfbe5",
-   "StaticExportSelectionPolicy": "interface:e081b9b525",
-   "StaticExportTheme": "interface:13d657accf",
-   "allocateStaticExportThemes": "function:5edb6ac170",
-   "parseStaticExportInput": "function:f39a4563a0"
-  }
- },
- "./backup/site/static-site-packager": {
-  "types": "./dist/backup/site/static-site-packager.d.ts",
-  "symbols": {
-   "StaticSitePackagerDeps": "interface:0d64c21880",
-   "createStaticSitePackager": "function:017675ee1b"
-  }
- },
- "./backup/upload": {
-  "types": "./dist/backup/upload.node.d.ts",
-  "symbols": {
-   "BackupUploadEntry": "type:f2670b6c86",
-   "PendingFile": "interface:f6ca73402a",
-   "PushFailure": "interface:c21910bf78",
-   "SITE_BACKUP_UPLOAD_CONCURRENCY": "variable:eba3552066",
-   "UploadPlannedContentInput": "interface:9c8541f9cf",
-   "uploadPlannedContent": "function:83038ecac9"
-  }
- },
- "./checks/complexity-debt": {
-  "types": "./dist/checks/complexity-debt.d.ts",
-  "symbols": {
-   "BaselineDiff": "interface:7f98a108bc",
-   "ComplexityRunVerdict": "interface:27ac27d9ca",
-   "ComplexityViolation": "interface:79a6f3a9e1",
-   "EslintFileResult": "interface:78c9211d91",
-   "EslintMessage": "interface:d591d7b7cb",
-   "diffAgainstBaseline": "function:45e9435e88",
-   "evaluateRun": "function:92423b1ad7",
-   "rejectUnusableEslintRun": "function:c75f824797",
-   "violationKey": "function:c3ae513a44"
-  }
- },
- "./checks/coverage": {
-  "types": "./dist/checks/coverage/index.d.ts",
-  "symbols": {
-   "AreaFloor": "interface:0535d1f186",
-   "AreaFloorResult": "interface:6490b5386b",
-   "BlockStatus": "type:275c577266",
-   "BlockVerdict": "interface:99af6d25f9",
-   "CoverageArea": "interface:5f73f99663",
-   "CoverageAxis": "type:b55dbf42d9",
-   "CoverageFloor": "interface:65019cea54",
-   "DEFAULT_BASELINE_COMMENT": "variable:f5b02b267d",
-   "DiffPort": "interface:33092b4fed",
-   "DiskAreaResult": "interface:5c1ffde58e",
-   "FileCoverage": "interface:f44dc96d2b",
-   "FileTierEvaluation": "interface:4b604b7791",
-   "FloorResult": "interface:dbc62cf548",
-   "GatedVerdict": "interface:f98d801b5b",
-   "IntegrityReport": "interface:be9233fdec",
-   "LcovBlock": "interface:aaf1c5c806",
-   "LcovCounters": "interface:a0a2b6b8e2",
-   "ParsedArgs": "interface:f543060cd1",
-   "RunnerGlobs": "interface:ea755c5422",
-   "SourceClassificationRules": "interface:95ffd814ed",
-   "SourceClassifier": "type:993117ab1b",
-   "SourceReaderPort": "interface:9bd4942f05",
-   "TestPass": "interface:22b5f00402",
-   "TierResult": "interface:74d35b7df3",
-   "TierThresholds": "interface:6f59fe3498",
-   "applyBaseline": "function:41d8b0b0c2",
-   "checkCoverageDiff": "function:8d5821bae4",
-   "checkCoverageIntegrity": "function:5d4d47da65",
-   "classifyBlock": "function:27acb98e80",
-   "evaluateArea": "function:b87de46695",
-   "evaluateDiskArea": "function:2c28124330",
-   "evaluateFileTiers": "function:494fb64584",
-   "evaluateFloor": "function:6894e52234",
-   "formatDiskArea": "function:4c7c4e9117",
-   "isInExcludedDir": "function:ecd07dadb2",
-   "isIntegrationTestFile": "function:18dea4c2e4",
-   "isMeasurableSource": "function:1789994b7e",
-   "isMeasurableSourceFile": "function:03bece0784",
-   "isPureReExportBarrelSource": "function:5fa81883ce",
-   "loadLcov": "function:07fe51a718",
-   "loadRouteCoverage": "function:42e0559e9d",
-   "mergeCoverage": "function:a471839d37",
-   "parseArgs": "function:7eaebc1f29",
-   "parseBaseline": "function:28db293955",
-   "parseLcov": "function:b33706de34",
-   "parseLcovBlocks": "function:1b9df328fe",
-   "parseNodeTestScript": "function:3b7da107e7",
-   "pct": "function:55074f0a8e",
-   "resolveBaseRef": "function:0708c41176",
-   "runnerSplitDrift": "function:f82618bb98",
-   "serializeBaseline": "function:7452b5f279",
-   "toRepoRelative": "function:bab7de8f6e",
-   "withoutTrailingSlashes": "function:c7d5cf1b07"
-  }
- },
- "./checks/env-access": {
-  "types": "./dist/checks/env-access.d.ts",
-  "symbols": {
-   "ENV_ACCESS_RULES": "variable:cc740d81dc",
-   "EnvAccessSource": "interface:1169651cc3",
-   "createEnvAccessInspector": "function:f9be6ef611"
-  }
- },
- "./checks/live-verify-checks": {
-  "types": "./dist/checks/live-verify-checks.d.ts",
-  "symbols": {
-   "CheckLog": "interface:5dc8ff7fb1",
-   "createCheckLog": "function:dd0ef74f80"
-  }
- },
- "./checks/memory-soak": {
-  "types": "./dist/checks/memory-soak.d.ts",
-  "symbols": {
-   "MemoryCheckpoint": "interface:08e3454278",
-   "MemoryFloorVerdict": "interface:2788d15339",
-   "evaluateMemoryFloors": "function:dc8119194a"
-  }
- },
- "./checks/node": {
-  "types": "./dist/checks/node.d.ts",
-  "symbols": {
-   "HARDWIRING_RULES": "variable:8ee605bf47",
-   "HardwiringSource": "interface:10a1ed9d2a",
-   "HardwiringViolation": "interface:d82aab580a",
-   "createHardwiringInspector": "function:417d246f35",
-   "createNodeEnvLoader": "function:6b54c5529e",
-   "createNodeFilesystem": "function:e0dbff6be5",
-   "createNodeProcessRunner": "function:9b0bd95283",
-   "createNpmInstaller": "function:e08ee767bd",
-   "createResolver": "function:f02e7787c0",
-   "diffHardwiringDebt": "function:cf51c79a30",
-   "displayGraphFile": "function:ad7234a875",
-   "installedPublicFunctions": "function:e8965c876c",
-   "runHardwiring": "function:2fc2f0e6d6",
-   "sourceFiles": "function:1872565a70"
-  }
- },
- "./checks/published-types": {
-  "types": "./dist/checks/published-types/index.d.ts",
-  "symbols": {
-   "CheckLoggerPort": "interface:30311d5853",
-   "CompileProject": "interface:d87c5b3e09",
-   "DependencyManifest": "interface:122cda0085",
-   "FilesystemPort": "interface:aea11d749e",
-   "LinksProject": "interface:8b80f3c3e9",
-   "PackageInstallerPort": "interface:cb6d61e781",
-   "ProcessRequest": "interface:319e44317b",
-   "ProcessResult": "interface:fa25656cb6",
-   "ProcessRunnerPort": "interface:c179cf7158",
-   "PublishedTypesProject": "type:9acc603950",
-   "PublishedTypesReport": "interface:6fac1d94ac",
-   "PublishedTypesResult": "interface:f41ec45c04",
-   "PublishedTypesStatus": "type:88bab8d3a6",
-   "TypecheckDiagnosis": "interface:4edda3a477",
-   "TypecheckLog": "interface:948001ccd4",
-   "check": "function:587fc64ff2",
-   "diagnosePublishedTypes": "function:7961500c1d",
-   "parseDiagnosticBlocks": "function:c44414f02f",
-   "registryDependencies": "function:ec5254ad05"
-  }
- },
- "./checks/quality-gates": {
-  "types": "./dist/checks/quality-gates.d.ts",
-  "symbols": {
-   "DEFAULT_MAX_DISABLED_DAYS": "variable:f9564932f4",
-   "GateEntry": "interface:830f0f9360",
-   "GateExitCode": "type:d607d695c1",
-   "GateManifest": "interface:1b1b79d094",
-   "asGateEntryArray": "function:8e390d655e",
-   "daysBetween": "function:1ff72ca685",
-   "detectGateDrift": "function:ff32da2fc6",
-   "formatSummary": "function:3691b71df3",
-   "isFailure": "function:d7285533f2",
-   "validateManifest": "function:445b7a9d21"
-  }
- },
- "./deploy": {
-  "types": "./dist/deploy/index.d.ts",
-  "symbols": {
-   "ArtifactStorePort": "interface:bb2dc3636a",
-   "ArtifactUpload": "interface:e688309feb",
-   "CheckForUpdateFromFeedOptions": "interface:ce25e073bc",
-   "CompareSiteVersionsOptions": "interface:b52a32f6fd",
-   "CreateDeployPublishToolRegistrationArgs": "interface:1b03ee417d",
-   "CreateDeployPublishToolRegistrationOptions": "interface:6019560dad",
-   "DEFAULT_DEPLOY_PUBLISH_ROLE": "variable:5dd6c0717f",
-   "DEPLOY_PUBLISH_TOOL_ID": "variable:78fe78cc05",
-   "DeployConfigGeneratorDescriptor": "interface:21db844179",
-   "DeployConfigGeneratorModule": "interface:a7ad3ef8a7",
-   "DeployConfigGeneratorRegistry": "interface:e398f5dc83",
-   "DeployConfigKit": "interface:2831f909ee",
-   "DeployCredentialCheck": "type:d569ad5fd7",
-   "DeployCredentialCheckContext": "interface:a3fcf33c7e",
-   "DeployCredentialDiagnostic": "interface:04632d6f9d",
-   "DeployCredentialSetupRequired": "class:34b7ee7c55",
-   "DeployError": "class:1d879c1ca1",
-   "DeployErrorDetails": "type:76aa9d33fb",
-   "DeployFetchTimeouts": "interface:0bd6dd21cd",
-   "DeployFile": "interface:f26aa335ea",
-   "DeployHostKit": "interface:7e07a90e89",
-   "DeployHostingSetup": "interface:90f6309d28",
-   "DeployLinkStatus": "type:fdd1f9a30c",
-   "DeployOpsBoundedRequest": "interface:3f38c3ac63",
-   "DeployOpsContext": "interface:a4408e198b",
-   "DeployOpsDeployInput": "interface:873ce85434",
-   "DeployOpsDeployResult": "interface:7db2b7a767",
-   "DeployOpsDescriptor": "interface:7d4b7d1fca",
-   "DeployOpsInput": "interface:81dcd85193",
-   "DeployOpsLogs": "interface:efe9d1dad9",
-   "DeployOpsModule": "interface:33995b2368",
-   "DeployOpsRegistrationHost": "interface:7943142bbc",
-   "DeployOpsRegistry": "interface:5b8b445fbd",
-   "DeployOpsResponse": "interface:f88a0827f7",
-   "DeployOpsRuntime": "interface:94702eaaeb",
-   "DeployOpsSecretAppliesOn": "type:ae90b37c00",
-   "DeployOpsSecretCapabilities": "interface:d8cee89bcc",
-   "DeployOpsSecretCards": "interface:aa53af40f5",
-   "DeployOpsSecretInfo": "interface:bc389d6190",
-   "DeployOpsSecretList": "interface:497dd5a5ec",
-   "DeployOpsSecretRead": "type:bbc9995228",
-   "DeployOpsSecretWrite": "interface:e6d2961c5d",
-   "DeployOpsSendRequest": "interface:68bdcb6a7a",
-   "DeployOpsState": "type:ccc75cd347",
-   "DeployOpsStatus": "interface:d9cf6f98fc",
-   "DeployOpsTargets": "interface:b13c809d98",
-   "DeployOpsToolIds": "interface:185b83c450",
-   "DeployOpsWaitResult": "interface:6b8bf6ad7b",
-   "DeployPublishInput": "interface:5c9ad8abb9",
-   "DeployPublishOptions": "interface:f4282d45ca",
-   "DeployPublishProgress": "interface:3548b9aaf7",
-   "DeployPublishResult": "interface:6973dce29b",
-   "DeployPublishToolInput": "interface:49b59d13ab",
-   "DeployRequest": "interface:ec4e9f4af3",
-   "DeployTarget": "interface:4b53e78b1f",
-   "DeployTargetCreateContext": "interface:1a23404b6c",
-   "DeployTargetCredential": "type:ab3baf1da1",
-   "DeployTargetCredentialSpec": "interface:ee70a55b7f",
-   "DeployTargetDescriptor": "interface:d9c453427c",
-   "DeployTargetEnvFallback": "interface:76c18a6494",
-   "DeployTargetFieldSpec": "interface:4f80f4f847",
-   "DeployTargetInspection": "interface:abac2022f6",
-   "DeployTargetModule": "interface:d2f07c4e6d",
-   "DeployTargetProjectNameCopy": "interface:732c85b80c",
-   "DeployTargetRegistry": "interface:583df435fb",
-   "DeployTargetToken": "variable:9958063246",
-   "DeploymentDescriptor": "interface:0ab402d0a6",
-   "DeploymentSecret": "interface:28ae3b09b1",
-   "DeploymentUrlCheck": "interface:49d20d98e9",
-   "DeploymentUrlGuard": "interface:7689ec8524",
-   "DesktopAppUpdaterPort": "interface:23a65afee8",
-   "DesktopSiteMigratePort": "interface:54466069f7",
-   "DesktopSiteUpdateOptions": "interface:84fea00978",
-   "FakeSiteUpdate": "interface:f2a3fb61d5",
-   "FakeSiteUpdateFailPoint": "type:7400bc748d",
-   "FakeSiteUpdateOptions": "interface:3ccb829f6c",
-   "HostDeployPublishInput": "type:aaadd4dea0",
-   "HostDeployTarget": "interface:c58c133611",
-   "ImageTagForVersionOptions": "interface:bcd0346722",
-   "ImageTagPort": "interface:66cfa1f24f",
-   "InstalledDeployTarget": "interface:050287c1a7",
-   "InstalledDeployTargetInventory": "interface:4bf984fc51",
-   "LoadInstalledDeployTargets": "type:421c5cac03",
-   "LoadedDeployConfigGenerator": "interface:951ce5e40c",
-   "LoadedDeployOps": "interface:581e07aa35",
-   "LoadedDeployTarget": "interface:06dfe937f9",
-   "MAX_MODULE_SLEEP_MS": "variable:b2fed9f341",
-   "MAX_RESPONSE_CHARS": "variable:f3dc2f37c7",
-   "MAX_WAIT_SECONDS": "variable:f2835a9fc4",
-   "MigrationReadiness": "type:0444df8afd",
-   "MigrationReadinessPort": "interface:ac79395a09",
-   "PluginDeployCredentialCheckContext": "type:ecd07541ac",
-   "PluginDeployHostKit": "interface:e1cec3bde9",
-   "PluginDeployTargetCreateContext": "type:4a6532bbb7",
-   "PluginDeployTargetModule": "interface:252ba4c9b8",
-   "PluginSigV4Client": "interface:7b807ccce4",
-   "ProtectedResponseDetector": "type:cdf7837a7a",
-   "PublishJobSnapshot": "interface:61be187c22",
-   "PublishJobStore": "interface:1ce127218c",
-   "ReachabilityArgs": "interface:c9d8ea2b81",
-   "ReachabilityFetchPort": "type:5953302e70",
-   "ReachabilityOptions": "interface:c5bae66675",
-   "ReachabilityWaitArgs": "interface:f5f91bb7b4",
-   "ReachabilityWaitOptions": "interface:6b90a737a3",
-   "ReachabilityWaitResult": "interface:a7cde66a64",
-   "ReleaseFeedPort": "interface:b3e0db1887",
-   "RenderDeployConfigOptions": "interface:4e24722009",
-   "RenderedDeployConfig": "interface:8c20ce41c0",
-   "ResponseHeaderSet": "type:f7e60b66e3",
-   "RunSiteUpdateOptions": "interface:25f26a4f77",
-   "SECRET_NAME_PATTERN": "variable:f57057cc78",
-   "SecretComparison": "type:99d5d25570",
-   "SecretConfirm": "type:99788ad966",
-   "SecretConfirmRequest": "interface:ad8caf6ccf",
-   "SecretNotConfirmed": "interface:5afdcdd8b8",
-   "SecretTargetInput": "interface:9d4d3daf67",
-   "SecretValueSource": "type:171527a4b1",
-   "SelfHostedSiteUpdateOptions": "interface:72fd1d4e7b",
-   "SetSecretInput": "interface:e00bc7f62a",
-   "SetSecretResult": "interface:9e9e69d390",
-   "SigV4Client": "interface:652f4d287e",
-   "SigV4ClientOptions": "interface:cded8fe7ac",
-   "SiteBackupPort": "interface:7928e4aebf",
-   "SiteDataRestorePort": "interface:59aeec0cd3",
-   "SiteHealthPort": "interface:ab9e663404",
-   "SiteRelease": "interface:58ee02d86d",
-   "SiteUpdateApproval": "interface:0b623b400a",
-   "SiteUpdateAvailable": "interface:58c739fdb8",
-   "SiteUpdateCallOptions": "interface:6ca55b7f98",
-   "SiteUpdateError": "class:823dbf45f5",
-   "SiteUpdateErrorCode": "type:d127a52d58",
-   "SiteUpdateOutcome": "type:0b4ff54985",
-   "SiteUpdatePlan": "interface:b93fcb5b88",
-   "SiteUpdatePort": "interface:a61ed03e81",
-   "SiteUpdatePorts": "interface:982b68a18e",
-   "SiteUpdateRunResult": "interface:407d184e82",
-   "SiteUpdateStep": "type:ccb64c23af",
-   "SiteUpdateStepLog": "interface:95d378aac1",
-   "SiteUpdateStepStatus": "type:f1f8f181dd",
-   "SiteUpdateVerification": "type:21f4ea7342",
-   "UnknownRecord": "type:e89e7ae755",
-   "UnsetSecretInput": "interface:4bfd0f42af",
-   "UnsetSecretResult": "interface:ea7400856c",
-   "WaitClock": "interface:ca6708b10d",
-   "aborted": "variable:77c0385941",
-   "asDeployConfigGeneratorModule": "function:727dbf7a03",
-   "asDeployOpsModule": "function:796e8d5ebe",
-   "asDeployTargetModule": "function:4f7274652b",
-   "assertNoConfigInjection": "function:a6652ba652",
-   "assertNotRedirected": "function:93e6f566b9",
-   "boundContext": "function:e416576700",
-   "buildDeployOpsRegistrations": "function:1b6075121f",
-   "checkDeploymentUrl": "function:e3a1275809",
-   "checkForUpdateFromFeed": "function:8ff4a89baf",
-   "collectTypedDeploySecret": "function:43f5ebe582",
-   "compareSiteVersions": "function:c10498da5d",
-   "createDeployPublishToolRegistration": "function:f641365a34",
-   "createDesktopSiteUpdate": "function:d8e542d1a0",
-   "createFakeSiteUpdate": "function:ba6ca6d887",
-   "createPublishJobStore": "function:8ab4079b30",
-   "createRoleGatedDeployPublishPolicy": "function:1b6b934d23",
-   "createSelfHostedSiteUpdate": "function:f6f9d88624",
-   "denyAllDeployPublishPolicy": "variable:85433ee79d",
-   "imageTagForVersion": "function:890dece9b7",
-   "isContainedDeployConfigPath": "function:230924d750",
-   "isSiteVersion": "function:493047d324",
-   "normalizeDeploymentUrl": "function:210f06d0de",
-   "parseDeployConfigsFile": "function:7981a3cd37",
-   "parseDeployOpsFile": "function:c58211c36c",
-   "parseDeployTargetsFile": "function:feaa540634",
-   "publishDeploy": "function:e56766daea",
-   "publishJobRecoveryMessage": "function:34fdc7514b",
-   "redirectGuardInit": "function:26b0e6dbaa",
-   "requireDeployPlatform": "function:282ee9d49f",
-   "runDeploy": "function:4b9c3b2c8e",
-   "runDeployOps": "function:f6d14f4f16",
-   "runListSecrets": "function:a6b4c20e73",
-   "runSetSecret": "function:275308c0e7",
-   "runSiteUpdate": "function:4ca962010b",
-   "runUnsetSecret": "function:61b8113514",
-   "safeDnsLabel": "function:069aa5040b",
-   "safeProjectLabel": "function:2fa5b05b68",
-   "waitForDeployOps": "function:4f2005ab15",
-   "waitForReachableDeploymentUrl": "function:adbaed2eb7"
-  }
- },
- "./deploy/node": {
-  "types": "./dist/deploy/node.d.ts",
-  "symbols": {
-   "NodeReachabilityRequired": "interface:11afde115e",
-   "ReachabilityLookupRequired": "interface:1283922f08",
-   "ValidatingLookup": "type:3eca63b8e0",
-   "createNodeReachabilityPorts": "function:e587e38759",
-   "createReachabilityDispatcher": "function:cb575782f3",
-   "createReachabilityLookup": "function:c0f13a08c2"
-  }
- },
- "./deploy/react": {
-  "types": "./dist/deploy/react/index.d.ts",
-  "symbols": {
-   "DeploymentOverviewArgs": "interface:ce0af6af20",
-   "DeploymentOverviewController": "interface:95e2ab607b",
-   "HistoryTab": "function:0210002295",
-   "HistoryTabProps": "interface:8b7a3b6daf",
-   "PublishRunResult": "function:d70d98c179",
-   "PublishRunResultProps": "interface:fa67bd1211",
-   "useDeploymentOverview": "function:b25f987ee9"
-  }
- },
- "./deploy/site/agent-tools": {
-  "types": "./dist/deploy/site/agent-tools.d.ts",
-  "symbols": {
-   "AgentToolActorClassRule": "type:ef6ae62ddc",
-   "AgentToolDefinition": "type:b4d7d744be",
-   "AgentToolSideEffect": "type:11eb2b47d7",
-   "deploymentsAgentToolCatalog": "variable:9ddd7e91ed"
-  }
- },
- "./deploy/site/deploy-config": {
-  "types": "./dist/deploy/site/deploy-config.d.ts",
-  "symbols": {
-   "HealthCheckSource": "interface:a702b2cbfe",
-   "HostDeployNotesReadPorts": "interface:6022d90132",
-   "appendHostDeployNotes": "function:e0cad63cae",
-   "buildDeploymentDescriptor": "function:e687e481a5",
-   "createDeployConfigKit": "function:5434fa5fdb"
-  }
- },
- "./deploy/site/deploy-config-registry": {
-  "types": "./dist/deploy/site/deploy-config-registry.d.ts",
-  "symbols": {
-   "DeployConfigContributionSpec": "interface:2210fbe5db",
-   "DeployConfigGeneratorSource": "interface:9b95dba29e",
-   "DeployConfigPluginSource": "interface:2232ee90e0",
-   "DeployConfigRegistryPorts": "interface:5449f3c345",
-   "DeployWorkflowContributionDefinition": "interface:ea7f2b867c",
-   "LoadDeployWorkflowContributions": "type:d92b4020a9",
-   "createDeployConfigGeneratorSource": "function:7fcff9d64a",
-   "loadDeployWorkflowFiles": "function:df82cfd561",
-   "readBundledDeployConfigDescriptors": "function:a82f9bc477",
-   "readDeployConfigTargetIdsFromSource": "function:a2eca8c4a0"
-  }
- },
- "./deploy/site/deploy-targets/types": {
-  "types": "./dist/deploy/site/deploy-targets/types.d.ts",
-  "symbols": {
-   "DeployCredentialCheck": "type:d569ad5fd7",
-   "DeployCredentialCheckContext": "type:ecd07541ac",
-   "DeployFetchTimeouts": "interface:0bd6dd21cd",
-   "DeployHostingSetup": "interface:90f6309d28",
-   "DeployTargetCreateContext": "type:4a6532bbb7",
-   "DeployTargetCredentialSpec": "interface:ee70a55b7f",
-   "DeployTargetDescriptor": "interface:d9c453427c",
-   "DeployTargetEnvFallback": "interface:76c18a6494",
-   "DeployTargetFieldSpec": "interface:4f80f4f847",
-   "DeployTargetInspection": "type:58bd8f07bb",
-   "DeployTargetModule": "type:8c2fad882f",
-   "DeployTargetProjectNameCopy": "interface:732c85b80c",
-   "DeployTargetRegistry": "type:bdb7f7e665",
-   "HostDeployPublishInput": "type:aaadd4dea0",
-   "HostDeployTarget": "interface:c58c133611",
-   "InstalledDeployTarget": "interface:050287c1a7",
-   "InstalledDeployTargetInventory": "interface:4bf984fc51",
-   "LoadInstalledDeployTargets": "type:421c5cac03",
-   "LoadedDeployTarget": "type:fd2cf15798",
-   "ResponseHeaderSet": "type:f7e60b66e3",
-   "SigV4Client": "interface:7b807ccce4",
-   "SigV4ClientOptions": "interface:cded8fe7ac"
-  }
- },
- "./deploy/site/dockerfile": {
-  "types": "./dist/deploy/site/dockerfile.d.ts",
-  "symbols": {
-   "DockerfileSourceSnapshot": "interface:3f8a5611ae",
-   "DockerfileWriteResult": "type:fe46faae73",
-   "readDockerfileSource": "function:63af9893e3",
-   "writeDockerfileSource": "function:c688acb2cb",
-   "writeDockerfileSourceWithIfMatch": "function:0e2c54cd53"
-  }
- },
- "./deploy/site/export-run": {
-  "types": "./dist/deploy/site/export-run.d.ts",
-  "symbols": {
-   "DescribeExportError": "type:7a7dd222c7",
-   "ExportEngine": "type:6fca04723b",
-   "ExportRunCounts": "interface:9466f113a8",
-   "ExportRunDiagnostics": "type:e16939cf74",
-   "ExportRunReportLike": "interface:97aac8e2a9",
-   "ExportRunSnapshot": "interface:d7718c7d15",
-   "ExportRunStatus": "type:40a5c173f5",
-   "ExportRunner": "interface:865f74cc58",
-   "StartExportRunOptions": "interface:f28372fa4b",
-   "createExportRunner": "function:8a5b9725bb"
-  }
- },
- "./deploy/site/ports": {
-  "types": "./dist/deploy/site/ports.d.ts",
-  "symbols": {
-   "DeploymentError": "interface:4586ca681b",
-   "DeploymentErrorCode": "type:1c1371b4ae",
-   "DeploymentProviderContext": "interface:d5f26c3982",
-   "DeploymentProviderPort": "interface:416ee4e665",
-   "DeploymentRunStatusUpdate": "interface:b850d7e7b6",
-   "PollDeploymentRunInput": "interface:4231f9870d",
-   "PollDeploymentRunResult": "type:2959ae63ed",
-   "StartDeploymentRunInput": "interface:255b7c4544",
-   "StartDeploymentRunResult": "type:52e7ee410b"
-  }
- },
- "./deploy/site/publish-credentials/account-label-heal-scheduler": {
-  "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
-  "symbols": {
-   "AccountLabelHealScheduler": "interface:73da82cba0",
-   "AccountLabelHealSchedulerDeps": "interface:d7c68c64c0",
-   "createAccountLabelHealScheduler": "function:5538dfac79",
-   "idsNeedingAccountLabelHeal": "function:1dee8bf473"
-  }
- },
- "./deploy/site/publish-credentials/execution-mode": {
-  "types": "./dist/deploy/site/publish-credentials/execution-mode.d.ts",
-  "symbols": {
-   "PublishExecutionMode": "type:eeefd91d38",
-   "executionModeFromEnv": "function:ea2fde4f18"
-  }
- },
- "./deploy/site/publish-credentials/types": {
-  "types": "./dist/deploy/site/publish-credentials/types.d.ts",
-  "symbols": {
-   "PublishConnectionInput": "type:183b1f6757",
-   "PublishCredentialScope": "type:84f657504c",
-   "PublishCredentialSummary": "interface:758efbc0b1",
-   "PublishProviderId": "type:19a51e291b"
-  }
- },
- "./deploy/site/static-publish/domain-publish-rows": {
-  "types": "./dist/deploy/site/static-publish/domain-publish-rows.d.ts",
-  "symbols": {
-   "domainPublishRows": "function:9a4fbd15c2"
-  }
- },
- "./deploy/site/static-publish/types": {
-  "types": "./dist/deploy/site/static-publish/types.d.ts",
-  "symbols": {
-   "PublishCredentialSource": "interface:d95a991021",
-   "ResolvedPublishCredentialSuccess": "type:c8a98e2144",
-   "StaticPublishConfig": "interface:9d86e0a6b1",
-   "StaticPublishOutcome": "type:cb820bef93",
-   "StaticPublishTargetId": "type:da0f649d10"
-  }
- },
- "./deploy/site/types": {
-  "types": "./dist/deploy/site/types.d.ts",
-  "symbols": {
-   "DeploymentProviderId": "type:2c008c35a0",
-   "DeploymentRunStatus": "type:15a11c0906",
-   "DeploymentTargetRecord": "interface:aaac23171f",
-   "ReleaseRecord": "interface:f8f379c1ba",
-   "ReleaseSource": "type:ab41093661"
-  }
- },
- "./dns": {
-  "types": "./dist/dns/index.d.ts",
-  "symbols": {
-   "AuthoritativeDnsPort": "interface:bd126ca34f",
-   "AuthoritativeDnsToken": "variable:084153ef99",
-   "CaaTag": "type:d259a83370",
-   "CaaValue": "interface:ce86be6543",
-   "DEFAULT_DNS_TTL": "variable:2819899e85",
-   "DEFAULT_MX_PRIORITY": "variable:742e9d2d61",
-   "DNS_ADDRESS_TYPES": "variable:5aca6869f0",
-   "DNS_PROVIDER_CONTRACT": "variable:dc40e2371c",
-   "DOMAIN_BINDING_SWEEP_FAILED_LINE": "variable:a573d37842",
-   "DOMAIN_BINDING_SWEEP_INTERVAL_MS": "variable:5ff9b5259b",
-   "DOMAIN_BINDING_SWEEP_LIMIT": "variable:3a7464c8dc",
-   "DOMAIN_BINDING_SWEEP_STOP_GRACE_MS": "variable:a55b4da1a9",
-   "DOMAIN_BINDING_SWEEP_STOP_LATE_LINE": "variable:95ef259ac2",
-   "DelegationCheck": "interface:3cc4574708",
-   "DelegationState": "type:8857898243",
-   "DnsApproval": "interface:282ecb0f7a",
-   "DnsApprovalCheck": "type:5e061d4f74",
-   "DnsApprovalRefusal": "type:f43f624938",
-   "DnsApprover": "type:1a69604a8a",
-   "DnsCaaRecord": "interface:08a323bc48",
-   "DnsChange": "interface:66a6343204",
-   "DnsChangePlan": "interface:e0e52ec346",
-   "DnsInstructionRow": "interface:6fbf6e100b",
-   "DnsInstructions": "interface:16a05dbcfc",
-   "DnsInventory": "type:12a14ad8fd",
-   "DnsMxRecord": "interface:87f21574f1",
-   "DnsPlainRecord": "interface:3a5f80081a",
-   "DnsPlanBlocker": "interface:10dedabf17",
-   "DnsPlanBlockerCode": "type:df0a0f12a0",
-   "DnsPlanRequirement": "type:0257cd8f19",
-   "DnsProvider": "interface:183821ab86",
-   "DnsProviderCapabilities": "interface:8989d787b4",
-   "DnsProviderContext": "interface:fe2885711f",
-   "DnsProviderRegistry": "type:1df3a3b543",
-   "DnsProviderRegistryToken": "variable:5231e0e867",
-   "DnsRecord": "type:cba77dcf56",
-   "DnsRecordType": "type:c79c3d0428",
-   "DnsRecordValue": "type:bcb0b4859b",
-   "DnsVerification": "interface:2220a77859",
-   "DnsZone": "interface:02631e1932",
-   "DomainBindingSweepScheduler": "interface:3c70c13c9c",
-   "DomainBindingSweepTimer": "interface:378a81a124",
-   "DomainBindingSweeper": "interface:d971df327f",
-   "DomainBindingSweeperOptional": "interface:29f088ae42",
-   "FIRST_CHECK_DELAY_MS": "variable:dc206a51e9",
-   "MANUAL_DNS_PROVIDER_ID": "variable:1f45a6bc74",
-   "MAX_CHECK_DELAY_MS": "variable:a98554c219",
-   "ManualDnsProviderOptions": "interface:ace78df69c",
-   "MxValue": "interface:dcfe4577fd",
-   "NameserverObservation": "interface:811455fcbb",
-   "PROPAGATION_CAP_MS": "variable:fc79f62624",
-   "PlanDnsChangesInput": "interface:412e6d915e",
-   "PlanDnsChangesOptions": "interface:fbc49bd85d",
-   "PropagationState": "type:97b605f059",
-   "RecordVerification": "interface:b93ea9296c",
-   "TXT_CHUNK_BYTES": "variable:47454be159",
-   "aggregatePropagation": "function:9d1e5ceb14",
-   "answerMatches": "function:f9ee634a56",
-   "bindDnsApproval": "function:55da7ad050",
-   "buildRecord": "function:634a1d0c7b",
-   "canonicalIpv6": "function:05a9e4be0b",
-   "canonicalJson": "function:d330687071",
-   "checkDelegation": "function:148e9e76d1",
-   "checkDnsApproval": "function:dbc1d3b194",
-   "chunkTxt": "function:0f66f28a1a",
-   "createDnsProviderRegistry": "function:648ce07b26",
-   "createManualDnsProvider": "function:8cca0acf33",
-   "dnsProviderDefinition": "function:1cdc8e989f",
-   "dnsProviderShapeError": "function:22db51b040",
-   "dnsValueKey": "function:03014ec62a",
-   "fingerprintPlan": "function:1181af70af",
-   "isExpired": "function:efc7626d66",
-   "isMxValue": "function:b6afc1efe0",
-   "isSpfValue": "function:31f0420804",
-   "mergeSpf": "function:cd2e65d679",
-   "nextCheckDelayMs": "function:f5b6737cfc",
-   "normalizeDnsName": "function:27855e3c2b",
-   "parseAnswerValue": "function:287d5d0c16",
-   "parseCaaText": "function:fe24572345",
-   "parseMxText": "function:3c8c6d84cf",
-   "planDnsChanges": "function:9e7962bd03",
-   "relativeHost": "function:3af0c531e8",
-   "renderDnsInstructions": "function:6b90cca2a0",
-   "requirementValue": "function:18e7ab7f1c",
-   "sameValueSet": "function:dee26eca51",
-   "settlePort": "function:ef9f5014dd",
-   "spfSatisfies": "function:85c9fb5864",
-   "startDomainBindingSweeper": "function:0f3b970dff",
-   "unquoteTxt": "function:ea91a3546b",
-   "verifyRequirements": "function:707cab6a69"
-  }
- },
- "./dns/node": {
-  "types": "./dist/dns/node/index.d.ts",
-  "symbols": {
-   "AUTHORITATIVE_DNS_TIMEOUT_MS": "variable:1ee4c20783",
-   "DNS_RCODE_NXDOMAIN": "variable:bc71e162f0",
-   "DNS_TYPE_NS": "variable:bf1fd89b45",
-   "DnsExchange": "type:8f93104d67",
-   "DnsResolverLike": "type:10aa9be420",
-   "NodeAuthoritativeDnsResolverOptions": "interface:2fa3aa7b19",
-   "NsReply": "interface:cd5829d31c",
-   "UdpDnsExchangeOptions": "interface:3f0e1f7f3e",
-   "createNodeAuthoritativeDnsResolver": "function:40c55d17ef",
-   "createUdpDnsExchange": "function:899baf324b",
-   "decodeNsReply": "function:abb782b0c8",
-   "encodeNsQuery": "function:b2759e5242"
-  }
- },
- "./dns/site/binding.repo": {
-  "types": "./dist/dns/site/binding.repo.d.ts",
-  "symbols": {
-   "DomainBinding": "interface:93610f4b02",
-   "DomainBindingKernel": "interface:f7134cdc11",
-   "DomainBindingSqlTag": "interface:779e1f589e",
-   "DomainBindingStatus": "type:926b456352",
-   "DomainBindingStore": "interface:498f549e63",
-   "createDomainBindingStore": "function:802716cc48"
-  }
- },
- "./dns/site/dns-changes": {
-  "types": "./dist/dns/site/dns-changes.d.ts",
-  "symbols": {
-   "DnsChangePorts": "interface:c2c6f98690",
-   "DnsChangeRequest": "interface:3af4d05a79",
-   "DomainDnsBlocker": "interface:ec818ae6c5",
-   "DomainDnsInspection": "interface:6176bad9ce",
-   "DomainDnsPlan": "interface:6e55960cc8",
-   "DomainDnsVerifyResult": "interface:ae87623919",
-   "VERIFY_WRITE_ATTEMPTS": "variable:58494adb52",
-   "domainDnsInstructions": "function:1b81696329",
-   "inspectDomainDns": "function:f46f3b7e12",
-   "planDomainDns": "function:196c40d234",
-   "verifyDomainDns": "function:cfba4efc45",
-   "verifyDueDomainBindings": "function:9385510fd8"
-  }
- },
- "./dns/site/dns-tools": {
-  "types": "./dist/dns/site/dns-tools.d.ts",
-  "symbols": {
-   "buildDnsChangeRegistrations": "function:9f86ee7bb3",
-   "contributeDomainDnsAndChangeTools": "function:f9a3d13cae",
-   "dnsChangeAgentToolCatalog": "variable:9878a2ca86",
-   "dnsChangeDerivedRisk": "variable:f97088a5f9",
-   "readDnsChangeInput": "function:928b43d9e6"
-  }
- },
- "./dns/site/mail-dns-status": {
-  "types": "./dist/dns/site/mail-dns-status.d.ts",
-  "symbols": {
-   "MailDnsCheck": "interface:82196d4882",
-   "MailDnsNameserverView": "interface:aa7c75f7ee",
-   "MailDnsRecordStatus": "type:cbb2c1ddf5",
-   "MailDnsRecordView": "interface:e10d6327e9",
-   "MailDnsState": "type:7647a36af9",
-   "MailDnsStatus": "interface:29fdccf9e1",
-   "MailDnsStatusPorts": "type:b87d86191b",
-   "MailDnsTracking": "interface:3a39f036f0",
-   "mailDnsRecordStatus": "function:f7e738e69e",
-   "readMailDnsStatus": "function:054412cd6b",
-   "verifyMailDnsStatus": "function:4858b1581c"
-  }
- },
- "./dns/site/mail-dns-tools": {
-  "types": "./dist/dns/site/mail-dns-tools.d.ts",
-  "symbols": {
-   "buildMailDnsRegistrations": "function:182431c082",
-   "mailDnsAgentToolCatalog": "variable:84867e29e3",
-   "mailDnsDerivedRisk": "variable:ac1a8eaa15",
-   "mailDnsPorts": "function:87979c8472"
-  }
- },
- "./dns/site/mail-requirements": {
-  "types": "./dist/dns/site/mail-requirements.d.ts",
-  "symbols": {
-   "DMARC_HINT_PROVIDER_ID": "variable:18f1043b34",
-   "DMARC_HINT_VALUE": "variable:4656c48471",
-   "DnsRequirementInclude": "type:b43b8de708",
-   "MailRequirementsPort": "type:695b9b461f",
-   "withMailRequirements": "function:d1b7e19d64"
-  }
- },
- "./dns/site/tool-deps": {
-  "types": "./dist/dns/site/tool-deps.d.ts",
-  "symbols": {
-   "DnsChangeToolDeps": "interface:5d2e6fd2d5"
-  }
- },
- "./dns/site/tools": {
-  "types": "./dist/dns/site/tools.d.ts",
-  "symbols": {
-   "DomainDnsChecksPort": "interface:dc5a55eaca",
-   "DomainDnsToolDeps": "interface:f79497993f",
-   "PublicNameValidators": "interface:18ea272cba",
-   "buildDomainDnsRegistrations": "function:0e833c8045",
-   "domainDnsAgentToolCatalog": "variable:6e1b23641c",
-   "domainDnsDerivedRisk": "variable:a230b88922",
-   "toolInputPublicNames": "function:b44b4fb661"
-  }
- },
- "./local-dev": {
-  "types": "./dist/local-dev/index.d.ts",
-  "symbols": {
-   "AUTO_START_PORT_ATTEMPTS": "variable:91ec693935",
-   "DEFAULT_LOCAL_BIND_HOST": "variable:a5b8f5d757",
-   "EnvLoaderPort": "interface:fa376cae54",
-   "EnvironmentFilesystemPort": "interface:b193968ce5",
-   "LOOPBACK_HOSTS": "variable:5b8a1b5f9b",
-   "PortListener": "interface:40e22c0e10",
-   "ServerListenerPort": "interface:633ac4e28e",
-   "createDevServerRetirement": "function:363a7b3022",
-   "isLoopbackHost": "function:f899e63763",
-   "isPortFree": "function:1bbd0d6989",
-   "listenServer": "function:9f9da9ca97",
-   "listenersOn": "function:bab29a5b16",
-   "loadRepoRootEnvFile": "function:f100a3c514",
-   "parseLsofListeners": "function:c5d7ac8fe3",
-   "pickFreePort": "function:e9972c9f80",
-   "reserveBootListener": "function:8e75373c9f",
-   "resolveBindHost": "function:e1e889313f",
-   "selectNodeRuntime": "function:06f63872fb",
-   "sourceTreeStamp": "function:5e5cdd8bfa"
-  }
- },
- "./local-dev/dev-proxy-upstream": {
-  "types": "./dist/local-dev/dev-proxy-upstream.d.ts",
-  "symbols": {
-   "ClientResponsePort": "interface:282e22e9aa",
-   "ProxiedRequestPort": "interface:11ca1c05aa",
-   "ProxyEventsPort": "interface:e2fa2105e1",
-   "UpstreamRefusal": "interface:c482e60f45",
-   "UpstreamResponsePort": "interface:9a7c5ea3b4",
-   "installUpstreamCloseHandling": "function:1a6de33808"
-  }
- },
- "./packaging/electron": {
-  "types": "./dist/packaging/electron/entry.d.ts",
-  "symbols": {
-   "ArchiveReaderPort": "interface:f79ed25248",
-   "AsarHeaderNode": "interface:11eea7b90d",
-   "AsarMismatch": "interface:f296a9828b",
-   "AsarVerification": "interface:bcfe772663",
-   "DistImportInput": "interface:6dd3815d2c",
-   "FileInfo": "interface:c7ec5dea29",
-   "ImportAliasPort": "interface:18862daa5b",
-   "ImportReaderPort": "interface:a18391e8af",
-   "IsolatedPackagedTreeOptions": "interface:532e15d727",
-   "IsolatedPackagedTreeRequired": "interface:13ec9c48e2",
-   "MovingRootsRequired": "interface:c137c87849",
-   "OptionalPeerManifest": "interface:7c82c423a5",
-   "PackageResolverPort": "interface:4571046e35",
-   "PackagedTreeIsolationError": "class:3986b0efe2",
-   "PackagedTreeTargets": "interface:613183ecb6",
-   "PackagingFilesystemPort": "interface:1f4c33e607",
-   "PrebuildBuilt": "interface:b05ddd0dde",
-   "ProcessRunnerPort": "interface:94081a36e4",
-   "PruneTally": "interface:18729cd382",
-   "RuntimeResolverPort": "interface:3917b3acab",
-   "SleepPort": "interface:d1c88edebe",
-   "SnapshotPort": "interface:964e6cb583",
-   "StagedClosureAudit": "interface:eaaf4a947e",
-   "StagedClosureInput": "interface:22e88c1a6e",
-   "StalenessShell": "interface:97f6878de6",
-   "StripTally": "interface:99ee0e5b60",
-   "Target": "interface:3ee1b41e6f",
-   "TreeFingerprint": "interface:896dc37deb",
-   "TreeQuietFormatters": "interface:b451c62a98",
-   "UpdateFileEntry": "interface:d07df067d2",
-   "UpdateManifest": "interface:a08c169a9a",
-   "WorkspacePackagePackerPort": "interface:3b26246b2e",
-   "assertClosureComplete": "function:fdcbf09f04",
-   "assertDistImportsDeclared": "function:2910dce6f6",
-   "assertPackagedTreeIsolation": "function:338301894d",
-   "auditStagedClosure": "function:a7bd1cc2de",
-   "bundledNpmFailures": "function:293d12bfa2",
-   "createAsarArchiveReader": "function:99507f1843",
-   "createNodePackageResolver": "function:2da6d148b4",
-   "createNodePackagingFilesystem": "function:e2626b189d",
-   "createNodeRuntimeResolver": "function:ada19008ca",
-   "declaredDependencies": "function:49aed9c0ed",
-   "diskBytes": "function:857f5da58c",
-   "filesUnderPrefixes": "function:647e5df41d",
-   "fingerprintTree": "function:af7b6a12ee",
-   "fingerprintsDiffer": "function:07f1332d59",
-   "formatMismatchReport": "function:3008846495",
-   "hasNativeBinaryMagic": "function:fbe7a2d8f8",
-   "isBundleInput": "function:200211737f",
-   "isEmptyVerification": "function:2913f6ecfe",
-   "isExcluded": "function:580536736e",
-   "mergeMacManifests": "function:ae27772d57",
-   "missingClosureDependencies": "function:8c5328afd2",
-   "newestMtime": "function:e9ff218ad0",
-   "observeMovingPaths": "function:5d0aa9417a",
-   "optionalPeerClassification": "function:d888b7dc5b",
-   "optionalPeerContractProblems": "function:374b0f486a",
-   "parseNpmLsPaths": "function:1dd7776ead",
-   "prebuildTarget": "function:e135cac04f",
-   "productionDependencyOutput": "function:0df4c6b0f7",
-   "pruneNativePrebuilds": "function:c0ff56beb0",
-   "resolveNpmLsCommand": "function:3956b7cb07",
-   "resolveTargets": "function:8eede240e8",
-   "sampleMovingRoots": "function:efab7bf16b",
-   "shellStalenessFailure": "function:0158383aca",
-   "stageBundledNpm": "function:b64314e4b6",
-   "stageDir": "function:61335362c4",
-   "stagePackedWorkspace": "function:968e7b92b6",
-   "stagePayloadFiles": "function:417add52eb",
-   "stageTransitiveDependencies": "function:9ec6f7f8c0",
-   "stagedPackageDirs": "function:3775c154ee",
-   "stripNonRuntimeFiles": "function:c212c60d55",
-   "strippableReason": "function:b0ce66d4ae",
-   "toArchiveEntryPath": "function:c4b8b2e24e",
-   "treeQuietProblems": "function:77ba1b9feb",
-   "undeclaredDistImports": "function:02491b62e7",
-   "verifyAsarAgainstSource": "function:b4edf5fb02",
-   "walkPayloadFiles": "function:8205803cd6",
-   "withIsolatedPackagedTree": "function:79d56c9cca"
-  }
- },
- "./packaging/electron/move-to-applications": {
-  "types": "./dist/packaging/electron/move-to-applications.d.ts",
-  "symbols": {
-   "DeclineFileRead": "type:b2296a0e56",
-   "DeclinedVersionStore": "interface:f22b84b3a2",
-   "MoveConflictDecision": "type:b52fe3b4aa",
-   "MoveConflictType": "type:c9ef68edf1",
-   "MovePromptDeps": "interface:a1503358e3",
-   "MovePromptEnvironment": "interface:a406185542",
-   "MovePromptMessages": "interface:27a8bf01e4",
-   "MovePromptOutcome": "type:5d6aea0a5c",
-   "OrFallbackSync": "type:8d931724af",
-   "ReadTextFile": "type:3f925eee21",
-   "applicationsTargetPath": "function:c925bb19a7",
-   "bundlePathFromExecPath": "function:297ea66fa0",
-   "compareVersions": "function:da113e2ece",
-   "decideMoveConflict": "function:0030c31efb",
-   "movePromptSkipReason": "function:5055461493",
-   "readBundleVersion": "function:b3f8d8c07c",
-   "readDeclinedVersion": "function:29e4e2d9be",
-   "recordDeclinedVersion": "function:e3c24561df",
-   "runMoveToApplicationsPrompt": "function:8a047d7d45"
-  }
- },
- "./packaging/electron/typescript": {
-  "types": "./dist/packaging/electron/typescript.d.ts",
-  "symbols": {
-   "RuntimeImportRef": "interface:99778021f7",
-   "RuntimeImportSyntax": "type:f1eddff87d",
-   "createTypeScriptImportReader": "function:c9ddd9c667",
-   "runtimeImportReferences": "function:531655912e"
-  }
- },
- "./source-control": {
-  "types": "./dist/source-control/entry.d.ts",
-  "symbols": {
-   "BackupRepositoryState": "interface:bc5cb18ef9",
-   "BuildProviderArgs": "interface:e481111394",
-   "BuildProvidersArgs": "interface:cd0a7b53bb",
-   "BuildSourceControlProviderResult": "type:c5d46bcccc",
-   "CatalogPackage": "type:bb57d9201b",
-   "CommitBackupTreeInput": "interface:0ad1d62af6",
-   "CommitErrorStage": "type:dae76baabf",
-   "CommitExportArgs": "interface:ff4bd4425d",
-   "CommitFailureCode": "type:f0764ab534",
-   "CommitFile": "interface:03eb3853fc",
-   "CommitFilesResult": "type:b201ca36ec",
-   "CommitLayoutPort": "interface:c3f532e0b5",
-   "CommitOptions": "interface:1e8e19703c",
-   "CommitOrchestrationArgs": "interface:026819bd98",
-   "CommitSiteInput": "interface:0ad442161a",
-   "CredentialResolverPort": "interface:aa1e20b051",
-   "CredentialedRepositoryTarget": "interface:fa29d6b46f",
-   "DescribedTransportError": "interface:6def5b16a5",
-   "DescriptorExtensionReader": "type:67bd2cc832",
-   "DescriptorExtensions": "type:c565ef1712",
-   "DescriptorPathPolicy": "interface:f60c3ebd2e",
-   "FileSourcePort": "interface:127f927451",
-   "FileWritePlan": "interface:88083a0f99",
-   "FileWritePlanResult": "type:6217eb5962",
-   "FileWriteState": "interface:6b50b171e4",
-   "HttpClientPort": "interface:42a9bae498",
-   "InspectBackupRepositoryFailureCode": "type:f8bed6db07",
-   "InspectBackupRepositoryResult": "type:692c9d875c",
-   "LoadedSourceControlProvider": "interface:ab54b32e1a",
-   "PreviewCommitExportResult": "type:5ed925e9b5",
-   "ProviderCallFailure": "type:2961268603",
-   "ProviderCatalogPort": "interface:3f2dc84b9e",
-   "RepositoryPathError": "class:f1d07d6c35",
-   "RepositoryTarget": "interface:c0621ec30d",
-   "RepositoryTargetValidator": "type:6efc89f021",
-   "SharedBuildProviderArgs": "interface:8af46cae5c",
-   "SharedLoadedProvider": "interface:35e9f587df",
-   "SharedProviderRegistry": "interface:ef3824a9bb",
-   "SourceControlCommitOutcome": "type:f0a71eb7ac",
-   "SourceControlCommitResult": "type:7ada8883ba",
-   "SourceControlFetchPort": "type:4474ef50da",
-   "SourceControlHostFacts": "interface:1fe0e4b711",
-   "SourceControlProvider": "type:2c6433f810",
-   "SourceControlProviderDescriptor": "interface:c0e37370b5",
-   "SourceControlProviderKit": "interface:be67c1e551",
-   "SourceControlProviderModule": "interface:7a8bc423d5",
-   "SourceControlProviderOperations": "interface:cf4c84708e",
-   "SourceControlProviderRegistry": "interface:e0d89dfafe",
-   "UploadedBackupBlob": "interface:4903f64670",
-   "WriteFile": "interface:11670123cd",
-   "buildLoadedSourceControlProvider": "function:702110e463",
-   "buildSourceControlProvider": "function:52f85d518e",
-   "buildSourceControlProviderForApi": "function:b62b9c2d55",
-   "buildSourceControlProviders": "function:ebc5efe34c",
-   "commitSiteToSourceControl": "function:3426f89181",
-   "createSourceControlFetchAdapter": "function:5b828b26c3",
-   "createSourceControlProviderKit": "function:10ff640ced",
-   "findReservedPath": "function:15ca8139b9",
-   "isUnderWorkflowPath": "function:e0414fbc56",
-   "loadSourceControlProviderRegistry": "function:ddf81b9bfe",
-   "normalizeRepositoryFolder": "function:6082f45eda",
-   "originOf": "function:81da5a6551",
-   "parseSourceControlProvidersFile": "function:abdd3dac9d",
-   "pickSourceControlProviderForApi": "function:5d540d3434",
-   "prefixRepositoryPath": "function:25b0d87963",
-   "previewCommitExport": "function:426eba3d6c",
-   "repositoryPathContained": "function:b4a8ced830",
-   "repositoryTargetError": "function:81e67f4cd0",
-   "sourceControlProviderModuleError": "function:3981d9cf76",
-   "toCommitFile": "function:645edd8120",
-   "validateCommitTarget": "function:21ef3e2965"
-  }
- },
- "./source-control/react": {
-  "types": "./dist/source-control/react/SourceControl.d.ts",
-  "symbols": {
-   "SourceControl": "function:214e3783f6",
-   "SourceControlProps": "interface:a30e9a52ee",
-   "SourceControlTabBarProps": "interface:e1412356eb"
-  }
- },
- "./source-control/site/commit-schema": {
-  "types": "./dist/source-control/site/commit-schema.d.ts",
-  "symbols": {
-   "executeCommitSchema": "variable:796197dff5"
-  }
- },
- "./source-control/site/commit-target": {
-  "types": "./dist/source-control/site/commit-target.d.ts",
-  "symbols": {
-   "validateCommitTarget": "function:256895ef89"
-  }
- },
- "./source-control/site/credential-form": {
-  "types": "./dist/source-control/site/credential-form.d.ts",
-  "symbols": {
-   "SourceControlCredentialField": "interface:21ffdd7a68",
-   "SourceControlCredentialForm": "interface:7884791326",
-   "parseSourceControlCredentialForm": "function:ca5756ecb3"
-  }
- },
- "./source-control/site/provider-kit": {
-  "types": "./dist/source-control/site/provider-kit.d.ts",
-  "symbols": {
-   "SourceControlKitHost": "interface:230655f114",
-   "createSourceControlProviderKit": "function:e3bd0ad9c2"
-  }
- },
- "./source-control/site/provider-module": {
-  "types": "./dist/source-control/site/provider-module.d.ts",
-  "symbols": {
-   "BackupTreeEntry": "type:20769faa73",
-   "CommitBackupTreeInput": "interface:0738d731d0",
-   "CommitFile": "interface:03eb3853fc",
-   "CommitFilesResult": "type:0eea05fdc3",
-   "CommitSiteInput": "interface:348a5a60f8",
-   "CredentialedRepositoryTarget": "interface:fa29d6b46f",
-   "DescribedTransportError": "interface:6def5b16a5",
-   "FileWritePlan": "interface:88083a0f99",
-   "FileWritePlanResult": "type:d81b922ed9",
-   "FileWriteState": "interface:6b50b171e4",
-   "InlineBackupText": "interface:317e9df181",
-   "InspectBackupRepositoryFailureCode": "type:a67487bda8",
-   "InspectBackupRepositoryResult": "type:692c9d875c",
-   "ProviderCallFailure": "type:d9c0a115eb",
-   "RepositoryTarget": "interface:c0621ec30d",
-   "RepositoryTargetValidator": "type:8416ee5ef5",
-   "SourceControlCommitResult": "type:945bacc4d1",
-   "SourceControlHostFacts": "interface:1fe0e4b711",
-   "SourceControlKitHttpClient": "interface:f7ceb2011b",
-   "SourceControlProvider": "type:2c6433f810",
-   "SourceControlProviderKit": "interface:c8764f8a1d",
-   "SourceControlProviderModule": "interface:15d18c10d4",
-   "SourceControlProviderOperations": "interface:9664bb08fa",
-   "UploadedBackupBlob": "interface:4903f64670",
-   "WriteFile": "interface:11670123cd"
-  }
- },
- "./source-control/site/saved-key-bindings": {
-  "types": "./dist/source-control/site/saved-key-bindings.d.ts",
-  "symbols": {
-   "sourceControlSavedApiKeyLabels": "variable:012e0321f2"
-  }
- },
- "./source-control/site/static-site-packager-port": {
-  "types": "./dist/source-control/site/static-site-packager-port.d.ts",
-  "symbols": {
-   "StaticSiteIdentity": "interface:b93dfac9c9",
-   "StaticSitePackage": "type:98da619f67",
-   "StaticSitePackagerPort": "interface:807e9016b6"
-  }
- },
- "./static-export": {
-  "types": "./dist/static-export/entry.d.ts",
-  "symbols": {
-   "AppFactoryPort": "interface:1b16049c63",
-   "AppSession": "interface:aaf1d239d9",
-   "ArtifactWriterPort": "interface:de7a9978b6",
-   "AssetSourcePort": "interface:9e3b61e74d",
-   "DroppedReference": "interface:37fb820a88",
-   "ExportFailureSummary": "interface:269c985c4c",
-   "ExportFetchPort": "type:6ef9c5e29c",
-   "ExportOutputNotEmptyError": "class:738403f26f",
-   "ExportPathError": "class:b441e19fd4",
-   "ExportReport": "interface:1a49d78914",
-   "ExportSiteArgs": "interface:2d83805662",
-   "ExportSiteOptions": "interface:fe4485ba02",
-   "ExportedAsset": "interface:13fd262a49",
-   "ExportedRoute": "interface:43aa07a4e6",
-   "FailedAsset": "interface:1727f438ab",
-   "FailedRoute": "interface:a5b9ba26a2",
-   "ManifestActiveTheme": "interface:963e4d0e3b",
-   "ManifestRoute": "interface:ca206df0ac",
-   "ManifestSkip": "interface:993737f9d4",
-   "RouteManifest": "interface:3cc4cc07b1",
-   "RouteManifestPort": "interface:d77e76329c",
-   "ThemeLayoutPort": "interface:450fcfa541",
-   "createExportFetchAdapter": "function:697d8d0896",
-   "exportSite": "function:e3a1f75b4e",
-   "exportUrlLocations": "function:e98b62d983",
-   "extractAssetUrls": "function:5b6fc41b34",
-   "extractCssUrls": "function:bbfa58329a",
-   "extractHtmlReferences": "function:1abfeecec6",
-   "firstExportFailure": "function:ccc5e639f5",
-   "normalizeBasePath": "function:1ffa19bef8",
-   "outputFileForUrl": "function:b1d6d78a8c",
-   "redirectOutcomeFor": "function:7bff7c906a",
-   "renderRedirectStub": "function:70e8610c2f",
-   "rewriteAssetBodyForBasePath": "function:886d591b88",
-   "rewriteRouteBodyForBasePath": "function:0c4f9089c5",
-   "safeRelativeOutputFile": "function:e39d74f030"
-  }
- },
- "./static-export/failure-summary": {
-  "types": "./dist/core/export-failure-summary.d.ts",
-  "symbols": {
-   "ExportFailureSummary": "interface:269c985c4c",
-   "firstExportFailure": "function:ccc5e639f5"
-  }
- },
- "./static-export/node": {
-  "types": "./dist/static-export/node-adapters.d.ts",
-  "symbols": {
-   "createNodeAppFactory": "function:7296ec1368",
-   "createNodeArtifactWriter": "function:195878936a",
-   "createNodeAssetSource": "function:cf1ae459d4"
-  }
- },
- "./static-export/site/export-preflight": {
-  "types": "./dist/static-export/site/export-preflight.d.ts",
-  "symbols": {
-   "ExportPreflightCopy": "interface:fe582fbb85",
-   "createExportPreflight": "function:35df0dbfee",
-   "findContactEmailPlaceholder": "function:5ffdeb8b89",
-   "findThirdPartyScriptHosts": "function:5172479fef"
-  }
- },
- "./static-export/site/ports": {
-  "types": "./dist/static-export/site/ports.d.ts",
-  "symbols": {
-   "ManifestActiveTheme": "interface:98267e09aa",
-   "ManifestRoute": "interface:6aa35e53e8",
-   "ManifestRouteKind": "type:aa63d029bb",
-   "ManifestSkip": "interface:993737f9d4",
-   "RouteManifest": "interface:3cc4cc07b1"
-  }
- },
- "./static-export/site/public-origin-policy": {
-  "types": "./dist/static-export/site/public-origin-policy.d.ts",
-  "symbols": {
-   "exportPublicOrigin": "function:4d2b0322be",
-   "rewriteExportOriginResponse": "function:1608c8b961",
-   "rewriteRenderOrigins": "function:5beb95d093"
-  }
- },
- "./static-export/site/theme-preview-manifest": {
-  "types": "./dist/static-export/site/theme-preview-manifest.d.ts",
-  "symbols": {
-   "PreviewExportManifestPorts": "interface:81fd0c7990",
-   "buildPreviewExportManifest": "function:999a708a6b"
-  }
- }
 }
