@@ -746,7 +746,10 @@
       "./screens/media/media-providers-port": "universal",
       "./screens/media/hooks/fake-media-port": "browser",
       "./screens/media/media-tabs.hooks": "browser",
-      "./screens/media/hooks/use-media-preview.hooks": "browser"
+      "./screens/media/hooks/use-media-preview.hooks": "browser",
+      "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
+      "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1045,7 +1048,10 @@
         "./shell/components/SecretInput/SecretInput": "browser",
         "./screens/media/api/media-api": "universal",
         "./screens/media/media-providers-port": "universal",
-        "./screens/media/hooks/fake-media-port": "browser"
+        "./screens/media/hooks/fake-media-port": "browser",
+        "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
+        "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -4655,6 +4661,21 @@
       "types": "./dist/screens/media/hooks/use-media-preview.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-preview.hooks.js",
       "default": "./dist/screens/media/hooks/use-media-preview.hooks.js"
+    },
+    "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": {
+      "types": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js",
+      "default": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js"
+    },
+    "./shell/components/AssistantDock/hooks/run-context.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/assistant-transport.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js"
     }
   },
   "files": [
