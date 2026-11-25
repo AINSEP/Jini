@@ -2549,6 +2549,7 @@
  "./contracts/storage": {
   "types": "./dist/contracts/storage.d.ts",
   "symbols": {
+   "CleanupPreviewStore": "interface:aa1b84d5b2",
    "ColumnInfo": "interface:caa29495da",
    "DbRow": "type:c3149fade0",
    "MigrationContext": "interface:e2bfdaf6f0",

@@ -1001,6 +1001,12 @@
    "runtimeImportReferences": "function:531655912e"
   }
  },
+ "./react/site-share-expiry": {
+  "types": "./dist/react/site-share-expiry/index.d.ts",
+  "symbols": {
+   "ShareExpiryControls": "function:ccf875807f"
+  }
+ },
  "./source-control": {
   "types": "./dist/source-control/entry.d.ts",
   "symbols": {

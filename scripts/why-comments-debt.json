@@ -1752,6 +1752,10 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "538da77440c0",
+      "reason": "P11 ST-8b.J made ConversationList `hooks` a required prop (major), so 'defaults to the real ones' is false; the rewritten doc on defaultConversationListHooks says the host passes them."
     }
   ]
 }

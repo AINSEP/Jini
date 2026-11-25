@@ -1452,6 +1452,14 @@
    "postListRoute": "variable:33d6f7c134"
   }
  },
+ "./admin-http/routes/posts/revision-thinning": {
+  "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
+  "symbols": {
+   "RevisionThinningApplyDeps": "interface:6aa3c4d867",
+   "RevisionThinningPreviewDeps": "interface:0fa79f2bfa",
+   "createRevisionThinningRoutes": "function:ea18f7cfa4"
+  }
+ },
  "./admin-http/routes/posts/update": {
   "types": "./dist/admin-http/routes/posts/update.d.ts",
   "symbols": {
@@ -2300,7 +2308,7 @@
    "SiteSharePrincipal": "interface:cbb54678c4",
    "SiteShareRoute": "interface:9626b71de7",
    "SiteShareRouteBackend": "interface:5f92471297",
-   "SiteShareRouteDeps": "interface:3e0d29dbd8",
+   "SiteShareRouteDeps": "interface:6053bbc444",
    "SiteShareUploadRefusal": "class:1efe8d1902",
    "siteShareAcknowledgeRoute": "variable:49828934d8",
    "siteShareArtifactDeleteRoute": "variable:aaae5eb04b",
@@ -5049,6 +5057,12 @@
    "resolveBodyFields": "function:e6751a80af",
    "resolveUpdateBodyFields": "function:2fff4bfb1f",
    "savedPostContent": "function:2bb4a672a8"
+  }
+ },
+ "./posts/revision-thinning": {
+  "types": "./dist/posts/revision-thinning.d.ts",
+  "symbols": {
+   "createRevisionThinning": "function:dae49705af"
   }
  },
  "./posts/search": {

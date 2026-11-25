@@ -201,7 +201,7 @@
    "DirectoryRelocationSnapshot": "interface:4d3f66cb55",
    "DirectoryRelocationWrite": "interface:3ebccb3f93",
    "DirectoryRunningLock": "interface:f138daa52d",
-   "DirectoryRunningRecord": "interface:ff491de3e8",
+   "DirectoryRunningRecord": "interface:b520083936",
    "DirectoryUserConfigRefusal": "class:bf5fd016bb",
    "DurableJsonChange": "interface:de4daf20dc",
    "DurableJsonFile": "interface:8b1dcfa05d",
@@ -233,13 +233,14 @@
    "createDurableJsonFile": "function:24c994a1f4",
    "createGuardedFileReader": "function:f07bce619d",
    "createNodeAtomicFilesystem": "function:f3d24de958",
-   "createNodeDirectoryWorkspace": "function:77f4390ffa",
+   "createNodeDirectoryWorkspace": "function:6529d1e650",
    "createNodeDurableJsonPorts": "function:a2aeabb422",
    "createNodeGuardedReaderFilesystem": "function:812c428807",
    "directoryFingerprint": "function:53b99f611e",
    "fileDigest": "function:fdc03a5b0b",
    "isInsideDirectory": "function:e9e500f1e1",
    "isLockStale": "function:19c581275b",
+   "isServeRecord": "function:0ca898fc61",
    "makeDirectoryTreeWritable": "function:91b3afbe03",
    "mayEraseDirectory": "function:27541c5dc8",
    "moveDirectoryUnderLeases": "function:af112f3400",
@@ -817,9 +818,16 @@
    "StorageTreeIdentity": "interface:89e6cf31a4",
    "StorageTreeMeasurement": "interface:9a7f32b887",
    "StorageTreeStats": "interface:7df0d80cb9",
+   "createCleanupPreviewStore": "function:be1d52ddbf",
    "createRetentionRunner": "function:f091027fb8",
    "measureStorageTree": "function:308207e10a",
    "nodeStorageTreeFs": "variable:88fd038cce"
+  }
+ },
+ "./retention/routes": {
+  "types": "./dist/retention/routes.d.ts",
+  "symbols": {
+   "createStorageRoutes": "function:4ae3040abe"
   }
  },
  "./secrets": {
