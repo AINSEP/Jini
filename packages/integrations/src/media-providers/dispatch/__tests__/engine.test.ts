@@ -7,6 +7,8 @@ import type { VendorAdapter } from '../vendor-adapter.js';
 import type { Renderer } from '../engine.js';
 import type { MediaGenerationRequest } from '../types.js';
 import type { HttpClientPort } from '@jini-ai/core/primitives';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
+import type { MediaGuardedFetch } from '../outbound.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -512,6 +514,32 @@ describe('createMediaDispatchEngine — injected guarded fetch', () => {
     parseResponse: async ({ resp }) => ({ bytes: Buffer.from(await resp.text()), providerNote: 'injected' }),
   };
   const clientFixture = (): HttpClientPort => ({ send: vi.fn(async () => ({ status: 200, headers: {}, bodyText: 'from client' })) });
+
+  it('media generation forwards caller abort to an in-flight guarded request and skips dispatch when already stopped', async () => {
+    const registry = createVendorAdapterRegistry();
+    const vendor = new AbortController();
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter: { ...adapter,
+      buildRequest: () => ({ url: 'https://vendor.example/generate', init: { method: 'POST', signal: vendor.signal }, meta: undefined }),
+    } });
+    const guardedFetch = vi.fn<MediaGuardedFetch>(async () => new Response('generated', { status: 200 }));
+    const engine = createMediaDispatchEngine({ registry, httpClient: clientFixture(), guardedFetch });
+    const caller = new AbortController();
+    const generation = engine.generate({ surface: 'image', model: 'dall-e-3' }, { signal: caller.signal });
+    expect(guardedFetch).toHaveBeenCalledTimes(1);
+    const options = guardedFetch.mock.calls[0]![1]!;
+    expect(options.totalDeadlineMs).toBe(FETCH_TIMEOUT_MS.GENERATE);
+    expect(options.redirect).toBe('error');
+    expect(options.signal!.aborted).toBe(false);
+    caller.abort();
+    expect(options.signal!.aborted).toBe(true);
+    expect(vendor.signal.aborted).toBe(false);
+    expect((await generation).bytes.toString()).toBe('generated');
+    guardedFetch.mockClear();
+    const stopped = new AbortController();
+    stopped.abort();
+    await expect(engine.generate({ surface: 'image', model: 'dall-e-3' }, { signal: stopped.signal })).rejects.toBe(stopped.signal.reason);
+    expect(guardedFetch).not.toHaveBeenCalled();
+  });
 
   // REGRESSION: fails if the engine ignores the host's guardedFetch and binds its own adapter.
   it('routes vendor calls through the guarded fetch the host injected', async () => {

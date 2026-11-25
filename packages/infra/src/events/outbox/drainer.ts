@@ -1,3 +1,4 @@
+import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
 import type { Empty, EventEnvelope, OutboxWorkerArgs, OutboxWorkerOptions, ScheduledTask, Scheduler } from './ports.js';
 import { DEFAULT_OUTBOX_DRAIN_INTERVAL_MS, resolvePolicy } from './policy.js';
 import { processOutbox } from './worker.js';
@@ -108,7 +109,8 @@ export function createSerialPump(
  * @complexity O(batchSize) publish attempts per drain; O(1) state between drains. */
 export function startOutboxDrainer<Event extends EventEnvelope>(
   required: OutboxWorkerArgs<Event>,
-  optional: OutboxWorkerOptions & { intervalMs?: number; onError?: (error: unknown) => void } = {},
+  optional: OutboxWorkerOptions & { intervalMs?: number; onError?: (error: unknown) => void;
+    queueMetrics?: { readDepth(required: Record<string, never>, _optional?: Record<string, never>): Promise<number>; metric: ObservabilityPort['metric'] } } = {},
 ): OutboxDrainer {
   const policy = resolvePolicy({ options: optional });
   const intervalMs = optional.intervalMs ?? DEFAULT_OUTBOX_DRAIN_INTERVAL_MS;
@@ -116,8 +118,22 @@ export function startOutboxDrainer<Event extends EventEnvelope>(
   const onError = optional.onError ?? ((error: unknown) => required.logger.error({
     message: '[outbox-drainer] drain failed; retrying after the idle interval',
   }, { error }));
+  let inFlight = false;
+  async function sampleQueueDepth(): Promise<void> {
+    if (!optional.queueMetrics || inFlight) return;
+    inFlight = true;
+    try {
+      // Durable depth includes work beyond this drain; the claimed count is not queue depth.
+      const value = await optional.queueMetrics.readDepth({});
+      await optional.queueMetrics.metric({ name: 'outbox.queue_depth', value }, { kind: 'gauge' });
+    } catch {} finally { inFlight = false; }
+  }
   const loop = createSchedulingLoop({ scheduler: required.scheduler, firstDelayMs: 0,
-    callback: () => processOutbox(required, policy),
+    callback: async () => {
+      const claimed = await processOutbox(required, policy);
+      void sampleQueueDepth();
+      return claimed;
+    },
     nextDelayMs: claimed => (claimed ?? 0) >= policy.batchSize ? 0 : intervalMs, onError });
   loop.start({});
   return { stop: () => loop.stop({}) };

@@ -66,7 +66,7 @@
    "outboxRequestDigest": "function:6bb7858ae1",
    "processFencedOutbox": "function:ee0638996e",
    "processOutbox": "function:24f51c7a2f",
-   "startOutboxDrainer": "function:50042df494",
+   "startOutboxDrainer": "function:a5860d26a1",
    "toEnqueueOnlyOutbox": "function:473de47fab",
    "withProcessedEventGuard": "function:f0c47572fb"
   }

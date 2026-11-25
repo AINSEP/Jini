@@ -127,6 +127,14 @@ function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorA
   return lookupRoute({ routes: ROUTES, providerId, routeKey });
 }
 
+// A run's Stop signal can shorten the vendor deadline, never extend or replace it.
+function bindMediaCallSignal({ guardedFetch, signal }: { guardedFetch: MediaGuardedFetch; signal: AbortSignal }, _optional = {}): MediaGuardedFetch {
+  return async (required, options) => {
+    signal.throwIfAborted();
+    return guardedFetch(required, { ...options, signal: options?.signal ? AbortSignal.any([signal, options.signal]) : signal });
+  };
+}
+
 /** Creates an engine over the host's registry; registration remains live between requests.
  * @returns A generation service; validation, missing routes and provider failures reject generate.
  */
@@ -138,14 +146,16 @@ export function createMediaDispatchEngine({ registry, httpClient, guardedFetch }
   const catalog = options.catalog ?? STATIC_CATALOG;
 
   return {
-    async generate(required: RequiredArgs<MediaGenerationRequest>, optional: OptionalArgs<MediaGenerationRequest> = {}): Promise<MediaGenerationResult> {
+    async generate(required: RequiredArgs<MediaGenerationRequest>, optional: OptionalArgs<MediaGenerationRequest> & { signal?: AbortSignal } = {}): Promise<MediaGenerationResult> {
       // Credentials remain live: a host may rotate them between generation requests.
       const configuredCredentials = options.credentials ? normalizeMediaProviderMap({ providers: options.credentials }) : {};
-      const request: MediaGenerationRequest = { ...required, ...optional };
+      const { signal, ...optionalRequest } = optional;
+      const request = { ...required, ...optionalRequest };
+      signal?.throwIfAborted();
       assertRequestShape(request);
       const { def, resolvedAudioKind } = resolveCatalogModel(request, catalog);
       const { length, duration, warnings } = clampRequestInputs(request);
-      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient, guardedFetch: boundGuardedFetch } });
+      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient, guardedFetch: signal === undefined ? boundGuardedFetch : bindMediaCallSignal({ guardedFetch: boundGuardedFetch, signal }) } });
       const { providerId, renderer, credentials } = selectRenderer({ registry, def, surface: request.surface, resolvedAudioKind, ctx, configuredCredentials });
 
       if (!renderer) {

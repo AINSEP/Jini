@@ -17,8 +17,8 @@ import { decorateToolExecutor } from "./decorate-executor.js";
 
 export const TOOL_CALL_OPERATION = "tool.call";
 
-// A denial, a declined confirmation and a cancellation are the system working as designed, not
-// failures; a timeout and a failed handler are.
+// Refusals count under kind: "refused" but are not failed spans or incidents; a cancellation
+// is not a failure, while a timeout and a failed handler are.
 const FAILED_STATUSES: ReadonlySet<ToolExecutionStatus> = new Set(["failed", "timed-out"]);
 
 /** The settled result's text as an Error, so an error tracker gets a type to group on. The text is
@@ -58,10 +58,10 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
   return result.status === "failed" ? result.errorKind ?? "internal" : undefined;
 }
 
-function recordToolCallMetrics({ observability, toolId, failed }: { observability: Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">>; toolId: string; failed: boolean }): void {
+function recordToolCallMetrics({ observability, toolId, failureKind }: { observability: Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">>; toolId: string; failureKind?: "internal" | "input" | "refused" }, _optional = {}): void {
   if (!observability.supportsMetric || !observability.metric) return;
   observability.metric({ name: "tool.calls", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
-  if (failed) observability.metric({ name: "tool.failures", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
+  if (failureKind) observability.metric({ name: "tool.failures", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId, kind: failureKind } });
 }
 
 /**
@@ -95,7 +95,7 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
         const errorKind = error instanceof ToolInputError ? "validation" : "internal";
         if (errorKind === "internal") tracker.run(() => observability.reportError({ error, context }));
         tracker.end({ outcome: "threw", failed: true, attributes: { "tool.error_kind": errorKind } });
-        recordToolCallMetrics({ observability, toolId: attributes["tool.id"], failed: true });
+        recordToolCallMetrics({ observability, toolId: attributes["tool.id"], failureKind: errorKind === "validation" ? "input" : "internal" });
         throw error;
       }
       const errorKind = errorKindOf(result);
@@ -103,7 +103,8 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
         tracker.run(() => observability.reportError({ error: new ToolExecutionFailure(result.error ?? result.status), context }));
       }
       tracker.end({ outcome: result.status, failed: FAILED_STATUSES.has(result.status), ...(errorKind ? { attributes: { "tool.error_kind": errorKind } } : {}) });
-      recordToolCallMetrics({ observability, toolId: attributes["tool.id"], failed: FAILED_STATUSES.has(result.status) });
+      const failureKind = result.status === "denied" || result.status === "confirmation-denied" ? "refused" : result.status === "timed-out" ? "internal" : errorKind === "validation" ? "input" : errorKind === "internal" ? "internal" : undefined;
+      recordToolCallMetrics({ observability, toolId: attributes["tool.id"], ...(failureKind ? { failureKind } : {}) });
       return result;
       })(required);
     },

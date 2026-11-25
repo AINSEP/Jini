@@ -68,7 +68,8 @@ export async function beginOwnerLogin(required: Required<{ workspaceId: string; 
   return transaction(deps, input.workspaceId, async () => {
     const { userRow, principal } = await verifyCredentials({ deps: deps.auth, input, invalidCredentialsMessage: defaultUserManagementMessages.invalidCredentials });
     const result = await beginPrincipalSignIn({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, options);
-    if ('session' in result) await deps.auth.repos.users.save({ ...userRow, lastLoginAt: result.session.createdAt });
+    // MFA completion owns only lastLoginAt.
+    if ('session' in result) await deps.auth.repos.users.recordLogin({ workspaceId: userRow.workspaceId, principalId: userRow.principalId, lastLoginAt: result.session.createdAt });
     return result;
   });
 }
@@ -108,7 +109,8 @@ export async function completeOwnerLogin(required: Required<{ workspaceId: strin
     await deps.store.saveFactor({ ...factor, lastStep: step });
     await deps.store.clearPending(proof);
     const result = await createSessionForPrincipal({ deps: deps.auth, input: proof }, options);
-    await deps.auth.repos.users.save({ ...user, lastLoginAt: result.session.createdAt });
+    // MFA completion owns only lastLoginAt.
+    await deps.auth.repos.users.recordLogin({ workspaceId: user.workspaceId, principalId: user.principalId, lastLoginAt: result.session.createdAt });
     return { principal, ...result };
   });
 }
