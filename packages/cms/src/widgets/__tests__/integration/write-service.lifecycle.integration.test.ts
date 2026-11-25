@@ -35,7 +35,7 @@ import { memoryWidgetTrash, type MemoryWidgetTrash } from "../support/memory-wid
  */
 
 const WS = "ws-1";
-const ACTOR = { principalId: "user-1" };
+const ACTOR = { principalId: "user-1", kind: "user" as const };
 const AT = "2026-07-21T00:00:00.000Z";
 
 function makeDeps(trash: MemoryWidgetTrash = memoryWidgetTrash()): WidgetTrashDeps & { permissions: string[] } {

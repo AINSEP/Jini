@@ -63,7 +63,7 @@ function row(overrides: Partial<EntryRecord> = {}): EntryRecord {
   };
 }
 
-const actor = { actorId: "user-1" };
+const actor = { actorId: "user-1", actor: { id: "user-1", kind: "user" as const } };
 
 function asFieldError(error: Error): EntryFieldValidationError {
   if (!(error instanceof EntryFieldValidationError)) throw new Error(`expected EntryFieldValidationError, got ${error.name}: ${error.message}`);
@@ -198,7 +198,7 @@ describe("importEntry", () => {
     const h = harness();
     await importEntry({ deps: deps(h), input: importInput() });
     expect(h.rec.log).toEqual(["begin", "save", "revision", "watermark:ws-1", "onWritten:e-1@1", "commit", "outbox"]);
-    expect(h.rec.events).toEqual([{ name: "entry.imported", payload: { workspaceId: "ws-1", entryId: "e-1", type: "recipe", slug: "pie" } }]);
+    expect(h.rec.events).toEqual([{ name: "entry.imported", payload: { workspaceId: "ws-1", entryId: "e-1", type: "recipe", slug: "pie" }, actor: { id: "user-1", kind: "user" } }]);
   });
 
   it("names the import and the entry id in the FORBIDDEN message", async () => {

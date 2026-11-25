@@ -35,7 +35,7 @@ export const entryLifecycleRoute = defineJsonRoute<EntryLifecycleInput, EntryLif
     const handler = ENTRY_LIFECYCLE_OPS[op];
     const result = await handler({
       deps: entriesDeps(deps),
-      input: { actorId: principal.id, workspaceId: deps.workspaceId, id: input.id, expectedVersion: body.expectedVersion },
+      input: { actorId: principal.id, actor: { id: principal.id, kind: "user" }, workspaceId: deps.workspaceId, id: input.id, expectedVersion: body.expectedVersion },
     });
     if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 

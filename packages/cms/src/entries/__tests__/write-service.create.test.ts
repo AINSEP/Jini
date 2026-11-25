@@ -83,7 +83,7 @@ test("AC-21: a second entry submitted with the identical (workspaceId, type, slu
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili", title: "Chili Again", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "chili", title: "Chili Again", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false);
@@ -97,7 +97,7 @@ test("AC-29: an entry write specifying a nonexistent content type is rejected wi
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "does-not-exist", slug: "x", title: "X", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "does-not-exist", slug: "x", title: "X", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false);
@@ -110,7 +110,7 @@ test("AC-30/INV-01: a content type that exists only in a DIFFERENT workspace is 
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "x", title: "X", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "x", title: "X", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false, "a content type owned by a different workspace must never be silently accepted (the general soft-reference rule)");
@@ -125,7 +125,7 @@ test("AC-27: a successful entry creation enqueues an entry.created outbox event 
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox: trackedOutbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili-new", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "chili-new", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, true);
@@ -147,7 +147,7 @@ test("an unauthorized principal cannot create an entry — FORBIDDEN, and no row
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysDeny, outbox },
-    input: { workspaceId: "ws-1", actorId: "intruder", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "intruder", actor: { id: "intruder", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false, "authorization is the FIRST gate in createEntry — denying it must stop the write");
@@ -161,7 +161,7 @@ test("REQ-10: a 'deprecated' owning content type blocks NEW entry creation (the 
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false);
@@ -176,7 +176,7 @@ test("fieldsJson that does not validate against the type's schema is rejected, n
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: { notInSchema: "x" } } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: { notInSchema: "x" } } } },
   });
 
   assert.equal(result.ok, false);
@@ -210,7 +210,7 @@ test("an omitted bodyJson is stored as null, not undefined — an undefined valu
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "no-body", title: "No Body", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "no-body", title: "No Body", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, true);
@@ -224,7 +224,7 @@ test("a non-delegated create writes null delegation columns on its revision, not
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "direct", title: "Direct", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "direct", title: "Direct", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, true);

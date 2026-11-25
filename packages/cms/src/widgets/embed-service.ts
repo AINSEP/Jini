@@ -324,7 +324,7 @@ function assertGuardrails(deps: EmbedServiceDeps, hostEntryType: string, resulti
 async function writeHostBody(
   deps: EmbedServiceDeps,
   workspaceId: UUID,
-  actor: { principalId: UUID },
+  actor: { principalId: UUID; kind: string },
   current: EntryRecord,
   baseVersion: number,
   nextBodyJson: unknown
@@ -346,6 +346,7 @@ async function writeHostBody(
     },
     input: {
       actorId: actor.principalId,
+      actor: { id: actor.principalId, kind: actor.kind as CommandActor["kind"] },
       workspaceId,
       id: current.id,
       bodyJson: nextBodyJson,

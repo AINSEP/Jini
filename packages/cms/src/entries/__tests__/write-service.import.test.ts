@@ -78,7 +78,7 @@ test("importing a fresh id with no expectedVersion creates the row, preserving t
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
       status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: "2026-06-01T00:00:00.000Z", expectedVersion: undefined,
     },
   });
@@ -104,7 +104,7 @@ test("importing an existing id with a matching expectedVersion updates the row i
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili Updated",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili Updated",
       status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: "2026-06-01T00:00:00.000Z", expectedVersion: 3,
     },
   });
@@ -128,7 +128,7 @@ test("expectedVersion undefined but the id already exists is a version conflict,
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -148,7 +148,7 @@ test("expectedVersion set but no such entry exists is a version conflict", async
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "ghost", type: "recipe", slug: "chili", title: "Chili",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "ghost", type: "recipe", slug: "chili", title: "Chili",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: 2,
     },
   });
@@ -171,7 +171,7 @@ test("expectedVersion set but mismatched against the current row is a version co
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: 2,
     },
   });
@@ -191,7 +191,7 @@ test("importing into a nonexistent content type is rejected with CONTENT_TYPE_NO
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "e1", type: "does-not-exist", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "e1", type: "does-not-exist", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -207,7 +207,7 @@ test("importing into a tombstoned owning content type is refused, exact reason t
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "e1", type: "recipe", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "e1", type: "recipe", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -227,7 +227,7 @@ test("importing into a 'deprecated' owning content type is allowed — deprecate
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "e1", type: "recipe", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "e1", type: "recipe", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -242,7 +242,7 @@ test("fieldsJson failing schema validation is rejected, not persisted", async ()
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "e1", type: "recipe", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "e1", type: "recipe", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: { notInSchema: "x" } } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -259,7 +259,7 @@ test("an unauthorized principal cannot import an entry — FORBIDDEN, no write",
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysDeny, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "intruder", id: "e1", type: "recipe", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "intruder", actor: { id: "intruder", kind: "user" }, id: "e1", type: "recipe", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -278,7 +278,7 @@ test("a successful import enqueues exactly one entry.imported outbox event", asy
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox: trackedOutbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "e1", type: "recipe", slug: "x", title: "X",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "e1", type: "recipe", slug: "x", title: "X",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: undefined,
     },
   });
@@ -300,7 +300,7 @@ test("an import-as-update cannot change an existing entry's type — version con
   const result = await importEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
     input: {
-      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
+      workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
       status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: 3,
     },
   });

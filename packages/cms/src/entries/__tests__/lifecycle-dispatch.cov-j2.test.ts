@@ -32,7 +32,7 @@ async function dispatchHarness(status: EntryRecord["status"]) {
 function dispatch(op: string, deps: Awaited<ReturnType<typeof dispatchHarness>>["deps"]) {
   const parsed = parseEntryLifecycleOp({ op });
   assert.ok(parsed, `'${op}' must parse`);
-  return ENTRY_LIFECYCLE_OPS[parsed]({ deps, input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", expectedVersion: 2 } });
+  return ENTRY_LIFECYCLE_OPS[parsed]({ deps, input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 2 } });
 }
 
 test("dispatching 'publish' flips draft -> published, stamps publishedAt, and enqueues entry.published", async () => {
@@ -45,7 +45,7 @@ test("dispatching 'publish' flips draft -> published, stamps publishedAt, and en
   assert.equal(result.value.entry.status, "published");
   assert.equal(result.value.entry.publishedAt, NOW);
   assert.equal((await h.entryRepo.findById({ workspaceId: "ws-1", id: "entry-1" }))?.version, 3);
-  assert.deepEqual(h.events, [{ name: "entry.published", payload: { workspaceId: "ws-1", entryId: "entry-1" } }]);
+  assert.deepEqual(h.events, [{ name: "entry.published", payload: { workspaceId: "ws-1", entryId: "entry-1" }, actor: { id: "user-1", kind: "user" } }]);
 });
 
 test("dispatching 'unpublish' flips published -> unpublished and enqueues entry.unpublished", async () => {
@@ -57,5 +57,5 @@ test("dispatching 'unpublish' flips published -> unpublished and enqueues entry.
   if (!result.ok) return;
   assert.equal(result.value.entry.status, "unpublished");
   assert.equal((await h.entryRepo.findById({ workspaceId: "ws-1", id: "entry-1" }))?.status, "unpublished");
-  assert.deepEqual(h.events, [{ name: "entry.unpublished", payload: { workspaceId: "ws-1", entryId: "entry-1" } }]);
+  assert.deepEqual(h.events, [{ name: "entry.unpublished", payload: { workspaceId: "ws-1", entryId: "entry-1" }, actor: { id: "user-1", kind: "user" } }]);
 });

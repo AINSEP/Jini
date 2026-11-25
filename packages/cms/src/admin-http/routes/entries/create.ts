@@ -41,7 +41,7 @@ export const entryCreateRoute = defineJsonRoute<CollectionsRouteBody, EntryCreat
 
     const result = await createEntry({
       deps: entriesDeps(deps),
-      input: { actorId: principal.id, workspaceId: deps.workspaceId, ...parsedBody },
+      input: { actorId: principal.id, actor: { id: principal.id, kind: "user" }, workspaceId: deps.workspaceId, ...parsedBody },
     });
     if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 

@@ -107,7 +107,7 @@ test("two concurrent import-as-creates of one id: exactly one lands — one row,
   const create = (title: string) =>
     importEntry({
       deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox },
-      input: { workspaceId: WS, actorId: "user-1", id: "entry-1", type: "recipe", slug: "chili", title, status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: undefined },
+      input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", type: "recipe", slug: "chili", title, status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: undefined },
     });
   const results = await Promise.all([create("First"), create("Second")]);
 
@@ -124,7 +124,7 @@ test("two concurrent updateEntry calls on the same base version: exactly one win
   await seeded;
   const outbox = fakeOutbox();
   const edit = (title: string) =>
-    updateEntry({ deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox }, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title, expectedVersion: 1 } });
+    updateEntry({ deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox }, input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title, expectedVersion: 1 } });
   const results = await Promise.all([edit("First"), edit("Second")]);
 
   assert.deepEqual(results.map((result) => result.ok), [true, false]);
@@ -141,7 +141,7 @@ test("updateEntry loses to a writer that lands between its read and its save —
   const outbox = fakeOutbox();
   const result = await updateEntry({
     deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox },
-    input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title: "Mine", expectedVersion: 1 },
+    input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Mine", expectedVersion: 1 },
   });
   assertLost(result, "expected version 1 for entry 'entry-1', found 2");
   assert.equal((await inner.findById({ workspaceId: WS, id: "entry-1" }))?.title, "Other writer");
@@ -153,7 +153,7 @@ test("updateEntry with a stale expectedVersion is the save's version conflict", 
   await seeded;
   const result = await updateEntry({
     deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title: "Clobbered", expectedVersion: 1 },
+    input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Clobbered", expectedVersion: 1 },
   });
   assertLost(result, "expected version 1 for entry 'entry-1', found 3");
   assert.equal((await inner.findById({ workspaceId: WS, id: "entry-1" }))?.title, "Chili");
@@ -166,7 +166,7 @@ test("publishEntry and unpublishEntry lose to a writer that lands between their 
     const outbox = fakeOutbox();
     const result = await transition({
       deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox },
-      input: { workspaceId: WS, actorId: "user-1", id: "entry-1", expectedVersion: 1 },
+      input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 1 },
     });
     assertLost(result, "expected version 1 for entry 'entry-1', found 2");
     assert.equal((await inner.findById({ workspaceId: WS, id: "entry-1" }))?.status, "draft");
@@ -179,7 +179,7 @@ test("an import-as-update loses to a writer that lands between its read and its 
   await seeded;
   const result = await importEntry({
     deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: WS, actorId: "user-1", id: "entry-1", type: "recipe", slug: "chili", title: "Imported", status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: 2 },
+    input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", type: "recipe", slug: "chili", title: "Imported", status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: 2 },
   });
   assertLost(result, "expected version 2 for entry 'entry-1', found 3");
   assert.equal((await inner.findById({ workspaceId: WS, id: "entry-1" }))?.title, "Other writer");
@@ -188,9 +188,9 @@ test("an import-as-update loses to a writer that lands between its read and its 
 
 test("updateEntry, publishEntry and unpublishEntry refuse a basis other than the version they read, even when a racing writer makes the save's compare-and-set match", async () => {
   const edits = [
-    (deps: Parameters<typeof updateEntry>[0]["deps"]) => updateEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title: "Mine", expectedVersion: 2 } }),
-    (deps: Parameters<typeof updateEntry>[0]["deps"]) => publishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", expectedVersion: 2 } }),
-    (deps: Parameters<typeof updateEntry>[0]["deps"]) => unpublishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", id: "entry-1", expectedVersion: 2 } }),
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => updateEntry({ deps, input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Mine", expectedVersion: 2 } }),
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => publishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 2 } }),
+    (deps: Parameters<typeof updateEntry>[0]["deps"]) => unpublishEntry({ deps, input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 2 } }),
   ];
   for (const edit of edits) {
     // The service reads version 1; the other writer then lands version 2, the version this caller claims.
@@ -210,7 +210,7 @@ test("an import-as-update refuses a basis other than the version it read, even w
   await seeded;
   const result = await importEntry({
     deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: WS, actorId: "user-1", id: "entry-1", type: "recipe", slug: "chili", title: "Imported", status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: 2 },
+    input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", type: "recipe", slug: "chili", title: "Imported", status: "published", fieldsJson: { ext: { site: {} } }, publishedAt: NOW, expectedVersion: 2 },
   });
   assertLost(result, "expected version 2 for entry 'entry-1', found 1");
   const stored = await inner.findById({ workspaceId: WS, id: "entry-1" });
@@ -225,7 +225,7 @@ test("an error other than a version conflict thrown inside the write still propa
     () =>
       updateEntry({
         deps: { entryRepo: repo, contentTypeRepo: activeType, clock, authorize: alwaysAllow, outbox: fakeOutbox(), onWritten: async () => { throw new Error("extractor failed"); } },
-        input: { workspaceId: WS, actorId: "user-1", id: "entry-1", title: "Mine", expectedVersion: 1 },
+        input: { workspaceId: WS, actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Mine", expectedVersion: 1 },
       }),
     /^Error: extractor failed$/
   );

@@ -13,7 +13,7 @@ import {
 import { validateFieldsAgainstSchema } from "./field-validation.js";
 import type { Result } from "@jini-ai/core/primitives";
 import type { MutationActor } from "@jini-ai/core/contracts/events";
-import { checkedMutationActor } from "../core/mutation-actor.js";
+import { requiredMutationActor } from "../core/mutation-actor.js";
 import type { ActorIdentityInput, EntryRecord, EntryStatus, OwningContentType } from "./types.js";
 
 /**
@@ -106,11 +106,10 @@ export interface WatermarkPort {
   stampWatermark(input: { workspaceId: string }): Promise<number>;
 }
 
-/** The `actor` field of a write's outbox event: the caller's trusted actor, or nothing for an unattributed write.
+/** The `actor` field of a write's outbox event: the caller's trusted actor — required, never guessed.
  *  @complexity O(1). */
-function trustedActorField(input: ActorIdentityInput): { actor?: MutationActor } {
-  const actor = checkedMutationActor({ principalId: input.actorId, actor: input.actor });
-  return actor ? { actor } : {};
+function trustedActorField(input: ActorIdentityInput): { actor: MutationActor } {
+  return { actor: requiredMutationActor({ principalId: input.actorId, actor: input.actor }) };
 }
 
 function delegationFields(input: ActorIdentityInput): { delegatedByWorkspaceId: string | null; delegatedById: string | null } {
@@ -237,7 +236,7 @@ export interface CreateEntryRequired {
 export async function createEntry(required: CreateEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
   // Refuse a conflicting actor before anything is written, not after the write commits.
-  checkedMutationActor({ principalId: input.actorId, actor: input.actor });
+  requiredMutationActor({ principalId: input.actorId, actor: input.actor });
 
   const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "entry" });
   if (!authResult.allowed) {
@@ -394,7 +393,7 @@ export interface UpdateEntryRequired {
  */
 export async function updateEntry(required: UpdateEntryRequired, optional: { signal?: AbortSignal | undefined } = {}): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
-  checkedMutationActor({ principalId: input.actorId, actor: input.actor });
+  requiredMutationActor({ principalId: input.actorId, actor: input.actor });
 
   const resolved = await resolveExistingEntryForTransition(deps, input);
   if (!resolved.ok) return resolved;
@@ -501,6 +500,8 @@ export interface ImportEntryRequired {
  */
 export async function importEntry(required: ImportEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
+  // Refuse an unattributed write before anything is written (FIX 19 / H2).
+  requiredMutationActor({ principalId: input.actorId, actor: input.actor });
 
   const target = await resolveImportContentType(required);
   if (!target.ok) return target;
@@ -524,7 +525,7 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
   );
   if (conflict) return { ok: false, error: conflict };
 
-  await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
+  await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug }, ...trustedActorField(input) });
 
   return { ok: true, value: { entry } };
 }
@@ -618,6 +619,8 @@ async function transitionEntryStatus(
   target: { status: "published" | "unpublished"; op: "publish" | "unpublish"; eventName: "entry.published" | "entry.unpublished" }
 ): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
+  // Refuse an unattributed write before anything is written (FIX 19 / H2).
+  requiredMutationActor({ principalId: input.actorId, actor: input.actor });
 
   const resolved = await resolveExistingEntryForTransition(deps, input);
   if (!resolved.ok) return resolved;
@@ -638,7 +641,7 @@ async function transitionEntryStatus(
   );
   if (conflict) return { ok: false, error: conflict };
 
-  await deps.outbox.enqueue({ name: target.eventName, payload: { workspaceId: input.workspaceId, entryId: current.id } });
+  await deps.outbox.enqueue({ name: target.eventName, payload: { workspaceId: input.workspaceId, entryId: current.id }, ...trustedActorField(input) });
 
   return { ok: true, value: { entry: updated } };
 }

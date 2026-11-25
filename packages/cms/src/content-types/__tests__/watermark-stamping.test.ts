@@ -64,7 +64,7 @@ test("AC-26/INV-08: createEntry advances database_write_watermark by exactly 1 p
   const before = watermark.getValue();
   await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox, watermark },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(watermark.getValue(), before + 1);
@@ -116,7 +116,7 @@ test("AC-48: an entry_revisions row for an api_key-delegated write carries (dele
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox },
     input: {
       workspaceId: "ws-1",
-      actorId: "api-key-1",
+      actorId: "api-key-1", actor: { id: "api-key-1", kind: "system" },
       principalKind: "api_key",
       delegatedByWorkspaceId: "ws-1",
       delegatedById: "user-owner-2",

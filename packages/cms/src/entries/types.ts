@@ -50,8 +50,10 @@ export interface ActorIdentityInput {
   actorId: string;
   principalKind?: "user" | "agent" | "api_key";
   /** Trusted attribution for this write's outbox event, supplied by the caller's execution channel.
-   *  Its `id` must equal `actorId`; omitted, the event records no actor rather than a guessed kind. */
-  actor?: MutationActor | undefined;
+   *  Its `id` must equal `actorId`. Required (FIX 19 / H2): every writer names the trusted origin it
+   *  writes for — a principal with no caller (boot, migration, sweeper) passes an explicit `system`
+   *  actor — so an unattributed write cannot reach the seam. */
+  actor: MutationActor;
   delegatedByWorkspaceId?: string | null;
   delegatedById?: string | null;
 }

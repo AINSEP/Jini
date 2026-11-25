@@ -31,3 +31,30 @@ export function checkedMutationActor(
   if (actor && actor.id !== principalId) throw new ConflictingMutationActorError({ principalId, actorId: actor.id });
   return actor;
 }
+
+/** Raised when a writer is handed no trusted actor — an unattributed write never reaches storage. */
+export class MissingMutationActorError extends Error {
+  constructor(required: { principalId: string }, _optional: Record<string, never> = {}) {
+    super(`The write by principal '${required.principalId}' names no trusted actor; every write records who made it.`);
+    this.name = "MissingMutationActorError";
+  }
+}
+
+/**
+ * The actor a write MUST stamp: the type makes it required, and this guard holds the same line for an
+ * untyped (JS or `as`-cast) caller, so the seam never persists a write it cannot attribute (FIX 19 / H2).
+ *
+ * @param required - `principalId`: the authorizing principal; `actor`: the trusted actor from the caller's origin.
+ * @returns The checked actor.
+ * @throws {MissingMutationActorError} When no actor (or one without a `kind`) was supplied.
+ * @throws {ConflictingMutationActorError} When `actor.id` differs from `principalId`.
+ * @complexity O(1).
+ */
+export function requiredMutationActor(
+  required: { principalId: string; actor: MutationActor },
+  _optional: Record<string, never> = {},
+): MutationActor {
+  const { principalId, actor } = required;
+  if (!actor || typeof actor.kind !== "string") throw new MissingMutationActorError({ principalId });
+  return checkedMutationActor({ principalId, actor }) as MutationActor;
+}

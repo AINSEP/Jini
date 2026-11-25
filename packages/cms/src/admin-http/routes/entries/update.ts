@@ -31,6 +31,7 @@ export const entryUpdateRoute = defineJsonRoute<EntryUpdateInput, EntryUpdateOut
       deps: entriesDeps(deps),
       input: {
         actorId: principal.id,
+        actor: { id: principal.id, kind: "user" },
         workspaceId: deps.workspaceId,
         id: input.id,
         title: typeof body.title === "string" ? body.title : undefined,

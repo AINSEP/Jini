@@ -76,7 +76,7 @@ test("AC-44: UPDATE_ENTRY against an entry whose owning type is 'tombstone' is r
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", title: "Updated Title", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Updated Title", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false);
@@ -93,7 +93,7 @@ test("AC-45: PUBLISH_ENTRY and UNPUBLISH_ENTRY against a tombstoned owning type 
 
     const result = await action({
       deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
-      input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", expectedVersion: 1 },
+      input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 1 },
     });
 
     assert.equal(result.ok, false);
@@ -107,7 +107,7 @@ test("AC-46/EC-14: UPDATE_ENTRY, PUBLISH_ENTRY, and UNPUBLISH_ENTRY all succeed 
   const updateContentTypeRepo = fakeContentTypeRepo("deprecated");
   const updateResult = await updateEntry({
     deps: { entryRepo: updateEntryRepo, contentTypeRepo: updateContentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", title: "Updated Title", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Updated Title", expectedVersion: 1 },
   });
   assert.equal(updateResult.ok, true, "REQ-28: deprecated only blocks new entry CREATION, not update/publish/unpublish of existing entries");
 
@@ -115,7 +115,7 @@ test("AC-46/EC-14: UPDATE_ENTRY, PUBLISH_ENTRY, and UNPUBLISH_ENTRY all succeed 
   const publishContentTypeRepo = fakeContentTypeRepo("deprecated");
   const publishResult = await publishEntry({
     deps: { entryRepo: publishEntryRepo, contentTypeRepo: publishContentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 1 },
   });
   assert.equal(publishResult.ok, true);
 
@@ -123,7 +123,7 @@ test("AC-46/EC-14: UPDATE_ENTRY, PUBLISH_ENTRY, and UNPUBLISH_ENTRY all succeed 
   const unpublishContentTypeRepo = fakeContentTypeRepo("deprecated");
   const unpublishResult = await unpublishEntry({
     deps: { entryRepo: unpublishEntryRepo, contentTypeRepo: unpublishContentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", expectedVersion: 1 },
   });
   assert.equal(unpublishResult.ok, true);
 });
@@ -134,7 +134,7 @@ test("EC-13: UPDATE_ENTRY against a tombstoned owning type reports CONTENT_TYPE_
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", title: "X", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "X", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false);
@@ -158,7 +158,7 @@ test("bodyJson supplied on UPDATE_ENTRY replaces the stored bodyJson (previously
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", bodyJson: newBody, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", bodyJson: newBody, expectedVersion: 1 },
   });
 
   assert.equal(result.ok, true);
@@ -173,7 +173,7 @@ test("bodyJson omitted on UPDATE_ENTRY leaves the stored bodyJson byte-identical
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", title: "New Title", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "New Title", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, true);
@@ -202,7 +202,7 @@ test("an unauthorized principal cannot update, publish, OR unpublish — one sha
 
     const result = await action({
       deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo("active"), clock, authorize: alwaysDeny, outbox },
-      input: { workspaceId: "ws-1", actorId: "intruder", id: "entry-1", title: "Hijacked", expectedVersion: 1 },
+      input: { workspaceId: "ws-1", actorId: "intruder", actor: { id: "intruder", kind: "user" }, id: "entry-1", title: "Hijacked", expectedVersion: 1 },
     });
 
     assert.equal(result.ok, false, `${name}: authorization is the first gate in the shared resolve step`);
@@ -219,7 +219,7 @@ test("a stale expectedVersion is rejected with VERSION_CONFLICT — the lost-upd
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo("active"), clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", title: "Clobbered", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", title: "Clobbered", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false);
@@ -244,7 +244,7 @@ test("an entry id that does not resolve is rejected with ENTRY_NOT_FOUND rather 
 
   const result = await updateEntry({
     deps: { entryRepo: missingEntryRepo, contentTypeRepo: fakeContentTypeRepo("active"), clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "ghost", title: "X", expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "ghost", title: "X", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false);
@@ -258,7 +258,7 @@ test("fieldsJson supplied on UPDATE_ENTRY is actually written — the mutant tha
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo("active", schema), clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", fieldsJson: newFields, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", fieldsJson: newFields, expectedVersion: 1 },
   });
 
   assert.equal(result.ok, true);
@@ -271,7 +271,7 @@ test("fieldsJson that does not validate against the schema is rejected on UPDATE
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo("active"), clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", fieldsJson: { ext: { site: { notInSchema: "x" } } }, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", fieldsJson: { ext: { site: { notInSchema: "x" } } }, expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false);
@@ -292,7 +292,7 @@ test("an entry whose owning content type no longer resolves still VALIDATES fiel
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo: missingContentTypeRepo, clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", fieldsJson: { ext: { site: { notInSchema: "x" } } }, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", fieldsJson: { ext: { site: { notInSchema: "x" } } }, expectedVersion: 1 },
   });
 
   assert.equal(result.ok, false, "an unresolvable owning type must degrade to an EMPTY schema and still validate, not skip validation");
@@ -305,7 +305,7 @@ test("a partial update that omits `title` preserves the existing title instead o
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo("active"), clock, authorize: alwaysAllow, outbox: fakeOutbox() },
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "entry-1", bodyJson: { type: "doc", content: [] }, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "entry-1", bodyJson: { type: "doc", content: [] }, expectedVersion: 1 },
   });
 
   assert.equal(result.ok, true);

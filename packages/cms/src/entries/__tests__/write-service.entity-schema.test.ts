@@ -36,7 +36,7 @@ for (const operation of ["create", "update", "import"] as const) {
       authorize: async () => ({ allowed: true, reason: "matched" }),
       outbox: { enqueue: async () => { events++; } },
     };
-    const input = { actorId: "actor", workspaceId: "ws", type: "recipe", slug: "new", title: "New", fieldsJson: invalidFields };
+    const input = { actorId: "actor", actor: { id: "actor", kind: "user" as const }, workspaceId: "ws", type: "recipe", slug: "new", title: "New", fieldsJson: invalidFields };
     let result;
     if (operation === "create") result = await createEntry({ deps, input });
     else if (operation === "update") result = await updateEntry({ deps, input: { ...input, id: "entry", expectedVersion: 1 } });

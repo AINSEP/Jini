@@ -22,7 +22,7 @@ import { buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
  */
 
 const WS = "ws-1";
-const ACTOR = { principalId: "user-1" };
+const ACTOR = { principalId: "user-1", kind: "user" as const };
 
 function makeDeps(overrides: Partial<RegionAreaServiceDeps & WidgetWriteServiceDeps> = {}): RegionAreaServiceDeps & WidgetWriteServiceDeps {
   let counter = 0;

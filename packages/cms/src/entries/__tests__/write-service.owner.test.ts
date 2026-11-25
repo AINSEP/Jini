@@ -80,7 +80,7 @@ test("createEntry: a widget-owned type's payload under ext.site is REJECTED even
   const entryRepo = fakeEntryRepo();
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo(widgetOwnedType()), clock, ids, authorize: alwaysAllow, outbox },
-    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", type: "widget", slug: "probe", title: "Probe", fieldsJson: underSite }, "site"),
+    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "widget", slug: "probe", title: "Probe", fieldsJson: underSite }, "site"),
   });
 
   assert.equal(result.ok, false);
@@ -92,7 +92,7 @@ test("createEntry: a widget-owned type's payload under ext.widget is accepted wi
   const entryRepo = fakeEntryRepo();
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo: fakeContentTypeRepo(widgetOwnedType()), clock, ids, authorize: alwaysAllow, outbox },
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "widget", slug: "real", title: "Real", fieldsJson: underWidget },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "widget", slug: "real", title: "Real", fieldsJson: underWidget },
   });
 
   assert.equal(result.ok, true);
@@ -105,13 +105,13 @@ test("createEntry: a type that declares no owner keeps the 'site' namespace, and
 
   const strayed = await createEntry({
     deps,
-    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "a", title: "A", fieldsJson: underWidget }, "widget"),
+    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "a", title: "A", fieldsJson: underWidget }, "widget"),
   });
   assert.ok(!strayed.ok && strayed.error instanceof EntryFieldValidationError);
 
   const plain = await createEntry({
     deps,
-    input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "b", title: "B", fieldsJson: underSite },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, type: "recipe", slug: "b", title: "B", fieldsJson: underSite },
   });
   assert.equal(plain.ok, true);
 });
@@ -122,14 +122,14 @@ test("updateEntry: a widget-owned entry's fields are validated under ext.widget,
 
   const strayed = await updateEntry({
     deps,
-    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", id: "w-1", fieldsJson: underSite, expectedVersion: 1 }, "site"),
+    input: withStrayOwner({ workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "w-1", fieldsJson: underSite, expectedVersion: 1 }, "site"),
   });
   assert.ok(!strayed.ok && strayed.error instanceof EntryFieldValidationError);
 
   // The generic `PUT /entries/:id` route passes no owner; before this fix it could never write a widget envelope.
   const plain = await updateEntry({
     deps,
-    input: { workspaceId: "ws-1", actorId: "user-1", id: "w-1", fieldsJson: { ext: { widget: { payload: "{\"a\":1}" } } }, expectedVersion: 1 },
+    input: { workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" }, id: "w-1", fieldsJson: { ext: { widget: { payload: "{\"a\":1}" } } }, expectedVersion: 1 },
   });
   assert.equal(plain.ok, true);
 });
@@ -137,7 +137,7 @@ test("updateEntry: a widget-owned entry's fields are validated under ext.widget,
 test("importEntry: a widget-owned type's import validates under ext.widget, whatever the caller claims", async () => {
   const deps = { entryRepo: fakeEntryRepo(), contentTypeRepo: fakeContentTypeRepo(widgetOwnedType()), clock, authorize: alwaysAllow, outbox };
   const base = {
-    workspaceId: "ws-1", actorId: "user-1", type: "widget", slug: "imp", title: "Imp",
+    workspaceId: "ws-1", actorId: "user-1", actor: { id: "user-1", kind: "user" as const }, type: "widget", slug: "imp", title: "Imp",
     status: "draft" as const, publishedAt: null, expectedVersion: undefined,
   };
 

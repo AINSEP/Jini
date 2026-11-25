@@ -66,17 +66,17 @@ test("an assistant widget create records kind agent for the same principal it au
   assert.deepEqual(created?.actor, { id: "owner-1", kind: "agent" });
 });
 
-test("a widget write whose caller vouched for no kind records no actor instead of guessing one", async () => {
+test("a widget write whose caller vouched for no kind is refused at the entry seam, never recorded unattributed (FIX 19 / H2)", async () => {
   const { deps, events } = makeDeps();
-  await createWidgetInstance({
-    deps,
-    input: { workspaceId: WORKSPACE_ID, actor: { principalId: "owner-1" }, widgetType: "text", title: "Hello", config: { body: "hi" } },
-  });
-
-  const [created] = entryEvents(events);
-  assert.equal(created?.name, "entry.created");
-  assert.equal(created?.actor, undefined);
-  assert.equal(created?.actorId, undefined);
+  await assert.rejects(
+    createWidgetInstance({
+      deps,
+      // @ts-expect-error — `kind` is required: a widget write must name the trusted origin it writes for.
+      input: { workspaceId: WORKSPACE_ID, actor: { principalId: "owner-1" }, widgetType: "text", title: "Hello", config: { body: "hi" } },
+    }),
+    { name: "MissingMutationActorError" },
+  );
+  assert.equal(entryEvents(events).length, 0);
 });
 
 test("an entry write handed an actor naming another principal is refused before anything is stored", async () => {

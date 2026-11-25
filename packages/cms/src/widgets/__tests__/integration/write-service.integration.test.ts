@@ -35,7 +35,7 @@ import { InMemoryOutbox } from "../support/host.fixture.js";
  */
 
 const WORKSPACE_ID = "ws-1";
-const ACTOR = { principalId: "user-1" };
+const ACTOR = { principalId: "user-1", kind: "user" as const };
 
 function makeDeps(): WidgetTrashDeps {
   let counter = 0;

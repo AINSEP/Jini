@@ -136,7 +136,7 @@ function entryStatusHandler(
     return fromEntryResult(() => transition({
       deps: entriesDeps(routeDeps),
       input: {
-        actorId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
+        actorId: ctx.principal.id, actor: { id: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND }, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
         workspaceId: routeDeps.workspaceId, id: requireString({ input, key: "id" }),
         expectedVersion: requireNumber({ input, key: "expectedVersion" }),
       },
@@ -153,6 +153,7 @@ function createEntryCreationHandler(routeDeps: EntriesToolDeps): ToolHandler {
             deps: entriesDeps(routeDeps),
             input: {
               actorId: ctx.principal.id,
+              actor: { id: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND },
               principalKind: AGENT_TOOL_PRINCIPAL_KIND,
               workspaceId: routeDeps.workspaceId,
               type: requireString({ input, key: "type" }),
@@ -186,6 +187,7 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
             deps: entriesDeps(routeDeps),
             input: {
               actorId: ctx.principal.id,
+              actor: { id: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND },
               principalKind: AGENT_TOOL_PRINCIPAL_KIND,
               workspaceId: routeDeps.workspaceId,
               id: requireString({ input, key: "id" }),

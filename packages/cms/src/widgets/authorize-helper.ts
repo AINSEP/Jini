@@ -62,16 +62,16 @@ export const WIDGETS_SYSTEM_MUTATION_ACTOR: MutationActor = { id: WIDGETS_SYSTEM
  * The acting principal of a widget write. `kind` is the attribution its execution channel vouches
  * for (an admin route says `user`, the assistant's tool surface says `agent`); `principalId` still
  * governs authorization. The two are not interchangeable, so a missing `kind` records no actor on
- * the event rather than one guessed from the id. Optional only until every host passes it.
+ * the event rather than one guessed from the id. Required (FIX 19 / H2): every entry write names its actor.
  */
 export interface WidgetWriteActor {
   readonly principalId: UUID;
-  readonly kind?: MutationActor["kind"] | undefined;
+  readonly kind: MutationActor["kind"];
 }
 
-/** The trusted actor a widget write stamps on its entry event, or `undefined` when its caller vouched for no kind.
+/** The trusted actor a widget write stamps on its entry event — the kind its caller vouched for.
  *  @complexity O(1). */
-export function trustedWidgetActor({ actor }: { actor: WidgetWriteActor }, _optional: Record<string, never> = {}): MutationActor | undefined {
-  return actor.kind ? { id: actor.principalId, kind: actor.kind } : undefined;
+export function trustedWidgetActor({ actor }: { actor: WidgetWriteActor }, _optional: Record<string, never> = {}): MutationActor {
+  return { id: actor.principalId, kind: actor.kind };
 }
 
