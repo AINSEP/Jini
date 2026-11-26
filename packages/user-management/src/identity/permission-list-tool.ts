@@ -21,7 +21,7 @@ export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<str
  * @throws ToolInputError for actionable input refusals; authorization and service failures propagate.
  * @complexity O(1) wiring; handler cost follows the wrapped service.
  */
-export function buildRegistrations({ deps, policy: hostPolicy }: { deps: Deps; policy: { permission: string; policyReadToolId: string } }, _optional = {}): ToolRegistration[] {
+export function buildRegistrations({ deps, policy: hostPolicy }: { deps: Deps; policy: { permission: string; policyReadToolId: string } }, _optional: Record<string, never> = {}): ToolRegistration[] {
 /** Catalog for the admin service exposed through this standalone contributor. */
 const catalog: AgentToolDefinition[] = [{
   name: "identity_policy_list_permissions",
@@ -46,6 +46,6 @@ const catalog: AgentToolDefinition[] = [{
   });
 }
 /** Installs this distinct domain without replacing its existing sibling tools. */
-export function contributeIdentityPolicyListPermissionsTools({ policy }: { policy: { permission: string; policyReadToolId: string } }, _optional = {}): ToolContributor<Deps, unknown> {
+export function contributeIdentityPolicyListPermissionsTools({ policy }: { policy: { permission: string; policyReadToolId: string } }, _optional: Record<string, never> = {}): ToolContributor<Deps, unknown> {
   return { domain: "identity-policy-list-permissions", build: deps => buildRegistrations({ deps, policy }), risk: derivedRisk };
 }
