@@ -4,7 +4,6 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
 import { mediaRowMenuItems, mediaShapeBadges } from "./rules.js";
 import type { MediaShape } from "./rules.js";
 import type { useMediaCardMetadata } from "./hooks/use-media-card-metadata.hooks.js";
-import { mediaFileName } from "../../media/index.js";
 import type { MediaProps } from "./Media.js";
 import { MediaPreview } from "./MediaPreview.js";
 
@@ -66,7 +65,7 @@ export function MediaCard({ item, showTrashCountdown, handle, onExpand, menu, t,
       </div>
       <div className="media-card-body">
         <div className="media-card-meta">
-          <MediaCardTitle kit={kit} item={item} isPhone={menu.isPhone} onOpenDetails={menu.onOpenDetails} t={t} />
+          <MediaCardTitle kit={kit} mediaFileName={deps.mediaFileName} item={item} isPhone={menu.isPhone} onOpenDetails={menu.onOpenDetails} t={t} />
           <span className={`status status-${item.status}`}><ServerLabel value={item.status} /></span>
           {/* Restore stays one visible click on the Trash tab; the irreversible delete stays in the menu. */}
           {item.status === "trashed" ? (
@@ -98,8 +97,9 @@ export function MediaCard({ item, showTrashCountdown, handle, onExpand, menu, t,
  * stays visible. Desktop hover/focus shows the full name in the shared InfoTip bubble; on a phone the
  * name is the details button, whose label carries the full name.
  */
-function MediaCardTitle({ item, isPhone, onOpenDetails, t, kit }: {
+function MediaCardTitle({ item, isPhone, onOpenDetails, t, kit, mediaFileName }: {
   item: AdminMedia; isPhone: boolean; onOpenDetails: (item: AdminMedia) => void; t: (key: string) => string;
+  mediaFileName: MediaProps["deps"]["mediaFileName"];
 } & Pick<MediaProps, "kit">, _optional = {}) {
   const { InfoTip, MiddleTruncate } = kit;
   const fileName = mediaFileName({ title: item.title, contentType: item.contentType });

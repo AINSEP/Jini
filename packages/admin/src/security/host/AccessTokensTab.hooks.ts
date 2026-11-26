@@ -150,9 +150,7 @@ function otherCredentialGroupEntries(group: OtherCredentialGroupState): MergedSe
  * page (a Tier-1 catalog/custom provider group, a Tier-2 configured item, a Tier-2 "Not configured"
  * placeholder) sorted together through the SAME {@link sortAccessTokenGroups} rule round 1 already
  * certified (saved-before-unsaved, then category-chip order, then alphabetical by label), instead of
- * round 1's "Tier 1 sorted, Tier 2 always appended after all of it" shape — see this repo's
- * `2026-09-21-tovu-94-secrets-order.md` handoff for the full "why Tier 2 never outranked Tier 1"
- * root cause.
+ * round 1's "Tier 1 sorted, Tier 2 always appended after all of it" shape — both tiers must share one ordering.
  *
  * Visibility is resolved HERE, once, for both tiers — folding in what `MaybeProviderGroup`/
  * `MaybeOtherCredentialGroup` used to check independently (a group's own info matching the query, OR

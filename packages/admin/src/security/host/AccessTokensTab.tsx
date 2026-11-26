@@ -25,6 +25,7 @@ export interface AccessTokensTabBindings {
     useTabBarKeyboardHook: (required: { tabs: readonly AccessTokenCategoryInfo[]; activeId: string; onChange: (id: string) => void }) => { onKeyDown: KeyboardEventHandler<HTMLElement> };
   };
   kit: {
+    SecretInput: typeof import("../../shell/components/SecretInput/SecretInput.js").SecretInput;
     CredentialHint: ComponentType<{ hint: CredentialTokenHint | null | undefined }>;
     OnboardingChipField: ComponentType<{ multiple: true; label: string; options: { value: string; label: string }[]; value: string[]; onChange: (value: string[]) => void }>;
     OtherCredentialEntry: ComponentType<{ store: OtherCredentialStoreInfo; row: OtherCredentialRowState | undefined; controller: OtherCredentialsController }>;
@@ -33,6 +34,7 @@ export interface AccessTokensTabBindings {
     SearchIcon: ComponentType<{ size?: number }>;
   };
   deps: {
+    asciiSlug: typeof asciiSlug;
     ACCESS_TOKEN_CATEGORIES: readonly AccessTokenCategoryInfo[];
     ACCESS_TOKEN_PROVIDER_COPY: AccessTokenProviderCopy;
     showCopyKeysEntry: boolean;

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction, type RefObject } from "react";
 import type { FetchQueryAdapter, MutationResult } from "@jini-ai/core/fetch";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
-import { parseMediaHtmlAttributes } from "../../../media/index.js";
+import type { parseMediaHtmlAttributes } from "../../../media/html-attributes.js";
 import { KEYS, describeMediaHtmlAttributeError, diffMediaMetadata, mediaCreatedByLabel, parseOptionalPixelSize, type MediaMetadataPatch } from "../rules.js";
 import type { MediaPort } from "./media-port.hooks.js";
 
@@ -74,6 +74,7 @@ export interface EditMediaPanelDependencies {
     describeApiError: (required: { e: unknown; fallback: string }) => string;
     embedMarkerSnippet: (required: { type: "media"; key: "slug"; value: string }) => string;
     embedPolicy: Parameters<typeof parseMediaHtmlAttributes>[0]["policy"];
+    parseMediaHtmlAttributes: typeof parseMediaHtmlAttributes;
     writeText: (value: string) => Promise<void>;
     setTimeout: typeof globalThis.setTimeout;
   };
@@ -274,7 +275,7 @@ export function useEditMediaPanel({ hooks, deps, ...props }: EditMediaPanelHookP
   // port call.
   const publicUrl = item.publicUrl;
   const embedSnippet = deps.embedMarkerSnippet({ type: "media", key: "slug", value: item.slug });
-  const htmlAttributesParsed = parseMediaHtmlAttributes({ text: draft.htmlAttributes ?? "", policy: deps.embedPolicy });
+  const htmlAttributesParsed = deps.parseMediaHtmlAttributes({ text: draft.htmlAttributes ?? "", policy: deps.embedPolicy });
   const htmlAttributesError = htmlAttributesParsed.error
     ? describeMediaHtmlAttributeError({ error: htmlAttributesParsed.error, locale, translate: deps.translate })
     : null;

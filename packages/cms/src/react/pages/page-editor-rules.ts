@@ -1,5 +1,3 @@
-import type { CanvasStyling } from "@jini-ai/ui/html-editor";
-
 /** The page editor's main-pane view toggle (structurally the host editor's own `PageEditorView`). */
 export type PageEditorView = "preview" | "html" | "interactive";
 
@@ -23,13 +21,13 @@ export type PageEditorView = "preview" | "html" | "interactive";
  *
  * @complexity Time/space: O(1) — three ordered checks, no iteration.
  */
-export type PageEditorSurface =
+export type PageEditorSurface<Styling = unknown> =
   | { kind: "preview" }
   | { kind: "html" }
   | { kind: "interactive-pending" }
-  | { kind: "interactive"; styling: CanvasStyling };
+  | { kind: "interactive"; styling: Styling };
 
-export function pageEditorSurface({ view, canvasStyling }: { view: PageEditorView; canvasStyling: { status: "pending" } | { status: "ready"; styling: CanvasStyling } }, _optional: Record<string, never> = {}): PageEditorSurface {
+export function pageEditorSurface<Styling>({ view, canvasStyling }: { view: PageEditorView; canvasStyling: { status: "pending" } | { status: "ready"; styling: Styling } }, _optional: Record<string, never> = {}): PageEditorSurface<Styling> {
   if (view === "preview") return { kind: "preview" };
   if (view === "html") return { kind: "html" };
   if (canvasStyling.status === "pending") return { kind: "interactive-pending" };

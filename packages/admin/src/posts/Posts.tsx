@@ -3,7 +3,6 @@ import type { AdminPost } from "./api/posts-api.types.js";
 import type { PostsController } from "./hooks/use-posts.hooks.js";
 import type { RowMenuItem } from "../react/components/RowMenu/RowMenu.js";
 import type { DataTableSortState } from "../core/data-table/types.js";
-import { DEFAULT_ADMIN_POST_SORT } from "../shell/lib/admin-post-list-sort.js";
 import { createPostsTranslator } from "./Posts.hooks.js";
 import { PostsColumns } from "./PostsColumns.js";
 import { PostsTrashConfirm } from "./PostsTrashConfirm.js";
@@ -22,6 +21,7 @@ export interface PostsProps {
     PublishSectionButton: ComponentType<{ section: "posts" }>;
   };
   deps: {
+    sorting: Pick<typeof import("../shell/lib/admin-post-list-sort.js"), "DEFAULT_ADMIN_POST_SORT" | "compareAdminPostsByTitle" | "compareAdminPostsBySlug" | "compareAdminPostsByStatus" | "compareAdminPostsByUpdated" | "columnSortLabel" | "updatedColumnSortLabel">;
     translate: (required: { locale: string; key: string }) => string;
     siteUrl: (required: { path: string }) => string;
     postAdminPath: (required: { slug: string }) => string;
@@ -78,7 +78,7 @@ export function Posts({ hooks, kit, deps }: PostsProps, _optional = {}) {
   } = hooks.usePostsHook({});
   const locale = hooks.useLocaleHook();
   const t = createPostsTranslator({ locale, translate: deps.translate });
-  const [sort, setSort] = useState<DataTableSortState>(DEFAULT_ADMIN_POST_SORT);
+  const [sort, setSort] = useState<DataTableSortState>(deps.sorting.DEFAULT_ADMIN_POST_SORT);
 
   // `postsListNotice` answers non-null exactly when `posts` is null, so gating on `!posts` returns
   // that notice AND keeps TS's narrowing, so `rows={posts}` below type-checks as `AdminPost[]`

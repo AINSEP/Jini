@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerOwnerPasskeyRoutes } from "../passkey-routes.js";
+import { resolveOwnerPasskeyRouteDeps, answerOwnerPasskeyFailure } from "../passkey-route-deps.js";
 
 describe("owner passkey mount admission", () => {
   it("mounts status and five actions and keeps nonowner status from reading credentials", async () => {
@@ -48,23 +49,37 @@ it('binds request admission without store reads for nonowners and delegates sign
   const { bindOwnerPasskeyRoutes } = await import('../passkey-routes.js');
   const routes: { method: string; path: string; handle(req: object, res: object): Promise<void> }[] = [];
   const store = vi.fn(() => ({})); const signedIn = vi.fn(); const noStore = vi.fn(); const json = vi.fn();
+  const resolveDeps = vi.fn(resolveOwnerPasskeyRouteDeps);
+  const answerFailure = vi.fn(answerOwnerPasskeyFailure);
+  const incident = vi.fn();
   const result = { sessionToken: 'signed-in' };
   const bind = bindOwnerPasskeyRoutes({ root: '/passkeys', mount: (input: (typeof routes)[number]) => { routes.push(input); },
+    resolveOwnerPasskeyRouteDeps: resolveDeps, answerOwnerPasskeyFailure: answerFailure,
     workspaceId: () => 'ws', store, mfa: async () => ({ seededOwnerPrincipalId: 'owner' }), webauthn: () => ({}),
     site: () => ({ deps: { passkeyOrigin: 'https://trusted.test' }, name: 'Site', copy: { unavailable: 'missing', insecure: 'insecure' } }),
     unavailableMessage: 'missing', authenticate: async () => ({ kind: 'tool', principal: { id: 'other' } }), ownerPrincipalId: async () => 'owner',
     isJson: () => true, header: ({ name }: { name: string }) => name === 'origin' ? 'https://trusted.test' : undefined,
-    body: () => ({}), byteCount: () => 2, rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident: vi.fn(), signedIn,
+    body: () => ({}), byteCount: () => 2, rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident, signedIn,
     services: { completeOwnerPasskeyLogin: async () => result }, copy: {}, operation: 'passkey', incidentOptions: {},
   } as unknown as Parameters<typeof bindOwnerPasskeyRoutes<object, object, object>>[0]);
   bind({}); expect(store).not.toHaveBeenCalled();
+  expect(resolveDeps).not.toHaveBeenCalled();
   await routes[5]!.handle({}, {});
   expect(store).not.toHaveBeenCalled(); expect(noStore).toHaveBeenCalledTimes(1);
+  expect(resolveDeps).not.toHaveBeenCalled();
   expect(json).toHaveBeenCalledWith(expect.objectContaining({ value: { isOwner: false, credentials: [] } }));
   const req = {}; const res = {};
   await routes[3]!.handle(req, res);
   expect(store).toHaveBeenCalledTimes(1);
   expect(signedIn).toHaveBeenCalledWith({ host: {}, req, res, result });
+  expect(resolveDeps).toHaveBeenCalledTimes(1);
+  expect(answerFailure).not.toHaveBeenCalled();
+  store.mockImplementation(() => { throw new Error('store unavailable'); });
+  await routes[3]!.handle(req, res);
+  expect(resolveDeps).toHaveBeenCalledTimes(2);
+  expect(answerFailure).toHaveBeenCalledWith({ error: expect.objectContaining({ message: 'store unavailable' }),
+    json: expect.any(Function), incident: expect.any(Function), operation: 'passkey', incidentOptions: {} });
+  expect(incident).toHaveBeenCalledWith({ res, error: expect.objectContaining({ message: 'store unavailable' }), options: {} });
 });
 
 it('sets no-store before writing an origin refusal', async () => {

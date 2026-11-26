@@ -1,8 +1,10 @@
+// @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { FetchQueryProvider, useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate } from "@jini-ai/ui/fetch-query";
 import { usePosts } from "../hooks/use-posts.hooks.js";
 import type { AdminPost } from "../api/posts-api.types.js";
+import * as sorting from "../../shell/lib/admin-post-list-sort.js";
 
 afterEach(cleanup);
 const post: AdminPost = { id: "one", workspaceId: "workspace", kind: "post", title: "One", slug: "one", bodyJson: { type: "doc", content: [] }, status: "draft", version: 7, updatedAt: "2026-01-01T00:00:00Z" };
@@ -72,7 +74,7 @@ test("the list columns preserve all sorting choices and use host URL builders", 
     togglePostPublish={vi.fn()} setPendingDelete={vi.fn()} locale="en" t={key => key}
     sort={{ column: "updated", direction: "desc" }} setSort={setSort}
     kit={{ ServerLabel: ({ value }) => <>{value}</>, PublishSectionButton: () => null }}
-    deps={{ translate: ({ key }) => key, siteUrl: ({ path }) => `https://site.test${path}`,
+    deps={{ sorting, translate: ({ key }) => key, siteUrl: ({ path }) => `https://site.test${path}`,
       postAdminPath: ({ slug }) => `/host/posts/${slug}`, postEditorRoute: ({ slug }) => `/posts/${slug}`,
       navigate: vi.fn(), postRowMenuItems: () => [], viewerTimeZone: "UTC" }} />);
   expect(screen.getByRole("link", { name: "One" }).getAttribute("href")).toBe("/host/posts/one");
@@ -80,4 +82,42 @@ test("the list columns preserve all sorting choices and use host URL builders", 
   fireEvent.click(screen.getByRole("button", { name: "Not sorted by Title. Activate to sort ascending." }));
   expect(setSort).toHaveBeenCalledWith({ column: "title", direction: "asc" });
   expect(screen.getByRole("columnheader", { name: /Sorted by updated date, newest first/ })).toBeTruthy();
+});
+
+test("the bound list uses the injected default, comparators, and sort labels", async () => {
+  const { bindPosts } = await import("../Posts.js");
+  const { render, screen, fireEvent } = await import("../../__tests__/fetch-query-support.js");
+  const injected = {
+    DEFAULT_ADMIN_POST_SORT: { column: "title", direction: "asc" as const },
+    compareAdminPostsByTitle: vi.fn(sorting.compareAdminPostsByTitle),
+    compareAdminPostsBySlug: vi.fn(sorting.compareAdminPostsBySlug),
+    compareAdminPostsByStatus: vi.fn(sorting.compareAdminPostsByStatus),
+    compareAdminPostsByUpdated: vi.fn(sorting.compareAdminPostsByUpdated),
+    columnSortLabel: vi.fn(sorting.columnSortLabel), updatedColumnSortLabel: vi.fn(sorting.updatedColumnSortLabel),
+  };
+  const BoundPosts = bindPosts({
+    hooks: { useLocaleHook: () => "en", usePostsHook: () => ({
+      posts: [post, { ...post, id: "two", title: "Alpha", slug: "two", status: "published", updatedAt: "2025-01-01T00:00:00Z" }],
+      error: null, creating: false, rowSavingId: null, pendingDelete: null, setPendingDelete: vi.fn(),
+      createPost: vi.fn(), togglePostPublish: vi.fn(), removePost: vi.fn(), rowMenuHandleById: new Map(),
+    }) },
+    kit: { ServerLabel: ({ value }) => <>{value}</>, PublishSectionButton: () => null },
+    deps: { sorting: injected, translate: ({ key }) => key, siteUrl: ({ path }) => path,
+      postAdminPath: ({ slug }) => `/posts/${slug}`, postEditorRoute: ({ slug }) => `/posts/${slug}`,
+      navigate: vi.fn(), postRowMenuItems: () => [], viewerTimeZone: "UTC" },
+  });
+  render(<BoundPosts />);
+  expect(screen.getAllByRole("row")[1]?.textContent).toContain("Alpha");
+  expect(injected.compareAdminPostsByTitle).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Not sorted by Slug. Activate to sort ascending." }));
+  expect(injected.compareAdminPostsBySlug).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Not sorted by Status. Activate to sort ascending." }));
+  expect(injected.compareAdminPostsByStatus).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Not sorted by updated date. Activate to sort newest first." }));
+  expect(injected.compareAdminPostsByUpdated).toHaveBeenCalled();
+  expect(screen.getAllByRole("row")[1]?.textContent).toContain("One");
+  expect(injected.columnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), columnName: "Title", direction: "asc" });
+  expect(injected.columnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), columnName: "Slug", direction: "asc" });
+  expect(injected.columnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), columnName: "Status", direction: "asc" });
+  expect(injected.updatedColumnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), direction: "desc" });
 });

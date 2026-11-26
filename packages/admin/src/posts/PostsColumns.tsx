@@ -2,7 +2,6 @@ import { DataTable, type DataTableColumn } from "../react/components/DataTable.j
 import { RowMenu } from "../react/components/RowMenu/RowMenu.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { formatTimestamp } from "@jini-ai/core/text";
-import { compareAdminPostsByTitle, compareAdminPostsBySlug, compareAdminPostsByStatus, compareAdminPostsByUpdated, columnSortLabel, updatedColumnSortLabel } from "../shell/lib/admin-post-list-sort.js";
 import type { PostsProps } from "./Posts.js";
 import type { PostsController } from "./hooks/use-posts.hooks.js";
 import type { AdminPost } from "./api/posts-api.types.js";
@@ -17,7 +16,7 @@ const columns: readonly ((required: Pick<PostsProps, "kit" | "deps"> & Pick<Post
             // migrated onto `DataTable`'s own shared sort mechanism 2026-09-02) — `DataTable` now
             // renders the button, caret, and `aria-sort` itself from this descriptor; only the
             // domain-specific comparator and label wording live in `@jini-ai/admin/shell/lib/admin-post-list-sort`.
-            sort: { compare: compareAdminPostsByTitle, label: (direction) => columnSortLabel({ t: t, columnName: t("Title"), direction: direction }) },
+            sort: { compare: deps.sorting.compareAdminPostsByTitle, label: (direction) => deps.sorting.columnSortLabel({ t: t, columnName: t("Title"), direction: direction }) },
             cell: (post) => (
               <a
                 href={deps.postAdminPath({ slug: post.slug })}
@@ -32,7 +31,7 @@ const columns: readonly ((required: Pick<PostsProps, "kit" | "deps"> & Pick<Post
           {
             key: "slug",
             header: "Slug",
-            sort: { compare: compareAdminPostsBySlug, label: (direction) => columnSortLabel({ t: t, columnName: t("Slug"), direction: direction }) },
+            sort: { compare: deps.sorting.compareAdminPostsBySlug, label: (direction) => deps.sorting.columnSortLabel({ t: t, columnName: t("Slug"), direction: direction }) },
             cell: (post) => (
               <a
                 href={deps.siteUrl({ path: `/${post.slug}` })}
@@ -49,7 +48,7 @@ const columns: readonly ((required: Pick<PostsProps, "kit" | "deps"> & Pick<Post
           {
             key: "status",
             header: t("Status"),
-            sort: { compare: compareAdminPostsByStatus, label: (direction) => columnSortLabel({ t: t, columnName: t("Status"), direction: direction }) },
+            sort: { compare: deps.sorting.compareAdminPostsByStatus, label: (direction) => deps.sorting.columnSortLabel({ t: t, columnName: t("Status"), direction: direction }) },
             cell: (post) => <span className={`status status-${post.status}`}><kit.ServerLabel value={post.status} /></span>,
           }
   ),
@@ -59,7 +58,7 @@ const columns: readonly ((required: Pick<PostsProps, "kit" | "deps"> & Pick<Post
             header: t("Updated"),
             // "desc" (newest first) is this column's own starting direction, unlike the other
             // three's ascending default — unchanged from the pre-existing Updated-only feature.
-            sort: { compare: compareAdminPostsByUpdated, defaultDirection: "desc", label: (direction) => updatedColumnSortLabel({ t: t, direction: direction }) },
+            sort: { compare: deps.sorting.compareAdminPostsByUpdated, defaultDirection: "desc", label: (direction) => deps.sorting.updatedColumnSortLabel({ t: t, direction: direction }) },
             cell: (post) => formatTimestamp({ iso: post.updatedAt }, { viewerTimeZone: deps.viewerTimeZone }),
           }
   ),

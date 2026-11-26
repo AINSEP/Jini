@@ -163,6 +163,7 @@ export interface MediaProps {
     }>;
   };
   deps: {
+    mediaFileName: typeof import("../../media/rules.js").mediaFileName;
     mediaProviderCatalogPort: MediaProviderCatalogPort;
     VIEWER_TIME_ZONE: string;
     MEDIA_GRID_SIZE_STORAGE_KEY: string;
