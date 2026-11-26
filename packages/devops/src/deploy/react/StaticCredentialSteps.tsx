@@ -26,7 +26,7 @@ export function CredentialStepTodo({
   controller: PublishCredentialsController;
   executionMode: AdminPublishExecutionMode;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   const { copy } = deps;
   return (
     <div
@@ -109,7 +109,7 @@ export function CredentialStepTodo({
 
 /** One translated template with a single placeholder rendered as a React node (a name that must
  *  stay untranslated), so each locale places the name where its own grammar needs it. */
-function TemplateWithNode({ template, token, children }: { template: string; token: string; children: ReactNode }) {
+function TemplateWithNode({ template, token, children }: { template: string; token: string; children: ReactNode }, _optional = {}) {
   const [before, after] = splitOnPlaceholders({ template: template, tokens: [token] });
   return (
     <>
@@ -128,7 +128,7 @@ export function CredentialStepDone({
   row: PublishCredentialRowState;
   controller: PublishCredentialsController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "kit" | "deps">) {
+} & Pick<StaticSiteTabProps, "kit" | "deps">, _optional = {}) {
   const { Icon } = kit;
   const { LINE_ICON } = deps;
   const saved = row.saved;
@@ -180,7 +180,7 @@ function CredentialVerifyAction({
   row: PublishCredentialRowState;
   controller: PublishCredentialsController;
   t: Translate;
-}) {
+}, _optional = {}) {
   const statusText = row.verifyError ?? row.verification?.message ?? null;
   return (
     <span className="deployment-step-verify">
@@ -231,7 +231,7 @@ function CredentialTokenPicker({
   row: PublishCredentialRowState;
   controller: PublishCredentialsController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps">) {
+} & Pick<StaticSiteTabProps, "deps">, _optional = {}) {
   const { copy, VIEWER_TIME_ZONE } = deps;
   // Rendered only inside the connected row (`row.saved` set — that row checks it too), so
   // the selected value falls back to the saved default's id with no further "nothing saved" arm.

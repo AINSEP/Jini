@@ -42,7 +42,7 @@ function CopyLine({
    *  this component, same reason `copyAccessibleName` is. */
   agentHandleId: string;
   useCopyLine: StaticSiteTabProps["hooks"]["useWiredCopyToClipboard"];
-}) {
+}, _optional = {}) {
   const { copied, copy } = useCopyLineHook();
 
   return (
@@ -70,7 +70,7 @@ function CopyLine({
  *  (two failed-count checks, one optional `outputDir`) counted directly in `ExportRunResult` pushed
  *  it to 11 — same reasoning `PublishPreviewAction`'s own doc gives for splitting the publish half of
  *  this tab. No behavior moved, only where the branches are counted. */
-function ExportRunCounts({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }) {
+function ExportRunCounts({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }, _optional = {}) {
   const counts = run.counts;
   if (!counts) throw new Error("completed export run has no counts");
   return (
@@ -105,7 +105,7 @@ function ExportRunCounts({ run, t: translate }: { run: AdminExportRunSnapshot; t
  *  the aggregate counts {@link ExportRunCounts} shows. Split out for the same complexity-gate reason
  *  that function's own doc gives: two independent `&&`/length-check branches, one per list, counted
  *  directly in `ExportRunResult` is what pushed it over budget together with the counts block. */
-function ExportRunFailures({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }) {
+function ExportRunFailures({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }, _optional = {}) {
   return (
     <>
       {run.failedRoutes && run.failedRoutes.length > 0 ? (
@@ -140,7 +140,7 @@ function ExportRunFailures({ run, t: translate }: { run: AdminExportRunSnapshot;
  *  once `run.status` is `"completed"` or `"errored"`; a `"running"`/`"idle"` run has nothing here yet
  *  to report. Delegates to {@link ExportRunCounts}/{@link ExportRunFailures} for the complexity-gate
  *  reason each of those documents — this function itself now only decides WHICH detail to show. */
-function ExportRunResult({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }) {
+function ExportRunResult({ run, t: translate }: { run: AdminExportRunSnapshot; t: Translate }, _optional = {}) {
   if (run.status === "errored") {
     return (
       <p className="save-error" role="alert">
@@ -160,7 +160,7 @@ function ExportRunResult({ run, t: translate }: { run: AdminExportRunSnapshot; t
 /** The "Build here or in a terminal" card's second half — the command block (unchanged) plus the real
  *  build action: a clean/overwrite checkbox, the Build button itself, a live status pill, and the
  *  run's own result once it settles. */
-export function BuildExportCard({ controller, t: translate , deps, hooks }: { controller: StaticExportController; t: Translate } & Pick<StaticSiteTabProps, "deps" | "hooks">) {
+export function BuildExportCard({ controller, t: translate , deps, hooks }: { controller: StaticExportController; t: Translate } & Pick<StaticSiteTabProps, "deps" | "hooks">, _optional = {}) {
   const tone = runStatusTone({ status: controller.run?.status ?? "idle" }, { ok: controller.run?.ok });
 
   return (
@@ -205,7 +205,7 @@ export function BuildExportCard({ controller, t: translate , deps, hooks }: { co
  *  cyclomatic/cognitive ceiling (`eslint.config.mjs`'s own `F06 option B` block — not the 15/warn the
  *  rest of the repo tolerates), and adding `pollError` as one more branch directly in
  *  `BuildExportCard` pushed it from 9 to 10 against that real gate. */
-function ExportTriggerAction({ controller, t: translate }: { controller: StaticExportController; t: Translate }) {
+function ExportTriggerAction({ controller, t: translate }: { controller: StaticExportController; t: Translate }, _optional = {}) {
   const busy = controller.triggering || controller.isRunning;
   return (
     <div className="deployment-action">

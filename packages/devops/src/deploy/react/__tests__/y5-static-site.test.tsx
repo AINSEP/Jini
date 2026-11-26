@@ -173,10 +173,18 @@ test("static-site view renders export refusal and progress using its required co
         credentialSubtitle: "Connect {credential}", storedTokenNotice: "Stored encrypted", pickerTokenNotice: "Pick a token", productName: "Host" },
     },
   };
+  const useExport = vi.spyOn(props.hooks, "useStaticExportHook");
+  const usePublish = vi.spyOn(props.hooks, "useStaticPublishHook");
+  const useCredentials = vi.spyOn(props.hooks, "usePublishCredentialsHook");
   render(<StaticSiteTab {...props} />);
   expect(screen.getByRole("alert").textContent).toBe("output directory is not empty");
   expect(screen.getByRole("button", { name: "Exporting…" }).hasAttribute("disabled")).toBe(true);
   expect(screen.getByText("Host export description")).toBeTruthy();
   expect(screen.getByText("host export <dir>")).toBeTruthy();
+  expect(useExport).toHaveBeenCalledOnce();
+  expect(usePublish).toHaveBeenCalledOnce();
+  expect(useCredentials).toHaveBeenCalledExactlyOnceWith({ targets: [] });
+  expect(useExport.mock.invocationCallOrder[0]).toBeLessThan(usePublish.mock.invocationCallOrder[0]!);
+  expect(usePublish.mock.invocationCallOrder[0]).toBeLessThan(useCredentials.mock.invocationCallOrder[0]!);
   expect(trigger).not.toHaveBeenCalled();
 });

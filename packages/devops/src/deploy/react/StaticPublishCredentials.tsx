@@ -20,7 +20,7 @@ function publishCredentialsSectionContent({
   controller: PublishCredentialsController;
   selectedProviderId: string;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   if (controller.loadError) {
     return (
       <p
@@ -94,7 +94,7 @@ export function PublishCredentialsSection(props: {
   controller: PublishCredentialsController;
   selectedProviderId: string;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   return (
     <div
       {...agentHandle({ handle: "deployment-static-site-credentials-section" }, {

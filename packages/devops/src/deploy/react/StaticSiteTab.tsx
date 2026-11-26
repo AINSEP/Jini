@@ -170,7 +170,7 @@ export interface StaticSiteTabProps {
   };
 }
 
-export function StaticSiteTab(props: StaticSiteTabProps) {
+export function StaticSiteTab(props: StaticSiteTabProps, _optional = {}) {
   const { deps, kit } = props;
   const { createStaticSiteTabTranslator } = deps;
   const { hooks } = props;
@@ -266,7 +266,7 @@ function GettingItOnlineCard({
   publishController: StaticPublishController;
   credentialsController: PublishCredentialsController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   const { adminHref, pluginsPath } = deps;
   if (publishController.targets?.length === 0 && !publishController.targetsError) {
     return <div className="empty-state">
@@ -376,7 +376,7 @@ function PublishTargetLoadNotice({ publishController }: { publishController: Sta
  * calls, which only swap a `?tab=` query param on the SAME page.
  * @complexity O(1) — no branches.
  */
-function ManageAccessTokensLink({ t: translate , deps }: { t: Translate } & Pick<StaticSiteTabProps, "deps">) {
+function ManageAccessTokensLink({ t: translate , deps }: { t: Translate } & Pick<StaticSiteTabProps, "deps">, _optional = {}) {
   const { navigate, accessTokensPath } = deps;
   return (
     <p className="deployment-action-reason">

@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react";
+import { Media, type MediaProps } from "../media/Media.js";
 import { bindProviders } from "../providers/Providers.js";
 import { TabBar } from "@jini-ai/ui/tab-strip";
 import { cleanup, act, render, renderHook, screen } from "@testing-library/react";
@@ -128,4 +130,58 @@ test("media keeps the exact deep-link item available for editing and sends one p
   expect(upload).toHaveBeenCalledExactlyOnceWith({ filename: "photo.png", contentType: "image/png", dataBase64: "encoded" }, { alt: undefined });
   expect(result.current.uploading).toBe(false);
   expect(result.current.uploadOpen).toBe(false);
+});
+
+
+test("media screen preserves the exact deep-link lookup and shares the live provider catalog with its tab count", () => {
+  const linked = { id: "linked", workspaceId: "ws", title: "Linked", slug: "linked", alt: "", caption: "", credit: "",
+    sha256: "sha", status: "active" as const, createdAt: "", updatedAt: "", version: 1,
+    width: null, height: null, cssClass: null, htmlAttributes: null, contentType: "image/png", publicUrl: null };
+  const useMediaItemLinkHook = vi.fn<MediaProps["hooks"]["useMediaItemLinkHook"]>(() => ({ notFound: false }));
+  const useMediaHook = vi.fn<MediaProps["hooks"]["useMediaHook"]>(() => ({
+    media: [], lookupMedia: [linked], editingItem: linked, editingId: "linked", setEditingId: vi.fn(),
+    counts: { all: 41, images: 40, videos: 1, trash: 2 }, error: null, uploading: false,
+    uploadOpen: false, openUpload: vi.fn(), closeUpload: vi.fn(), uploadError: null, conversionNotice: null,
+    canUpload: false, altDraft: "", setAltDraft: vi.fn(), fileInputRef: { current: null }, selectedFileName: "",
+    onFileChange: vi.fn(), upload: vi.fn(async () => {}), hasUntypedActive: false,
+    hasMore: false, loadingMore: false, loadMoreError: null, loadMore: vi.fn(async () => {}),
+    toggleEditing: vi.fn(), onMetadataSaved: vi.fn(), trash: vi.fn(async () => {}), restore: vi.fn(async () => {}),
+    pendingPurge: null, setPendingPurge: vi.fn(), rowSavingId: null, purge: vi.fn(async () => {}),
+    lightboxIndex: null, setLightboxIndex: vi.fn(), orderBy: "created", setOrderBy: vi.fn(), t: key => key, locale: "fr",
+  }));
+  const port = { fetchMediaProviderCatalog: vi.fn(async () => []) };
+  const catalog: NonNullable<ReturnType<MediaProps["hooks"]["useMediaProviderCatalogHook"]>> = [];
+  const useMediaProviderCatalogHook = vi.fn<MediaProps["hooks"]["useMediaProviderCatalogHook"]>(() => catalog);
+  const ExternalProvidersPanel = vi.fn((_props: ComponentProps<MediaProps["kit"]["ExternalProvidersPanel"]>) => <p>live providers</p>);
+  const props: MediaProps = {
+    itemId: "linked", tabId: "external-providers",
+    hooks: { useMediaHook, useMediaItemLinkHook, useMediaProviderCatalogHook,
+      useMediaTabsHook: () => ({ activeTab: "external-providers", setActiveTab: vi.fn() }),
+      useMediaPreviewHook: vi.fn(), useEditMediaPanelHook: vi.fn(), useEditMediaModalHook: vi.fn(),
+      useAdminKitValuesHook: vi.fn(), useMediaCardMetadataHook: vi.fn(), useMediaCardDetailsHook: vi.fn(),
+      useMediaGridSizeHook: vi.fn(), useAdminThemeBoundaryHook: vi.fn(), useRemoteImageImport: vi.fn(), useFetchMutation: vi.fn(),
+    },
+    kit: { ExternalProvidersPanel, PublishSectionButton: () => <button>publish media</button>,
+      TabBar: ({ tabs }) => <div>{tabs.map(tab => <span key={tab.id}>{tab.label}:{tab.count}</span>)}</div>,
+      Icon: () => null, RowMenu: () => null, ConfirmDialog: () => null, ServerLabel: () => null,
+      ChromePlaybackNote: () => null, EyeIcon: () => null, ExpandIcon: () => null, PlaceholderIcon: () => null,
+      PlayIcon: () => null, UploadIcon: () => null, MediaLoadMore: () => null, DockHeaderTip: ({ children }) => <>{children}</>,
+      InfoTip: () => null, Lightbox: () => null, MiddleTruncate: () => null, RemoteImageImport: () => null,
+      Button: () => null, Dialog: () => null, TextField: () => null,
+    },
+    deps: { mediaProviderCatalogPort: port, VIEWER_TIME_ZONE: "UTC", MEDIA_GRID_SIZE_STORAGE_KEY: "host.media.cardSize",
+      mediaTranslate: ({ key }) => key, VIDEO_CONVERSION_NOTICE_KEY: "conversion notice",
+      defaultMediaImportPort: { importFromUrl: vi.fn(), listKey: ["media"] }, describeApiError: ({ e }) => String(e),
+    },
+  };
+  render(<Media {...props} />);
+  expect(useMediaHook).toHaveBeenCalledExactlyOnceWith({ tab: "all", itemId: "linked" });
+  expect(useMediaItemLinkHook).toHaveBeenCalledExactlyOnceWith({ itemId: "linked", activeTab: "external-providers",
+    media: [linked], editingId: "linked", setEditingId: expect.any(Function) });
+  expect(useMediaProviderCatalogHook).toHaveBeenCalledExactlyOnceWith({ port });
+  expect(ExternalProvidersPanel.mock.calls[0]?.[0]).toEqual({ locale: "fr", catalog,
+    useAdminThemeBoundaryHook: props.hooks.useAdminThemeBoundaryHook });
+  expect(screen.getByText("All:41")).toBeTruthy();
+  expect(screen.getByText("External Providers:0")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "publish media" })).toBeTruthy();
 });

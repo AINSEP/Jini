@@ -6,7 +6,7 @@ import { PublishRunResult } from "./PublishRunResult.js";
 import type { StaticSiteTabProps } from "./StaticSiteTab.js";
 import { FieldLabel } from "./StaticCredentialFields.js";
 
-function PublishFailureNotice({ controller, t: translate , kit }: { controller: StaticPublishController; t: Translate } & Pick<StaticSiteTabProps, "kit">) {
+function PublishFailureNotice({ controller, t: translate , kit }: { controller: StaticPublishController; t: Translate } & Pick<StaticSiteTabProps, "kit">, _optional = {}) {
   const { ErrorNotice } = kit;
   if (controller.publishFailure) return <ErrorNotice failure={controller.publishFailure} t={translate} className="save-error" />;
   return controller.publishError ? <p className="save-error" role="alert">{controller.publishError}</p> : null;
@@ -18,7 +18,7 @@ function PublishFailureNotice({ controller, t: translate , kit }: { controller: 
  * ids come from `publishConfigFieldHandleId` (`rules.ts`), which keeps the ids agent tooling
  * already uses.
  */
-function StaticPublishTargetFields({ controller, t: translate , deps }: { controller: StaticPublishController; t: Translate } & Pick<StaticSiteTabProps, "deps">) {
+function StaticPublishTargetFields({ controller, t: translate , deps }: { controller: StaticPublishController; t: Translate } & Pick<StaticSiteTabProps, "deps">, _optional = {}) {
   const { asciiSlug } = deps;
   // The target is bound once, up front: a field can only render when a target exists, so the
   // agent-handle label below reads `target.label` directly instead of a per-field
@@ -62,7 +62,7 @@ function PublishPreviewAction({
   canPreview: boolean;
   controller: StaticPublishController;
   t: Translate;
-}) {
+}, _optional = {}) {
   return (
     <div className="deployment-action">
       <button
@@ -115,7 +115,7 @@ function PublishTriggerAction({
   runTone: string;
   controller: StaticPublishController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   const { PUBLISH_RUN_RESULT_CLASSES } = deps;
   return (
     <div className="deployment-action">
@@ -150,7 +150,7 @@ export function StaticPublishForm({
   /** {@link chosenCredentialIdForTarget}'s result for this target — see that function's own doc. */
   chosenCredentialId: string | undefined;
   t: Translate;
-} & Pick<StaticSiteTabProps, "deps" | "kit">) {
+} & Pick<StaticSiteTabProps, "deps" | "kit">, _optional = {}) {
   const { canPreview, canPublish, projectNameCopy } = controller;
   const runTone = runStatusTone({ status: controller.run?.status ?? "idle" }, { ok: controller.run?.result?.ok });
   // `publishing` (the POST-in-flight flag) is included alongside `isPublishing` (the server-confirmed
@@ -186,7 +186,7 @@ export function StaticPublishForm({
 /** A preview result's facts — base path (or "root, no prefix" for a root-served host/an invalid config) and
  *  whether a credential is configured. Never shows the credential itself — `preview.credentialsConfigured`
  *  is a boolean the server already reduced it to. */
-function PublishPreviewFacts({ preview, t: translate }: { preview: NonNullable<StaticPublishController["preview"]>; t: Translate }) {
+function PublishPreviewFacts({ preview, t: translate }: { preview: NonNullable<StaticPublishController["preview"]>; t: Translate }, _optional = {}) {
   if (!preview.valid) {
     return (
       <p className="save-error" role="alert">

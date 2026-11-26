@@ -4,3 +4,5 @@
 ---
 
 Add email and storage bindings, register the Providers screen, and expose injected media upload and metadata controllers alongside the external MCP controller.
+
+Add the legacy media screen with required view, hook, and host-service collaborators, retaining its grid, upload, metadata, lightbox, and deep-link composition.

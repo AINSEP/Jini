@@ -32,7 +32,7 @@ export function PublishCredentialFields({
   row: PublishCredentialRowState;
   controller: PublishCredentialsController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "kit" | "deps">) {
+} & Pick<StaticSiteTabProps, "kit" | "deps">, _optional = {}) {
   const readyToSave = credentialFormReadyToSave({ spec: row.credential, values: row.values });
 
   return (
@@ -68,7 +68,7 @@ export function PublishCredentialFields({
 
 /** A field's label: the descriptor's own (a host term, rendered verbatim) plus the translated
  *  "(optional)" suffix when the field is optional. */
-export function FieldLabel({ field, htmlFor, t: translate }: { field: AdminPublishTargetField; htmlFor: string; t: Translate }) {
+export function FieldLabel({ field, htmlFor, t: translate }: { field: AdminPublishTargetField; htmlFor: string; t: Translate }, _optional = {}) {
   const { label, suffixKey } = fieldLabelParts({ field: field });
   return (
     <label className="field-label" htmlFor={htmlFor}>
@@ -93,7 +93,7 @@ function CredentialFieldInput({
   field: AdminPublishTargetField;
   controller: PublishCredentialsController;
   t: Translate;
-} & Pick<StaticSiteTabProps, "kit" | "deps">) {
+} & Pick<StaticSiteTabProps, "kit" | "deps">, _optional = {}) {
   const { SecretInput } = kit;
   const { asciiSlug } = deps;
   const id = credentialFieldHandleId({ asciiSlug, providerId: row.providerId, fieldName: field.name, tokenField: row.credential.tokenField });
@@ -121,7 +121,7 @@ function CredentialFieldInput({
 
 /** The token field's storage hint, plus the host's own token page when its descriptor names one
  *  (opened in a new tab: a third-party account-security page never renders inside this admin). */
-function TokenFieldHints({ row, t: translate , deps }: { row: PublishCredentialRowState; t: Translate } & Pick<StaticSiteTabProps, "deps">) {
+function TokenFieldHints({ row, t: translate , deps }: { row: PublishCredentialRowState; t: Translate } & Pick<StaticSiteTabProps, "deps">, _optional = {}) {
   const { copy } = deps;
   const tokenPageUrl = row.credential.tokenPageUrl;
   return (
