@@ -37,8 +37,8 @@ async function replaceCustomCredential({ context, row }: { context: AccessTokenA
     try {
       const result = await port.custom.update({ id: row.id, input: buildCustomCredentialUpdatePatch({ fields, nameChanged, hasToken, currentUsername: row.username }, { currentWorksFor: row.worksFor }) });
       // PUT returns credential metadata; retain the latest attachment snapshot from the inventory.
-      setCustomCredentials(prev => (prev ?? []).map(item => item.id === result.id
-        ? { ...result, usedBy: item.usedBy, usedByThisSite: item.usedByThisSite } : item));
+      setCustomCredentials(prev => ({ status: "ok", rows: (prev.rows ?? []).map(item => item.id === result.id
+        ? { ...result, usedBy: item.usedBy, usedByThisSite: item.usedByThisSite } : item) }));
       // Reset to `result.username`, not `fields.username` or blank — `result` is the server's own
       // post-write state, so it is correct whether the operator typed a new username, left it blank
       // to PRESERVE the one already saved (`buildCustomProviderConnectionInput` omits a blank

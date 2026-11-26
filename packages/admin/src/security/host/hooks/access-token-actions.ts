@@ -49,18 +49,18 @@ export function mergeCredential({ context, kind, result, isNew }: { context: Acc
   const { setPublishCredentials, setSourceControlCredentials } = context.stores;
     if (kind === "publish") {
       const row = result as AdminPublishCredentialSummary;
-      setPublishCredentials((prev) => mergeRaw({ list: prev ?? [], result: row, isNew }));
+      setPublishCredentials((prev) => ({ status: "ok", rows: mergeRaw({ list: prev.rows ?? [], result: row, isNew }) }));
     } else {
       const row = result as AdminSourceControlCredentialSummary;
-      setSourceControlCredentials((prev) => mergeRaw({ list: prev ?? [], result: row, isNew }));
+      setSourceControlCredentials((prev) => ({ status: "ok", rows: mergeRaw({ list: prev.rows ?? [], result: row, isNew }) }));
     }
   }
 
 async function refetchStore({ context, kind }: { context: AccessTokenActionContext; kind: AccessTokenKind }, _optional: Record<string, never> = {}): Promise<void> {
   const { port } = context.args;
   const { setPublishCredentials, setSourceControlCredentials } = context.stores;
-    if (kind === "publish") setPublishCredentials((await port.publish.list()).credentials);
-    else setSourceControlCredentials((await port.sourceControl.list()).credentials);
+    if (kind === "publish") setPublishCredentials({ status: "ok", rows: (await port.publish.list()).credentials });
+    else setSourceControlCredentials({ status: "ok", rows: (await port.sourceControl.list()).credentials });
   }
 
   /** Seeds a row's FIRST draft update from the persisted row (name AND username included), not a
@@ -104,7 +104,7 @@ export async function removeToken({ context, row }: { context: AccessTokenAction
     try {
       if (row.kind === "custom") {
         await port.custom.remove({ id: row.id });
-        setCustomCredentials((await port.custom.list()).credentials);
+        setCustomCredentials({ status: "ok", rows: (await port.custom.list()).credentials });
       } else {
         if (row.kind === "publish") await port.publish.remove({ id: row.id });
         else await port.sourceControl.remove({ id: row.id });
@@ -130,8 +130,8 @@ function applyPromotedDefault({ context, kind, result }: { context: AccessTokenA
   const deps = context.args.deps;
   const { withPromotedDefault } = deps;
   const { setPublishCredentials, setSourceControlCredentials } = context.stores;
-    if (kind === "publish") setPublishCredentials((prev) => withPromotedDefault({ credentials: prev ?? [], promoted: result as AdminPublishCredentialSummary }));
-    else setSourceControlCredentials((prev) => withPromotedDefault({ credentials: prev ?? [], promoted: result as AdminSourceControlCredentialSummary }));
+    if (kind === "publish") setPublishCredentials((prev) => ({ status: "ok", rows: withPromotedDefault({ credentials: prev.rows ?? [], promoted: result as AdminPublishCredentialSummary }) }));
+    else setSourceControlCredentials((prev) => ({ status: "ok", rows: withPromotedDefault({ credentials: prev.rows ?? [], promoted: result as AdminSourceControlCredentialSummary }) }));
   }
 
   /** Best-effort re-read after a promotion the server already confirmed — same shape and reasoning as

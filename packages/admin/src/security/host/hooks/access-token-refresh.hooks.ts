@@ -83,9 +83,9 @@ export function useAccessTokenRefresh({ args, queries, stores }: { args: AccessT
     const results = await Promise.allSettled([port.publish.list(), port.sourceControl.list(), port.custom.list()]);
     if (!settlement.isCurrent({ generation: requestGeneration })) return; // superseded by a newer reload
     const [publishResult, sourceControlResult, customResult] = results;
-    if (publishResult.status === "fulfilled") setPublishCredentials(publishResult.value.credentials);
-    if (sourceControlResult.status === "fulfilled") setSourceControlCredentials(sourceControlResult.value.credentials);
-    if (customResult.status === "fulfilled") setCustomCredentials(customResult.value.credentials);
+    setPublishCredentials(publishResult.status === "fulfilled" ? { status: "ok", rows: publishResult.value.credentials } : { status: "error" });
+    setSourceControlCredentials(sourceControlResult.status === "fulfilled" ? { status: "ok", rows: sourceControlResult.value.credentials } : { status: "error" });
+    setCustomCredentials(customResult.status === "fulfilled" ? { status: "ok", rows: customResult.value.credentials } : { status: "error" });
     const failureReason = firstRejectionReason(results);
     setReloadError(failureReason === undefined ? null : accessTokensLoadErrorMessage({ locale, error: describeApiError({ e: failureReason, fallback: t(UNKNOWN_ERROR) }) }));
     setHasReloadedOnce(true);

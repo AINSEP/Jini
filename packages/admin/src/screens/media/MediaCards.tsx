@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
+import type { AdminMedia, MediaGridPage } from "@jini-ai/core/contracts/site/cms-admin-media";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { mediaRowMenuItems, mediaShapeBadges } from "./rules.js";
 import type { MediaShape } from "./rules.js";
@@ -47,7 +47,7 @@ function MediaCardMetadata(props: { useMediaCardMetadataHook: typeof useMediaCar
  */
 export function MediaCard({ item, handle, onExpand, menu, t, useMediaPreviewHook, useMediaCardMetadataHook, kit, deps }: {
   useMediaPreviewHook: MediaProps["hooks"]["useMediaPreviewHook"]; useMediaCardMetadataHook: typeof useMediaCardMetadata;
-  item: AdminMedia; handle: string | undefined; onExpand: () => void; menu: MediaCardMenuProps; t: (key: string) => string;
+  item: MediaGridPage["media"][number]; handle: string | undefined; onExpand: () => void; menu: MediaCardMenuProps; t: (key: string) => string;
 } & Pick<MediaProps, "kit" | "deps">, _optional = {}) {
   const { RowMenu, ServerLabel, ChromePlaybackNote } = kit;
   const { mediaTranslate } = deps;
@@ -86,6 +86,7 @@ export function MediaCard({ item, handle, onExpand, menu, t, useMediaPreviewHook
           />
         </div>
         <MediaCardMetadata useMediaCardMetadataHook={useMediaCardMetadataHook} item={item} locale={menu.locale} viewerTimeZone={menu.viewerTimeZone} shape={preview.shape} t={t} />
+        {item.status === "trashed" && item.trashDaysRemaining !== undefined ? <p className="page-description">{t("{days} days left").replace("{days}", String(item.trashDaysRemaining))}</p> : null}
         <ChromePlaybackNote item={item} t={t} />
       </div>
     </div>

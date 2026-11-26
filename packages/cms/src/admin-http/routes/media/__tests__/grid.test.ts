@@ -12,14 +12,20 @@ const ROWS: MediaRecord[] = Array.from({ length: 7 }, (_, index) =>
   fakeMedia({ id: `m${index}`, title: `Title ${index}`, slug: `s${index}`, createdAt: `2026-10-0${7 - index}T00:00:00.000Z` }),
 );
 
-type Recorded = { pages: unknown[]; lookups: unknown[]; enriched: string[][] };
+type Recorded = { pages: unknown[]; lookups: unknown[]; enriched: string[][]; deadlines: unknown[] };
 
 /** Host fakes that record every page read, exact lookup and enrichment, so a refusal can prove nothing was read. */
 function deps({ workspaceId = WORKSPACE_ID, rows = ROWS }: { workspaceId?: string; rows?: MediaRecord[] } = {}): MediaGridRouteDeps & Recorded {
-  const recorded: Recorded = { pages: [], lookups: [], enriched: [] };
+  const recorded: Recorded = { pages: [], lookups: [], enriched: [], deadlines: [] };
   return {
     ...recorded,
     workspaceId,
+    clock: { nowIso: () => "2026-10-08T00:00:00.000Z" },
+    retentionDays: 30,
+    readTrashDeadlines: async required => {
+      recorded.deadlines.push(required);
+      return new Map([["m0", "2026-11-21T00:00:00.000Z"], ["m1", "2026-11-07T00:00:00.000Z"]]);
+    },
     readPage: async (required, optional = {}) => {
       recorded.pages.push({ ...required, ...optional });
       const start = optional.after ? rows.findIndex((row) => row.id === optional.after?.id) + 1 : 0;
@@ -52,6 +58,26 @@ async function call(d: MediaGridRouteDeps, query: Record<string, unknown>, { wor
 }
 
 describe("mediaGridRoute", () => {
+  it("Trash grid returns the current policy and only the returned rows’ stamped countdowns", async () => {
+    const d = deps();
+    const { page } = await call(d, { tab: "trash", orderBy: "created", limit: "2" });
+    expect(page.retentionDays).toBe(30);
+    expect(page.media.map(row => [row.id, row.trashDaysRemaining])).toEqual([["m0", 44], ["m1", 30]]);
+    expect(d.deadlines).toEqual([{ workspaceId: WORKSPACE_ID, ids: ["m0", "m1"] }]);
+    expect(d.enriched).toEqual([["m0", "m1"]]);
+    const exact = await call(d, { tab: "trash", orderBy: "created", itemId: "m0" });
+    expect(exact.page.retentionDays).toBe(30);
+    expect(exact.page.media[0]?.trashDaysRemaining).toBe(44);
+    expect(d.deadlines[1]).toEqual({ workspaceId: WORKSPACE_ID, ids: ["m0"] });
+    const unstamped = await call(d, { tab: "trash", orderBy: "created", itemId: "m2" });
+    expect(unstamped.page.media[0]).not.toHaveProperty("trashDaysRemaining");
+    const active = deps();
+    const activePage = await call(active, { tab: "images", orderBy: "created" });
+    expect(activePage.page).not.toHaveProperty("retentionDays");
+    expect(activePage.page.media.every(row => !("trashDaysRemaining" in row))).toBe(true);
+    expect(active.deadlines).toEqual([]);
+  });
+
   it("keeps the method and path", () => {
     expect(mediaGridRoute.method).toBe("get");
     expect(mediaGridRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media/grid");

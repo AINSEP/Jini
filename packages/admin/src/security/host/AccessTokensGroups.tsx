@@ -34,26 +34,29 @@ export function AccessTokensBody({ bindings, controller, otherController,
 
   const addCustomDialogRef = useRef<HTMLDialogElement>(null);
   const merged = useMergedSecretsOrderHook({ controller, otherController, query: controller.query, deps: bindings.deps });
-  if (controller.loadError) {
-    return (
+  return (
+    <>
+      <StoreNotices controller={controller} otherController={otherController} />
+      {controller.groups === undefined || otherController.groups === undefined
+        ? <p className="access-tokens-loading">{controller.t("Loading access tokens…")}</p>
+        : <AccessTokensLoaded bindings={bindings} controller={controller} otherController={otherController} addCustomDialogRef={addCustomDialogRef} merged={merged} />}
+    </>
+  );
+}
+
+function StoreNotices({ controller, otherController }: { controller: AccessTokensController; otherController: OtherCredentialsController }, _optional: Record<string, never> = {}) {
+  return <>
+    {controller.loadError ? (
       <p className="notice error" role="status" {...agentHandle({ handle: "security-access-tokens-load-error" }, { role: "status", label: "Shows the error when saved access tokens could not be loaded" })}>
         {controller.loadError}
       </p>
-    );
-  }
-  if (otherController.loadError) {
-    return (
+    ) : null}
+    {otherController.loadError ? (
       <p className="notice error" role="status" {...agentHandle({ handle: "security-other-credentials-load-error" }, { role: "status", label: "Shows the error when other saved credentials could not be loaded" })}>
         {otherController.loadError}
       </p>
-    );
-  }
-  if (controller.groups === undefined || otherController.groups === undefined) {
-    return <p className="access-tokens-loading">{controller.t("Loading access tokens…")}</p>;
-  }
-  return (
-    <AccessTokensLoaded bindings={bindings} controller={controller} otherController={otherController} addCustomDialogRef={addCustomDialogRef} merged={merged} />
-  );
+    ) : null}
+  </>;
 }
 
 /** The hosting filter can be empty while source-control groups still exist. */
@@ -242,7 +245,7 @@ function AccessTokensLoaded({ bindings, controller, otherController, addCustomDi
       <AccessTokensCategoryFilter bindings={bindings} controller={controller} onAddCustomProvider={() => addCustomDialogRef.current?.showModal()} />
       <HostingPluginsHint bindings={bindings} controller={controller} />
       <div className="access-tokens-tier">
-        {merged.length === 0 && !controller.query ? <div className="empty-state"><p>{controller.t("Not connected")}</p></div> : null}
+        {merged.length === 0 && !controller.query && !controller.loadError && !otherController.loadError ? <div className="empty-state"><p>{controller.t("Not connected")}</p></div> : null}
         {merged.map((entry) =>
           entry.kind === "provider" ? (
             <ProviderGroup bindings={bindings} key={entry.key} group={entry.group} controller={controller} />

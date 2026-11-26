@@ -6,6 +6,7 @@ import type { MediaGridOrder, MediaGridPage, MediaGridTab } from "@jini-ai/core/
 
 import type { MediaRecord } from "../../../media/types.js";
 import { toAdminMediaListResponse } from "../../http/media.js";
+import { daysRemaining } from "../../http/trash.js";
 import { authorizeMedia, type MediaRoutePrincipal } from "./shared.js";
 
 /**
@@ -30,6 +31,9 @@ export interface MediaGridEnrichment {
 /** The trusted workspace, the bounded page and exact lookups, and the DTO enrichment the host binds. */
 export interface MediaGridRouteDeps {
   workspaceId: string;
+  clock: { nowIso(): string };
+  retentionDays: number;
+  readTrashDeadlines: (required: { workspaceId: string; ids: readonly string[] }, _optional?: Record<string, never>) => Promise<ReadonlyMap<string, string>>;
   /** Up to `limit + 1` rows after `after` in the tab and order; the extra row only says another page follows. */
   readPage: (
     required: { workspaceId: string; tab: MediaGridTab; orderBy: MediaGridOrder; limit: number },
@@ -181,6 +185,16 @@ export const mediaGridRoute = defineJsonRoute<MediaGridRouteInput, MediaGridPage
     await authorizeMedia({ authorize, permission: "media.read" });
     assertCursorScope({ deps, input });
     const page = input.itemId === undefined ? await readGridPage({ deps, input }) : await readGridItem({ deps, input, itemId: input.itemId });
-    return ok({ value: page });
+    if (input.tab !== "trash") return ok({ value: page });
+    const deadlines = await deps.readTrashDeadlines({ workspaceId: deps.workspaceId, ids: page.media.map(row => row.id) });
+    const now = deps.clock.nowIso();
+    return ok({ value: {
+      ...page,
+      retentionDays: deps.retentionDays,
+      media: page.media.map(row => {
+        const until = deadlines.get(row.id);
+        return until === undefined ? row : { ...row, trashDaysRemaining: daysRemaining({ now, until }) };
+      }),
+    } });
   },
 });

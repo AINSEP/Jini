@@ -37,17 +37,31 @@ function harness() {
     }),
   };
   const screenshotClient: ScreenshotCleanupClient = { preview: vi.fn(), apply: vi.fn() };
-  render(<StorageScreen client={client} screenshotClient={screenshotClient} reportErrors={({ error }) => String(error)} now={() => 0} locale="en" useWiredStorageHook={useWiredStorage} useScreenshotCleanupHook={useScreenshotCleanup}
+  const setDocumentTitle = vi.fn(({ title }: { title: string }) => {
+    const previous = document.title;
+    document.title = title;
+    return () => { document.title = previous; };
+  });
+  const view = render(<StorageScreen setDocumentTitle={setDocumentTitle} client={client} screenshotClient={screenshotClient} reportErrors={({ error }) => String(error)} now={() => 0} locale="en" useWiredStorageHook={useWiredStorage} useScreenshotCleanupHook={useScreenshotCleanup}
     kit={{ Button: "button" }} links={[]} t={({ key }) => key} categoryLabels={{ logs: "Logs", uploads: "Uploads", exports: "Exports" }}
     kindLabels={{ cache: "Cache", derived: "Rebuildable files", "old-copy": "Old copies" }}
     copy={{ automatic: "Automatic", yours: "Yours", shown: "Shown only", dryRun: "Clean up now", confirm: "Review and confirm", clean: "Clean up", lastAutomaticPass: "Last pass", freed: "Freed", failures: "Failed" }}
     screenshotAgeDays={90} screenshotsAnchor="screenshots" screenshotHeading="Delete screenshots older than 90 days" />);
-  return { client, seen };
+  return { client, seen, setDocumentTitle, ...view };
 }
 
 afterEach(() => { cleanup(); });
 
 describe("StorageScreen", () => {
+  it("Storage names its tab and restores the previous title on unmount", () => {
+    document.title = "Previous page";
+    const { unmount, setDocumentTitle } = harness();
+    expect(setDocumentTitle).toHaveBeenCalledWith({ title: "Storage" }, {});
+    expect(document.title).toBe("Storage");
+    unmount();
+    expect(document.title).toBe("Previous page");
+  });
+
   it("dry-run list first", async () => {
     const { client, seen } = harness();
     // Found outside `act`: awaiting inside it would hold back the report's own state update.

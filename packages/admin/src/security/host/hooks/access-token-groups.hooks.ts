@@ -10,6 +10,7 @@ export function useAccessTokenGroups({ context }: { context: AccessTokenActionCo
   const deps = context.args.deps;
   const { ACCESS_TOKEN_PROVIDER_COPY, ACCESS_TOKEN_CATEGORIES } = deps;
   const { providers } = context.queries;
+  const { publishCredentials, sourceControlCredentials } = context.stores;
   const { rows } = context;
   const { existingDrafts, existingBusy, addForms, query, category } = context.drafts;
   /** One singleton group per saved custom row — no shared catalog entry to group under (this file's
@@ -32,7 +33,7 @@ export function useAccessTokenGroups({ context }: { context: AccessTokenActionCo
     // A provider outside the active category is dropped here, before the query filter ever runs —
     // see this file's header for why that keeps `totalCount`/`matchCount` a global fact instead.
     // A saved row whose provider is not listed still gets its group, so it can be removed.
-    const catalogGroups = accessTokenProvidersWithSavedRows({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, rows }).filter((info) => accessTokenCategoryMatches({ rowCategory: info.category, activeCategory: category })).map((info) => {
+    const catalogGroups = accessTokenProvidersWithSavedRows({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, rows }).filter((info) => (info.kind === "publish" ? publishCredentials.status : sourceControlCredentials.status) === "ok").filter((info) => accessTokenCategoryMatches({ rowCategory: info.category, activeCategory: category })).map((info) => {
       const providerRows = accessTokenRowsForProvider({ rows, ref: info }).filter((row) => accessTokenRowMatchesQuery({ row, info, query }));
       return {
         info,
@@ -45,7 +46,7 @@ export function useAccessTokenGroups({ context }: { context: AccessTokenActionCo
     // already-category-and-query-filtered list above, so it holds for the "All" chip, any single
     // category chip, and an active search query alike.
     return sortAccessTokenGroups({ groups: [...catalogGroups, ...customGroups], categories: ACCESS_TOKEN_CATEGORIES });
-  }, [rows, existingDrafts, existingBusy, addForms, query, category, customGroups, providers]);
+  }, [rows, existingDrafts, existingBusy, addForms, query, category, customGroups, providers, publishCredentials.status, sourceControlCredentials.status]);
 
   const totalCount = rows?.length ?? 0;
   const matchCount = rows === undefined ? 0 : rows.filter((row) => accessTokenRowMatchesQuery({ row, info: accessTokenRowProviderInfo({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, row }), query })).length;
