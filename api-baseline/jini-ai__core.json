@@ -598,6 +598,9 @@
    "BlobFence": "interface:85fc185c0d",
    "BlobGcScope": "interface:2e0886df1d",
    "BlobIdentity": "type:c4f2141eb1",
+   "BlobJournalEligibility": "interface:2e393c11a5",
+   "BlobJournalIdentity": "type:d49f64177e",
+   "BlobJournalRole": "type:a262b9be8b",
    "BlobPurgeReason": "type:a2caf09383",
    "BlobStorageKeyFor": "type:48f67f5e31"
   }

@@ -506,15 +506,15 @@
   "types": "./dist/identity/permission-list-tool.d.ts",
   "symbols": {
    "Deps": "interface:74a91ece6d",
-   "buildRegistrations": "function:fb722797ab",
-   "contributeIdentityPolicyListPermissionsTools": "function:8b5d27b5e5",
+   "buildRegistrations": "function:ab08574fe2",
+   "contributeIdentityPolicyListPermissionsTools": "function:8ac277272e",
    "derivedRisk": "variable:f12a513ea4"
   }
  },
  "./identity/repo": {
   "types": "./dist/identity/repo.d.ts",
   "symbols": {
-   "SqlPrincipalRepo": "class:1054e0ed6e",
+   "SqlPrincipalRepo": "class:5df8263a86",
    "SqlUserRepo": "class:3cc9ce025a",
    "SqlVersionedIdentityRequired": "interface:ca2ac109b2",
    "createIdentityTransactions": "function:b0f5b5b489"
@@ -523,14 +523,14 @@
  "./identity/repo.authentication": {
   "types": "./dist/identity/repo.authentication.d.ts",
   "symbols": {
-   "SqlApiKeyRepo": "class:33f5faaa6c",
-   "SqlSessionRepo": "class:66a0663a53"
+   "SqlApiKeyRepo": "class:598768597e",
+   "SqlSessionRepo": "class:04c59a0500"
   }
  },
  "./identity/repo.authorization": {
   "types": "./dist/identity/repo.authorization.d.ts",
   "symbols": {
-   "SqlPolicyPermissionRepo": "class:94e5aab48f",
+   "SqlPolicyPermissionRepo": "class:26a630cf10",
    "SqlPolicyRepo": "class:4a8233c560",
    "SqlRoleRepo": "class:2c09c9f074"
   }
@@ -571,7 +571,7 @@
  "./identity/user-purge": {
   "types": "./dist/identity/user-purge.d.ts",
   "symbols": {
-   "SqlUserPurge": "class:df09a3e8a0",
+   "SqlUserPurge": "class:4c727e2803",
    "UserPurgeSqlPorts": "interface:50dddebf7f"
   }
  },
@@ -672,10 +672,10 @@
   "types": "./dist/member-login/oidc-request.d.ts",
   "symbols": {
    "OidcCallbackResult": "type:be2db14a4e",
-   "completeMemberOidcCallback": "function:2683a6b6ec",
-   "readOidcCallbackParams": "function:8c967afb5c",
-   "readOidcEmailProof": "function:a104522370",
-   "verifyMemberOidcEmailProof": "function:2a6c711f8a"
+   "completeMemberOidcCallback": "function:7c9a3f3cc8",
+   "readOidcCallbackParams": "function:e7b7d6576e",
+   "readOidcEmailProof": "function:bb1a9fd066",
+   "verifyMemberOidcEmailProof": "function:550dcc755e"
   }
  },
  "./member-login/providers": {
@@ -693,7 +693,7 @@
  "./member-login/unlink-identity": {
   "types": "./dist/member-login/unlink-identity.d.ts",
   "symbols": {
-   "unlinkMemberIdentity": "function:019052283c"
+   "unlinkMemberIdentity": "function:0718bc053e"
   }
  },
  "./members/access-resolver": {
@@ -1216,9 +1216,9 @@
    "SiteKeyChoice": "interface:c7a57f2fe1",
    "SiteKeySource": "interface:876579ab61",
    "createProjectKeys": "function:93ba376b59",
-   "isSharedOAuthKey": "variable:24c84e616f",
-   "providerKeyId": "variable:112241fdc0",
-   "providerPluginOf": "variable:7925c4513c"
+   "isSharedOAuthKey": "variable:4e04f43ff2",
+   "providerKeyId": "variable:3901122a13",
+   "providerPluginOf": "variable:6527b50a63"
   }
  },
  "./project-keys/site-references": {
@@ -1248,7 +1248,7 @@
   "symbols": {
    "buildProjectKeyRegistrations": "function:e05bedc848",
    "createProjectKeysCatalog": "function:942e34ca6a",
-   "projectKeysRisk": "variable:41c581dde4"
+   "projectKeysRisk": "variable:2b15fbe3e5"
   }
  },
  "./public-http/routes/mail/feedback": {
@@ -1434,6 +1434,69 @@
    "useFetchQuery": "variable:b45103c385",
    "useInvalidate": "variable:539387119a",
    "useUserManagementKit": "function:78cc420336"
+  }
+ },
+ "./react/mail/Email": {
+  "types": "./dist/react/mail/Email.d.ts",
+  "symbols": {
+   "Email": "function:17fd9f3a6b",
+   "EmailProps": "interface:4c0938bb5d"
+  }
+ },
+ "./react/mail/email-view.types": {
+  "types": "./dist/react/mail/email-view.types.d.ts",
+  "symbols": {
+   "EmailCopy": "interface:a14d0dca26",
+   "EmailCredentialKey": "type:ff3b212a0b",
+   "EmailKit": "interface:719188f94d",
+   "EmailLoadView": "type:00d14e1c26",
+   "EmailLoadedProps": "interface:d2a6920bdb",
+   "EmailNavigate": "type:e9f0298bf0",
+   "EmailParts": "interface:1e63109a7b",
+   "EmailProviderChoice": "interface:3d4007fde6",
+   "EmailProviderControl": "interface:5281aa5dd9",
+   "EmailProviderField": "interface:1842583faf",
+   "EmailProviderView": "interface:2eaa83aa37",
+   "EmailRules": "interface:1ecd220956",
+   "EmailSegmentedProps": "interface:9d42e3ae7b",
+   "EmailStatusControl": "interface:a2a02c033d",
+   "EmailStatusShape": "interface:1cc5aea2bb",
+   "EmailStatusView": "type:d984fe7f26",
+   "EmailSummary": "type:d2349d4921",
+   "EmailTabBarProps": "interface:d7c1bca0b0",
+   "EmailTabHooks": "interface:9d34cc3636",
+   "EmailTabId": "type:5c2e0b78d1",
+   "EmailThemeBoundaryHook": "type:f3ac116c17",
+   "EmailTone": "type:5a4a39a0dd",
+   "EmailTranslate": "type:70da7f2159",
+   "EmailTypes": "interface:df8a74b6ca"
+  }
+ },
+ "./react/mail/EmailProviderTab": {
+  "types": "./dist/react/mail/EmailProviderTab.d.ts",
+  "symbols": {
+   "ADD_PROVIDER_PART": "variable:8eb0e8e071",
+   "CAPABILITIES_PART": "variable:2d03d2d9a5",
+   "EmailProviderTab": "function:2d2e3006da",
+   "EmailProviderTabProps": "interface:2c92bf69bb",
+   "segmentLabel": "function:4ccf9eebc5",
+   "shownProviderId": "function:26d01f0fc2"
+  }
+ },
+ "./react/mail/EmailTemplateEditor": {
+  "types": "./dist/react/mail/EmailTemplateEditor.d.ts",
+  "symbols": {
+   "EmailPreviewMode": "type:5912ce08f3",
+   "EmailTemplateEditor": "function:9e23599f4a",
+   "EmailTemplateEditorControl": "interface:a8bda4f64e",
+   "EmailTemplateEditorCopy": "interface:5271e47187",
+   "EmailTemplateEditorHooks": "interface:5a31924d37",
+   "EmailTemplateEditorKeysArgs": "type:34611fad41",
+   "EmailTemplateEditorKit": "interface:d06a7f3888",
+   "EmailTemplateEditorProps": "interface:3268917751",
+   "EmailTemplateTab": "type:e3c3039e17",
+   "EmailTemplateViewControl": "interface:21f5c0fd91",
+   "editorStatus": "function:20c881ac45"
   }
  },
  "./react/members/api/members-api": {
