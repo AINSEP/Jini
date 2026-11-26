@@ -302,7 +302,7 @@ function memberRemovalHandlers(deps: MembersToolDeps): Record<string, ToolHandle
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: MEMBER_MANAGE_PERMISSION }, { entityType: "member", entityId: memberId });
       ctx.signal.throwIfAborted();
       return trashMember({ workspaceId: deps.workspaceId, memberId, actor: { principalId: ctx.principal.id } },
-        { members: deps.memberRepo, remove: deps.removeMember, clock: { nowIso: () => nowIso({ clock: deps.clock }) } });
+        { members: deps.memberRepo, ...(deps.removeMember === undefined ? {} : { remove: deps.removeMember }), clock: { nowIso: () => nowIso({ clock: deps.clock }) } });
     },
 
     members_disable: async (ctx) => {
@@ -351,7 +351,7 @@ function memberSignInHandlers(deps: MembersToolDeps): Record<string, ToolHandler
         input: {
           workspaceId: deps.workspaceId,
           email,
-          redirectPath: typeof input.redirectPath === "string" ? input.redirectPath : undefined,
+          ...(typeof input.redirectPath === "string" ? { redirectPath: input.redirectPath } : {}),
         },
       });
       // requestSignInLink refuses (MEMBERS_SIGN_IN_UNAVAILABLE) when mail is off, so reaching

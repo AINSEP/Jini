@@ -103,7 +103,7 @@ function userCreateForm(required: { username: string; emailSuffix: string; ports
     submitLabel: "Create user",
     fields: [{ kind: "string", name: "password", label: "Password", hint: "Typed here only, never shown to the assistant.", required: true,
       ...required.ports.secretField }],
-    cancelLabel: "Cancel", app: required.ports.formApp,
+    cancelLabel: "Cancel", ...(required.ports.formApp === undefined ? {} : { app: required.ports.formApp }),
     preferredFrameSize: ["100%", "360px"],
   };
 }
@@ -119,7 +119,7 @@ function userCreateOutcome(required: { run: SecretCardRun<Record<string, unknown
     title: run.status === "saved" ? "User created" : "User not created",
     details: [{ label: "Username", value: username }], state: run.status === "saved" ? "success" : "failure",
     message,
-    app: required.app, preferredFrameSize: ["100%", "240px"],
+    ...(required.app === undefined ? {} : { app: required.app }), preferredFrameSize: ["100%", "240px"],
   };
 }
   /** Each family supplies its own label and service permission; Jini owns the asking sequence.

@@ -142,7 +142,7 @@ export function createNewsletterListSendLogHandler({ deps }: { deps: NewsletterT
   const rows = await deps.newsletterSendRepo.listByCampaign({
     workspaceId: deps.workspaceId,
     campaignId,
-    afterId,
+    ...(afterId === undefined ? {} : { afterId }),
     limit: limit + 1,
   });
   const page = pageFromOverfetch({ rows, limit, positionOf: (row) => [row.id] });

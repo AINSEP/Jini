@@ -142,12 +142,18 @@ export function approvalToolHandler<TPrepared>(
       const description = await describe({ ctx, prepared });
       return description.access
         ? { kind: 'access', ask: true, description, access: description.access }
-        : { ask: ask({ prepared }), description, rememberKey: rememberKey?.({ prepared }) };
+        : withRememberKey({ base: { ask: ask({ prepared }), description }, rememberKey: rememberKey?.({ prepared }) });
     },
     askHuman: ({ ctx, description }, options) => confirm({ ctx, surfaces, spec: description }, options),
     run,
     notConfirmed: declined ?? (({ reason }) => ({ [flag]: false, ...notConfirmedResult({ confirmed: false, reason }) })),
   };
   if (batch) return createBatchApprovalHandler({ steps, combineDescriptions });
-  return createApprovalHandler(steps, { remembered });
+  return createApprovalHandler(steps, remembered === undefined ? {} : { remembered });
+}
+
+/** Adds `rememberKey` only when the caller produced one (exactOptionalPropertyTypes: an absent key, never `undefined`).
+ *  @complexity O(1). */
+function withRememberKey<T extends object>({ base, rememberKey }: { base: T; rememberKey: string | undefined }, _optional = {}): T & { rememberKey?: string } {
+  return rememberKey === undefined ? base : { ...base, rememberKey };
 }

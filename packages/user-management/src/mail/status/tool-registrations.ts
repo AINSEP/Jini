@@ -29,22 +29,22 @@ interface MailTestSendDeps {
   workspaceId: string;
   mailer: MailerPort;
   /** Await current transactional resolution before freezing synchronous capabilities. */
-  mailLaneReady?: (required: { lane: "transactional" | "bulk" }) => Promise<boolean>;
+  mailLaneReady?: ((required: { lane: "transactional" | "bulk" }) => Promise<boolean>) | undefined;
   /** The operator's account, for the default recipient. */
-  userRepo?: Pick<UserRepoPort, "findByPrincipalId">;
+  userRepo?: Pick<UserRepoPort, "findByPrincipalId"> | undefined;
   /** The site's system-mail From (`platform/mail/sender-identity.ts`). */
-  mailSenderIdentity?: MailSenderIdentityPort;
+  mailSenderIdentity?: MailSenderIdentityPort | undefined;
   /** Host copy: the placeholder From for a non-delivering mailer, whose `name` also fills a configured
    *  sender's missing name. Absent: `no-reply@mail.local` named "Site". */
-  mailTestFallbackSender?: { email: string; name: string };
+  mailTestFallbackSender?: { email: string | undefined; name: string } | undefined;
   /** Shared by the route and the tool (one per site, `deps.ts`); absent (hermetic roots), only the
    *  provider's own limits apply. */
-  mailTestSendLimiter?: MailTestSendLimiter;
+  mailTestSendLimiter?: MailTestSendLimiter | undefined;
   /** Fresh `core.mail.testMode`, so a redirect is reported as one. Absent: treated as off. */
-  mailTestMode?: () => Promise<MailTestModeSetting>;
-  mailTestProvider?: () => Promise<string | null>;
+  mailTestMode?: (() => Promise<MailTestModeSetting>) | undefined;
+  mailTestProvider?: (() => Promise<string | null>) | undefined;
   /** Site-owned request results, shared by HTTP and tools; no token is taken on replay. */
-  mailTestRequests?: Map<string, Promise<MailTestSendResult>>;
+  mailTestRequests?: Map<string, Promise<MailTestSendResult>> | undefined;
 }
 
 /** Where the message is meant to go, frozen before any approval card or send. */

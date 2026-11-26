@@ -71,6 +71,9 @@ export interface MediaRecord {
   alt: string;
   caption: string;
   credit: string;
+  /** Plain-language description of what the media shows, written for search. Optional: absent means
+   *  "never described"; an empty string is its cleared form. Mirrors `@jini-ai/cms` `MediaRecord.description`. */
+  description?: string | undefined;
   /** Write-once (see {@link MediaSource} doc). Always set by the time a row exists. */
   source: MediaSource;
   status: MediaStatus;

@@ -11,7 +11,6 @@ test('shape parsing admits a declared namespace before the plugin-specific autho
         clients: { web: { clientIdEnv: 'VENDOR_OTHER_CLIENT_ID' } }, label: 'Account',
         authorizationEndpoint: 'https://issuer.example/authorize', tokenEndpoint: 'https://issuer.example/token',
       }] }) });
-      assert.equal(parsed.ok, true);
       if (!parsed.ok) throw new Error(parsed.reason);
       const module = definition.validate({ exported: { createHooks: () => ({}) } });
       assert.notEqual(typeof module, 'string');

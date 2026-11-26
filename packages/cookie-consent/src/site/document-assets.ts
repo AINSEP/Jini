@@ -48,7 +48,7 @@ async function renderDocumentConsent({ required, config, scripts }: {
   const plugins = await required.plugins({ live });
   const { banner, options } = toSiteCookieConsent({ config, policy: config.policyVersion }, { plugins });
   const rendered = renderBanner({ ...banner, client: { ...banner.client, scripts, ...(live ? { context: `${required.endpoint}/context` } : {}) } }, {
-    ...options, clientSrc: required.clientSrc, extensionSrc: required.extensionSrc,
+    ...options, ...(required.clientSrc === undefined ? {} : { clientSrc: required.clientSrc }), extensionSrc: required.extensionSrc,
     evidence: live ? { mode: 'durable', endpoint: required.endpoint } : { mode: 'local' },
   });
   return { head: rendered.head, body: rendered.body + '<a class="jini-consent-settings" href="#privacy-choices" data-consent-open>Cookie settings</a>' };

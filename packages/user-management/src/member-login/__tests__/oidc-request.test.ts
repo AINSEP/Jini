@@ -7,7 +7,7 @@ vi.mock("../oidc-login.js", () => ({ completeOidcLogin: vi.fn(), openLoginEmailC
 vi.mock("../link-service.js", () => ({ requestLoginEmailProof: vi.fn(), resolveFederatedIdentity: vi.fn() }));
 
 it("checks limits before issuing a bound continuation and rejects extra proof keys", async () => {
-  vi.mocked(completeOidcLogin).mockResolvedValue({ identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" });
+  vi.mocked(completeOidcLogin).mockResolvedValue({ identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" as const });
   vi.mocked(resolveFederatedIdentity).mockResolvedValue({ kind: "email_verification_required", email: "a@example.com", providerId: "p" });
   const calls: string[] = [];
   const result = await completeMemberOidcCallback({ context: { workspaceId: "w", providerId: "p" }, protocol: {} as OidcLoginDeps, links: {} as MemberLoginLinkDeps, browserBinding: () => { calls.push("binding"); return "binding"; }, query: () => { calls.push("query"); return { code: "c", state: "s" }; }, cancelled: () => new Error("cancelled"), userAgent: undefined, ip: "ip", deliveryAllowed: async () => { throw new Error("limited"); }, continuationLocation: () => "location" });
@@ -31,7 +31,7 @@ it("does not link a continuation whose browser binding mismatches", async () => 
 
 it("reads link facts only after callback protocol completion and after a proof retry", async () => {
   const order: string[] = [];
-  const login = { identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" };
+  const login = { identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" as const };
   vi.mocked(completeOidcLogin).mockImplementation(async () => { order.push("protocol"); return login; });
   vi.mocked(resolveFederatedIdentity).mockImplementation(async () => { order.push("link"); return { kind: "email_verification_required", email: "a@example.com", providerId: "p" }; });
   const required = {
@@ -43,7 +43,7 @@ it("reads link facts only after callback protocol completion and after a proof r
   const callback = Object.defineProperties({
     context: required.context, protocol: required.protocol, browserBinding: () => "binding", query: () => ({ code: "c", state: "s" }),
     cancelled: () => new Error("cancelled"), deliveryAllowed: async () => {}, continuationLocation: () => "location",
-  }, Object.getOwnPropertyDescriptors(required)) as Parameters<typeof completeMemberOidcCallback>[0];
+  }, Object.getOwnPropertyDescriptors(required)) as unknown as Parameters<typeof completeMemberOidcCallback>[0];
   await completeMemberOidcCallback(callback);
   expect(order).toEqual(["protocol", "links", "userAgent", "ip", "link"]);
   order.length = 0;

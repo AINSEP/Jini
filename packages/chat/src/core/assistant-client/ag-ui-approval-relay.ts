@@ -58,7 +58,7 @@ interface LogicalTurn {
   readonly signal: AbortSignal;
   readonly carried: AgentEvent[];
   canonicalRunId?: string;
-  pending?: ParkedInterrupt;
+  pending?: ParkedInterrupt | undefined;
   heldDone: boolean;
   resumeRunId?: string;
   settled: boolean;

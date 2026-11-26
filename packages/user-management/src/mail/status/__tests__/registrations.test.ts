@@ -22,7 +22,7 @@ it("rotation carries the omitted username and attaches the saved key before inva
   const provider: MailProviderConfiguration = { id: "mail", label: "Mail", origin: "plugin", hosted: true, lanes: [], capabilities: { feedback: false, domainVerification: false },
     credential: { required: true, saved: true, label: "Mail", credentialId: "key" }, selectable: true, setup: { fields: [] } };
   const update = vi.fn(async () => { calls.push("update"); return { id: "key", username: "login" }; });
-  await saveMailProviderCredential({ control: { describe: async () => ({ setting: {}, providers: [provider], refusals: [] }), check: async () => ({ ok: true, label: "Mail" }),
+  await saveMailProviderCredential({ control: { describe: async () => ({ setting: { transactional: null, bulk: null }, providers: [provider], refusals: [] }), check: async () => ({ ok: true, label: "Mail" }),
     select: async () => {}, invalidate: () => { calls.push("invalidate"); } }, workspaceId: "w", providerId: "mail", category: "ops", input: { token: "replacement" },
     credentials: { describe: async () => ({ id: "key", username: "login" }), update, create: async () => ({ id: "key" }) } },
     { projectKeys: { savedResult: async () => { calls.push("saved"); } } });
@@ -44,7 +44,7 @@ it("capture-clear rereads after approval and refuses a changed revision before c
   const clear = vi.fn(async () => ({ cleared: true as const, deleted: 1 }));
   const planCaptureClear = vi.fn().mockResolvedValueOnce({ plan: { count: 1, newestAt: "before" }, revision: "before", clear })
     .mockResolvedValueOnce({ plan: { count: 2, newestAt: "after" }, revision: "after", clear });
-  const deps = { workspaceId: "w", authorize: async () => ({ allowed: true, reason: "grant" }) } as MailDeliveryToolDeps;
+  const deps = { workspaceId: "w", authorize: async () => ({ allowed: true, reason: "grant" }) } as unknown as MailDeliveryToolDeps;
   const registration = buildMailDeliveryRegistrations(deps, surfaces, { planCaptureClear, approvalToolHandler, deps: { getMailActivity, listMailActivity, listMailSuppressions, MailActivityForbiddenError, MailActivityUnavailableError, MailSuppressionsUnavailableError, planMailSuppressionRemoval, readMailActivityId, readMailActivityQuery, readMailSuppressionQuery, readMailSuppressionRemoval, runMailSuppressionRemoval, readMailFeedbackSetup, mailUseReadinessDepsFrom, readMailUseReadiness } }).find(item => item.descriptor.id === "mail_clear_captured")!;
   await expect(registration.handler(ctx, {})).rejects.toThrow("New test emails arrived");
   expect(planCaptureClear).toHaveBeenCalledTimes(2);

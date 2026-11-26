@@ -21,7 +21,7 @@ export interface PostToolViewDeps {
 }
 
 /** What a Posts/Pages tool returns to the model — see {@link toPostToolView}. */
-interface PostToolView {
+export interface PostToolView {
   template?: string | null;
   author: string | null;
   showAuthor: boolean;
