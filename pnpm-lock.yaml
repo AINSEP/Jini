@@ -1028,6 +1028,12 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../daemon
+      '@jini-ai/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jini-ai/integrations':
+        specifier: workspace:*
+        version: link:../integrations
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
@@ -1764,6 +1770,12 @@ importers:
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
+      '@jini-ai/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@jini-ai/ui':
         specifier: workspace:*
         version: link:../ui

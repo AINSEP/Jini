@@ -19,7 +19,7 @@
       "./content-types/site/publish-content": "universal",
       "./content-duplication/tool-registrations": "universal",
       "./fs-files/tool-registrations": "node",
-      "./fs-files/agent-tools": "node",
+      "./fs-files/agent-tools": "universal",
       "./public-http/routes/site/pages/extra-head": "universal",
       "./public-http/http/site/bare-page": "universal",
       "./public-http/http/site/render/components/marketing": "universal",
@@ -491,7 +491,6 @@
       "./admin-http/routes/publish-content/blob-put": "node",
       "./admin-http/routes/publish-content/blobs-probe": "node",
       "./admin-http/routes/sites/site-previews": "node",
-      "./fs-files/agent-tools": "universal",
       "./fs-files/custom-root-permission": "universal",
       "./fs-files/custom-root-store": "node",
       "./workspace/site/repo.sqlite": "node",
@@ -3821,11 +3820,6 @@
       "import": "./dist/admin-http/routes/sites/site-previews.js",
       "default": "./dist/admin-http/routes/sites/site-previews.js"
     },
-    "./fs-files/agent-tools": {
-      "types": "./dist/fs-files/agent-tools.d.ts",
-      "import": "./dist/fs-files/agent-tools.js",
-      "default": "./dist/fs-files/agent-tools.js"
-    },
     "./fs-files/custom-root-permission": {
       "types": "./dist/fs-files/custom-root-permission.d.ts",
       "import": "./dist/fs-files/custom-root-permission.js",
@@ -5646,9 +5640,7 @@
     "sharp": "^0.35.5",
     "typescript": "^5.6.0",
     "unpdf": "^1.9.1",
-    "@cfworker/json-schema": "^4.1.1",
-    "@jini-ai/devops": "workspace:*",
-    "@jini-ai/user-management": "workspace:*"
+    "@cfworker/json-schema": "^4.1.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",

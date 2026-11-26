@@ -1008,7 +1008,8 @@
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
     "vitest": "^3.2.6",
-    "@jini-ai/platform": "workspace:*"
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/db": "workspace:*"
   },
   "peerDependenciesMeta": {
     "argon2": {
