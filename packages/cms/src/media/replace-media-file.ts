@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { BlobJournalEligibility } from "@jini-ai/core/contracts/blob-gc";
 import { nowIso, type Clock, type IdGenerator } from '@jini-ai/core/primitives';
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
 import type { AssetRenditionRecord, MediaProvenance, MediaRecord } from './types.js';
@@ -64,6 +65,8 @@ export interface ReplaceMediaFileDeps {
   mediaRepo: MediaFileReplacementRepoPort;
   assetBlobRepo: AssetBlobRepoPort;
   blobStore: BlobStorePort;
+  /** Writer-side journal binding (J1a): clears pending unlink eligibility for the key a replacement owns. */
+  journalEligibility?: BlobJournalEligibility | undefined;
 }
 
 /** Bound replacement work and apply the upload sanitizer before hashing or staging.
@@ -134,6 +137,8 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
       } else {
         // An already-active content-addressed blob is reused without another write.
       }
+      // Every path above leaves an active owner row: bytes queued for unlink before now stay (J1a).
+      await deps.journalEligibility?.clearForKeys({ workspaceId: deps.workspaceId, storageKeys: [blob.storageKey] });
       // The adapter records type in the same transaction as CAS; a losing replace cannot change it.
       const replacement: MediaFileReplacementInput = {
         workspaceId: deps.workspaceId,

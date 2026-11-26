@@ -2,7 +2,7 @@
 import { MediaConflictError, MediaSourceImmutableError, resolveWriteOnceSource, replaceMediaFile, MediaValidationError, sniffContentType, MAX_DOCUMENT_BYTES as HOST_MAX_UPLOAD_BYTES } from "../index.js";
 import type { AssetBlobRecord, AssetBlobRepoPort, BlobStorePort, MediaRecord, VersionedMediaRepoPort } from "../index.js";
 import type { OutwardErrorMessage } from "../../admin-http/http/outward-error-message.js";
-import type { BlobFence, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
+import type { BlobFence, BlobJournalEligibility, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
 
 /** The reviewed source a replace-on-import may overwrite (publish-content's precheck refusal carries it). */
 interface MediaSourceReplacement {
@@ -83,6 +83,8 @@ export interface ImportMediaEntityDeps {
   readonly blobFence: BlobFence;
   readonly storageKeyFor: BlobStorageKeyFor;
   readonly verifyStoredBlob: (required: { storageKey: string; sha256: string; byteLength: number }, _optional?: Record<string, never>) => Promise<void>;
+  /** Writer-side journal binding (J1a): clears pending unlink eligibility for the key this import owns. */
+  readonly journalEligibility?: BlobJournalEligibility | undefined;
   readonly clock: { nowIso(): string };
   /** Consulted ONLY for a brand-new `asset_blobs` row's own `id` — never for the media row's id,
    *  which always comes from {@link ImportMediaEntityInput.record} verbatim (this file's whole
@@ -333,6 +335,7 @@ async function ensureAssetBlob(
     if (existingBlob.status === "tombstoned") {
       await deps.assetBlobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
     }
+    await deps.journalEligibility?.clearForKeys({ workspaceId, storageKeys: [storageKey] });
     await deps.verifyStoredBlob({ storageKey, sha256: record.source.sha256, byteLength: bytes.byteLength }, {});
     return false;
   }
@@ -346,6 +349,7 @@ async function ensureAssetBlob(
     status: "active",
   };
   await deps.assetBlobRepo.save(newBlob);
+  await deps.journalEligibility?.clearForKeys({ workspaceId, storageKeys: [storageKey] });
   const stored = await deps.blobStore.putIfAbsent({ workspaceId, sha256: record.source.sha256, bytes });
   if (stored.storageKey !== storageKey) throw new MediaValidationError({ message: "Stored blob key does not match the fenced key" });
   await deps.verifyStoredBlob({ storageKey, sha256: record.source.sha256, byteLength: bytes.byteLength }, {});

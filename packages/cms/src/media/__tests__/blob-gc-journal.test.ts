@@ -11,6 +11,10 @@ import { registerTransform } from "../transform-registry.js";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { InMemoryImageTransformer } from "../image-transformer.js";
+import { InMemoryVersionedMediaRepo } from "../index.js";
+import { importMediaEntity, type ImportMediaEntityDeps } from "../site/import-media-entity.js";
+import { replaceMediaFile, type MediaFileReplacementRepoPort } from "../replace-media-file.js";
+import { bytesMatchSha256, isValidSha256Hex } from "../../publish/transfer/blob-staging.js";
 
 /**
  * J1a/J1c: the journal's provenance contract (each key journaled with ITS OWN digest and an exact
@@ -169,4 +173,39 @@ test("a rendition write records its own output digest and clears eligibility for
   assert.equal(row.sha256, createHash("sha256").update(stored!).digest("hex"));
   assert.notEqual(row.sha256, media.source.sha256);
   assert.deepEqual(cleared.map(call => call.keys), [[row.storageKey]]);
+});
+
+test("an import claiming a key clears its journal eligibility after the row is active", async () => {
+  const { deps } = makeDeps();
+  const media = await uploadOne(deps, "imported-bytes");
+  const cleared: Array<{ keys: readonly string[]; active: boolean }> = [];
+  let n = 0;
+  const assetBlobRepo = new InMemoryAssetBlobRepo({});
+  const importDeps = {
+    mediaRepo: new InMemoryVersionedMediaRepo({}), assetBlobRepo, blobStore: new InMemoryBlobStore(),
+    blobFence: { withKeys: async <T>({ work }: { work: () => Promise<T> }) => work(), withAsset: async <T>({ work }: { work: () => Promise<T> }) => work() },
+    storageKeyFor: keyFor, verifyStoredBlob: async () => {},
+    clock: { nowIso: () => "2026-09-18T00:00:00.000Z" }, idGen: { newId: () => `g-${++n}` },
+    sha256: { isValidSha256Hex, bytesMatchSha256 }, outwardErrorMessage: ({ error }: { error: Error }) => error.message,
+    journalEligibility: { clearForKeys: async ({ workspaceId, storageKeys }: { workspaceId: string; storageKeys: readonly string[] }) => {
+      const row = await assetBlobRepo.findByHash({ workspaceId, sha256: media.source.sha256 });
+      cleared.push({ keys: [...storageKeys], active: row?.status === "active" });
+    } },
+  } satisfies ImportMediaEntityDeps;
+  await importMediaEntity({ deps: importDeps, input: { workspaceId: WS, record: media, bytes: new TextEncoder().encode("imported-bytes"), blobCreatedByPrincipal: "importer", baseVersion: null } });
+  assert.deepEqual(cleared, [{ keys: [keyFor({ workspaceId: WS, sha256: media.source.sha256 })], active: true }]);
+});
+
+test("a file replacement clears journal eligibility for the key it now owns", async () => {
+  const { deps, cleared } = makeDeps();
+  const media = await uploadOne(deps, "before-replace");
+  const mediaRepo: MediaFileReplacementRepoPort = Object.assign(deps.mediaRepo, {
+    replaceFileIfVersion: async () => ({ applied: true }), saveRenditionIfSource: async () => ({ applied: true }),
+  });
+  cleared.length = 0;
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  await replaceMediaFile({ deps: { workspaceId: WS, clock: deps.clock, idGen: deps.idGen, mediaRepo, assetBlobRepo: deps.blobRepo, blobStore: deps.blobStore,
+    journalEligibility: deps.journalEligibility }, media, bytes, contentType: "image/jpeg", principalId: "owner" });
+  const newKey = keyFor({ workspaceId: WS, sha256: createHash("sha256").update(bytes).digest("hex") });
+  assert.deepEqual(cleared, [{ keys: [newKey], activeAtClear: true }]);
 });
