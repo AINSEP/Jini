@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { createSettingsTabs } from "../settings-tabs.js";
+import { createPrivacyConsentBrowserAdapter, createSettingsTabs } from "../settings-tabs.js";
 import { loadNamespaceValues, saveChangedEntries } from "../ledger-slice.js";
 
 function fixture() {
@@ -99,6 +99,30 @@ test("metrics success signals before a later write fails", async () => {
   fail("telemetry.content");
   await expect(tabs.savePrivacy({ ...deps.DEFAULT_PRIVACY, telemetry: { metrics: true, content: true } }, deps.DEFAULT_PRIVACY)).rejects.toThrow("write failed");
   expect(events).toEqual(["write:telemetry.metrics", "saved:true", "write:telemetry.content"]);
+});
+
+test("browser consent callbacks deny despite storage failure and clear the marker before a saved signal", () => {
+  const events: string[] = [];
+  const storageError = new Error("storage denied");
+  const observe = vi.fn();
+  const browser = {
+    localStorage: {
+      setItem: vi.fn(() => { events.push("marker:deny"); throw storageError; }),
+      removeItem: vi.fn(() => { events.push("marker:clear"); }),
+    },
+    dispatchEvent: vi.fn((event: Event) => { events.push(`${event.type}:${(event as Event & { detail: boolean }).detail}`); return true; }),
+  };
+  const callbacks = createPrivacyConsentBrowserAdapter({ deps: {
+    getBrowser: () => browser, createEvent: (type, init) => Object.assign(new Event(type), { detail: init.detail }),
+    observe, withdrawalKey: "withdrawal", consentEvent: "consent",
+    saveMarkerStep: "Save metrics withdrawal marker", clearMarkerStep: "Clear metrics withdrawal marker",
+  } });
+  callbacks.onMetricsWithdrawal();
+  expect(browser.localStorage.setItem).toHaveBeenCalledExactlyOnceWith("withdrawal", "1");
+  expect(observe).toHaveBeenCalledExactlyOnceWith({ error: storageError, step: "Save metrics withdrawal marker" });
+  callbacks.onMetricsSaved({ metrics: true });
+  expect(browser.localStorage.removeItem).toHaveBeenCalledExactlyOnceWith("withdrawal");
+  expect(events).toEqual(["marker:deny", "consent:false", "marker:clear", "consent:true"]);
 });
 
 test("appearance normalizes unknown themes and preserves per-theme drafts on scalar saves", async () => {

@@ -1,4 +1,5 @@
-import { act, cleanup, renderHook } from "@testing-library/react";
+// @vitest-environment jsdom
+import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { bindExternalMcpAdmissions } from "../hooks/use-external-mcp-admissions.hooks.js";
@@ -63,4 +64,78 @@ test("admissions binding retains transient classification and resolves wired cop
   expect(useCopyHook).toHaveBeenCalledOnce();
   expect(result.current.canRestart).toBe(false);
   expect(result.current.restartAccepted).toBe(false);
+});
+
+
+test("the saved Tools count renders without a probe; opening mounts the picker for that server", async () => {
+  const { bindExternalMcpSettingsPanel } = await import("../ExternalMcpSettingsPanel.js");
+  const probe = vi.fn();
+  const source = { id: "saved", label: "Saved server", enabled: true, fields: { transport: "streamable_http", authMode: "none", allowedToolNames: "read,write" } };
+  const dependencies = { port: { fetchSources: async () => [source], addSource: async () => ({ ok: false }), removeSource: async () => true } };
+  const list = { sources: [source], loading: false, error: null, testResults: {},
+    capabilities: { canRefresh: false, canSetTrust: false, canTest: true, canUpdate: true },
+    isPending: () => false, reload: vi.fn(async () => {}), addSourceToList: vi.fn(),
+    remove: vi.fn(async () => {}), refresh: vi.fn(async () => {}), test: vi.fn(async () => {}),
+    setTrust: vi.fn(async () => {}), update: vi.fn(async () => {}),
+  };
+  const noop = () => null;
+  const unusedHook = () => { throw new Error("unmounted collaborator"); };
+  const Bound = bindExternalMcpSettingsPanel({
+    hooks: {
+      useTHook: () => key => key, useExternalMcpDriftCopyHook: () => key => key,
+      useWiredSourceConfigListHook: () => list,
+      useExternalMcpAddFormHook: () => ({ formOpen: false, toggleForm: vi.fn(), cancelForm: vi.fn(), fieldSpecs: [],
+        addForm: { values: {}, validation: { ok: true, issues: [] }, submitAttempted: false, submitting: false, submitError: null,
+          setField: vi.fn(), submit: vi.fn(async () => {}), reset: vi.fn() } }),
+      useSavedAllowedToolNamesByIdHook: () => ({}),
+      useExternalMcpAdmissionsHook: () => ({ loading: false, waitingForAssistant: false, unavailable: null,
+        connections: [], restartHelps: false, canRestart: false, restarting: false, restartError: null, restartAccepted: false, restart: vi.fn() }),
+      useKitT: () => key => key, useFocusTrap: unusedHook, useExternalMcpToolsModalEscape: unusedHook, useExternalMcpRemoveConfirm: unusedHook, useHostExternalMcpSharedChoice: unusedHook,
+      useConnect: () => ({ state: { phase: "idle" }, connect: vi.fn(async () => {}), cancel: vi.fn() }),
+    },
+    kit: {
+      Icon: noop, InfoTip: noop, SourceConfigAddForm: noop, ConfirmActionDialog: noop,
+      SourceConfigItemCard: ({ source }) => <div>{source.label}</div>,
+      ExternalMcpToolsModal: ({ serverId, allowedToolNames, onClose }) => {
+        probe({ serverId });
+        return <div role="dialog"><span>{allowedToolNames}</span><button onClick={onClose}>close</button></div>;
+      },
+      ExternalMcpSharedChoice: noop,
+      ExternalMcpRemoveConfirmDialog: noop,
+    },
+    deps: {
+      buildExternalMcpCardHandles: ({ sourceIds }) => sourceIds.map(id => `mcp-${id}`),
+      buildExternalMcpFieldSpecs: () => [], sourceDisplayLabel: ({ source }) => source.label ?? source.id,
+      isBuiltInExternalMcpSource: () => false, externalMcpNeedsSignIn: () => false,
+      resolveExternalMcpEffectiveTransport: fields => fields.transport === "streamable_http" ? "streamable_http" : "stdio",
+      resolveExternalMcpEffectiveAuthMode: () => "none", parseSavedToolNames: ({ value }) => value?.split(",") ?? [],
+      grantWriteFieldValue: ({ remoteName }) => remoteName, describeDriftHeadline: () => "drift",
+      buildExternalMcpRemoveConfirmCopy: () => ({ title: "Remove", body: "Confirm removal" }),
+      EXTERNAL_MCP_DRIFT_COPY: {
+        refusal: {
+          "remote-declares-destructive": { kind: "destructive", key: "destructive" },
+          "remote-declares-not-read-only": { kind: "needs-write-grant", key: "grant" },
+          "missing-or-invalid-input-schema": { kind: "server-side-defect", key: "schema" },
+          "invalid-remote-tool-name": { kind: "server-side-defect", key: "name" },
+          "duplicate-remote-tool-name": { kind: "server-side-defect", key: "duplicate" },
+          "connection-tool-cap-reached": { kind: "server-side-defect", key: "cap" },
+        },
+        refusedFallback: "refused", notOffered: "absent", inertWriteGrant: "inert", stillLive: "live", notRunning: "stopped",
+        disabledButRunning: "disabled", removedButStillRunning: "removed", decryptFailed: "decrypt", failedToStart: "start",
+        launcherMissing: "launcher", restartHeadline: "restart", noRestartHeadline: "no restart", needsSignIn: "sign in",
+      },
+      EXTERNAL_MCP_PICKER_COLLABORATORS: { useExternalMcpDriftCopyHook: () => key => key, useTHook: () => key => key,
+        productVars: { productName: "Host" }, useWiredExternalMcpToolPickerHook: unusedHook, useToolRowHandlesHook: unusedHook, useToolPickerFilterHook: unusedHook },
+      EXTERNAL_MCP_PRODUCT_VARS: { productName: "Host" }, EXTERNAL_MCP_ADD_FORM_HANDLE: "mcp-add",
+    },
+  });
+  render(<Bound dependencies={dependencies} />);
+  expect(screen.getByRole("button", { name: "Open tool permissions for Saved server — 2 enabled" })).toBeTruthy();
+  expect(probe).not.toHaveBeenCalled();
+  act(() => screen.getByRole("button", { name: "Open tool permissions for Saved server — 2 enabled" }).click());
+  expect(probe).toHaveBeenCalledExactlyOnceWith({ serverId: "saved" });
+  expect(screen.getByRole("dialog").textContent).toContain("read,write");
+  act(() => screen.getByText("close").click());
+  expect(screen.queryByRole("dialog")).toBeNull();
+
 });

@@ -31,6 +31,7 @@
       "./federation/hosted/external-mcp-repo": "node",
       "./react/external-mcp/ExternalMcpAdmissionsBanner": "browser",
       "./react/external-mcp/ExternalMcpSettingsPanel.hooks": "browser",
+      "./react/external-mcp/ExternalMcpSettingsPanel": "browser",
       "./react/external-mcp/hooks/use-external-mcp-admissions.hooks": "browser",
       "./external/tool-registrations": "node",
       "./react/external-mcp/hooks/use-external-mcp.hooks": "browser"
@@ -129,6 +130,11 @@
       "types": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.d.ts",
       "import": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.js",
       "default": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.js"
+    },
+    "./react/external-mcp/ExternalMcpSettingsPanel": {
+      "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.d.ts",
+      "import": "./dist/react/external-mcp/ExternalMcpSettingsPanel.js",
+      "default": "./dist/react/external-mcp/ExternalMcpSettingsPanel.js"
     },
     "./react/external-mcp/ExternalMcpSettingsPanel.hooks": {
       "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.d.ts",

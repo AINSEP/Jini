@@ -486,6 +486,7 @@
       "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser",
       "./screens/settings/settings-execution-i18n": "universal",
       "./screens/settings/SettingsUi.hooks": "browser",
+      "./screens/settings/SettingsUi": "browser",
       "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser",
       "./screens/settings/external-mcp-drift-copy": "universal",
       "./screens/content-analysis/ContentAnalysisCard": "browser",
@@ -3489,6 +3490,11 @@
       "types": "./dist/screens/settings/settings-execution-i18n.d.ts",
       "import": "./dist/screens/settings/settings-execution-i18n.js",
       "default": "./dist/screens/settings/settings-execution-i18n.js"
+    },
+    "./screens/settings/SettingsUi": {
+      "types": "./src/screens/settings/SettingsUi.tsx",
+      "import": "./src/screens/settings/SettingsUi.tsx",
+      "default": "./src/screens/settings/SettingsUi.tsx"
     },
     "./screens/settings/SettingsUi.hooks": {
       "types": "./dist/screens/settings/SettingsUi.hooks.d.ts",
