@@ -113,7 +113,8 @@ it("A large local video writes before pulling the next chunk.", async () => {
   const root = await filesystem.mkdtemp(join(tmpdir(), "media-stream-test-"));
   try {
     const { deps, ctx, handler } = fixture();
-    const first = Buffer.alloc(64 * 1024); first.write("ftypqt  ", 4);
+    const first = Buffer.alloc(64 * 1024 + 3); first.write("ftypqt  ", 4);
+    first.set([0x11, 0x22, 0x33], 64 * 1024);
     const second = Buffer.from("video remainder");
     const expected = Buffer.concat([first, second]);
     let acknowledged = false;
@@ -157,8 +158,12 @@ it("A large local video writes before pulling the next chunk.", async () => {
     expect(deps.storage.upload).not.toHaveBeenCalled();
     deps.source.validateBytes.mockReturnValue("image/png");
     deps.source.withStagedFile.mockClear();
-    await expect(handler("media_import_local_file")(ctx({ root: "site", path: "large.png" }))).rejects.toThrow();
+    deps.storage.uploadStagedVideo.mockClear();
+    await expect(handler("media_import_local_file")(ctx({ root: "site", path: "large.png" }))).rejects.toThrow("exceeds the 16-byte import limit");
     expect(deps.source.withStagedFile).not.toHaveBeenCalled();
+    expect(deps.source.readLocal).not.toHaveBeenCalled();
+    expect(deps.storage.upload).not.toHaveBeenCalled();
+    expect(deps.storage.uploadStagedVideo).not.toHaveBeenCalled();
   } finally { await filesystem.rm(root, { recursive: true, force: true }); }
 });
 

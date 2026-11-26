@@ -45,15 +45,19 @@ async function boundFixture() {
 it("bound ports match the existing contributor without adding writer fields to the bag", async () => {
   const f = await boundFixture();
   const direct = contributeMediaPublish({ createRepoPublishHandler }).build({ ...f.deps, ports: { media: { ...f.media, createHash, sha256: { bytesMatchSha256, isValidSha256Hex }, createBlobWriteBindings: f.createBlobWriteBindings, uploadCaps: f.uploadCaps } } });
-  expect(await f.handler.precheck({ entity: f.entity })).toBe(await direct.precheck({ entity: f.entity }));
+  const precheck = await f.handler.precheck({ entity: f.entity });
+  expect(precheck).toBe(await direct.precheck({ entity: f.entity }));
   expect(f.handler.permission).toBe(direct.permission);
+  expect(f.handler.permission).toBe("content.write");
+  expect(precheck).toBeNull();
   expect(f.media).not.toHaveProperty("uploadCaps");
   expect(f.media).not.toHaveProperty("createBlobWriteBindings");
 });
 
 it("the bound contributor records the normalized video's sniffed content type", async () => {
   const f = await boundFixture();
-  await f.handler.apply({ entity: f.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "video" });
+  const entity = { ...f.entity, state: { ...f.entity.state, source: { ...f.record.source, contentType: "video/webm" } } };
+  await f.handler.apply({ entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "video" });
   expect(await f.contentTypeStore.getMany({ workspaceId: "site", sha256s: [f.record.source.sha256] })).toEqual(new Map([[f.record.source.sha256, "video/mp4"]]));
   expect((await f.repo.findById({ workspaceId: "site", id: "video" }))?.source.sha256).toBe(f.record.source.sha256);
   expect(f.createBlobWriteBindings).toHaveBeenCalledWith({ blobStore: f.blobStore, bytesMatchSha256 });

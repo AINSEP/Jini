@@ -9,6 +9,7 @@ it("preserves host styling identity while selecting each editor surface", () => 
   expectTypeOf<PageEditorSurface>().toEqualTypeOf<PageEditorSurface<unknown>>();
   expect(interactive).toEqual({ kind: "interactive", styling });
   if (interactive.kind !== "interactive") throw new Error("Expected interactive surface");
+  expectTypeOf(interactive.styling).toEqualTypeOf<typeof styling>();
   expect(interactive.styling).toBe(styling);
   expect(pageEditorSurface({ view: "preview", canvasStyling: ready })).toEqual({ kind: "preview" });
   expect(pageEditorSurface({ view: "html", canvasStyling: ready })).toEqual({ kind: "html" });

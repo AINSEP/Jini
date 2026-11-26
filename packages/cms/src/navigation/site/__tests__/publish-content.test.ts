@@ -19,11 +19,19 @@ it("retries one nested repoint conflict, records the final change set, and leave
     return row;
   };
   const authorize = vi.fn(async () => ({ allowed: true, reason: "grant" }));
+  const changeSets = new InMemoryChangeSetRepo();
   const handler = contributeMenusPublish({ createRepoPublishHandler, updateMenuTree, applyRunActor }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
-    ports: { menu: { repo, bindingRepo: {} as never } }, authorize, outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort, changeSets: new InMemoryChangeSetRepo(), mutationActor: { id: "owner", kind: "user" } });
+    ports: { menu: { repo, bindingRepo: {} as never } }, authorize, outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort, changeSets, mutationActor: { id: "owner", kind: "user" } });
   expect(await handler.repointReferences!({ replacements: [{ entityType: "post", oldId: "old", newId: "new" }], skipIds: new Set(), principalId: "owner", runId: "run" })).toEqual({
     changeSetIds: ["change"], linksUpdated: 1, notUpdated: [],
   });
   expect(authorize).toHaveBeenCalledTimes(2);
+  const repointed = await originalFind({ workspaceId: "w", id: "nested" });
+  expect(repointed?.doc.items.find(item => item.id === "parent")?.children?.find(item => item.id === "child")?.target)
+    .toEqual({ kind: "entryRef", entryId: "new" });
+  const saved = await changeSets.findById({ workspaceId: "w", id: "change" });
+  expect(saved?.items).toHaveLength(1);
+  expect(saved?.items[0]).toMatchObject({ entityId: "nested", entityVersionAtApply: 3 });
+  expect(saved?.items[0]?.inversePayload).toEqual({ items: nested.doc.items });
   expect(await originalFind({ workspaceId: "w", id: "untouched" })).toEqual(untouched);
 });

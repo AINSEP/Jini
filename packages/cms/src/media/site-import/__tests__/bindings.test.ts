@@ -1,8 +1,17 @@
 import { expect, test, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
-import { bindMediaImportTools } from "../bindings.js";
+import { createHash } from "node:crypto";
+import * as filesystem from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createGuardedFileReader, createNodeGuardedReaderFilesystem, createStagedFileAdapter, FsFilePathError } from "@jini-ai/platform/fs";
+import { createLocalFsObjectStore } from "@jini-ai/platform/object-store";
+import { bindMediaImportTools, type MediaImportToolDeps } from "../bindings.js";
 import { MediaImportValidationError } from "../../import/index.js";
-import type { VideoImportOptions } from "../../site/import-video-conversion.js";
+import { createConvertingStagedUploader, createConvertingUploader, type VideoImportOptions } from "../../site/import-video-conversion.js";
+import { blobStoreFromObjectStore, computeBlobStorageKey, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryVersionedMediaRepo, sniffContentType } from "../../index.js";
+import { replaceMediaFile } from "../../replace-media-file.js";
+import { InMemoryMediaContentTypeStore } from "../../site/content-type-store.js";
 import type { MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
 
 const bytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -55,6 +64,54 @@ test("local reads are clamped to the file ceiling and allow a smaller host limit
   await tool!.handler({ ...f.ctx, input: { root: "site", path: "asset.png" } });
   expect(f.read).toHaveBeenLastCalledWith({ rootPath: "/site", relativePath: "asset.png", maxBytes: 20 });
   expect(f.createConvertingUploader.mock.calls.map(([, optional]) => optional.video)).toEqual([undefined, undefined]);
+});
+
+test("a bound local video above the ordinary ceiling persists the original bytes through staged storage", async () => {
+  const root = await filesystem.mkdtemp(join(tmpdir(), "bound-media-import-"));
+  try {
+    const workspaceId = "site";
+    const path = "clip.mov";
+    const video = Buffer.alloc(32, 0x35);
+    video.writeUInt32BE(video.length);
+    video.write("ftypqt  ", 4);
+    const sha256 = createHash("sha256").update(video).digest("hex");
+    await filesystem.writeFile(join(root, path), video);
+    const blobStore = blobStoreFromObjectStore({ store: createLocalFsObjectStore({ rootDir: join(root, "objects") }) });
+    const assetRenditionRepo = new InMemoryAssetRenditionRepo({});
+    const mediaRepo = new InMemoryVersionedMediaRepo({}, { renditionRepo: assetRenditionRepo });
+    let id = 0;
+    const deps: MediaImportToolDeps = { workspaceId, authorize: async () => ({ allowed: true, reason: "grant" }),
+      mediaRepo, assetBlobRepo: new InMemoryAssetBlobRepo({}), assetRenditionRepo, blobStore,
+      clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) }, createHash, siteBinding: { dir: root },
+      mediaContentTypeStore: new InMemoryMediaContentTypeStore(),
+      mediaImportHttpClient: { send: async () => { throw new Error("unexpected HTTP request"); } },
+    };
+    const { withStagedFile } = createStagedFileAdapter({ filesystem, sniffContentType, withTempRoot: ({ work }) => work({ root }) });
+    const openFsFileForRead = vi.fn(async () => { throw new Error("unexpected whole-file read"); });
+    const binding = bindMediaImportTools<VideoImportOptions>({
+      fsRootIds: ["site"], recoveryText: "Pick a folder.", mediaAssetReadToolId: "read_asset",
+      resolveSiteFileRequest: ({ routeDeps, relativePath }) => ({ rootPath: routeDeps.siteBinding.dir, relativePath }),
+      openFsFileForRead,
+      withLocalStream: ({ rootPath, ...input }, optional) => createGuardedFileReader({
+        rootPath, filesystem: createNodeGuardedReaderFilesystem({}), denyRules: { segments: new Set(), filenamePatterns: [] },
+        limits: { maxFileBytes: 64, binarySniffBytes: 16, maxListedFiles: 8, maxWalkDepth: 2, maxWalkEntries: 8 },
+      }, { descriptorRead: {} }).withGuardedBinaryStream(input, optional),
+      withStagedFile, createConvertingUploader, createConvertingStagedUploader, replaceMediaFile,
+      uploadLimitForFile: () => 64, uploadCaps: { maxUploadBytes: 16, maxVideoUploadBytes: 64 },
+      fetchImage: async () => { throw new Error("unexpected remote fetch"); }, validateImageBytes: sniffContentType,
+      EgressRefusedError, isPathRefusal: ({ error }) => error instanceof FsFilePathError, logEgressRefusal: vi.fn(),
+    });
+    const tool = binding.buildMediaImportRegistrations({ deps, resolvePublicUrls: async () => new Map() })
+      .find(row => row.descriptor.id === "media_import_local_file")!;
+    const receipt = await tool.handler({ executionId: "e", run: { id: "run" }, principal: { id: "human" },
+      signal: new AbortController().signal, input: { root: "site", path } });
+    const rows = await mediaRepo.list({ workspaceId });
+    expect(rows).toMatchObject([{ originalFilename: "clip.mov", createdBy: "human",
+      source: { sha256, contentType: "video/quicktime", provenance: { kind: "upload", path: "clip.mov" } } }]);
+    expect(receipt).toMatchObject({ media: { id: rows[0]?.id, sha256 } });
+    expect(Buffer.from(await blobStore.get({ storageKey: computeBlobStorageKey({ workspaceId, sha256 }) }))).toEqual(video);
+    expect(openFsFileForRead).not.toHaveBeenCalled();
+  } finally { await filesystem.rm(root, { recursive: true, force: true }); }
 });
 
 test("legacy shape classification includes typed import and egress errors but not transport failures", () => {

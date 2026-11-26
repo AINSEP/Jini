@@ -11,4 +11,8 @@ test('only confirmed or pending deploy runs enter replay selection', async () =>
   const pending = { ...row, kind: 'deploy' as const, status: 'started' };
   await store.recordSuccess({ workspaceId: 'ws', entry: pending });
   assert.deepEqual(await store.listDestinationHistory({ workspaceId: 'ws' }), [pending]);
+  const peer: PublishHistoryEntry = { kind: 'peer', target: 'host', projectName: 'Peer', url: 'https://peer.example', reachable: true,
+    status: 'ready', publishedAt: '2026-11-25T00:00:01Z', triggeredBy: 'agent_tool' };
+  await store.recordSuccess({ workspaceId: 'ws', entry: peer });
+  assert.deepEqual(await store.listDestinationHistory({ workspaceId: 'ws' }), [peer, pending]);
 });

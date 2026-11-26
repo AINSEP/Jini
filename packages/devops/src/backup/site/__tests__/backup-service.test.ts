@@ -38,6 +38,18 @@ it("a private-target refusal precedes snapshot, collection and plan writes", asy
   expect(f.captureDatabaseSnapshot).not.toHaveBeenCalled(); expect(f.collectSiteBackupFiles).not.toHaveBeenCalled(); expect(f.save).not.toHaveBeenCalled();
 });
 
+it("a reserved backup folder is refused before repository inspection, snapshot, collection or plan writes", async () => {
+  const f = fixture();
+  Object.assign(f.provider, { reservedPaths: [".fixture"] });
+  const result = planSiteBackup({ deps: f.deps, call: { input: { owner: "owner", repo: "repo", folder: ".fixture/backup" }, principal: { id: "owner" }, signal: new AbortController().signal } });
+  await expect(result).rejects.toBeInstanceOf(CustomCredentialValidationError);
+  await expect(result).rejects.toMatchObject({ message: "the backup folder must not be inside '.fixture': '.fixture/backup'" });
+  expect(f.provider.inspectBackupRepository).not.toHaveBeenCalled();
+  expect(f.captureDatabaseSnapshot).not.toHaveBeenCalled();
+  expect(f.collectSiteBackupFiles).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+});
+
 it("a fresh parent SHA change refuses before uploads or a commit (mutation: backup-recheck-parent)", async () => {
   const f = fixture(); f.repository.parentCommitSha = "changed";
   f.uploadBackupBlob.mockResolvedValue({ ok: true, blob: { blobSha: "blob" } });

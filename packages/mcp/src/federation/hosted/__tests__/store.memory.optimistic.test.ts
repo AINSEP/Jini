@@ -58,9 +58,13 @@ describe("insert", () => {
 describe("updateIfVersion", () => {
   test("guarded OAuth edits reject a different creation time with matching version and pointers", async () => {
     const { repo, stored } = await seeded();
-    expect(await repo.updateIfVersion({ record: { ...stored, oauthClientId: null }, expectedVersion: stored.version,
+    const edit = { ...stored, oauthClientId: null, label: "Reviewed" };
+    expect(await repo.updateIfVersion({ record: edit, expectedVersion: stored.version,
       expectedCreatedAt: LATER, replaces: replaces(stored) })).toBe(false);
     expect(await repo.findByServerId(stored)).toEqual(stored);
+    expect(await repo.updateIfVersion({ record: edit, expectedVersion: stored.version,
+      expectedCreatedAt: stored.createdAt, replaces: replaces(stored) })).toBe(true);
+    expect((await repo.findByServerId(stored))?.label).toBe("Reviewed");
   });
 
   test("T-stale: a save from an old screen is refused after another save landed, and the first save stays", async () => {
@@ -99,11 +103,16 @@ describe("updateOAuthRuntime", () => {
     const replacement = (await repo.findByServerId(stored))!;
     expect(replacement.sealedOAuth).toEqual(stored.sealedOAuth);
     const late = envelope(stored, "mcp-auth", "auth-late", "late");
+    const patch = { oauthStatus: "connected" as const, oauthExpiresAt: LATER, oauthRefreshLeaseUntil: null,
+      sealedOAuth: late, oauthAadVersion: 1, updatedAt: LATER };
     expect(await repo.updateOAuthRuntime({ key: stored, expectedSealedOAuth: stored.sealedOAuth,
-      expectedConfig: { createdAt: stored.createdAt, version: stored.version },
-      patch: { oauthStatus: "connected", oauthExpiresAt: LATER, oauthRefreshLeaseUntil: null,
-        sealedOAuth: late, oauthAadVersion: 1, updatedAt: LATER } })).toBe(false);
+      expectedConfig: { createdAt: stored.createdAt, version: stored.version }, patch })).toBe(false);
     expect(await repo.findByServerId(stored)).toEqual(replacement);
+    expect(await repo.updateOAuthRuntime({ key: replacement, expectedSealedOAuth: replacement.sealedOAuth,
+      expectedConfig: { createdAt: replacement.createdAt, version: replacement.version }, patch })).toBe(true);
+    expect((await repo.findByServerId(replacement))?.sealedOAuth).toEqual({
+      keyId: "k", ciphertext: "late", nonce: "bg==", alg: "toy",
+    });
   });
 
   test("refresh-vs-disable: a refresh that read the row before an admin disabled it leaves the row disabled and its version alone", async () => {

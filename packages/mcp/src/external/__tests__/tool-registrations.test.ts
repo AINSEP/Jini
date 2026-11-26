@@ -63,6 +63,9 @@ test('access review never falls back to a raw remote endpoint', async () => {
     input: { id: 'server', enabled: false }, signal: new AbortController().signal };
   await handler(ctx);
   assert.equal(captured, 'Remote endpoint unavailable.');
+  record.url = 'https://remote.example:8443/tools?fixture=private';
+  await handler(ctx);
+  assert.equal(captured, 'https://remote.example:8443');
   record.transport = 'stdio';
   record.url = null;
   record.command = 'node';

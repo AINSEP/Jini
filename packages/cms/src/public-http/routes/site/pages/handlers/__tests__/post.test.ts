@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import type { PublicPostRecord } from '../../../../../../posts/post.js';
 import { renderTemplateBranchIfEligible, renderBarePostPage, renderGenericPostPage } from '../post.js';
 
-it('forwards absent HTML embeds and document assets through bare and generic post renders', async () => {
+it('forwards absent and supplied HTML embeds and document assets through bare and generic post renders', async () => {
   const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Post', slug: 'post', bodyJson: {}, kind: 'post', bodyFormat: 'doc', bodyHtml: null, status: 'published', updatedAt: 'now', version: 1 };
   const deps = {
     resolveSiteTitleForRender: async () => 'Site',
@@ -29,6 +29,24 @@ it('forwards absent HTML embeds and document assets through bare and generic pos
       expect(required.renderAssets).toBeUndefined();
       expect(Object.hasOwn(required, 'siteAssistantEnabled')).toBe(true);
       expect(required.siteAssistantEnabled).toBeUndefined();
+      return 'generic';
+    },
+  } })).toBe('generic');
+
+  const embeds = new Map();
+  const assets = async () => ({ head: '<!--asset-->', body: '' });
+  const withAssets = { ...deps, resolveHtmlEmbedsForRender: async () => embeds, documentAssets: assets };
+  expect(await renderBarePostPage({ post, deps: { ...withAssets, renderBareEntryDocument: required => {
+    expect(required.pageHtmlEmbeds).toBe(embeds);
+    expect(required.documentAssets).toEqual({ head: '<!--asset-->', body: '' });
+    return 'bare';
+  } } })).toBe('bare');
+  expect(await renderGenericPostPage({ post, posts: [], siteAssistantEnabled: undefined, deps: {
+    ...withAssets, resolveAssignedTermsForRender: async () => [], resolveSiteTimeZoneForRender: async () => 'UTC',
+    renderCommentsMarkers: async ({ html }) => html,
+    renderSite: async required => {
+      expect(required.pageHtmlEmbeds).toBe(embeds);
+      expect(required.renderAssets).toBe(assets);
       return 'generic';
     },
   } })).toBe('generic');

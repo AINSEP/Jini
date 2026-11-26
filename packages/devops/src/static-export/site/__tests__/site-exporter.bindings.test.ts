@@ -34,12 +34,26 @@ function fixture() {
   return { routeDeps, buildPreviewExportManifest };
 }
 
-test("consent assets join declared scripts and the destination URL owns the output prefix", async () => {
+test("consent assets join declared scripts, the destination URL owns the prefix, and export uses host fetch", async () => {
   const { routeDeps } = fixture();
-  await exportHostSite({ routeDeps, outputDir: "/unused-export", publicUrl: "https://destination.example/copy", basePath: "/ignored" });
-  const [args, options] = runner.run.mock.calls.at(-1)!;
-  expect(options).toEqual({ basePath: "/copy" });
-  expect(typeof args.assetUrls === "function" ? await args.assetUrls() : args.assetUrls).toEqual(["/theme-assets/active.js", "/_consent/runtime.js"]);
+  const bytes = Buffer.from("fixture");
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(bytes, { headers: { "content-type": "application/octet-stream" } }));
+  const globalFetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected global fetch"));
+  try {
+    await exportHostSite({ routeDeps: { ...routeDeps, fetch,
+      bindExportMediaUrls: () => ({ workspaceId: routeDeps.workspaceId, originRegistry: routeDeps.originRegistry,
+        findMedia: vi.fn(), resolveContentTypes: vi.fn(), mediaPublicPath: vi.fn() }),
+    }, outputDir: "/unused-export", publicUrl: "https://destination.example/copy", basePath: "/ignored" });
+    const [args, options] = runner.run.mock.calls.at(-1)!;
+    expect(options).toEqual({ basePath: "/copy" });
+    expect(typeof args.assetUrls === "function" ? await args.assetUrls() : args.assetUrls).toEqual(["/theme-assets/active.js", "/_consent/runtime.js"]);
+    const url = "http://localhost:1234/assets/fixture.bin";
+    const init = { headers: { "x-export-fixture": "binding" } };
+    const response = await args.fetch({ url }, { init });
+    expect(fetch.mock.calls).toEqual([[url, init]]);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(globalFetch).not.toHaveBeenCalled();
+  } finally { globalFetch.mockRestore(); }
 });
 
 test("an explicit theme suppresses previews and is passed only to the fresh app", async () => {

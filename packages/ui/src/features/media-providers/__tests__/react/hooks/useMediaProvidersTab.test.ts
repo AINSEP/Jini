@@ -662,10 +662,13 @@ describe('useMediaProvidersTab — per-provider port', () => {
 
   it('migrates local-only providers to an empty daemon in one batch', async () => {
     const { port, calls } = recordingRowsPort({ seed: {} });
-    const initialProviders: MediaProviderMap = { a: { apiKey: 'test-token-a', model: 'm-a' }, b: { apiKeyConfigured: true } };
+    const initialProviders: MediaProviderMap = { a: { apiKey: 'test-token-a', model: 'm-a' }, b: { apiKeyConfigured: true }, c: { apiKey: 'test-token-c', model: 'm-c' } };
     const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
 
     await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
-    expect(calls).toEqual([['batch', { removes: [], patches: [{ providerId: 'a', fields: { apiKey: 'test-token-a', model: 'm-a' } }] }]]);
+    expect(calls).toEqual([['batch', { removes: [], patches: [
+      { providerId: 'a', fields: { apiKey: 'test-token-a', model: 'm-a' } },
+      { providerId: 'c', fields: { apiKey: 'test-token-c', model: 'm-c' } },
+    ] }]]);
   });
 });
