@@ -11,11 +11,11 @@ type UserTrashTables = {
 };
 
 export function bindKernelUserTrashAdapter({ kernelFor, entityType }: {
-  kernelFor: (required: { store: StorageKernel<unknown, unknown> }) => () => StorageKernel<Kysely<unknown>, unknown>;
+  kernelFor: (required: { store: StorageKernel<Kysely<unknown>, unknown> }) => () => StorageKernel<Kysely<unknown>, unknown>;
   entityType: string;
 }, _optional: Record<string, never> = {}) {
   return (deps: Pick<UserTrashAdapterDeps, "purge" | "idGen" | "clock"> & {
-    db: StorageKernel<unknown, unknown>;
+    db: StorageKernel<Kysely<unknown>, unknown>;
     eventValues: (event: DomainEvent) => Record<string, unknown>;
     assertAccountAction: NonNullable<UserTrashAdapterDeps["policy"]["assertAccountAction"]>;
   }, _optional: Record<string, never> = {}) => {

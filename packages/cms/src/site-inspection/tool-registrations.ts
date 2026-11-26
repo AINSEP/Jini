@@ -166,7 +166,7 @@ export function buildSiteInspectionRegistrations(routeDeps: {
   workspaceId: string; authorize: AuthorizeFn; catalog: readonly AgentToolDefinition[]; readPermission: string;
   reservedSegments: FetchPublishedPageDeps["reservedSegments"];
   trackFetch: FetchPublishedPageDeps["trackFetch"];
-  publishedPageDeps: () => FetchPublishedPageDeps;
+  publishedPageDeps: () => Omit<FetchPublishedPageDeps, "reservedSegments" | "trackFetch">;
   toSiteProfileDeps: () => Parameters<typeof buildSiteProfile>[0]["deps"];
   toSiteCapabilitiesDeps: () => Parameters<typeof buildSiteCapabilities>[0]["deps"];
   readPageBodyOptions: typeof readPageBodyOptions;

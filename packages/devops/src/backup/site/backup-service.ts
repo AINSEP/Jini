@@ -121,7 +121,7 @@ export interface SiteBackupToolDeps<TSource extends SiteBackupSources = SiteBack
   readonly isCustomCredentialSecretStoreUnconfiguredError: (error: unknown) => boolean;
   readonly credentialMessages: Record<"active" | "invalid" | "missing", (required: { label: string }) => string>;
   readonly buildSourceControlProviders: (required: { deps: TRequest }, optional: Record<string, never>) => Promise<{ providers: readonly SourceControlProvider[]; refusals: readonly string[]; noProviderMessage: string }>;
-  readonly pickSourceControlProviderForApi: typeof pickSourceControlProviderForApi;
+  readonly pickSourceControlProviderForApi: typeof pickSourceControlProviderForApi<SourceControlProvider>;
   readonly completePlanContent: (required: { content: SiteBackupRepositoryPlanContent; sources: TSource }, optional: Record<string, never>) => TContent;
   readonly validateRepositoryTarget: (required: { owner: unknown; repo: unknown }, optional: { validateTarget?: SourceControlProvider["validateTarget"] }) => { owner: string; repo: string };
   readonly siteFolderName: (required: { siteDir: string }) => string;
