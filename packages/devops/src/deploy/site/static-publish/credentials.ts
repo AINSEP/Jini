@@ -9,7 +9,7 @@ type VendorCredentialSetRepoPort = PublishCredentialReadDeps['repo'];
 import type { PublishExecutionMode } from "@jini-ai/devops/deploy/site/publish-credentials/execution-mode";
 import type { DeployTargetCredentialSpec, DeployTargetEnvFallback, DeployTargetRegistry, LoadedDeployTarget  } from "@jini-ai/devops/deploy/site/deploy-targets/types";
 import type { DeployTargetCredential } from "@jini-ai/core/contracts/site/devops-deploy";
-import type { PublishCredentialSource, ResolvedPublishCredentialSuccess, StaticPublishTargetId } from "@jini-ai/devops/deploy/site/static-publish/types";
+import type { PublishCredentialSource, PublishVerificationBasis, ResolvedPublishCredentialSuccess, StaticPublishTargetId } from "@jini-ai/devops/deploy/site/static-publish/types";
 
 /** Readiness accepts the same optional saved-connection choice as resolution, without opening it. */
 interface PublishCredentialSourceWithChoice extends PublishCredentialSource {
@@ -181,11 +181,11 @@ export function createEnvPublishCredentialSource(
   return {
     async resolve(input) {
       const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, input.credentialId === undefined ? {} : { credentialId: input.credentialId });
-      return "token" in result ? { ok: true, token: result.token, ...result.fields } : { ok: false, reason: result.reason };
+      return "token" in result ? { ok: true, token: result.token, ...result.fields, basis: { kind: "env" } } : { ok: false, reason: result.reason };
     },
     async isConfigured(input: Parameters<PublishCredentialSource["resolve"]>[0], _options = {}) {
       const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, input.credentialId === undefined ? {} : { credentialId: input.credentialId });
-      return "token" in result ? { configured: true } : { configured: false, reason: result.reason };
+      return "token" in result ? { configured: true, basis: { kind: "env" } } : { configured: false, reason: result.reason };
     },
   };
 }
@@ -196,7 +196,7 @@ export function createEnvPublishCredentialSource(
  *
  * @complexity O(f) fields, no I/O.
  */
-export function toDeployTargetCredential(resolved: ResolvedPublishCredentialSuccess): DeployTargetCredential {
+export function toDeployTargetCredential(resolved: Pick<ResolvedPublishCredentialSuccess, "ok" | "token"> & Readonly<Record<string, string | true | PublishVerificationBasis | undefined>>): DeployTargetCredential {
   const fields: Record<string, string> = {};
   for (const [name, value] of Object.entries(resolved)) if (name !== "credentialId" && typeof value === "string") fields[name] = value;
   return { ...fields, token: resolved.token };
@@ -214,7 +214,7 @@ export function toDeployTargetCredential(resolved: ResolvedPublishCredentialSucc
 export function projectConnectionForPublish(
   connection: PublishConnectionInput,
   spec: DeployTargetCredentialSpec
-): Awaited<ReturnType<PublishCredentialSource["resolve"]>> {
+): (Pick<ResolvedPublishCredentialSuccess, "ok" | "token"> & Readonly<Record<string, string | true | undefined>>) | { readonly ok: false; readonly reason: string } {
   const token = connection[spec.tokenField];
   if (token === undefined) return { ok: false, reason: `the saved '${connection.providerId}' credential has no ${spec.tokenField} — save the connection again` };
   const fields: Record<string, string> = {};
@@ -251,7 +251,7 @@ export function createDbPublishCredentialSource(deps: DbPublishCredentialSourceD
     `no default '${target}' credential is saved for this workspace yet — add one in the Static Site tab`;
 
   /** Projects through the target's declared credential spec, refusing a target the registry cannot describe. */
-  async function project(workspaceId: UUID, connection: PublishConnectionInput): Promise<Awaited<ReturnType<PublishCredentialSource["resolve"]>>> {
+  async function project(workspaceId: UUID, connection: PublishConnectionInput): Promise<ReturnType<typeof projectConnectionForPublish>> {
     const spec = (await deps.loadDeployTargets({ workspaceId })).get(connection.providerId)?.descriptor.credential;
     return spec === undefined ? { ok: false, reason: unknownTargetReason(connection.providerId) } : projectConnectionForPublish(connection, spec);
   }
@@ -277,7 +277,7 @@ export function createDbPublishCredentialSource(deps: DbPublishCredentialSourceD
       return { ok: false, reason: CHOSEN_CREDENTIAL_UNAVAILABLE_REASON };
     }
     const projected = await project(input.workspaceId, { ...resolved.connection, providerId: input.target });
-    return projected.ok ? { ...projected, credentialId: input.credentialId } : projected;
+    return projected.ok ? { ...projected, credentialId: input.credentialId, basis: { id: input.credentialId, revision: resolved.revision } } : projected;
   }
 
   return {
@@ -292,12 +292,12 @@ export function createDbPublishCredentialSource(deps: DbPublishCredentialSourceD
         return { ok: false, reason: notConfiguredReason(input.target) };
       }
       const projected = await project(input.workspaceId, resolved.connection);
-      return projected.ok ? { ...projected, credentialId: resolved.id } : projected;
+      return projected.ok ? { ...projected, credentialId: resolved.id, basis: { id: resolved.id, revision: resolved.revision } } : projected;
     },
     async isConfigured(input: Parameters<PublishCredentialSource["resolve"]>[0], _options = {}) {
-      const configured = await deps.hasDefaultForPublish(deps, { workspaceId: input.workspaceId, providerId: input.target, ...(input.credentialId === undefined ? {} : { id: input.credentialId }) });
+      const basis = await deps.hasDefaultForPublish(deps, { workspaceId: input.workspaceId, providerId: input.target, ...(input.credentialId === undefined ? {} : { id: input.credentialId }) });
       const reason = input.credentialId === undefined ? notConfiguredReason(input.target) : CHOSEN_CREDENTIAL_UNAVAILABLE_REASON;
-      return configured ? { configured: true } : { configured: false, reason };
+      return basis ? { configured: true, basis } : { configured: false, reason };
     },
   };
 }

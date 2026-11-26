@@ -139,7 +139,7 @@ async function buildProviderCapability(loaded: LoadedDeployTarget, ctx: Provider
   // this server, in this history store) rather than an absent key, so an agent-facing JSON result
   // always carries the field.
   const lastPublish = await ctx.historyStore.getLast({ workspaceId: ctx.deps.workspaceId, target: providerId });
-  const verification = readiness.configured ? ctx.deps.publishCredentialVerificationCache.get({ workspaceId: ctx.deps.workspaceId, target: providerId }) : undefined;
+  const verification = readiness.configured ? ctx.deps.publishCredentialVerificationCache.get({ workspaceId: ctx.deps.workspaceId, target: providerId, basis: readiness.basis }) : undefined;
   const verified = verification ? verification.status : null;
   const ready = readiness.configured && verified === "valid";
   const fallbackOrigin = readiness.configured ? "environment" : null;

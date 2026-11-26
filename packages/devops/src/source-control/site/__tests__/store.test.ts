@@ -3,7 +3,7 @@ import { credentialScopes, credentialCreateTarget } from "@jini-ai/integrations/
 import { expect, it, vi } from "vitest";
 import { SecretsVaultService, InMemoryVaultRepo, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { CredentialSetVaultAdapter, toSourceControlCredentialRecord } from "@jini-ai/integrations/vendor-credentials/vault-adapter";
-import { createSourceControlCredential, updateSourceControlCredential, type SourceControlCredentialWriteDeps } from "../store.js";
+import { createSourceControlCredential, updateSourceControlCredential, describeCredential, deleteSourceControlCredential, type SourceControlCredentialWriteDeps } from "../store.js";
 
 function fixture() {
   const vault = new InMemoryVaultRepo({});
@@ -36,4 +36,21 @@ it("a failed identity probe leaves the newly saved credential intact", async () 
   expect(result).toMatchObject({ configured: true, connection: "saved", accountLabel: null });
   expect((await f.vault.find({ workspaceId: "w", id: "credential" }))?.sealed?.ciphertext).toBe('{"providerId":"git","token":"original-token"}');
   expect(patch).not.toHaveBeenCalled();
+});
+
+it("permanent delete reviews and removes a canonical source-control credential", async () => {
+  const f = fixture();
+  const summary = { id: "canonical", providerId: "git", label: "Shared Git", configured: true as const,
+    isDefault: false, accountLabel: null, scope: "project" as const,
+    createdAt: "2026-11-25T00:00:00.000Z", updatedAt: "2026-11-25T00:00:00.000Z" };
+  const list = vi.fn(async () => [summary]);
+  const remove = vi.fn(async () => ({ owned: true }));
+  Object.assign(f.deps.repo, { canonical: { list, remove } });
+  const legacyRemove = vi.spyOn(f.deps.repo, "delete");
+  const input = { workspaceId: "w", id: summary.id };
+  expect(await describeCredential(f.deps, input)).toEqual(summary);
+  expect(list).toHaveBeenCalledExactlyOnceWith({ workspaceId: "w" });
+  await deleteSourceControlCredential(f.deps, input);
+  expect(remove).toHaveBeenCalledExactlyOnceWith(input);
+  expect(legacyRemove).not.toHaveBeenCalled();
 });

@@ -87,7 +87,7 @@ function resolveSavedAuthMode(input: SaveExternalMcpServerInput, existing: Exter
   if (input.authMode === undefined) return existing ? resolveExternalMcpAuthMode(existing) : "static_env";
   if (!EXTERNAL_MCP_AUTH_MODES.includes(input.authMode as ExternalMcpAuthMode)) {
     throw new ExternalMcpValidationError(
-      `auth mode '${input.authMode}' is not supported — expected one of ${EXTERNAL_MCP_AUTH_MODES.join(", ")}`,
+      `auth mode is not supported — expected one of ${EXTERNAL_MCP_AUTH_MODES.join(", ")}`,
       "authMode",
     );
   }

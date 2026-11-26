@@ -4,7 +4,7 @@ import { composePublishCredentialSource, type DbPublishCredentialSourceDeps } fr
 
 test('an explicit unavailable connection never falls back to environment credentials', async () => {
   const dbDeps = { describeCredential: async () => null, resolveForPublish: async () => null,
-    hasDefaultForPublish: async () => false, loadDeployTargets: async () => assert.fail('fallback registry was read'),
+    hasDefaultForPublish: async () => null, loadDeployTargets: async () => assert.fail('fallback registry was read'),
   } as unknown as DbPublishCredentialSourceDeps;
   const source = composePublishCredentialSource({ workspaceId: 'ws', executionMode: 'self-hosted-cli', dbDeps, env: { PUBLISH_TOKEN: 'available' } });
   const choice = { workspaceId: 'ws', target: 'host', credentialId: 'missing' };

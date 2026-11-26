@@ -6,7 +6,7 @@ it('does not inspect a target when planning or credential readiness fails', asyn
     const inspectStaticPublish = vi.fn(async () => ({}));
     const registry = { refusals: [], get: () => ({}) } as unknown as Parameters<typeof describePublishTargets>[0]['registry'];
     const read = publishPreviewFor({ context: { credentialSource: {
-      isConfigured: async () => configured ? { configured: true as const } : { configured: false as const, reason: 'not configured' },
+      isConfigured: async () => configured ? { configured: true as const, basis: { kind: "env" as const } } : { configured: false as const, reason: 'not configured' },
       resolve: async () => { throw new Error('unexpected secret read'); },
     }, deps: {
       workspaceId: 'w', loadDeployTargets: async () => registry, refusal: () => {},

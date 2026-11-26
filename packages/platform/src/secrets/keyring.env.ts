@@ -113,10 +113,8 @@ export class EnvOrFileKeyring implements KeyringPort {
       );
     }
 
-    const generated = randomBytes(ROOT_KEY_LENGTH_BYTES);
-    mkdirSync(dirname(this.keyFilePath), { recursive: true });
-    writeFileSync(this.keyFilePath, generated.toString("hex"), { mode: 0o600 });
-    this.cachedRootKey = generated;
+    const generated = generateFileRootKey({ keyFilePath: this.keyFilePath });
+    this.cachedRootKey = Buffer.from(generated.hex, "hex");
     return this.cachedRootKey;
   }
 

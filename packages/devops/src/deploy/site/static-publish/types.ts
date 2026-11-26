@@ -117,14 +117,17 @@ export type StaticPublishOutcome =
  * field that host's credential declares, under its own name. Core names none of them; the host's
  * deploy module reads what it needs.
  */
+export type PublishVerificationBasis = { readonly id: UUID; readonly revision: number } | { readonly kind: "env" };
+
 /** {@link PublishCredentialSource.resolve}'s success: `token` plus the host's other declared credential
  *  fields. `true` is in the index type only so `ok` itself fits it; every field is a string. */
 export type ResolvedPublishCredentialSuccess = {
   readonly ok: true;
   readonly token: string;
+  readonly basis: PublishVerificationBasis;
   /** Saved row actually resolved, including default selection; absent for environment credentials. */
   readonly credentialId?: UUID;
-} & Readonly<Record<string, string | true | undefined>>;
+} & Readonly<Record<string, string | true | PublishVerificationBasis | undefined>>;
 
 export interface PublishCredentialSource {
   /**
@@ -149,6 +152,6 @@ export interface PublishCredentialSource {
    *  non-secret guidance `resolve()`'s own `{ok:false}.reason` carries — safe to show in an admin UI
    *  or hand to an agent tool. */
   isConfigured(input: { workspaceId: UUID; target: StaticPublishTargetId }): Promise<
-    { readonly configured: true } | { readonly configured: false; readonly reason: string }
+    { readonly configured: true; readonly basis: PublishVerificationBasis } | { readonly configured: false; readonly reason: string }
   >;
 }

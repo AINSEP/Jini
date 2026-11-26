@@ -237,7 +237,7 @@ export function seedToolPickerRows(
   const savedAllowed = parseSavedToolNames({ value: allowedToolNames });
   const allowed = new Set(savedAllowed);
   const write = new Set(parseSavedToolNames({ value: writeAllowedToolNames }));
-  const applyDefaults = savedAllowed.length === 0;
+  const applyDefaults = allowedToolNames === undefined;
 
   const advertised = tools.map((tool) => advertisedRow({ tool, allowed, write, applyDefaults }));
   const advertisedNames = new Set(tools.map((tool) => tool.remoteName));

@@ -87,7 +87,7 @@ function toolSurfaceSignature(
   },
   _options = {},
 ): string {
-  return JSON.stringify([tools.map((tool) => tool.remoteName), allowedToolNames ?? "", writeAllowedToolNames ?? ""]);
+  return JSON.stringify([tools.map((tool) => tool.remoteName), allowedToolNames, writeAllowedToolNames]);
 }
 
 /** What the declarations pass keys on: every server-declared field of every advertised tool, so a

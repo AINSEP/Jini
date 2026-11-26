@@ -397,3 +397,17 @@ describe("second host wires the hosted MCP store by ports", () => {
       .toBe("its authorization expired or was revoked — reconnect it in Console › Tools › Remote servers");
   });
 });
+
+test("invalid auth mode and OAuth grant report fields without submitted values", async () => {
+  const repo = new entry.InMemoryExternalMcpServerRepo(ports);
+  const deps = { repo, sealer, keyring, clock, ...ports };
+  const input = { workspaceId: WS, serverId: "acme-invalid", enabled: true, transport: "streamable_http",
+    url: "https://mcp.acme.test/mcp", command: "", args: "", allowedToolNames: "" };
+  const marker = "private-enum-marker";
+  await expect(entry.saveExternalMcpServer(deps, { ...input, authMode: marker } as never))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field: "authMode",
+      message: "auth mode is not supported — expected one of none, static_env, oauth" });
+  await expect(entry.saveExternalMcpServer(deps, { ...input, authMode: "oauth", oauth: { grant: marker } } as never))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field: "oauth.grant",
+      message: "OAuth grant is not supported — expected one of authorization_code, device_code" });
+});

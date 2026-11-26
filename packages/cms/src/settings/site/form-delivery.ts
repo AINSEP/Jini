@@ -1,3 +1,4 @@
+import { SECRET_SHAPE_PATTERNS } from "@jini-ai/core";
 import type { FormDeliveryBinding } from "../../forms/index.js";
 import { SCOPE_BIT, ValueValidationFailedError, type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
 
@@ -179,7 +180,7 @@ function childrenOf(required: { path: string; value: object; where: string }): {
 }
 
 function assertNotSecretValue(required: { path: string; value: string; where: string }): void {
-  if (SECRET_VALUES.some(pattern => pattern.test(required.value)) || isBasicCredential({ value: required.value })) {
+  if (SECRET_VALUES.some(pattern => pattern.test(required.value)) || SECRET_SHAPE_PATTERNS.some(({ pattern }) => { pattern.lastIndex = 0; return pattern.test(required.value); }) || isBasicCredential({ value: required.value })) {
     throw invalid({ detail: `${required.where}: ${quote({ text: required.path })} holds a value that looks like a credential. ${FIX_HINT}` });
   }
 }

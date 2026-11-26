@@ -10,7 +10,7 @@ import type { resolveForPublish } from "../publish-credentials/store-resolution.
 import type { DbPublishCredentialSourceDeps } from "./credentials.js";
 type VendorCredentialSetRepoPort = DbPublishCredentialSourceDeps['repo'];
 import { projectConnectionForPublish, toDeployTargetCredential } from "./credentials.js";
-import type { PublishCredentialSource, StaticPublishTargetId } from "@jini-ai/devops/deploy/site/static-publish/types";
+import type { PublishCredentialSource, PublishVerificationBasis, StaticPublishTargetId } from "@jini-ai/devops/deploy/site/static-publish/types";
 
 /**
  * @file Verifies a static-publish credential against its REAL host — the fix for "ready means a
@@ -110,8 +110,8 @@ export interface PublishCredentialVerificationResult {
  * {@link set}, which only {@link verifyPublishCredential} (and its human-gated callers) may reach.
  */
 export interface PublishCredentialVerificationCache {
-  get(input: { workspaceId: UUID; target: StaticPublishTargetId }): PublishCredentialVerificationResult | undefined;
-  set(input: { workspaceId: UUID; target: StaticPublishTargetId }, result: PublishCredentialVerificationResult): void;
+  get(input: { workspaceId: UUID; target: StaticPublishTargetId; basis: PublishVerificationBasis }): PublishCredentialVerificationResult | undefined;
+  set(input: { workspaceId: UUID; target: StaticPublishTargetId; basis: PublishVerificationBasis }, result: PublishCredentialVerificationResult): void;
   /** Clears a cached result — called when `resolve()` reports no credential at all, so a STALE
    *  verification from a since-deleted/replaced credential can never keep reporting `ready: true`
    *  for a target that currently has nothing configured. */
@@ -128,18 +128,23 @@ export interface PublishCredentialVerificationCache {
  * @overallScore 100
  */
 export class InMemoryPublishCredentialVerificationCache implements PublishCredentialVerificationCache {
-  private readonly entries = new Map<string, PublishCredentialVerificationResult>();
+  private readonly entries = new Map<string, { basis: PublishVerificationBasis; result: PublishCredentialVerificationResult }>();
 
   private static key(input: { workspaceId: UUID; target: StaticPublishTargetId }): string {
     return `${input.workspaceId}::${input.target}`;
   }
 
-  get(input: { workspaceId: UUID; target: StaticPublishTargetId }): PublishCredentialVerificationResult | undefined {
-    return this.entries.get(InMemoryPublishCredentialVerificationCache.key(input));
+  get(input: { workspaceId: UUID; target: StaticPublishTargetId; basis: PublishVerificationBasis }): PublishCredentialVerificationResult | undefined {
+    const entry = this.entries.get(InMemoryPublishCredentialVerificationCache.key(input));
+    if (!entry) return undefined;
+    const matches = "kind" in input.basis
+      ? "kind" in entry.basis
+      : !("kind" in entry.basis) && entry.basis.id === input.basis.id && entry.basis.revision === input.basis.revision;
+    return matches ? entry.result : undefined;
   }
 
-  set(input: { workspaceId: UUID; target: StaticPublishTargetId }, result: PublishCredentialVerificationResult): void {
-    this.entries.set(InMemoryPublishCredentialVerificationCache.key(input), result);
+  set(input: { workspaceId: UUID; target: StaticPublishTargetId; basis: PublishVerificationBasis }, result: PublishCredentialVerificationResult): void {
+    this.entries.set(InMemoryPublishCredentialVerificationCache.key(input), { basis: input.basis, result });
   }
 
   delete(input: { workspaceId: UUID; target: StaticPublishTargetId }): void {
@@ -290,7 +295,7 @@ export async function verifyPublishCredential(
 
   const context = { assertCredentialToken: deps.assertCredentialToken, CredentialInputError: deps.CredentialInputError, credentialText: deps.credentialText, registry: await deps.loadDeployTargets({ workspaceId: input.workspaceId }), kit: verificationKit(deps), clock: deps.clock };
   const result = await computeVerificationResult({ context, target: input.target, credential: toDeployTargetCredential(resolved) });
-  deps.cache.set(input, result);
+  deps.cache.set({ ...input, basis: resolved.basis }, result);
   return result;
 }
 
@@ -349,7 +354,7 @@ export async function verifyPublishCredentialById(
     ? await computeVerificationResult({ context, target: resolved.providerId, credential: toDeployTargetCredential(projected) })
     : cannotVerify({ reason: projected?.reason ?? noCheckReason(resolved.providerId), clock: deps.clock });
   if (resolved.isDefault) {
-    deps.cache.set({ workspaceId: input.workspaceId, target: resolved.providerId }, result);
+    deps.cache.set({ workspaceId: input.workspaceId, target: resolved.providerId, basis: { id: input.id, revision: resolved.revision } }, result);
   }
   return result;
 }

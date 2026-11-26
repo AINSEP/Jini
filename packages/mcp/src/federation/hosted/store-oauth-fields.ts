@@ -117,7 +117,7 @@ function assertOAuthGrant(grant: string, selfConfigurable: boolean): ExternalMcp
   }
   if (!EXTERNAL_MCP_OAUTH_GRANTS.includes(grant as ExternalMcpOAuthGrant)) {
     throw new ExternalMcpValidationError(
-      `OAuth grant '${grant}' is not supported — expected one of ${EXTERNAL_MCP_OAUTH_GRANTS.join(", ")}`,
+      `OAuth grant is not supported — expected one of ${EXTERNAL_MCP_OAUTH_GRANTS.join(", ")}`,
       "oauth.grant",
     );
   }

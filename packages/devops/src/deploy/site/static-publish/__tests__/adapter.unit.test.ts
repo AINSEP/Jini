@@ -5,7 +5,7 @@ import { publishStaticSite, type StaticPublishDeps, type StaticPublishInput } fr
 test('a credential changed since domain review cannot reach export or publication', async () => {
   let writes = 0;
   const target = { descriptor: { id: 'host', configFields: [] }, module: { validateConfig: () => null, basePath: () => undefined } };
-  const deps = { credentialSource: { resolve: async () => ({ ok: true, token: 'new-token' }) },
+  const deps = { credentialSource: { resolve: async () => ({ ok: true, token: 'new-token', basis: { kind: 'env' } }) },
     loadDeployTargets: async () => ({ get: () => target, refusals: [] }),
     tracker: { trace: async ({ run }: { run(span: { setOutcome(): void }): Promise<unknown> }) => run({ setOutcome() {} }) },
     buildTarget: () => { writes++; throw new Error('unreviewed publication'); },

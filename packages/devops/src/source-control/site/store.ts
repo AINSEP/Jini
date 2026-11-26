@@ -182,7 +182,9 @@ export async function describeCredential(
   input: { workspaceId: UUID; id: UUID }
 ): Promise<SourceControlCredentialSummary | null> {
   const located = await locateById(deps, input);
-  return located ? { ...await toSummary(located.record), ...reportedScope(deps, located.scoped) } : null;
+  if (located) return { ...await toSummary(located.record), ...reportedScope(deps, located.scoped) };
+  const canonical = await deps.repo.canonical?.list({ workspaceId: input.workspaceId });
+  return canonical?.find(row => row.id === input.id) ?? null;
 }
 
 /**

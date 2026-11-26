@@ -41,7 +41,7 @@ export interface PublishCredentialResolveDeps extends PublishCredentialReadDeps 
  */
 export async function resolveForPublish(deps: PublishCredentialResolveDeps,
   input: { workspaceId: UUID; id: UUID; providerId?: PublishProviderId },
-): Promise<{ providerId: PublishProviderId; vendorId: string; label: string; isDefault: boolean; connection: PublishConnectionInput } | null> {
+): Promise<{ providerId: PublishProviderId; vendorId: string; label: string; isDefault: boolean; revision: number; connection: PublishConnectionInput } | null> {
   const registry = await deps.loadDeployTargets({ workspaceId: input.workspaceId });
   const rows = await inventory({ deps, workspaceId: input.workspaceId });
   return resolveFromInventory({ deps, input, registry, rows });
@@ -75,7 +75,7 @@ async function resolveSelectedPublishCredential({ deps, input, registry, rows, c
   if (!spec) return null;
   const connection = publishConnectionFromPayload({ deps, providerId, spec,
     summary: resolved.summary, payload: resolved.payload });
-  return { providerId, vendorId: provider.vendorId, label: resolved.summary.label,
+  return { providerId, vendorId: provider.vendorId, label: resolved.summary.label, revision: resolved.summary.revision,
     isDefault: selectPublishCredential({ deps, registry, credentials: rows, provider })?.id === input.id, connection };
 }
 
@@ -115,7 +115,7 @@ function publishConnectionFromPayload({ deps, providerId, spec, summary, payload
  */
 export async function resolveDefaultForPublish(deps: PublishCredentialResolveDeps,
   input: { workspaceId: UUID; providerId: PublishProviderId },
-): Promise<{ id: UUID; label: string; connection: PublishConnectionInput } | null> {
+): Promise<{ id: UUID; revision: number; label: string; connection: PublishConnectionInput } | null> {
   const registry = await deps.loadDeployTargets({ workspaceId: input.workspaceId });
   const provider = providerContract({ registry, providerId: input.providerId });
   if (!provider) return null;
@@ -123,15 +123,17 @@ export async function resolveDefaultForPublish(deps: PublishCredentialResolveDep
   const selected = selectPublishCredential({ deps, registry, credentials: rows, provider });
   if (!selected) return null;
   const resolved = await resolveFromInventory({ deps, input: { ...input, id: selected.id }, registry, rows });
-  return resolved ? { id: selected.id, label: resolved.label, connection: resolved.connection } : null;
+  return resolved ? { id: selected.id, revision: resolved.revision, label: resolved.label, connection: resolved.connection } : null;
 }
 
 /** Configuration requires a compatible selected candidate, not merely a provider-group default.
  * An explicit id must select that authorized row; no secret is opened.
  * @complexity O(rows × compatibility IDs), one metadata inventory per store and one catalog load. */
-export async function hasDefaultForPublish(deps: PublishCredentialReadDeps, input: { workspaceId: UUID; providerId: PublishProviderId; id?: UUID }): Promise<boolean> {
+export async function hasDefaultForPublish(deps: PublishCredentialReadDeps, input: { workspaceId: UUID; providerId: PublishProviderId; id?: UUID }): Promise<{ id: UUID; revision: number } | null> {
   const registry = await deps.loadDeployTargets({ workspaceId: input.workspaceId });
   const provider = providerContract({ registry, providerId: input.providerId });
-  return provider !== null && selectPublishCredential({ deps, registry, credentials: await inventory({ deps, workspaceId: input.workspaceId }), provider, id: input.id }) !== null;
+  if (provider === null) return null;
+  const selected = selectPublishCredential({ deps, registry, credentials: await inventory({ deps, workspaceId: input.workspaceId }), provider, id: input.id });
+  return selected ? { id: selected.id, revision: selected.revision } : null;
 }
 

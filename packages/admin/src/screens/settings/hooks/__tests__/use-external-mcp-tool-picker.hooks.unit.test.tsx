@@ -165,7 +165,7 @@ describe("MCP picker transport and draft lifecycle", () => {
     await act(async () => { retry.resolve({ tools }); await retry.promise; });
     await waitFor(() => expect(result.current.advertisedCount).toBe(3));
     expect(result.current.unreachable).toBeNull();
-    expect(result.current.fieldValues()).toEqual({ allowedToolNames: "read", writeAllowedToolNames: "" });
+    expect(result.current.fieldValues()).toEqual({ allowedToolNames: "", writeAllowedToolNames: "" });
     expect(result.current.refreshing).toBe(false);
   });
 
@@ -235,4 +235,29 @@ describe("MCP picker transport and draft lifecycle", () => {
     expect(probe.mock.calls).toEqual([[{ serverId: "atlas" }], [{ serverId: "boreal" }]]);
   });
 
+});
+
+it("reopening after declining every recommended tool keeps them unticked", async () => {
+  const port = { probe: vi.fn(async () => ({ tools: [tool("read_a")] })) };
+  const absent: Input = { serverId: "atlas", active: true, allowedToolNames: undefined, writeAllowedToolNames: undefined };
+  const first = mount(port, absent);
+  await waitFor(() => expect(first.result.current.enabledCount).toBe(1));
+  act(() => first.result.current.setEnabled("read_a", false));
+  const saved = first.result.current.fieldValues();
+  expect(saved).toEqual({ allowedToolNames: "", writeAllowedToolNames: "" });
+  first.unmount();
+
+  const reopened = mount(port, { ...absent, ...saved });
+  await waitFor(() => expect(reopened.result.current.advertisedCount).toBe(1));
+  expect(reopened.result.current.enabledCount).toBe(0);
+  expect(reopened.result.current.fieldValues()).toEqual(saved);
+  expect(reopened.result.current.dirty).toBe(false);
+  reopened.unmount();
+
+  const loadingSaved = mount(port, absent);
+  await waitFor(() => expect(loadingSaved.result.current.enabledCount).toBe(1));
+  loadingSaved.rerender({ ...absent, ...saved });
+  expect(loadingSaved.result.current.enabledCount).toBe(0);
+  expect(loadingSaved.result.current.fieldValues()).toEqual(saved);
+  expect(loadingSaved.result.current.dirty).toBe(false);
 });
