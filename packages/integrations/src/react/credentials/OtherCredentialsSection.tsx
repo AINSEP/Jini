@@ -49,7 +49,7 @@ export function OtherCredentialEntry({ store, row, controller, deps }: { store: 
     removeDialogTitle: (required: { locale: string; name: string }) => string;
     otherCredentialRemoveDialogBody: (required: { locale: string; store: OtherCredentialStoreInfo }) => string;
     VIEWER_TIME_ZONE: string | undefined;
-    /** "Remove from Tovu," never "Revoke": removal forgets the stored copy, the provider keeps the key. */
+    /** "Remove from the host," never "Revoke": removal forgets the stored copy, the provider keeps the key. */
     REMOVE_FROM_TOVU: string;
     removeHandleLabel: (required: { name: string }) => string;
   };
@@ -127,7 +127,7 @@ function OtherCredentialRemoveButton({ row, translate, dialogRef, deps }: { row:
         // `aria-label`: a store can hold more than one configured item (this file's own
         // `handleSuffix` doc comment above names `media-provider` as an example), and every row
         // renders unconditionally — no accordion, no menu — so two configured items under the
-        // same store put two identically-labeled "Remove from Tovu" buttons on screen at once.
+        // same store put two identically-labeled "Remove from the host" buttons on screen at once.
         // `row.name` is this row's own display name, already visible in its heading.
         aria-label={`${translate(deps.REMOVE_FROM_TOVU)} — ${row.name}`}
         {...agentHandle({ handle: `security-other-credentials-remove-${rowHandleBase({ row })}` }, { role: "button", label: deps.removeHandleLabel({ name: row.name }) })}
@@ -225,9 +225,9 @@ function OtherCredentialReplaceableRow({ row, controller, deps }: { row: OtherCr
 }
 
 /**
- * Native `<dialog>` confirm, mirroring Tier 1's `RemoveConfirmDialog` — same "Remove from Tovu,
+ * Native `<dialog>` confirm, mirroring Tier 1's `RemoveConfirmDialog` — same "Remove from the host,
  * never Revoke" load-bearing copy constraint (`rules.ts`'s own header) for the four replaceable
- * stores: deleting Tovu's row does not revoke the credential at the provider, and this dialog is the
+ * stores: deleting the host's row does not revoke the credential at the provider, and this dialog is the
  * one place that fact gets stated in words. The two static-row stores state their own, different
  * fact instead (`otherCredentialRemoveDialogBody`). No equivalent "this is the last row for this provider" note: every Tier-2 store
  * already caps at one row per item, so removing it is always the only-row case — the sentence would

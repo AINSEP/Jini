@@ -22,7 +22,7 @@ import { type Translate } from '@jini-ai/core/text';
  *
  * `describeApiError` here is the shared default from `lib/api.ts`, not this feature's
  * `rules.ts` override — that override's `PLUGIN_NOT_FOUND`/`PLUGIN_INVALID`/`PLUGIN_INCOMPATIBLE`
- * codes belong to the `.tovu-plugin` enable/disable route this screen does not call. This screen's
+ * codes belong to the `.host-plugin` enable/disable route this screen does not call. This screen's
  * own route answers `AGENT_PLUGIN_NOT_FOUND`/`VALIDATION_ERROR`, neither of which that override
  * knows, so the shared default (which surfaces the server's own message) is the better fit.
  *

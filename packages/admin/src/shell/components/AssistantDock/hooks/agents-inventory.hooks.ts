@@ -18,9 +18,9 @@ import type { CachedLoader } from "@jini-ai/core/fetch";
  */
 
 /**
- * `ChatPaneAgent` plus the one extra, Tovu-only field `GET /api/agents` actually serializes for
- * each entry — `apps/website/src/assistant/agents.ts`'s `AssistantAgentSummary.carriesOwnMemory`.
- * `@jini-ai/chat`'s own `ChatPaneAgent` type never declares it (it's a Tovu transport decision, not
+ * `ChatPaneAgent` plus the one extra, the host-only field `GET /api/agents` actually serializes for
+ * each entry — `host src/assistant/agents.ts`'s `AssistantAgentSummary.carriesOwnMemory`.
+ * `@jini-ai/chat`'s own `ChatPaneAgent` type never declares it (it's a the host transport decision, not
  * a `@jini-ai/chat` concern), so this widened alias exists purely so this file can read it off the
  * same response `fetchAgents`/`rescanAgents` already fetch, without a second request.
  */
@@ -85,7 +85,7 @@ export function recordAgents<T extends readonly AgentWithMemoryFlag[]>(
  * RESOLVED list as a finished detection and shows "No usable CLI is selected" when nothing in it is
  * usable, while a REJECTION tells it there is no answer yet, so it shows "Connecting to the
  * assistant…" and retries. The empty case matters because the server lists every CLI it knows
- * (`apps/website/src/assistant/agents.ts`, available or not), so `[]` only ever comes from a daemon
+ * (`host src/assistant/agents.ts`, available or not), so `[]` only ever comes from a daemon
  * that is mid-restart — resolving it once cached it (`staleTime: Infinity`) until a hard reload.
  * Throwing also keeps it out of the query cache and the localStorage snapshot.
  */

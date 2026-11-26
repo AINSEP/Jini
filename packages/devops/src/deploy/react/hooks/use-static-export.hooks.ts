@@ -10,7 +10,7 @@ import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Static Site tab's "Build static export" action does, so `StaticSiteTab.tsx`
  * is only markup. Wired 2026-08-15 against `POST`/`GET .../system/export`
- * (`apps/website/src/server/inbound/admin-http/routes/system/export-site.ts`) — see that route's header for the trigger+poll
+ * (`host src/server/inbound/admin-http/routes/system/export-site.ts`) — see that route's header for the trigger+poll
  * shape this hook mirrors: a real export is seconds to minutes, so a click starts the run and this
  * hook polls the status route until it settles, rather than holding one request open.
  *
@@ -30,7 +30,7 @@ import { type Translate } from '@jini-ai/core/text';
  * ## `useContentRefreshSubscription` — a bespoke reload, not the usual one-liner
  *
  * Staleness-bug generalization pass (see that hook's own header): an assistant run that called
- * `deployment_trigger_export` (`apps/website/src/features/deployments/agent-tools.ts`) from a
+ * `deployment_trigger_export` (`host src/features/deployments/agent-tools.ts`) from a
  * DIFFERENT tab/session should not leave this tab showing "Not started" indefinitely. This can't be
  * the usual `useInvalidate()` one-liner (`use-media.hooks.ts`'s shape) because `run` is not read
  * from `query.data` after the FIRST load — `seededRef` above deliberately blocks a later background

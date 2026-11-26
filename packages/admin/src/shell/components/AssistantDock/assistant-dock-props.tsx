@@ -100,7 +100,7 @@ export function composerFooterLeading(input: { readonly folderPicker: UseNativeF
 }
 
 /**
- * Whether the dock says "Folder window opened on the computer running Tovu" (owner bug 11-01): from a
+ * Whether the dock says "Folder window opened on the computer running the host" (owner bug 11-01): from a
  * browser tab the folder dialog opens on that computer, which may not be in front of the owner; the
  * desktop app's dialog opens in front of its own window. Shown only while the dialog is open.
  *

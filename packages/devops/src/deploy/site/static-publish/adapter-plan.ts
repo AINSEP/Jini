@@ -97,7 +97,7 @@ export function readStaticPublishConfig(
  *
  * `parent` is `RouteDeps.publishOutputRootDir` (the host publish-directory setting, then `infra/publish` —
  * mirroring `export-site.ts`'s own export-directory setting), resolved ONCE by the composition root
- * (`apps/website/src/server/runtime/composition/app.ts`/`apps/website/src/server/runtime/composition/deps.ts`) and threaded through as {@link StaticPublishInput.publishOutputRootDir}
+ * (`host src/server/runtime/composition/app.ts`/`host src/server/runtime/composition/deps.ts`) and threaded through as {@link StaticPublishInput.publishOutputRootDir}
  * (2026-08-20 RouteDeps-narrowing fix — this used to be `input.routeDeps.publishOutputRootDir`; the
  * field moved, the value and its single-resolution-point discipline did not) — never read from
  * `process.env` in this file. A test overrides it the same way it always did: by setting

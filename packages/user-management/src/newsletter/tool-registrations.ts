@@ -39,7 +39,7 @@ import { createNewsletterCreateCampaignHandler, createNewsletterUpdateCampaignHa
 const MUTATES_DURABLE_STATE = "mutates-durable-state" as const;
 
 // The Jini catalog names its id reads as `{{read:newsletter_campaign}}`/`{{read:newsletter_list}}` (the
-// engine may not name a host tool id); Tovu binds `contentReadVocabulary` so the model keeps seeing
+// engine may not name a host tool id); the host binds `contentReadVocabulary` so the model keeps seeing
 // `content_read.<resource>` byte-for-byte, as members does.
 
 /**
@@ -194,7 +194,7 @@ export function buildNewsletterRegistrations(deps: NewsletterToolDeps, _surfaces
 
 /**
  * Contributes Newsletter's AI tools to the assistant's catalog — called once by
- * `apps/website/src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
+ * `host src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
  * module. `assistant/tool-registrations.ts` no longer imports `buildNewsletterRegistrations`/
  * `newsletterDerivedRisk` by name; this is the seam that replaced it (2026-08-17 — see
  * `tool-contribution-registry.ts`'s header for why: this edge used to close a module cycle with

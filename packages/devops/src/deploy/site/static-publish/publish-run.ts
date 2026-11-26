@@ -26,7 +26,7 @@ import type { StaticPublishOutcome, StaticPublishTargetId } from "@jini-ai/devop
  * Lives in `static-publish/`, not this domain's sibling `features/deployments/export-run.ts` — a
  * DIFFERENT sub-feature (this file's own imports are `static-publish/adapter.ts`'s `publishStaticSite`
  * only, never `#src/features/site-export/index`), but the SAME reasoning `export-run.ts`'s header gives for its own
- * placement applies here too: `apps/website/src/server/inbound/admin-http/routes/system/publish-site.ts` (a `src/server/**` file)
+ * placement applies here too: `host src/server/inbound/admin-http/routes/system/publish-site.ts` (a `src/server/**` file)
  * is free to import FROM this domain, but `publish-agent-tools.ts`'s own `tool-registrations.ts`-style
  * rule (see `deployments/tool-registrations.ts`'s file header) forbids the reverse — a domain's
  * tool-wiring file must never import from `src/server/**`. Putting the shared slot here, not there,
@@ -34,12 +34,12 @@ import type { StaticPublishOutcome, StaticPublishTargetId } from "@jini-ai/devop
  *
  * DISCLOSED CROSS-PROCESS GAP, same shape `export-run.ts`'s own header already discloses for its own
  * `currentRun`: this module's publish-job store is process-local, single-flight-correct only
- * WITHIN one OS process. Tovu's admin HTTP server and the standalone agent daemon
+ * WITHIN one OS process. the host's admin HTTP server and the standalone agent daemon
  * (`assistant/agent-daemon-server.ts`) each load their own independent copy of this module — there is
  * no cross-process lock, and this file does not attempt to add one (that is a design change, e.g. a
  * lockfile under the publish output directory or routing the daemon's call back over HTTP to the main
  * process — out of scope for this fix, which closes the WITHIN-process gap only). The in-process BYOK
- * execution mode (`apps/website/src/server/runtime/composition/modules/assistant-byok.ts`, composing the same tool catalog inside the main
+ * execution mode (`host src/server/runtime/composition/modules/assistant-byok.ts`, composing the same tool catalog inside the main
  * server process) shares this exact module instance with the admin HTTP route, so single-flight holds
  * there — which is the concrete scenario this fix closes (a human using the admin UI's Static Site tab
  * and the assistant dock in the SAME running server, at the same time).
@@ -58,7 +58,7 @@ import type { StaticPublishOutcome, StaticPublishTargetId } from "@jini-ai/devop
  *
  * `historyStore` is a REQUIRED parameter on {@link startPublishRun} — deliberately no module-level default the way this file's original
  * (file-backed) design had one. A DB-backed store needs a live `ContentDb` handle to construct, and
- * only the composition root (`apps/website/src/server/runtime/composition/deps.ts`/`apps/website/src/server/runtime/composition/app.ts`) has one; a module-level singleton
+ * only the composition root (`host src/server/runtime/composition/deps.ts`/`host src/server/runtime/composition/app.ts`) has one; a module-level singleton
  * constructed at import time cannot get one without either module-load-time I/O (this module's own
  * prior header explicitly avoided that) or a global mutable setter (a worse shape than just requiring
  * the argument). Both real callers thread it from `RouteDeps.publishHistoryStore` — `publish-site.ts`

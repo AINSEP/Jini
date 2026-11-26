@@ -10,7 +10,7 @@ import { SqlUserPurge, type UserPurgeSqlPorts } from "../user-purge.js";
  * The tables are the identity schema this package owns (`principals`, `identity_users`, `principal_roles`,
  * `principal_policies`, `sessions`, `api_keys`, `setting_values_user`, `secrets_vault`) plus the host's
  * `outbox_events`; the host supplies only the kernel and its outbox row encoder (`eventValues`).
- * Moved from the Tovu host's `features/identity/user-purge.ts` (merge-25).
+ * Moved from the the host host's `features/identity/user-purge.ts` (merge-25).
  */
 
 /** The one column every purged table is scoped by, plus the owner column the counted tables share. */

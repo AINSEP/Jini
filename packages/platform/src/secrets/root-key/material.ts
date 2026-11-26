@@ -152,7 +152,7 @@ export function revealSiteKeyMaterial(options: InspectSiteKeyMaterialOptions, _o
  * This site's own id from its `.site-meta.json`: `siteId` (a randomUUID minted by init-site), else
  * the first-boot `siteKeyId` (the boot completes the file with `siteId` = that same id, so the name
  * holds across that first restart). Undefined when the file is missing or holds neither. Shared by
- * the server's site identity (`deps.ts`'s `siteIdentityFor`) and `tovu deploy config`, which carries
+ * the server's site identity (`deps.ts`'s `siteIdentityFor`) and `host deploy config`, which carries
  * it to the deployed server as `TOVU_SITE_ID`, so both name the same site the same way.
  * @complexity O(1), one small file read.
  */

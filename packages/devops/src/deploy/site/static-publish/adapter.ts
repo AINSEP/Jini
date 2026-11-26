@@ -314,7 +314,7 @@ function failedPublishMessage({ targetId, result }: { targetId: string; result: 
 }
 
 /**
- * Publishes Tovu's current site content to `input.config.target`. Always runs a fresh, `clean`
+ * Publishes the host's current site content to `input.config.target`. Always runs a fresh, `clean`
  * export with the target-correct base path immediately before publishing (see this file's header)
  * — never reuses a previously-produced export directory.
  *

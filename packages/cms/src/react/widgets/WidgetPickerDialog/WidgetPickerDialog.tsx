@@ -81,7 +81,7 @@ export interface WidgetPickerDialogProps {
   useDialog: (props: Pick<WidgetPickerDialogProps, "widgetType" | "onUseExisting" | "onCreateNew" | "onCancel">) => ReturnType<typeof useWidgetPickerDialog>;
   kit: {
     Dialog: ComponentType<{ open: boolean; title: string; onClose: () => void; className: string; children?: ReactNode }>;
-    Select: ComponentType<{ id?: string; value: string; onChange: (value: string) => void; options: readonly SelectOption[]; placeholder?: string; "aria-label"?: string; agentHandle?: string | undefined; t: Translate }>;
+    Select: ComponentType<{ id?: string; value: string; onChange: (value: string) => void; options: SelectOption[]; placeholder?: string; "aria-label"?: string; agentHandle?: string | undefined; t: Translate }>;
     WidgetConfigFields: ComponentType<{ widgetType: AdminWidgetType; config: Record<string, unknown>; onChange: (config: Record<string, unknown>) => void; agentHandle?: string | undefined; t: Translate }>;
   };
   deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "WIDGET_TYPE_OPTIONS" | "widgetTypeLabel" | "translateWidgets">;

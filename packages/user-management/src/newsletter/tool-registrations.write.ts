@@ -30,7 +30,7 @@ import { toCampaignToolView, toListToolView, toSubscriptionToolView } from "./to
 
 /**
  * Assembles `campaign-write-service.ts`'s deps bundle from {@link NewsletterToolDeps} — a local
- * duplicate of `apps/website/src/server/inbound/admin-http/routes/newsletter/deps.ts`'s `toCampaignWriteServiceDeps` rather than
+ * duplicate of `host src/server/inbound/admin-http/routes/newsletter/deps.ts`'s `toCampaignWriteServiceDeps` rather than
  * an import of it, for the same reason `features/settings/tool-registrations.ts`'s header gives for
  * duplicating `toWriteServiceDeps`: importing from the HTTP admin layer would invert this codebase's
  * ports/adapters direction. Each `to*Deps` mapper below carries the identical rationale.

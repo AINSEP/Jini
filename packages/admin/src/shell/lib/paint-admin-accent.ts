@@ -6,7 +6,7 @@
  * palette. Writing the ledger default inline turned selected chips, toggles and
  * primary buttons blue on any site that never picked an accent (owner, 2026-10-08: "selected tabs
  * and navs should be orange").
- * The ink input follows the fill via Jini's `readableTextColor`: a light accent such as Tovu gold
+ * The ink input follows the fill via Jini's `readableTextColor`: a light accent such as the host gold
  * otherwise kept the themes' white ink, unreadable on primary buttons and badges.
  */
 export function paintAdminAccent({ accent: accentColor, root, deps }: { accent: string | undefined; root: HTMLElement; deps: { readableTextColor: (required: { hex: string }) => string } }, _optional = {}) {

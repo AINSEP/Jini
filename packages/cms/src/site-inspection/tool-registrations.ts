@@ -59,7 +59,7 @@ import { buildSiteProfile, SITE_PROFILE_SECTION_NAMES } from "@jini-ai/cms/site-
  *    five sections would be refused outright, and
  *  - if it were LOOSER (the realistic accident), it would read as "this tool is authorized" and
  *    invite someone to delete the per-section checks — which is precisely the privilege-escalation
- *    bypass this design exists to prevent, since Tovu's domain tools authorize inside their own
+ *    bypass this design exists to prevent, since the host's domain tools authorize inside their own
  *    handler bodies rather than through a single policy gate.
  *
  * So `site_get_profile` is still fully gated; the gate is just five gates, and it lives one layer
@@ -94,7 +94,7 @@ export const siteInspectionDerivedRisk: DerivedRiskByToolId = new Map<string, Ag
   //    admin screen constant, and one content-type list read. No writes anywhere on the path.
   ["site_describe_capabilities", "none"],
   // -> fetchPublishedPage(): boots the site's own Express app on a loopback port and issues one
-  //    GET, the same thing `apps/website/src/features/site-export/site-exporter.ts` does per route. The handler writes nothing.
+  //    GET, the same thing `host src/features/site-export/site-exporter.ts` does per route. The handler writes nothing.
   //    See the catalog entry's own comment for the one disclosed caveat (a path matching a live
   //    redirect rule records a redirect hit, exactly as a real visit would).
   ["fetch_published_page", "none"],
@@ -226,7 +226,7 @@ export function buildSiteInspectionRegistrations(routeDeps: {
 
 /**
  * Contributes Site Inspection's AI tools to the assistant's catalog — called once by
- * `apps/website/src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
+ * `host src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
  * module. Same seam every other converted domain uses; this module never imports `server/`, and
  * `assistant/tool-registrations.ts` reaches it only through a type-only import of
  * `SiteInspectionToolDeps`.

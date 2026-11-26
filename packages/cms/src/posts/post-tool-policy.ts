@@ -23,7 +23,7 @@ import type { PostToolDeps } from "./post-tool-deps.js";
  * `agent-tools.ts`'s header for why that is deliberate rather than a gap in the mirroring rule.
  *
  * `publicUrl` (2026-08-30, closing a real capability gap surfaced by a production transcript —
- * `sites/tovu-com/content.db`, `ai_chat_messages` rowid 427): the agent had no tool that told it
+ * `sites/host-com/content.db`, `ai_chat_messages` rowid 427): the agent had no tool that told it
  * where a post/page it just read or created is actually reachable on the live site, and fell back
  * to grepping route source to reverse-engineer the URL pattern. `content_post_get`/`content_post_list`/
  * `content_post_create` now resolve it through {@link resolvePublicUrl}, which calls

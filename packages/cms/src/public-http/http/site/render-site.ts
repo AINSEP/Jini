@@ -242,7 +242,7 @@ async function renderStaticTierHomePage(
 // declarative tier can't express — while executing NO theme JavaScript.
 //
 // Two seams bridge Liquid back into the trusted core:
-//   • {% render_block component: "tovu/site-header", tagline: "…" %} renders a
+//   • {% render_block component: "host/site-header", tagline: "…" %} renders a
 //     component from the SAME registry the declarative tier uses (COMPONENTS).
 //   • {{ content | raw }} injects the server-rendered, pre-sanitized TipTap body.
 //     Output autoescaping is ON (outputEscape: "escape"), so a bare

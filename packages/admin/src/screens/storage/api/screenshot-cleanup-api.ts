@@ -1,6 +1,6 @@
 /**
  * @file The admin's client for the owner-only screenshot cleanup routes
- * (`apps/website/src/server/runtime/composition/modules/screenshot-storage.ts`).
+ * (`host src/server/runtime/composition/modules/screenshot-storage.ts`).
  */
 
 /** What a preview shows the owner: at most 50 names, plus the full count and bytes. */

@@ -39,7 +39,7 @@ export interface ExportSiteRouteDeps {
 }
 
 export interface ExportSiteOptions {
-  /** The same composition-root object `createApp`/`apps/website/src/server/runtime/composition/deps.ts` already build — the exporter
+  /** The same composition-root object `createApp`/`host src/server/runtime/composition/deps.ts` already build — the exporter
    *  boots the real app with this, exactly like `cli/commands/serve.ts` does. */
   routeDeps: ExportSiteRouteDeps;
   outputDir: string;

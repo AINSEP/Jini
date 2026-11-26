@@ -24,7 +24,7 @@ export async function withinRateLimit({ deps }: { deps: {
  * Maps a caught error onto an HTTP response.
  *
  * Provider response bodies never reach the caller — `OAuthError.message` is built from a closed
- * vocabulary, and `operatorAction` is Tovu's own copy. The `retryable` flag is forwarded so an admin
+ * vocabulary, and `operatorAction` is the host's own copy. The `retryable` flag is forwarded so an admin
  * client can tell "wait and poll again" from "this is over", without re-deriving that rule.
  *
  * @complexity O(1).

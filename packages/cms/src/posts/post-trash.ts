@@ -69,7 +69,7 @@ export interface DeletePostOptional {}
  * EVENT: emits `entry.unpublished` when a PUBLISHED row is trashed, and nothing when a draft is —
  * computed by handing `classifyStatusTransition` the transition a trash actually is (whatever the
  * row was, to no-longer-public). No new event name is invented: `entry.unpublished` is what SEO's
- * sitemap-cache invalidation already subscribes to (`apps/website/src/server/runtime/composition/app.ts`), and "this entry left the
+ * sitemap-cache invalidation already subscribes to (`host src/server/runtime/composition/app.ts`), and "this entry left the
  * public site" is exactly what happened.
  *
  * @complexity O(1) — one lookup plus one marker write.

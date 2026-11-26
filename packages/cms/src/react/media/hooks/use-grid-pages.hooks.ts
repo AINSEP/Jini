@@ -27,7 +27,7 @@ export interface MediaGridPort {
 /** What {@link useGridPages} needs; the query hook is injected like every other hook. */
 export interface GridPagesDeps extends MediaGridView {
   port: MediaGridPort;
-  listKey: readonly string[];
+  listKey: readonly (string | number)[];
   useFetchQuery: typeof UseFetchQuery;
 }
 

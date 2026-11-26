@@ -5,7 +5,7 @@ import type { RoutinesT } from "./Routines.js";
 
 /**
  * @file Mounts the screen with the host locale and the rollout switch. Why: the screen is dark until
- * the one Tovu release flag is on, so the mount (not the screen) is where "flag off renders nothing"
+ * the one the host release flag is on, so the mount (not the screen) is where "flag off renders nothing"
  * lives; the flag is a required prop (React passes components no second argument), tests inject `true`. Every hook is a required prop so no live hook is imported here.
  */
 export function RoutinesMount({ useAdminLocaleHook, useRoutinesController, useSchedulePicker, useConversationDeepLink, kit, releaseEnabled, theme, visible, t, desktopNoticeKey, unavailableKeys }: {

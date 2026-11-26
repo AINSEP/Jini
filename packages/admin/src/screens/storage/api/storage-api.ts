@@ -17,7 +17,7 @@ export type RetentionPassResult =
 
 /**
  * @file The admin's client for the owner-only storage routes the website mounts from
- * `@jini-ai/platform/retention/routes` (`apps/website/src/server/runtime/composition/modules/storage-routes.ts`):
+ * `@jini-ai/platform/retention/routes` (`host src/server/runtime/composition/modules/storage-routes.ts`):
  * `GET /api/admin/storage/report` and `POST /api/admin/storage/cleanup`. Refusals arrive in the admin
  * refusal envelope and surface as the request layer's `ApiError`.
  */

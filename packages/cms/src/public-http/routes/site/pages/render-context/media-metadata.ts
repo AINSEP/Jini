@@ -17,7 +17,7 @@ import type { featuredImageView, FeaturedImageView as StaticFeaturedImage } from
  * Deliberately does NOT scan `post.bodyJson` for every distinct `transformName` an author's doc
  * might reference (the way `resolveHtmlPageEmbeds` scans a Page's `body_html` for embed ids):
  * `registerTransform` has exactly one caller anywhere in this codebase
- * (`ensureCoreMediaTransform`, `apps/website/src/server/runtime/composition/deps.ts`'s boot chain), which only ever registers
+ * (`ensureCoreMediaTransform`, `host src/server/runtime/composition/deps.ts`'s boot chain), which only ever registers
  * `CORE_PUBLIC_TRANSFORM_NAME` — there is no OTHER registered name a real ref could resolve
  * against yet, so a single-name lookup is behavior-identical to a full scan at today's real
  * scale. A second core-declared transform (`thumb`, `hero`, ...) would need this widened to a

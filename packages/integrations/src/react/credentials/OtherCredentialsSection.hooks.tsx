@@ -44,7 +44,7 @@ export interface OtherCredentialRemoveDialogActions {
  * @param required.ref - The forwarded ref `OtherCredentialRemoveDialog` receives from its caller.
  * @param required.row - The credential row this confirm dialog is for.
  * @param required.controller - `OtherCredentialsController.remove` is the one call this hook makes.
- * @returns `close`/`confirm`, wired directly to the dialog's Cancel/"Remove from Tovu" buttons.
+ * @returns `close`/`confirm`, wired directly to the dialog's Cancel/"Remove from the host" buttons.
  * @complexity O(1).
  */
 export function useOtherCredentialRemoveDialog(

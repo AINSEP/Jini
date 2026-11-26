@@ -50,7 +50,7 @@ export function moveSiteKeyFileAside(
  * the one file that won, whichever process actually wrote it. Also the project key's publisher
  * (`server/runtime/composition/project-store.ts`), for the same race (web + desktop first start).
  *
- * @param required.filePath - the target `~/.tovu/site-keys/<id>.hex`. Its containing directory is created
+ * @param required.filePath - the target `~/.host/site-keys/<id>.hex`. Its containing directory is created
  *   (`0700`) if missing.
  * @param required.hex - this call's own candidate key material, used only if no one else wins the race.
  * @returns the final file's content (trimmed) — always read from disk, never `hex` verbatim.

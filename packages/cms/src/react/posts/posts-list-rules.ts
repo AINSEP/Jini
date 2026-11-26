@@ -33,7 +33,7 @@ import { buildAgentListHandles } from "@jini-ai/core/agent-handles";
 /**
  * This screen's name on `lib/content-refresh-bus.ts` — see `taxonomy/rules.ts`'s `TAXONOMY_RESOURCE`
  * for why this is a plain colocated constant rather than a shared registry. `content_post_create`/
- * `_update`/`_delete` (`apps/website/src/features/post/agent-tools.ts`) are agent-callable, so
+ * `_update`/`_delete` (`host src/features/post/agent-tools.ts`) are agent-callable, so
  * `use-posts.hooks.ts` needs the same "an assistant write shows up without a reload" fix
  * `use-taxonomy.hooks.ts` shipped first — this is the bug this whole pass was dispatched to fix.
  */

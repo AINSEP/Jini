@@ -60,7 +60,7 @@ const DURABLE_MUTATION = "mutates-durable-state" as const;
  * Owner 2026-10-09 supersedes the profile/create exclusion below for this CRUD pass;
  * billing and authentication exclusions remain binding. Historical rationale is retained.
  * - `updateProfile`, `compSubscription`, `setSubscriptionStatus` (`write-service.ts`) have NO
- *   admin HTTP route at all today — `apps/website/src/server/runtime/composition/modules/members.ts` wires exactly 4 admin registrars
+ *   admin HTTP route at all today — `host src/server/runtime/composition/modules/members.ts` wires exactly 4 admin registrars
  *   (list/get/disable/request-magic-link) plus 2 public sign-in routes, nothing else. Wiring an
  *   agent tool for a write-service function the admin UI does not yet expose would give the
  *   assistant MORE capability than a human clicking through the admin screens has today — the
@@ -96,7 +96,7 @@ const DURABLE_MUTATION = "mutates-durable-state" as const;
  * `members` domain declaration. Performs no I/O and no enforcement itself.
  */
 // Now: the catalog lives in `@jini-ai/user-management/members/agent-tools`; its model-facing text names the
-// member read as `{{read:member}}`, and Tovu binds `contentReadVocabulary` here so the model keeps seeing
+// member read as `{{read:member}}`, and the host binds `contentReadVocabulary` here so the model keeps seeing
 // `content_read.member` (pinned by `__tests__/host-read-wording.test.ts`).
 
 
@@ -117,7 +117,7 @@ export interface MagicLinkRateLimiter {
 
 /**
  * The exact slice of the route-deps bag Members' tool handlers read. Declared structurally (rather
- * than importing `server/routes/types`'s `RouteDeps`, or `apps/website/src/server/inbound/admin-http/routes/members/deps.ts`'s
+ * than importing `server/routes/types`'s `RouteDeps`, or `host src/server/inbound/admin-http/routes/members/deps.ts`'s
  * `MembersRouteDeps`, which itself extends `RouteDeps`) so this module carries no back-edge into the
  * composition root. `server/routes/*` satisfies this structurally by passing its existing
  * `MembersRouteDeps` object; nothing there changes.
@@ -384,7 +384,7 @@ export function buildMembersRegistrations(deps: MembersToolDeps): ToolRegistrati
 
 /**
  * Contributes Members' AI tools to the assistant's catalog — called once by
- * `apps/website/src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
+ * `host src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
  * module. `assistant/tool-registrations.ts` no longer imports `buildMembersRegistrations`/
  * `membersDerivedRisk` by name; this is the seam that replaced it (2026-08-17, Stage 2 of the
  * rollout — no sibling domain still statically wired through `assistant` imports `members`, so this

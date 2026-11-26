@@ -37,7 +37,7 @@ export function withPageShellChoice({ post, branch }: {
  * `kind: "page"` gate is completely untouched, so a `doc`-format Page or a Post with no opinion never
  * reaches this arm, and the `terms-of-service`-shaped regression that gate exists to prevent cannot
  * reopen through it. It exists because the generic (non-template) path this row would otherwise fall
- * to renders through Tovu's own `pageShell()` — correct for the other three tiers, which have no
+ * to renders through the host's own `pageShell()` — correct for the other three tiers, which have no
  * standalone documents of their own, but not for `static` tier, whose real pages are complete
  * documents `pageShell()` cannot reproduce (see that function's own doc for the full live-bug trace).
  * `renderViaTemplate` is called with a shallow clone carrying the resolved filename ONLY for this

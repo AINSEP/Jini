@@ -49,7 +49,7 @@ type TemplateRenderDeps = {
  * disclosed, unchanged limitation — see that function's own doc) is simply unaffected, the same
  * no-op-when-absent contract it already had.
  *
- * Exported (2026-08-11 template-preview fix) for `apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts`, the
+ * Exported (2026-08-11 template-preview fix) for `host src/server/inbound/admin-http/routes/posts/template-preview.ts`, the
  * admin-only "preview this row through a PENDING, not-yet-saved template choice" endpoint —
  * `resolveTemplate` reads `post.templateChoice` alone, so that caller passes a shallow clone of the
  * real record with only `templateChoice` overridden, never persisting the override. Reusing this
@@ -86,7 +86,7 @@ type TemplateRenderDeps = {
  * tags on it would tell a crawler the broken diagnostic page IS the entry, worse than the drop this
  * fixes. Same reasoning `registerSiteRoutes`'s themed-404 branch is left out for (see that call
  * site's own comment). Optional and omitted by both existing callers that don't render the live
- * public page (`apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts`'s pending-preview endpoint), matching every
+ * public page (`host src/server/inbound/admin-http/routes/posts/template-preview.ts`'s pending-preview endpoint), matching every
  * other optional parameter's "omit = unchanged prior behavior" contract in this file.
  *
  * `siteAssistantEnabled` (ADR-054 gap fix) — this function's own `renderStaticPage` call has the

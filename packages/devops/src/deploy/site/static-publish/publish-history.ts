@@ -110,7 +110,7 @@ export interface PublishHistoryStore {
 /** Test double — append-only like the real table (a `Map<key, PublishHistoryEntry[]>`, not
  *  `Map<key, PublishHistoryEntry>`), so a test can actually assert "the second publish did not erase
  *  the first." Dies on process restart, same as any in-memory double; production always uses
- *  `SqlitePublishHistoryStore` instead (`apps/website/src/server/runtime/composition/deps.ts`), never this class. */
+ *  `SqlitePublishHistoryStore` instead (`host src/server/runtime/composition/deps.ts`), never this class. */
 export class InMemoryPublishHistoryStore implements PublishHistoryStore {
   constructor(private readonly required: { resolvePublishHistoryListLimit(input: { requested: number | undefined }): number }, _optional = {}) {}
   private readonly entriesByWorkspace = new Map<UUID, PublishHistoryEntry[]>();

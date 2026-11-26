@@ -43,7 +43,7 @@ export function ExternalProvidersPanel({ locale, catalog, useAdminThemeBoundaryH
   mediaProviderCatalogPolicy: MediaProviderCatalogPolicy;
   pinnedProviderIds: readonly string[];
   kit: {
-    I18nProvider: ComponentType<{ initialLocale: string; dictionaries: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>; fallbackLocale: string; syncDocumentAttributes: boolean; children?: ReactNode }>;
+    I18nProvider: ComponentType<{ initialLocale: string; dictionaries: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>; fallbackLocale: string; syncDocumentAttributes: boolean; children: ReactNode }>;
     MediaProvidersTab: ComponentType<{ port: MediaProvidersPort; catalog: readonly MediaProviderOption[]; catalogPolicy: MediaProviderCatalogPolicy; pinnedProviderIds: readonly string[] }>;
     SETTINGS_DIALOG_DICTIONARIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>;
   };
