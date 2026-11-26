@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { useRemoveConfirmDialog, useAddCustomCredentialDialog } from "../AccessTokensTab.hooks.js";
@@ -7,7 +8,7 @@ afterEach(cleanup);
 
 test("removal confirmation closes the dialog before invoking the stored-row removal", () => {
   const events: string[] = [];
-  const ref = { current: { close: () => events.push("close") } as HTMLDialogElement };
+  const ref = { current: { close: () => events.push("close") } as unknown as HTMLDialogElement };
   const row = { id: "stored" } as AccessTokenRow;
   const removeToken = vi.fn(async () => { events.push("remove"); });
   const { result } = renderHook(() => useRemoveConfirmDialog({ ref, row, controller: { removeToken } }));

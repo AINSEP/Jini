@@ -158,7 +158,7 @@ export function bindSecurity({ hooks, kit, deps }: {
   return function BoundSecurity({ useAdminLocaleHook = hooks.useAdminLocaleHook,
     useSecurityPermissionsHook = hooks.useSecurityPermissionsHook, ...props }: SecurityBindingProps, _optional: Record<string, never> = {}) {
     const panels = useMemo(() => deps.createPanels({
-      useAccessTokensHook: props.useAccessTokensHook,
+      ...(props.useAccessTokensHook === undefined ? {} : { useAccessTokensHook: props.useAccessTokensHook }),
       useSiteKeyHook: props.useSiteKeyHook ?? hooks.useSiteKeyHook,
       useAdminLocaleHook,
     }), [props.useAccessTokensHook, props.useSiteKeyHook, useAdminLocaleHook]);

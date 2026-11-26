@@ -69,6 +69,11 @@ function downloadedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>
     };
 }
 
+/** `SettingsDialogTab.navHint` is optional (exactOptionalPropertyTypes): an absent tag omits the key. */
+function optionalNavHint(navHint: string | undefined, _optional = {}): { navHint?: string } {
+  return navHint === undefined ? {} : { navHint };
+}
+
 function addAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[0], _optional = {}): SettingsDialogTab {
   const { props, controller, installController } = required;
   const { deps } = props;
@@ -79,7 +84,7 @@ function addAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[0], _o
       label: t("Add a plugin"),
       // `TabbedDialogTab` has no tag slot, so the "Soon" tag rides `navHint`; styles.css turns this
       // screen's nav hint into the sidebar's `.soon` pill beside the label.
-      navHint: addPluginTabSoonTag({ locale, translateAdminNavLabel }),
+      ...optionalNavHint(addPluginTabSoonTag({ locale, translateAdminNavLabel })),
       icon: <UploadIcon />,
       title: t("Agent Plugins"),
       subtitle: t("Install a package you already have."),
@@ -95,7 +100,7 @@ function marketplaceAgentPluginsTab(required: Parameters<typeof agentPluginsTabs
   return {
       id: "marketplace",
       label: t("Marketplace"),
-      navHint: marketplaceTabSoonTag({ locale, translateAdminNavLabel }),
+      ...optionalNavHint(marketplaceTabSoonTag({ locale, translateAdminNavLabel })),
       icon: <MarketplaceIcon />,
       title: t("Agent Plugin Marketplace"),
       subtitle: t("A future place to discover portable Agent Plugins."),

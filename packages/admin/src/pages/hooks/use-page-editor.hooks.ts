@@ -44,6 +44,9 @@ export interface PageEditorDependencies extends EmbedMarkerReaders {
   PAGES_RESOURCE: string;
   pageAdminPath: (post: { id: string; slug: string }) => string;
   resolveCanvasTemplateChoice: (required: { templateChoice: string | null; bodyFormat: "doc" | "html" }) => string | null;
+  /** Host's dev-build flag (e.g. a bundler's `DEV` constant) — gates dev-only instrumentation logs;
+   *  injected so this package stays bundler-neutral. */
+  isDevMode: boolean;
   writePage: (required: { port: PageEditorDependencies["port"]; pageId: string; plan: PageSavePlan; html: string }) => Promise<AdminPost>;
   PageBodyWriteError: new (required: { savedRow: AdminPost; reason: unknown }) => Error & { savedRow: AdminPost; reason: unknown };
   applySavedPage: (required: {

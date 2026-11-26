@@ -147,7 +147,7 @@ export function PagePreview({
   onFrameLoad: (iframe: HTMLIFrameElement) => void;
   /** REQUIRED hook prop: the theme preview refresh hook, bound at the editor's composition point so
    *  tests can drive `revision` without the live theme-refresh channel. */
-  kit: { DevicePreviewFrame: ComponentType<{ width: number; frameRef: (node: HTMLDivElement | null) => void; paneWidth: number; expanded: boolean; children: ReactNode }> };
+  kit: { DevicePreviewFrame: ComponentType<{ width: number; frameRef: (node: HTMLDivElement | null) => void; paneWidth: number; expanded?: boolean; children: ReactNode }> };
   deps: { videoLink: (required: { id: string }) => string };
   t: Translate;
 }) {

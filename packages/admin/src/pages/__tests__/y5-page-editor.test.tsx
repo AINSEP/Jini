@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { writePage, PageBodyWriteError } from "@jini-ai/cms/react/pages/hooks/page-editor-save";
 import type { ReactNode } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -123,7 +124,7 @@ function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
   const deps = {
     port, themeCanvasPort: { fetchThemeTokens: async () => ({}), fetchTemplateMarkup: async () => "", warmStylesheet: async () => {} },
     navigate: vi.fn(), t: ({ key }: { key: string }) => key, HOME_PAGE_HANDLE: "home", PAGES_RESOURCE: "pages",
-    pageAdminPath: ({ slug }: { slug: string }) => `/pages/${slug}`, resolveCanvasTemplateChoice: ({ templateChoice }: { templateChoice: string | null }) => templateChoice,
+    pageAdminPath: ({ slug }: { slug: string }) => `/pages/${slug}`, resolveCanvasTemplateChoice: ({ templateChoice }: { templateChoice: string | null }) => templateChoice, isDevMode: false,
     parseEmbedMarkerConfig: () => ({ problem: "none" }), embedMarkerTarget: () => undefined,
     writePage, applySavedPage, applySaveFailure, PageBodyWriteError, readVersionConflict: () => null,
     isUnexpectedServerFailure: () => false, setTimeout, clearTimeout, document, window,
@@ -201,7 +202,7 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
       resolveTabBarTabIndex: ({ activeId, tab }) => activeId === tab.id ? 0 : -1,
       standingDraftRecoveryMessage: () => "recover",
       pageExternalChangeBindings: { agentHandle, copy: { messageKey: "changed", regionAgentLabel: "changed", loadLatestAgentLabel: "load", keepEditsAgentLabel: "keep" } },
-      pageEditorSurface, videoLink: ({ id }) => `https://www.youtube.com/watch?v=${id}`,
+      pageEditorSurface, videoLink: ({ id }) => `https://www.youtube.com/watch?v=${id}`, isDevMode: false,
     },
   };
   const Editor = bindPageEditor(view);

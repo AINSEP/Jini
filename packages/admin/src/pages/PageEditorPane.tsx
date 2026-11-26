@@ -102,10 +102,10 @@ export function PageEditorPane(props: Pick<PageEditorController, "view" | "canva
   // component also re-renders on every `draftHtml` keystroke while `view === "html"`). Removed once
   // Bug B is closed; not covered by a test for that reason (logging only, no behavior to assert).
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    if (deps.isDevMode) {
       console.debug("[page-editor] interactive", { phase: `surface:${surface.kind}`, ms: Math.round(performance.now()) });
     }
-  }, [surface.kind]);
+  }, [surface.kind, deps.isDevMode]);
   if (surface.kind === "preview") {
     return <PageEditorPreviewPane {...props} />;
   }

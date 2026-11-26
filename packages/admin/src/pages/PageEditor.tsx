@@ -75,6 +75,9 @@ export interface PageEditorProps {
     pageExternalChangeBindings: { agentHandle: typeof agentHandle; copy: { messageKey: string; regionAgentLabel: string; loadLatestAgentLabel: string; keepEditsAgentLabel: string } };
     pageEditorSurface: (required: { view: PageEditorView; canvasStyling: PageEditorController["canvasStyling"] }) => { kind: "preview" } | { kind: "html" } | { kind: "interactive-pending" } | { kind: "interactive"; styling: CanvasStyling };
     videoLink: (required: { id: string }) => string;
+    /** Host's dev-build flag (e.g. a bundler's `DEV` constant) — gates dev-only instrumentation logs;
+     *  injected so this package stays bundler-neutral. */
+    isDevMode: boolean;
   };
 }
 

@@ -1,5 +1,5 @@
 export function pagePreviewYoutubeIds(
-  { html, bodyJson }: { html: string; bodyJson?: Record<string, unknown> }, _optional = {}
+  { html, bodyJson }: { html: string; bodyJson?: Record<string, unknown> | undefined }, _optional = {}
 ): string[] {
   const template = document.createElement("template");
   template.innerHTML = html;

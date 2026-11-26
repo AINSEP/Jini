@@ -112,7 +112,7 @@ test("media keeps the exact deep-link item available for editing and sends one p
   let read!: (base64: string) => void;
   const readFileAsBase64 = vi.fn(() => new Promise<string>(resolve => { read = resolve; }));
   const useGridPages = vi.fn((_required: Parameters<Parameters<typeof useMedia>[0]["hooks"]["useGridPages"]>[0], _optional?: { itemId?: string | null | undefined }) => ({ items: [], exactItem: item, counts: null, hasUntypedActive: false,
-    error: null, hasMore: false, loadingMore: false, loadMoreError: null, loadMore: vi.fn(), retryLoadMore: vi.fn() }));
+    error: null, hasMore: false, loadingMore: false, loadMoreError: null, loadMore: vi.fn(), retryLoadMore: vi.fn(), retentionDays: null }));
   const { result } = renderHook(() => useMedia({ port, tab: "images", itemId: "linked", locale: "en", t: key => key,
     hooks: { useGridPages, useMediaWrites, useFetchQuery, useFetchMutation, useInvalidate, useContentRefreshSubscription: () => {} },
     deps: { readFileAsBase64, translate: ({ key }) => key, describeApiError: ({ e }) => String(e), sizeRefusalFromError: () => null },
@@ -211,7 +211,7 @@ test("media screen preserves the exact deep-link lookup and shares the live prov
   const useMediaItemLinkHook = vi.fn<MediaProps["hooks"]["useMediaItemLinkHook"]>(() => ({ notFound: false }));
   const useMediaHook = vi.fn<MediaProps["hooks"]["useMediaHook"]>(() => ({
     media: [], lookupMedia: [linked], editingItem: linked, editingId: "linked", setEditingId: vi.fn(),
-    counts: { all: 41, images: 40, videos: 1, trash: 2 }, error: null, uploading: false,
+    counts: { all: 41, images: 40, videos: 1, trash: 2 }, retentionDays: null, error: null, uploading: false,
     uploadOpen: false, openUpload: vi.fn(), closeUpload: vi.fn(), uploadError: null, conversionNotice: null,
     canUpload: false, altDraft: "", setAltDraft: vi.fn(), fileInputRef: { current: null }, selectedFileName: "",
     onFileChange: vi.fn(), upload: vi.fn(async () => {}), hasUntypedActive: false,

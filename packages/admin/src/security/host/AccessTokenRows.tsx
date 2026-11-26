@@ -73,7 +73,7 @@ function CustomKeyUsage({ state, controller }: { state: AccessTokenExistingRowSt
       {...agentHandle({ handle: `security-access-tokens-use-${agentHandleSegment({ value: state.row.id })}` }, { role: "button", label: `${action} — ${state.name}` })}
     >{translate(action)}</button>
     <span className="field-hint">{translate("Access is revoked within 30 seconds.")}</span>
-    {controller.customKeyBusy[state.row.id]?.error ? <span className="save-error" role="alert">{controller.customKeyBusy[state.row.id].error}</span> : null}
+    {controller.customKeyBusy[state.row.id]?.error ? <span className="save-error" role="alert">{controller.customKeyBusy[state.row.id]?.error}</span> : null}
   </>;
 }
 

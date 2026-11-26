@@ -63,7 +63,7 @@ export function createSecurityDictionary(
 /** Replace on a project key rewrites the one shared row, so every other site using it switches
  *  too; the owner is warned before saving (Opus UI review 2026-10-26 item 2). Null when no other
  *  site uses the key. */
-export function sharedKeyReplaceWarning({ usedBy, usedByThisSite, t }: { usedBy?: readonly string[]; usedByThisSite?: boolean; t: (key: string) => string }, _options = {}): string | null {
+export function sharedKeyReplaceWarning({ usedBy, usedByThisSite, t }: { usedBy?: readonly string[] | undefined; usedByThisSite?: boolean | undefined; t: (key: string) => string }, _options = {}): string | null {
   const others = (usedBy?.length ?? 0) - (usedByThisSite ? 1 : 0);
   if (others < 1) return null;
   if (others === 1) return t("Used by 1 other site; it will use the new token too.");

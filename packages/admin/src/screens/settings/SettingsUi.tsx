@@ -72,7 +72,7 @@ export interface SettingsUiProps {
       useAdminLocaleHook: () => string; createTranslator: typeof createAdminByokKeyPanelTranslator;
       resolveByokFooterStatusLine: SettingsUiProps["deps"]["resolveAdminByokFooterStatusLine"]; t: Translate }>;
     AdminByokSettingsFooter: ComponentType<{ controller: ReturnType<SettingsUiProps["hooks"]["useAdminExecutionCredentialHook"]>;
-      useAdminLocaleHook: () => string; createTranslator: typeof createAdminByokKeyPanelTranslator }>;
+      useAdminLocaleHook: () => string; createTranslator: typeof createAdminByokKeyPanelTranslator; t: Translate }>;
   };
   deps: {
     SETTINGS_DIALOG_DICTIONARIES: Record<string, Record<string, string>>;

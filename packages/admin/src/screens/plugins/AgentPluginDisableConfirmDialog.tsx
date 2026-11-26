@@ -43,9 +43,9 @@ export interface AgentPluginDisableConfirmDialogProps {
   /** Which control opened this dialog — see this file's own header for what each reads and why. */
   variant: "disable" | "remove";
   /** The row's recorded provenance; picks the body's last sentence (`buildAgentPluginDisableConfirmCopy`). */
-  origin?: "bundled" | "operator-installed";
+  origin?: "bundled" | "operator-installed" | undefined;
   /** Enabled plugins that need a capability this one provides, as the server listed them. */
-  requiredBy?: readonly string[];
+  requiredBy?: readonly string[] | undefined;
   /** This plugin row's own agent-handle base (e.g. `agent-plugin-row-site-compliance`) — Confirm/
    *  Cancel publish as `<rowHandle>-<variant>-confirm` / `<rowHandle>-<variant>-cancel`, nesting
    *  under the row's own control (`<rowHandle>-enabled` or `<rowHandle>-remove`) the same way

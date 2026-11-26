@@ -1,3 +1,4 @@
+import { withoutUndefined } from "@jini-ai/core/records";
 import { buildAdditionalHostsInput, buildCustomProviderConnectionInput, customCredentialNameTaken, customCredentialReadyToSave, type CustomCredentialFormFields } from "../../custom-credential-forms.js";
 import { accessTokenDuplicateNameMessage } from "../../security-i18n.js";
 import { accessTokenNameTaken, type AccessTokenProviderRef } from "../../access-token-rows.js";
@@ -110,11 +111,10 @@ export async function createCustomCredential({ context }: { context: AccessToken
       const result = await port.custom.create({
         scope,
         label: fields.name.trim(),
-        worksFor: fields.worksFor,
         category: fields.category,
         baseUrl: fields.baseUrl.trim(),
-        additionalHosts: buildAdditionalHostsInput({ raw: fields.additionalHosts }),
         connection: buildCustomProviderConnectionInput(fields),
+        ...withoutUndefined({ source: { worksFor: fields.worksFor, additionalHosts: buildAdditionalHostsInput({ raw: fields.additionalHosts }) } }),
       });
       setCustomCredentials((prev) => ({ status: "ok", rows: mergeRaw({ list: prev.rows ?? [], result, isNew: true }) }));
       resetCustomAddForm({ context });

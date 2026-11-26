@@ -179,7 +179,7 @@ function buildPluginTabs({ t, locale, canInstall, deps }: { t: PluginsController
   return [
     { id: "installed", label: t("Installed"), icon: <InstalledTabIcon />, handle: "plugins-tab-installed", handleLabel: "Switch to the Installed tab — every plugin installed for this site, on or off" },
     { id: "downloaded", label: t("Downloaded"), icon: <DownloadedTabIcon />, handle: "plugins-tab-downloaded", handleLabel: "Switch to the Downloaded tab — every plugin on disk for this site, regardless of whether it's turned on" },
-    { id: "add", label: t("Add a plugin"), tag: addPluginTabSoonTag({ locale, translateAdminNavLabel }, { enabled: canInstall ? undefined : true }), disabled: !canInstall, icon: <UploadIcon />, handle: "plugins-tab-add", handleLabel: "Switch to the Add a plugin tab — install a plugin from a folder on this server or a .zip" },
+    { id: "add", label: t("Add a plugin"), tag: addPluginTabSoonTag({ locale, translateAdminNavLabel }, canInstall ? {} : { enabled: true }), disabled: !canInstall, icon: <UploadIcon />, handle: "plugins-tab-add", handleLabel: "Switch to the Add a plugin tab — install a plugin from a folder on this server or a .zip" },
     { id: "marketplace", label: t("Marketplace"), tag: marketplaceTabSoonTag({ locale, translateAdminNavLabel }), icon: <MarketplaceTabIcon />, handle: "plugins-tab-marketplace", handleLabel: "Switch to the Marketplace tab — a future place to discover plugins" },
   ];
 }

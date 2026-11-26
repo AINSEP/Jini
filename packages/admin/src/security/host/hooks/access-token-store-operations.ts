@@ -1,3 +1,4 @@
+import { withoutUndefined } from "@jini-ai/core/records";
 import type { Translate } from "@jini-ai/core/text";
 import type { AdminPublishConnectionInput, AdminPublishCredentialSummary } from "../../api/security-api.types.js";
 import type { AdminSourceControlConnectionInput, AdminSourceControlCredentialSummary } from "../../../source-control/api/source-control-api.types.js";
@@ -101,16 +102,16 @@ export async function writeCredential(
     const connection = patch.connection as AdminPublishConnectionInput | undefined;
     if (mode.type === "create") {
       if (!connection) throw new Error("new publish credential has no connection");
-      return port.publish.create({ label: mode.label, connection, isDefault: patch.isDefault, worksFor: patch.worksFor });
+      return port.publish.create({ label: mode.label, connection, ...withoutUndefined({ source: { isDefault: patch.isDefault, worksFor: patch.worksFor } }) });
     }
-    return port.publish.update({ id: mode.id, input: { ...patch, connection } });
+    return port.publish.update({ id: mode.id, input: withoutUndefined({ source: { ...patch, connection } }) });
   }
   const connection = patch.connection as AdminSourceControlConnectionInput | undefined;
   if (mode.type === "create") {
     if (!connection) throw new Error("new source control credential has no connection");
-    return port.sourceControl.create({ label: mode.label, connection, isDefault: patch.isDefault });
+    return port.sourceControl.create({ label: mode.label, connection, ...withoutUndefined({ source: { isDefault: patch.isDefault } }) });
   }
-  return port.sourceControl.update({ id: mode.id, input: { ...patch, connection } });
+  return port.sourceControl.update({ id: mode.id, input: withoutUndefined({ source: { ...patch, connection } }) });
 }
 
 /** @complexity O(n) in the provider's own (small) saved-row count. */

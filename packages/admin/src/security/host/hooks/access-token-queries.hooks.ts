@@ -18,7 +18,7 @@ export function useAccessTokenQueries({ port, locale, hooks, deps }: AccessToken
     () =>
       accessTokenProviders(
         { publishTargets: localizePublishTargets({ targets: publishTargetsQuery.data, locale }), copy: ACCESS_TOKEN_PROVIDER_COPY, sourceControlProviderInfo: descriptor => sourceControlProviderInfoFromDescriptor({ descriptor }) },
-        { sourceControlProviders: sourceControlProvidersQuery.data === undefined ? undefined : localizeSourceControlProviders({ providers: sourceControlProvidersQuery.data, locale }) }
+        sourceControlProvidersQuery.data === undefined ? {} : { sourceControlProviders: localizeSourceControlProviders({ providers: sourceControlProvidersQuery.data, locale }) }
       ),
     [publishTargetsQuery.data, sourceControlProvidersQuery.data, locale]
   );

@@ -242,11 +242,11 @@ export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEdito
     // surface (`PageEditorPane`'s `key={contentRevision}`) with no loading state of its own — logged so
     // a future "renders wrong"/"flashes" report can be tied back to an external write instead of
     // guessed at. Removed once Bug B is closed; not covered by a test for that reason (logging only).
-    if (import.meta.env.DEV) {
+    if (deps.isDevMode) {
       console.debug("[page-editor] interactive", { phase: "contentRevision:increment", ms: Math.round(performance.now()) });
     }
     setContentRevision((n) => n + 1);
-  }, []);
+  }, [deps.isDevMode]);
   return { ...input, draftHtml, setDraftHtml, htmlScrollTopRef, onHtmlScroll, contentRevision, setContentRevision, onInteractiveSourceError, flushInteractiveSafely, flushPendingEdits, onRequestEditHtml, htmlTextareaRef, consumeJumpFormatting, applyExternalPage };
 }
 

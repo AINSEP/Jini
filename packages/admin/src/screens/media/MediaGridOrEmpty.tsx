@@ -4,6 +4,7 @@ import type { useMediaCardDetails } from "./hooks/use-media-card-details.hooks.j
 import type { useMediaCardMetadata } from "./hooks/use-media-card-metadata.hooks.js";
 import type { MediaContentTabId } from "./hooks/use-media-tabs.hooks.js";
 import type { MediaProps } from "./Media.js";
+import type { MediaController } from "./hooks/use-media.hooks.js";
 import { MediaCard } from "./MediaCards.js";
 
 /**

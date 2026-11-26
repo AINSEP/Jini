@@ -162,7 +162,7 @@ export function buildCustomCredentialUpdatePatch(
     hasToken: boolean;
     currentUsername: string | undefined;
   },
-  { currentWorksFor = [] }: { currentWorksFor?: readonly string[] } = {},
+  { currentWorksFor = [] }: { currentWorksFor?: readonly string[] | undefined } = {},
 ): { label?: string; connection?: AdminCustomConnectionInput; username?: string | null; worksFor?: string[] } {
   const trimmedUsername = fields.username.trim();
   const usernameChanged = trimmedUsername !== (currentUsername ?? "").trim();
