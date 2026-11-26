@@ -1,3 +1,4 @@
+import type { RenderBareEntryDocumentRequired } from "../../../public-http/http/site/bare-page.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { PublicPostRecord as PostRecord } from "../../../posts/post.js";
 import type { StaticMenuContent } from "../../../public-http/routes/site/pages/render-context/static-menus.js";
@@ -169,4 +170,46 @@ export async function renderPostPreview({ deps, input }: { deps: ContentRouteDep
   const html = await deps.renderViaTemplate({ theme, post: renderedPost, staticMenus }, { pendingBodyJson: previewBodyJson, pendingBodyHtml: previewBodyHtml, siteAssistantEnabled: false, postPreviewsAccess });
 
   return { html, templateChoice: renderedPost.templateChoice ?? null };
+}
+
+/**
+ * Bare-page preview (owner ruling 2026-09-23, S5) — mirrors `pages.ts`'s own `renderBarePage`, but
+ * built from `ContentRouteDeps`-compatible (Pick-typed) exports only, since this route's `deps` is
+ * narrower than the full `RouteDeps` those two functions require. Inline `widgetEmbed` nodes resolve
+ * through `resolveWidgetsForRender({ deps, theme: null }, { post })`, the same `theme: null` call the live bare
+ * render makes: a doc-format Page can be bare too (the `templateChoice` query/API, not only the Pages
+ * picker), and skipping it previewed every inline widget as the placeholder. Skips the SEO
+ * `extraHead` fold (`buildExtraHead` is private to `pages.ts` and needs `originRegistry`, not in
+ * `ContentRouteDeps`) — a disclosed, low-stakes trim: this is a never-indexed admin iframe, not the
+ * public site S4 already covers.
+ */
+export async function renderBarePostPreview({ deps, post }: { deps: {
+  resolveSiteTitle(): Promise<string>;
+  resolveWidgetsForRender(required: { theme: null }, optional: { post: PostRecord }): Promise<{ inlineResolved: NonNullable<RenderBareEntryDocumentRequired["widgetInlineResolved"]> }>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<NonNullable<RenderBareEntryDocumentRequired["pageHtmlEmbeds"]>>;
+  resolveMediaTransformVersionsForRender(): Promise<NonNullable<RenderBareEntryDocumentRequired["mediaTransformVersions"]>>;
+  resolveMediaAssetMetadataForRender(required: { post: PostRecord }): Promise<NonNullable<RenderBareEntryDocumentRequired["mediaAssetMetadata"]>>;
+  renderBareEntryDocument(required: Pick<RenderBareEntryDocumentRequired, "post" | "siteTitle" | "pageHtmlEmbeds" | "widgetInlineResolved" | "mediaTransformVersions" | "mediaAssetMetadata">): string;
+}; post: PostRecord }, _optional = {}): Promise<string> {
+  const [siteTitle, widgets, pageHtmlEmbeds, mediaTransformVersions, mediaAssetMetadata] = await Promise.all([
+    deps.resolveSiteTitle(),
+    deps.resolveWidgetsForRender({ theme: null }, { post }),
+    deps.resolveHtmlEmbedsForRender({ post }),
+    deps.resolveMediaTransformVersionsForRender(),
+    deps.resolveMediaAssetMetadataForRender({ post }),
+  ]);
+  return deps.renderBareEntryDocument({
+    post,
+    siteTitle,
+    pageHtmlEmbeds,
+    widgetInlineResolved: widgets.inlineResolved,
+    mediaTransformVersions,
+    mediaAssetMetadata,
+  });
+}
+
+export function createPostPreviewRenderer(required: Omit<ContentRouteDeps, "renderBarePreview"> & Parameters<typeof renderBarePostPreview>[0]["deps"], _optional = {}) {
+  return ({ input }: { input: PostPreviewRenderInput }, _optional = {}): Promise<PostPreviewRenderResult> => renderPostPreview({
+    deps: { ...required, renderBarePreview: ({ post }) => renderBarePostPreview({ deps: required, post }) }, input,
+  });
 }

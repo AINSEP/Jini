@@ -4,4 +4,4 @@
 "@jini-ai/diagnostics": minor
 ---
 
-Add configured source ordering and live ordered keyring operations, exclusive key generation, and injected repository secret and seal-AAD check runners.
+Add configured source ordering and live ordered keyring operations, exclusive key generation, configured boot and recovery key provisioning, and injected repository secret and seal-AAD check runners.

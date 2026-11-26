@@ -63,7 +63,8 @@
       "./secrets/root-key/files": "node",
       "./secrets/root-key/material": "node",
       "./secrets/root-key/ordered-keyring": "node",
-      "./secrets/root-key/sources": "node"
+      "./secrets/root-key/sources": "node",
+      "./secrets/root-key/ensure": "node"
     },
     "isolation": {
       "entries": {
@@ -351,6 +352,11 @@
       "types": "./dist/secrets/root-key/sources.d.ts",
       "import": "./dist/secrets/root-key/sources.js",
       "default": "./dist/secrets/root-key/sources.js"
+    },
+    "./secrets/root-key/ensure": {
+      "types": "./dist/secrets/root-key/ensure.d.ts",
+      "import": "./dist/secrets/root-key/ensure.js",
+      "default": "./dist/secrets/root-key/ensure.js"
     }
   },
   "files": [
