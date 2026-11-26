@@ -135,6 +135,7 @@
       "./backup/site/push-content": "universal",
       "./deploy/react/Deployment": "browser",
       "./deploy/react/OverviewTab": "browser",
+      "./deploy/react/StaticSiteTab": "browser",
       "./deploy/react/deployment-visuals": "browser",
       "./deploy/react/rules": "universal",
       "./deploy/react/DockerfileTab": "browser",
@@ -802,6 +803,11 @@
       "types": "./dist/deploy/react/OverviewTab.d.ts",
       "import": "./dist/deploy/react/OverviewTab.js",
       "default": "./dist/deploy/react/OverviewTab.js"
+    },
+    "./deploy/react/StaticSiteTab": {
+      "types": "./dist/deploy/react/StaticSiteTab.d.ts",
+      "import": "./dist/deploy/react/StaticSiteTab.js",
+      "default": "./dist/deploy/react/StaticSiteTab.js"
     },
     "./deploy/react/deployment-visuals": {
       "types": "./dist/deploy/react/deployment-visuals.d.ts",
