@@ -16,7 +16,10 @@ const host: KeepOffHost = {
     setAside: ({ fallback }) => `aside:${fallback}`,
     themeKeptOff: ({ themeId }) => `theme-off:${themeId}`,
     pageDrafted: ({ title }) => `page:${title}`,
-    morePagesDrafted: ({ count }) => `more-pages:${count}`,
+    morePagesDrafted: {
+      singular: ({ count }) => `more-pages:${count}`,
+      plural: ({ count }) => `more-pages:${count}`,
+    },
     menuKeptOff: ({ title, id }) => `menu:${title}:${id}`,
     moreMenusKeptOff: ({ count }) => `more-menus:${count}`,
     formDisabled: ({ name, id }) => `form:${name}:${id}`,
@@ -85,6 +88,25 @@ describe("keepImportedCodeOff", () => {
   it("truncates long titles to 80 characters", async () => {
     const { s } = store({ pages: [{ id: 1, title: "x".repeat(100), bodyHtml: "<script>1</script>" }] });
     expect(await run(s)).toEqual([`page:${"x".repeat(80)}`]);
+  });
+  it("selects singular and plural summary formatters before passing the count", async () => {
+    const notices = { ...host.notices, morePagesDrafted: {
+      singular: ({ count }: { count: number }) => `${count} more page holds its own code and was imported as a draft.`,
+      plural: ({ count }: { count: number }) => `${count} more pages hold their own code and were imported as drafts.`,
+    } };
+    for (const count of [21, 22]) {
+      const { s } = store({ pages: Array.from({ length: count }, (_, id) => ({ id, title: `t${id}`, bodyHtml: "<script>1</script>" })) });
+      const result = await run(s, { host: { ...host, notices } });
+      expect(result.at(-1)).toBe(count === 21 ? "1 more page holds its own code and was imported as a draft." : "2 more pages hold their own code and were imported as drafts.");
+    }
+  });
+  it("closes once when drafting a page fails without scanning menus or forms", async () => {
+    const { s, log } = store({ pages: [{ id: 1, title: "bad", bodyHtml: "<script>1</script>" }] });
+    s.draftPage = async () => { throw new Error("draft failed"); };
+    s.menus = async () => { throw new Error("menus reached"); };
+    s.forms = async () => { throw new Error("forms reached"); };
+    await expect(run(s)).rejects.toThrow("draft failed");
+    expect(log.closed).toBe(1);
   });
   it("switches html-mode menus with script to items mode, skips invalid JSON and other modes", async () => {
     const html = (h: string) => JSON.stringify({ mode: "html", html: h });

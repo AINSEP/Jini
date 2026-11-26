@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
 import { memberOidcStartRoute, type MemberOidcStartRouteDeps } from "../oidc-start.js";
-import { memberOidcCallbackRoute, type MemberOidcCallbackRouteDeps, type MemberOidcCallbackOutcome } from "../oidc-callback.js";
+import { completeMemberOidcRouteOutcome, bindMemberOidcCallbackRoute, memberOidcCallbackRoute, type MemberOidcCallbackRouteDeps, type MemberOidcCallbackOutcome } from "../oidc-callback.js";
 
 /** @file The public member OIDC start and callback specs: top-level browser pages, so every failure (a refused
  * cross-site start, a bad provider, a missing/forged state, a nonce mismatch, an expired flow cookie, a provider
@@ -184,4 +184,20 @@ describe("memberOidcCallbackRoute", () => {
     expect(calls).toEqual(["callback-url", "cookie:callback:clear"]);
     expect(ipLimiter.keys).toEqual(["203.0.113.7"]);
   });
+});
+
+it("assembles a callback outcome without reading the session cookie or announcing before the raw spec", async () => {
+  const calls: string[] = [];
+  const result = { token: "raw" };
+  const outcome = await completeMemberOidcRouteOutcome({ readContext: async () => ({}), readBrowserBinding: () => "binding", complete: async () => ({ kind: "signed_in", result }),
+    sessionCookie: () => { calls.push("session"); return "member=raw"; }, announce: () => { calls.push("announce"); } });
+  expect(calls).toEqual([]);
+  const { deps } = callbackHarness(async () => outcome);
+  const binding = bindMemberOidcCallbackRoute({ deps, requestDeps: () => deps,
+    writeHeaders: () => { calls.push("headers"); }, observe: () => { calls.push("observe"); }, check: () => false });
+  binding.preflight({}, () => { calls.push("raw"); });
+  expect(calls).toEqual(["headers", "observe"]);
+  const response = await binding.spec.handle({ raw: raw(), deps: binding.requestDeps({ request: {}, deps: binding.deps }) }, { signal });
+  expect(response.headers.getSetCookie().at(-1)).toBe("member=raw");
+  expect(calls.slice(-2)).toEqual(["session", "announce"]);
 });

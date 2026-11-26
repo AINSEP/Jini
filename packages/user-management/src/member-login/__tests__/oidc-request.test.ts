@@ -1,10 +1,19 @@
 import { expect, it, vi } from "vitest";
-import { completeMemberOidcCallback, readOidcCallbackParams, readOidcEmailProof, verifyMemberOidcEmailProof } from "../oidc-request.js";
+import { completeMemberOidcCallback, readOidcCallbackParams, readOidcEmailProof, requireOidcContinuationDelivery, verifyMemberOidcEmailProof } from "../oidc-request.js";
 import { completeOidcLogin, openLoginEmailContinuation, sealLoginEmailContinuation, type OidcLoginDeps } from "../oidc-login.js";
 import { requestLoginEmailProof, resolveFederatedIdentity, type MemberLoginLinkDeps } from "../link-service.js";
 
 vi.mock("../oidc-login.js", () => ({ completeOidcLogin: vi.fn(), openLoginEmailContinuation: vi.fn(), sealLoginEmailContinuation: vi.fn() }));
 vi.mock("../link-service.js", () => ({ requestLoginEmailProof: vi.fn(), resolveFederatedIdentity: vi.fn() }));
+
+it("admits continuation delivery or raises the fixed login-unavailable refusal", async () => {
+  const check = vi.fn(async () => true);
+  await expect(requireOidcContinuationDelivery({ check })).resolves.toBeUndefined();
+  expect(check).toHaveBeenCalledOnce();
+  check.mockResolvedValueOnce(false);
+  await expect(requireOidcContinuationDelivery({ check })).rejects.toMatchObject({ code: "LOGIN_UNAVAILABLE" });
+  expect(check).toHaveBeenCalledTimes(2);
+});
 
 it("checks limits before issuing a bound continuation and rejects extra proof keys", async () => {
   vi.mocked(completeOidcLogin).mockResolvedValue({ identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" as const });

@@ -1,3 +1,4 @@
+import type { SiteBackupSources } from "./sources.js";
 
 
 
@@ -6,7 +7,8 @@ import type { SiteBackupPushProgress } from "../push-jobs.js";
 
 
 
-import { PUSH_WAIT_MS, SITE_BACKUP_PUSH_TOOL_ID, type SiteBackupToolDeps, type SiteBackupPlan, type Refusal, providerRefusal, inspect, type PushResult } from "./backup-service.js";
+import type { SiteBackupRequestDeps, SiteBackupRepositoryPlanContent, SiteBackupToolDeps, SiteBackupPlan, Refusal, PushResult } from "./backup-service.js";
+import { PUSH_WAIT_MS, SITE_BACKUP_PUSH_TOOL_ID, providerRefusal, inspect } from "./backup-service.shared.js";
 import { backupTarget, resolveBackupCredential } from "./backup-service.credentials.js";
 
 function pushRefusal(refusal: Refusal, cancelledCode: string): PushResult {
@@ -21,7 +23,7 @@ function pushRefusal(refusal: Refusal, cancelledCode: string): PushResult {
  * @complexity O(total bytes); see Jini's `backup/site/push-content` for the uploads, plus a few fixed tree writes,
  *   one commit and one ref update.
  */
-async function pushPlannedBackup({ deps, plan, run }: { deps: SiteBackupToolDeps; plan: SiteBackupPlan; run: { signal: AbortSignal; progress: SiteBackupPushProgress } }, _optional: Record<string, never> = {}): Promise<PushResult> {
+async function pushPlannedBackup<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, plan, run }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; plan: SiteBackupPlan<TContent>; run: { signal: AbortSignal; progress: SiteBackupPushProgress } }, _optional: Record<string, never> = {}): Promise<PushResult> {
   const credential = await resolveBackupCredential({ deps, requested: plan.credentialLabel });
   if (!credential.ok) return pushRefusal(credential, deps.cancelled.code);
   const target = backupTarget({ deps: deps.deps, credential, owner: plan.owner, repo: plan.repo });
@@ -52,9 +54,9 @@ async function pushPlannedBackup({ deps, plan, run }: { deps: SiteBackupToolDeps
   return committed.result;
 }
 
-export async function runObservedBackupPush(required: Parameters<typeof pushPlannedBackup>[0]): Promise<PushResult> {
-  if (!required.deps.observability) return pushPlannedBackup(required);
-  const operation = required.deps.observability.trackOperation({ name: "site.backup" });
+export async function runObservedBackupPush<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(required: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; plan: SiteBackupPlan<TContent>; run: { signal: AbortSignal; progress: SiteBackupPushProgress } }): Promise<PushResult> {
+  if (!required.deps.request.observability) return pushPlannedBackup(required);
+  const operation = required.deps.request.observability.trackOperation({ name: "site.backup" });
   return operation.run(() => pushPlannedBackup(required)).then(result => {
     const cancelled = !result.pushed && (result.cancelled || ("reason" in result && result.reason === "abandoned"));
     operation.end({ outcome: result.pushed ? "completed" : cancelled ? "cancelled" : "not_pushed", failed: !result.pushed && !cancelled });
@@ -84,6 +86,6 @@ export function inProgressResult({ formatByteSize, planId, progress, elapsedMs }
   };
 }
 
-export function pushWaitBudget({ deps, waitMs }: { deps: SiteBackupToolDeps; waitMs: number | undefined }, _options = {}): number {
-  return waitMs ?? deps.siteBackupPushWaitMs ?? PUSH_WAIT_MS;
+export function pushWaitBudget({ deps, waitMs }: { deps: { request: Pick<SiteBackupRequestDeps, "siteBackupPushWaitMs"> }; waitMs: number | undefined }, _options = {}): number {
+  return waitMs ?? deps.request.siteBackupPushWaitMs ?? PUSH_WAIT_MS;
 }

@@ -1,5 +1,5 @@
 import type { MemberOidcFlowCookieKind } from "./oidc-shared.js";
-import { memberOidcLimitResponse } from "./oidc-shared.js";
+import { runMemberOidcPreflight, memberOidcLimitResponse } from "./oidc-shared.js";
 import { memberClientAddress, memberRequestLimitReply, type MemberRequestLimiter, type PublicMemberRawRoute } from "./shared.js";
 import type { MemberLoginRefusalFor } from "./unlink-identity.js";
 
@@ -91,3 +91,27 @@ export const memberOidcVerifyEmailRoute: PublicMemberRawRoute<MemberOidcVerifyEm
     }
   },
 };
+
+export async function verifyMemberOidcRouteOutcome<TContext, TResult>(required: {
+  readContext: () => Promise<TContext>; readBrowserBinding: () => string;
+  verify: (required: { context: TContext; browserBinding: string }) => Promise<{ kind: 'signed_in'; result: TResult } | { kind: 'email_verification_required' }>;
+  sessionCookie: (result: TResult) => string; announce: (result: TResult) => void; member: (result: TResult) => unknown;
+}, _optional = {}): Promise<MemberOidcVerifyEmailOutcome> {
+  const context = await required.readContext();
+  const browserBinding = required.readBrowserBinding();
+  const linked = await required.verify({ context, browserBinding });
+  if (linked.kind !== 'signed_in') return { kind: linked.kind };
+  return { kind: 'signed_in', sessionCookie: () => required.sessionCookie(linked.result), announce: () => required.announce(linked.result), member: () => required.member(linked.result) };
+}
+
+export function bindMemberOidcVerifyEmailRoute<TRequest>(required: {
+  deps: Omit<MemberOidcVerifyEmailRouteDeps, 'verify' | 'callbackUrl'>;
+  requestDeps: (input: { request: TRequest; deps: MemberOidcVerifyEmailRouteDeps }) => MemberOidcVerifyEmailRouteDeps;
+  writeHeaders: (request: TRequest) => void; observe: (request: TRequest) => void; check: (request: TRequest) => boolean;
+}, _optional = {}) {
+  const boundPerRequest = (): never => { throw new Error('bound per request by requestDeps'); };
+  return { spec: memberOidcVerifyEmailRoute, deps: { ...required.deps, verify: boundPerRequest, callbackUrl: boundPerRequest }, requestDeps: required.requestDeps,
+    preflight: (request: TRequest, run: () => unknown) => runMemberOidcPreflight({ writeHeaders: () => required.writeHeaders(request),
+      observe: () => required.observe(request), check: () => required.check(request), run }),
+  };
+}

@@ -46,3 +46,12 @@ export function memberOidcFailure({ deps, error, cookies }: { deps: MemberOidcRe
   deps.onFailed();
   return memberOidcRedirect({ location: deps.errorLocation({ error }), cookies });
 }
+
+export function runMemberOidcPreflight(required: {
+  writeHeaders: () => void; observe: () => void; check: () => boolean; run: () => unknown;
+}, _optional = {}): unknown {
+  required.writeHeaders();
+  required.observe();
+  if (!required.check()) return;
+  return required.run();
+}

@@ -3,6 +3,8 @@ import { mergeFormFlashIntoResult, type FormFlashPayload } from '../../../../for
 import type { FormSubmissionRedirectResult } from '../../../../forms/types.js';
 import { injectListingScript } from '../../../../listing/index.js';
 import { injectExtraHeadIntoStaticPage } from '../../../../presentation/html.js';
+import { injectFormAttemptTokens } from '../../../../forms/form-controls.js';
+import type { SubmissionAttempts } from '../../../../forms/submission-attempts.js';
 
 /** {@link resolvePerVisitorResponse}'s two outputs: the form result to splice into the HTML (if
  *  any), and the `Cache-Control` this response must therefore send. Returned together, from the one
@@ -112,4 +114,46 @@ export async function finalizePublicPageHtml({ html, formResult, ports }: {
 export function addPluginExportHostsToResponse({ response, hosts }: { response: { getHeader?: (name: string) => unknown; setHeader: (name: string, value: string) => unknown } | undefined; hosts: DeclaredPageHosts | undefined }, _optional: Record<string, never> = {}): void {
   const policy = response?.getHeader?.(CSP_REPORT_ONLY_HEADER);
   if (hosts && response && typeof policy === "string") response.setHeader(CSP_REPORT_ONLY_HEADER, addDeclaredHostsToPolicy({ policy, hosts }));
+}
+
+/** Sends a finished public page: this request's `Cache-Control`, the HTML type, and the finalized
+ *  body (a see-more batch request gets just its batch). */
+export async function sendPublicPage(required: {
+  html: string; perVisitor: PerVisitorResponse;
+  preConsentCacheControl: Parameters<typeof publicPageCache>[0]['preConsentCacheControl'];
+  hasConsentGatedScripts: Parameters<typeof publicPageCache>[0]['hasConsentGatedScripts'];
+  writer: { vary(name: string): void; set(name: string, value: string): void; type(value: string): void; send(html: string): void };
+  ports: Omit<Parameters<typeof finalizePublicPageHtml>[0]['ports'], 'formAttemptTokens'> & {
+    hasWidgetPartials(): boolean;
+    workspaceId: string; randomUUID(): string; nowMs(): number;
+    formSubmissionAttempts(): Pick<SubmissionAttempts, 'issue'> | undefined;
+  };
+}, _optional = {}): Promise<void> {
+  const { html, perVisitor, writer, ports } = required;
+  const { cacheControl, varyCookie } = publicPageCache({ html, cacheControl: perVisitor.cacheControl,
+    preConsentCacheControl: required.preConsentCacheControl, hasConsentGatedScripts: required.hasConsentGatedScripts,
+  });
+  if (varyCookie) writer.vary('Cookie');
+  writer.set('Cache-Control', cacheControl);
+  writer.type('html');
+  const result = await finalizePublicPageHtml({ html, formResult: perVisitor.result, ports: {
+    listingBatchBody: input => ports.listingBatchBody(input),
+    assertListingPageServed: input => ports.assertListingPageServed(input),
+    pluginHead: input => ports.pluginHead(input),
+    addPluginHosts: input => ports.addPluginHosts(input),
+    finishFormResult: input => ports.finishFormResult(input),
+    staticExport: input => ports.staticExport(input),
+    memberAuthScript: input => ports.memberAuthScript(input),
+    widgetPartials: async ({ html }) => ports.hasWidgetPartials() ? ports.widgetPartials({ html }) : html,
+    formAttemptTokens: ({ html }) => injectFormAttemptTokens({ html, newToken: ({ slug }) => {
+      const attemptToken = ports.randomUUID();
+      // The composition supplies this same process-lifetime owner to submission. Static exports
+      // returned above never issue tokens; rendering observes time without claiming a submission.
+      ports.formSubmissionAttempts()?.issue({ workspaceId: ports.workspaceId, slug, attemptToken, issuedAtMs: ports.nowMs() }, {});
+      return attemptToken;
+    } }, {}),
+  } });
+  // Every caller has already typed the response as html; the JSON form answers as JSON.
+  if (result.contentType === 'json') writer.type('json');
+  writer.send(result.html);
 }

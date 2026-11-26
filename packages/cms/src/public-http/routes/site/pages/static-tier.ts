@@ -60,19 +60,19 @@ import { injectExtraHeadIntoStaticPage } from "../../../../presentation/html.js"
  * re-scan — plus one `resolveCollectionListsForRender` pass bounded to at most
  * `MAX_DISTINCT_COLLECTION_MARKERS_PER_PAGE` distinct marker configs.
  */
-export async function finishStaticTierDocument(
+export async function finishStaticTierDocument<TMenu = StaticMenuContent, TAccess extends object = object>(
   { deps, input }: { deps: {
     DEFAULT_THEME_SLOTS: typeof DEFAULT_THEME_SLOTS;
     expandPartials(required: { defaultSlots: typeof DEFAULT_THEME_SLOTS; html: string }): string;
-    resolveHtmlPageEmbeds(required: { html: string }): Promise<ResolveHtmlPageEmbedsResult>;
-    renderHtmlPageBody(required: { html: string; resolved: ResolveHtmlPageEmbedsResult }, optional: { postAuthor: StaticTierDocumentInput["postAuthor"] }): string;
-    resolveStaticMenusForRender(required: { currentPath: string }, optional: { extraMenuIds: string[] }): Promise<Readonly<Record<string, StaticMenuContent>>>;
-    resolvePostPreviewsForRender(required: { pageHtml: string; pagePath: string }): Promise<PostPreviewsResult | undefined>;
+    resolveHtmlPageEmbeds(required: { html: string }): Promise<ResolveHtmlPageEmbedsResult | undefined>;
+    renderHtmlPageBody(required: { html: string; resolved: ResolveHtmlPageEmbedsResult | undefined }, optional: { postAuthor: StaticTierDocumentInput<TMenu, TAccess>["postAuthor"] }): string;
+    resolveStaticMenusForRender(required: { currentPath: string }, optional: { extraMenuIds: string[] }): Promise<Readonly<Record<string, TMenu>>>;
+    resolvePostPreviewsForRender(required: { pageHtml: string; pagePath: string; postPreviewsAccess: TAccess }): Promise<PostPreviewsResult | undefined>;
     resolveCollectionListsForRender(required: { html: string; pagePath: string }): Promise<ReadonlyMap<string, string | undefined>>;
-    renderStaticPage(required: { pageId: string; htmlOverride: string; menus: StaticTierDocumentInput["staticMenus"]; postPreviews: PostPreviewsResult["previews"] | undefined; postPreviewBatches: PostPreviewsResult["batches"] | undefined; postPreviewsPage: PostPreviewsResult["page"]; collectionLists: ReadonlyMap<string, string | undefined>; featuredImage: StaticTierDocumentInput["featuredImage"]; postAuthor: StaticTierDocumentInput["postAuthor"] }): string | null;
+    renderStaticPage(required: { pageId: string; htmlOverride: string; menus: StaticTierDocumentInput<TMenu, TAccess>["staticMenus"]; postPreviews: PostPreviewsResult["previews"] | undefined; postPreviewBatches: PostPreviewsResult["batches"] | undefined; postPreviewsPage: PostPreviewsResult["page"]; collectionLists: ReadonlyMap<string, string | undefined>; featuredImage: StaticTierDocumentInput<TMenu, TAccess>["featuredImage"]; postAuthor: StaticTierDocumentInput<TMenu, TAccess>["postAuthor"] }): string | null;
     staticThemeScripts(): readonly DeclaredScript[];
     documentAssets: ((required: { scripts: readonly DeclaredScript[]; static: true }) => Promise<DocumentAssets>) | undefined;
-  }; input: StaticTierDocumentInput },
+  }; input: StaticTierDocumentInput<TMenu, TAccess> },
   _optional: Record<string, never> = {}
 ): Promise<string> {
   const { pageId, html, currentPath, staticMenus, postPreviewsAccess, featuredImage, postAuthor } = input;
@@ -94,12 +94,12 @@ export async function finishStaticTierDocument(
 }
 
 /** What {@link finishStaticTierDocument} finishes: one static-tier page of `theme`, and who is asking. */
-interface StaticTierDocumentInput {
+interface StaticTierDocumentInput<TMenu = StaticMenuContent, TAccess extends object = object> {
   readonly pageId: string;
   readonly html: string;
   readonly currentPath: string;
-  readonly staticMenus: Readonly<Record<string, StaticMenuContent>> | undefined;
-  readonly postPreviewsAccess?: object | undefined;
+  readonly staticMenus: Readonly<Record<string, TMenu>> | undefined;
+  readonly postPreviewsAccess?: TAccess | undefined;
   /** The rendered post's featured image for a `{"type":"featured-image"}` marker (2026-10-05);
    *  omitted on every surface that is not a post, which removes the marker. */
   readonly featuredImage?: StaticFeaturedImage | null | undefined;
@@ -107,7 +107,7 @@ interface StaticTierDocumentInput {
 }
 
 /** Steps 1–2 of {@link finishStaticTierDocument}: partials expanded, embeds resolved, listing keys assigned. */
-async function prepareStaticTierHtml({ deps, html, postAuthor }: { deps: Parameters<typeof finishStaticTierDocument>[0]["deps"] } & Pick<StaticTierDocumentInput, "html" | "postAuthor">, _optional: Record<string, never> = {}): Promise<string> {
+async function prepareStaticTierHtml<TMenu, TAccess extends object>({ deps, html, postAuthor }: { deps: Parameters<typeof finishStaticTierDocument<TMenu, TAccess>>[0]["deps"] } & Pick<StaticTierDocumentInput<TMenu, TAccess>, "html" | "postAuthor">, _optional: Record<string, never> = {}): Promise<string> {
   const expanded = deps.expandPartials({ defaultSlots: deps.DEFAULT_THEME_SLOTS, html: html });
   const resolved = await deps.resolveHtmlPageEmbeds({ html: expanded });
   // See-more listings get their keys here, on the one assembled document every resolver below and
@@ -116,7 +116,7 @@ async function prepareStaticTierHtml({ deps, html, postAuthor }: { deps: Paramet
 }
 
 /** Steps 3–5 of {@link finishStaticTierDocument}: the menus the assembled html still names, post previews, collection lists. */
-async function resolveStaticTierData({ deps, assembled, currentPath, staticMenus, postPreviewsAccess }: { deps: Parameters<typeof finishStaticTierDocument>[0]["deps"]; assembled: string } & Pick<StaticTierDocumentInput, "currentPath" | "staticMenus" | "postPreviewsAccess">, _optional: Record<string, never> = {}) {
+async function resolveStaticTierData<TMenu, TAccess extends object>({ deps, assembled, currentPath, staticMenus, postPreviewsAccess }: { deps: Parameters<typeof finishStaticTierDocument<TMenu, TAccess>>[0]["deps"]; assembled: string } & Pick<StaticTierDocumentInput<TMenu, TAccess>, "currentPath" | "staticMenus" | "postPreviewsAccess">, _optional: Record<string, never> = {}) {
   const missingMenuIds = missingStaticMenuIds({ assembled, staticMenus });
   const menus =
     missingMenuIds.length === 0
@@ -124,7 +124,7 @@ async function resolveStaticTierData({ deps, assembled, currentPath, staticMenus
       : { ...staticMenus, ...(await deps.resolveStaticMenusForRender({ currentPath }, { extraMenuIds: missingMenuIds })) };
 
   const postPreviews = postPreviewsAccess
-    ? await deps.resolvePostPreviewsForRender({ pageHtml: assembled, pagePath: currentPath })
+    ? await deps.resolvePostPreviewsForRender({ pageHtml: assembled, pagePath: currentPath, postPreviewsAccess })
     : undefined;
 
   // C5 (collections plan, 2026-09-23) — the SAME assembled html post-previews just scanned, so a
@@ -134,7 +134,7 @@ async function resolveStaticTierData({ deps, assembled, currentPath, staticMenus
   return { menus, postPreviews, collectionLists };
 }
 
-export function missingStaticMenuIds({ assembled, staticMenus }: { assembled: string; staticMenus: StaticTierDocumentInput["staticMenus"] }, _optional = {}): string[] {
+export function missingStaticMenuIds<TMenu>({ assembled, staticMenus }: { assembled: string; staticMenus: StaticTierDocumentInput<TMenu>["staticMenus"] }, _optional = {}): string[] {
   const knownMenuIds = new Set(Object.keys(staticMenus ?? {}));
   const missingMenuIds = Array.from(
     new Set(
@@ -147,7 +147,36 @@ export function missingStaticMenuIds({ assembled, staticMenus }: { assembled: st
 }
 
 /** A static-tier theme that ships its own `index.html`. */
-export function hasStaticThemeIndex(required: { theme: { manifest: { tier: string }; pages: Readonly<Record<string, string>> } | null }, _optional: Record<string, never> = {}): required is { theme: { manifest: { tier: string }; pages: Readonly<Record<string, string>> & { index: string } } } {
+export function hasStaticThemeIndex<TTheme extends { manifest: { tier: string }; pages: Readonly<Record<string, string>> }>(required: { theme: TTheme | null }, _optional: Record<string, never> = {}): required is { theme: TTheme & { pages: { index: string } } } {
   const { theme } = required;
   return theme !== null && theme.manifest.tier === "static" && theme.pages.index !== undefined;
+}
+
+/** Static pages and diagnostic templates share the theme's declared-script defaults. */
+export function staticThemeScripts({ theme }: { theme: { manifest: { scripts?: readonly DeclaredScript[] } } }, _optional = {}): readonly DeclaredScript[] {
+  return theme.manifest.scripts ?? [];
+}
+
+/** `GET /` through a static theme's own `index.html` (see the E4 note at the call site). */
+export async function serveStaticThemeIndex<TTheme extends { pages: { index: string } }, TMenu, TAccess extends object, TVisitor>(required: {
+  theme: TTheme; staticMenus: Readonly<Record<string, TMenu>>; extraHead: string;
+  siteAssistantEnabled: boolean | 'react' | 'vanilla'; access: TAccess; pageId: string; currentPath: string;
+  title: (optional: { preserveAuthoredFallback: true }) => Promise<string | undefined>;
+  finish: (required: { input: { theme: TTheme; pageId: string; html: string; currentPath: string; staticMenus: Readonly<Record<string, TMenu>>; postPreviewsAccess: TAccess } }, optional: Record<string, never>) => Promise<string>;
+  chat: (required: { html: string; enabled: boolean | 'react' | 'vanilla' }) => string;
+  perVisitor: () => TVisitor; send: (required: { html: string; perVisitor: TVisitor }) => Promise<void>;
+}, _optional = {}): Promise<void> {
+  // Preserve authored titles only when neither a workspace title nor a pending pin supplies one.
+  const preserveThemeTitle = await required.title({ preserveAuthoredFallback: true })
+    .then((title) => title === undefined, () => false);
+  const rendered = await required.finish({ input: {
+    theme: required.theme,
+    pageId: required.pageId,
+    html: required.theme.pages.index,
+    currentPath: required.currentPath,
+    staticMenus: required.staticMenus,
+    postPreviewsAccess: required.access,
+  } }, {});
+  const homeHtml = required.chat({ html: injectExtraHeadIntoStaticPage({ html: rendered, extraHead: required.extraHead }, { preserveThemeTitle }), enabled: required.siteAssistantEnabled });
+  await required.send({ html: homeHtml, perVisitor: required.perVisitor() });
 }

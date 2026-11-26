@@ -3,6 +3,18 @@ import { requestLoginEmailProof, resolveFederatedIdentity, type MemberLoginLinkD
 import { MemberLoginError } from '../server/login-types.js';
 import type { MemberSignInResult } from '../members/ports.js';
 
+/** The shared member delivery limits for this top-level browser page. The API routes answer a
+ * refusal with 429 JSON; here the one-time code is already spent, so a refusal becomes the fixed
+ * sign-in error redirect instead (the route's catch), and the limiter's own response is discarded.
+ * @throws {MemberLoginError} LOGIN_UNAVAILABLE when a limit refuses. @complexity O(1) limiter checks.
+ */
+export async function requireOidcContinuationDelivery(required: {
+  check: () => Promise<boolean>;
+}, _optional = {}): Promise<void> {
+  const allowed = await required.check();
+  if (!allowed) throw new MemberLoginError({ code: 'LOGIN_UNAVAILABLE' });
+}
+
 /** Query parser rejects repeated/object values before OAuth can receive ambiguous credentials.
  * Provider denial takes the same fixed error path, after clearing the browser cookie; Cancel
  * (`access_denied`) only picks a kinder message. O(k) keys.

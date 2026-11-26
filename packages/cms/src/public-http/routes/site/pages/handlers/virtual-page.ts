@@ -10,7 +10,7 @@ import type { PerVisitorResponse } from "../response.js";
  * content slot through `renderViaTemplate`'s pending-body override (keyed to its id, the one the
  * admin preview uses), so no repo lookup runs for it. Errors propagate to the caller.
  */
-export async function renderVirtualPage({ post, currentPath, deps }: {
+export async function renderVirtualPage<TMenu = StaticMenuContent>({ post, currentPath, deps }: {
   post: PostRecord; currentPath: () => string;
   deps: {
     withListingBatch(): void;
@@ -21,8 +21,8 @@ export async function renderVirtualPage({ post, currentPath, deps }: {
     NO_THEME_ID: "none";
     resolveTemplateBranchChoice(required: { theme: object; post: PostRecord }): { kind: "ineligible" | "as-chosen" } | { kind: "page-shell"; templateChoice: string };
     resolvePerVisitorResponse(): PerVisitorResponse;
-    renderViaTemplate(required: { theme: object; post: PostRecord; staticMenus: Readonly<Record<string, StaticMenuContent>> }, optional: { pendingBodyJson: undefined; pendingBodyHtml: string; extraHead: undefined; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
-    resolveStaticMenusForRender(required: { theme: object; currentPath: string }): Promise<Readonly<Record<string, StaticMenuContent>>>;
+    renderViaTemplate(required: { theme: object; post: PostRecord; staticMenus: Readonly<Record<string, TMenu>> }, optional: { pendingBodyJson: undefined; pendingBodyHtml: string; extraHead: undefined; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
+    resolveStaticMenusForRender(required: { theme: object; currentPath: string }): Promise<Readonly<Record<string, TMenu>>>;
     renderGenericPostPage(required: { theme: object | null; post: PostRecord; posts: PostRecord[]; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
     sendPublicPage(required: { html: string; perVisitor: PerVisitorResponse }): Promise<void> | void;
     sendNoThemesInstalled(): void;

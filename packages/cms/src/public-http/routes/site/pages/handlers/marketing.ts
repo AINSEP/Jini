@@ -28,14 +28,15 @@ type MarketingPageResolution =
  * slug" is the overwhelmingly common case for a marketing-page route and must NOT 404 the theme
  * page that's about to render fine.
  */
-export async function resolveMarketingPageOrOverride({ theme, slug, isStandaloneThemePage, readPost, finishStaticTierDocument, postPublicPath, resolveSiteTitleForRender, buildExtraHead, injectSiteAssistantIntoStaticPage }: {
+export async function resolveMarketingPageOrOverride({ theme, slug, isStandaloneThemePage, readPost, finishStaticTierDocument, postPublicPath, resolveSiteTitleForRender, resolveAuthoredSiteTitleForRender, buildExtraHead, injectSiteAssistantIntoStaticPage }: {
   theme: { manifest: { tier: string }; pages: Readonly<Record<string, string>> } | null;
   slug: string;
   isStandaloneThemePage: (required: { pageId: string }) => boolean;
   readPost: () => Promise<{ post: PostRecord }>;
   finishStaticTierDocument: (required: { pageId: string; html: string; currentPath: string }) => Promise<string | undefined>;
   postPublicPath: (required: { slug: string }) => string;
-  resolveSiteTitleForRender: (optional?: { preserveAuthoredFallback: true }) => Promise<string | undefined>;
+  resolveSiteTitleForRender: () => Promise<string | undefined>;
+  resolveAuthoredSiteTitleForRender: (required: { preserveAuthoredFallback: true }) => Promise<string | undefined>;
   buildExtraHead: (required: { siteTitle: string | undefined }, optional: { canonicalFallbackPath: string }) => Promise<string>;
   injectSiteAssistantIntoStaticPage: (required: { html: string }) => string;
 }, _optional = {}): Promise<MarketingPageResolution> {
@@ -79,7 +80,7 @@ export async function resolveMarketingPageOrOverride({ theme, slug, isStandalone
   const extraHead = await buildExtraHead({ siteTitle: await resolveSiteTitleForRender() }, { canonicalFallbackPath: postPublicPath({ slug: slug }) });
   // The display-name fallback must not displace an authored theme title. If the explicit-title
   // read fails, retain the existing fold-wins behavior rather than failing the page render.
-  const preserveThemeTitle = await resolveSiteTitleForRender({ preserveAuthoredFallback: true })
+  const preserveThemeTitle = await resolveAuthoredSiteTitleForRender({ preserveAuthoredFallback: true })
     .then((title) => title === undefined, () => false);
   // ADR-054 gap fix — same `pageShell`-bypassing shape missed the visitor-chat widget the same way
   // it missed `extraHead` above; a static theme's marketing pages (pricing/docs/blog/…) never showed

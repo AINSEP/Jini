@@ -2,14 +2,14 @@ import { requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPer
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { DbOpsPort } from "@jini-ai/core/contracts/site/gated-mutations-ports";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
-import type { CredentialSetRepoPort as BaseCredentialRepo, CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
+import type { CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
 
-import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
-import type { CredentialedRepositoryTarget, InspectBackupRepositoryResult, SourceControlProvider, SourceControlKitHttpClient as HttpClientPort } from "../../source-control/site/provider-module.js";
+import type { SourceControlProvider } from "../../source-control/site/provider-module.js";
 
 import type { BackupRepositoryState } from "../../source-control/contracts.js";
-import { type LoadSourceControlProviders } from "../../source-control/site/store.js";
-import type { SourceControlCredentialSetRepoPort } from "@jini-ai/core/contracts/site/source-control-credentials";
+import type { resolveDefaultForSourceControl } from "../../source-control/site/store.js";
+import type { pickSourceControlProviderForApi } from "../../source-control/registry.js";
+import type { SourceControlProviderId } from "@jini-ai/core/contracts/site/source-control-credentials";
 import type { SiteImportBackend } from "./import-backend.js";
 import type { SiteShareBackend } from "./share-backend.js";
 
@@ -19,8 +19,9 @@ import type { initialPushProgress, uploadBackupPlan, commitBackupPlan } from "./
 import type { SiteBackupPushJobs, SiteBackupPushProgress } from "../push-jobs.js";
 import { type formatByteSize, type skipOversizedFiles, type SiteBackupSources, type SiteBackupHostLimit, type SiteBackupInclude, type PlannedDiskFile, type SkippedSiteBackupFile, type SiteBackupScope, type DatabaseSnapshotResult, type CollectedSiteBackupFiles, type SiteBackupLimitsResult, type ReadPlannedFileResult } from "./sources.js";
 import type { CredentialWarning } from "./credential-warnings.js";
-type CustomCredentialSetRepoPort = BaseCredentialRepo<string>;
 
+import { PLAN_TOOL_ID, SITE_BACKUP_PUSH_TOOL_ID, PUSH_WAIT_MS, inspect } from "./backup-service.shared.js";
+export { PLAN_TOOL_ID, SITE_BACKUP_PUSH_TOOL_ID, PUSH_WAIT_MS } from "./backup-service.shared.js";
 import { backupTarget, resolveBackupCredential } from "./backup-service.credentials.js";
 import { requireUnreservedFolder, parsePlanInput, planResult, savePlan, prepareContent } from "./backup-service.plan.js";
 import { runObservedBackupPush, PLAN_TAKE_MESSAGES, inProgressResult, pushWaitBudget } from "./backup-service.push.js";
@@ -67,8 +68,6 @@ import { runObservedBackupPush, PLAN_TAKE_MESSAGES, inProgressResult, pushWaitBu
 
 export const SITE_BACKUP_DOMAIN = "site-backup";
 const DOMAIN = SITE_BACKUP_DOMAIN;
-export const PLAN_TOOL_ID = "site_backup_plan";
-export const SITE_BACKUP_PUSH_TOOL_ID = "site_backup_push";
 /** The one permission that names this feature. Not in any built-in role but the owner's `*`. */
 export const PUSH_PERMISSION = "site-backup.push";
 /** Also required: the push sends a saved credential's token to its provider, which is exactly what
@@ -86,46 +85,56 @@ export interface SiteBackupCall {
 
 /** The slice of the route-deps bag these tools read. Structural, so this module never imports
  *  `server/routes/types`. */
-export interface SiteBackupToolDeps {
-  deps: import("../../source-control/site/store.js").SourceControlCredentialReadDeps["deps"] & {
+export interface SiteBackupRequestDeps<TSource extends SiteBackupSources = SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent = SiteBackupRepositoryPlanContent> {
+  readonly authorize: AuthorizeFn; readonly workspaceId: string;
+  readonly siteImportBackend?: SiteImportBackend; readonly siteShareBackend?: SiteShareBackend;
+  readonly sourceControlCredentialSetRepo?: unknown;
+  readonly observability?: ObservabilityPort;
+  readonly dbOps: DbOpsPort; readonly siteBackupSources?: TSource | undefined;
+  readonly siteBackupSanitize?: ShareDatabaseSanitizer;
+  readonly siteBackupPlanStore?: Pick<SiteBackupPlanStore<TContent>, "save" | "take">;
+  readonly siteBackupSiteKeyStatus?: () => { active: boolean; invalid?: boolean };
+  readonly siteBackupFailureLog?: (line: string) => void; readonly siteBackupNow?: () => Date;
+  readonly siteBackupPushJobs?: SiteBackupPushJobs<PushResult>;
+  readonly siteBackupPushWaitMs?: number; readonly siteBackupSleep?: (ms: number) => Promise<void>;
+}
+
+export interface SiteBackupToolDeps<TSource extends SiteBackupSources = SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent = SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent> = SiteBackupRequestDeps<TSource, TContent>> {
+  readonly request: TRequest;
+  deps: {
     CustomCredentialValidationError: new (message: string) => Error;
     normalizeWriteFilePath(required: { rawPath: string }): string;
     validateBranch(required: { value: string }): string;
     validateCommitMessage(required: { value: string }): string;
     buildAuthorizationHeader(required: { connection: CustomProviderConnectionInput; schemes: readonly never[] }): string;
   };
-  readonly planVersion: Readonly<Record<string, string>>;
-  readonly siteImportBackend?: SiteImportBackend; readonly siteShareBackend?: SiteShareBackend;
-  readonly authorize: AuthorizeFn; readonly workspaceId: string;
-  readonly customCredentialSetRepo: CustomCredentialSetRepoPort;
-  readonly sourceControlCredentialSetRepo?: SourceControlCredentialSetRepoPort;
-  readonly siteAssistantSecretSealer: SecretSealerPort;
-  readonly customCredentialsHttpClient: HttpClientPort; readonly siteBackupHttpClient?: HttpClientPort;
-  readonly loadSourceControlProviders: LoadSourceControlProviders; readonly observability?: ObservabilityPort;
-  readonly dbOps: DbOpsPort; readonly siteBackupSources?: SiteBackupSources;
   readonly siteBackupSanitize: ShareDatabaseSanitizer;
-  readonly siteBackupPlanStore: Pick<SiteBackupPlanStore<Omit<SiteBackupPlan, "planId" | "workspaceId" | "principalId" | "expiresAtMs">>, "save" | "take">;
-  readonly siteBackupSiteKeyStatus: () => { active: boolean; invalid?: boolean };
+  readonly siteBackupPlanStore: Pick<SiteBackupPlanStore<TContent>, "save" | "take">;
+  readonly siteBackupSiteKeyStatus: (required: { siteDir: string }) => { active: boolean; invalid?: boolean };
+  readonly serverSiteKeyStatus: () => { active: boolean; invalid?: boolean };
   readonly siteBackupFailureLog: (line: string) => void; readonly siteBackupNow: () => Date;
   readonly siteBackupPushJobs: SiteBackupPushJobs<PushResult>;
-  readonly siteBackupPushWaitMs?: number; readonly siteBackupSleep?: (ms: number) => Promise<void>;
-  readonly listCustomCredentials: (deps: { repo: CustomCredentialSetRepoPort }, input: { workspaceId: string }) => Promise<readonly { label: string; baseUrl: string }[]>;
-  readonly resolveCustomCredentialByLabel: (deps: { repo: CustomCredentialSetRepoPort; sealer: SecretSealerPort }, input: { workspaceId: string; label: string }) => Promise<{ label: string; baseUrl: string; connection: CustomProviderConnectionInput } | null>;
+  readonly listCustomCredentials: (required: { deps: TRequest }, input: { workspaceId: string }) => Promise<readonly { label: string; baseUrl: string }[]>;
+  readonly resolveCustomCredentialByLabel: (required: { deps: TRequest }, input: { workspaceId: string; label: string }) => Promise<{ baseUrl: string; connection: CustomProviderConnectionInput } | null>;
+  readonly resolveDefaultForSourceControl: (required: { deps: TRequest }, input: { workspaceId: string; providerId: SourceControlProviderId }) => ReturnType<typeof resolveDefaultForSourceControl>;
+  readonly isSourceControlCredentialSecretStoreUnconfiguredError: (error: unknown) => boolean;
   readonly isCustomCredentialSecretStoreUnconfiguredError: (error: unknown) => boolean;
   readonly credentialMessages: Record<"active" | "invalid" | "missing", (required: { label: string }) => string>;
-  readonly buildSourceControlProviders: (required: { load: LoadSourceControlProviders; workspaceId: string; httpClient: HttpClientPort; observability?: ObservabilityPort; sleep?: (ms: number) => Promise<void> }) => Promise<{ providers: readonly SourceControlProvider[]; refusals: readonly string[]; noProviderMessage: string }>;
+  readonly buildSourceControlProviders: (required: { deps: TRequest }, optional: Record<string, never>) => Promise<{ providers: readonly SourceControlProvider[]; refusals: readonly string[]; noProviderMessage: string }>;
+  readonly pickSourceControlProviderForApi: typeof pickSourceControlProviderForApi;
+  readonly completePlanContent: (required: { content: SiteBackupRepositoryPlanContent; sources: TSource }, optional: Record<string, never>) => TContent;
   readonly validateRepositoryTarget: (required: { owner: unknown; repo: unknown }, optional: { validateTarget?: SourceControlProvider["validateTarget"] }) => { owner: string; repo: string };
   readonly siteFolderName: (required: { siteDir: string }) => string;
-  readonly readSiteName: (required: { siteDir: string }) => Promise<string>;
+  readonly readConfigText: (required: { siteDir: string }) => Promise<string>;
   readonly runtimeSchemaVersion: () => { index: number; tag: string };
   readonly defaultCommitMessage: (required: { siteName: string; createdAt: string }) => string;
-  readonly planNextStep: (required: { plan: SiteBackupPlan; files: readonly { path: string; bytes: number }[] }) => string;
+  readonly manifestName: string;
   readonly captureDatabaseSnapshot: (required: { dbOps: DbOpsPort; scopeId: string }) => Promise<DatabaseSnapshotResult>;
-  readonly collectSiteBackupFiles: (required: { sources: SiteBackupSources; include: SiteBackupInclude }) => Promise<CollectedSiteBackupFiles>;
+  readonly collectSiteBackupFiles: (required: { sources: TSource; include: SiteBackupInclude }) => Promise<CollectedSiteBackupFiles>;
   readonly checkSiteBackupLimits: (required: { files: readonly { path: string; bytes: number }[]; host: SiteBackupHostLimit }) => SiteBackupLimitsResult;
   readonly readPlannedFile: (file: PlannedDiskFile) => Promise<ReadPlannedFileResult>;
   readonly requireShareSecretFree: (required: { path: string; bytes: Uint8Array }, optional: { credentialWarnings: CredentialWarning[] }) => unknown;
-  readonly backupPushUploadPolicy: (required: { plan: SiteBackupPlan }) => Pick<Parameters<typeof uploadBackupPlan>[0], "databasePath" | "readPlannedFile" | "buildManifest" | "cancelled">;
+  readonly backupPushUploadPolicy: (required: { plan: SiteBackupPlan<TContent> }) => Pick<Parameters<typeof uploadBackupPlan>[0], "databasePath" | "readPlannedFile" | "buildManifest" | "cancelled">;
   readonly initialPushProgress: typeof initialPushProgress;
   readonly uploadBackupPlan: typeof uploadBackupPlan;
   readonly commitBackupPlan: typeof commitBackupPlan;
@@ -136,14 +145,16 @@ export interface SiteBackupToolDeps {
   readonly cancelled: Parameters<typeof uploadBackupPlan>[0]["cancelled"];
 }
 
-export type SiteBackupPlan = BaseBackupPlan<{
+export interface SiteBackupRepositoryPlanContent {
   readonly target?: { kind: "repository" }; readonly credentialLabel: string; readonly owner: string; readonly repo: string; readonly folder: string; readonly commitMessage: string;
   readonly repository: BackupRepositoryState; readonly include: SiteBackupInclude;
   readonly database: { bytes: Buffer; watermarkAtCapture: number } | null; readonly files: readonly PlannedDiskFile[];
   readonly skipped: readonly SkippedSiteBackupFile[]; readonly scopeNotes: Partial<Record<SiteBackupScope, string>>;
   readonly totalBytes: number; readonly site: { name: string; folderName: string }; readonly schema: { index: number; tag: string }; readonly createdAt: string;
   readonly credentialWarnings?: readonly CredentialWarning[];
-}>;
+}
+
+export type SiteBackupPlan<TContent extends SiteBackupRepositoryPlanContent = SiteBackupRepositoryPlanContent> = BaseBackupPlan<TContent>;
 
 /** Every refusal both tools return, as `{code, message}`. */
 export interface Refusal {
@@ -152,48 +163,9 @@ export interface Refusal {
   readonly message: string;
 }
 
-export function failureLog(deps: SiteBackupToolDeps): (line: string) => void {
-  return deps.siteBackupFailureLog;
-}
-
-/** Logs a failure's server-only detail (a network failure's class and code). Never the token. */
-export function logFailureDetail({ deps, toolId, failure }: { deps: SiteBackupToolDeps; toolId: string; failure: { readonly code: string; readonly logDetail?: string } }, _optional: Record<string, never> = {}): void {
-  if (failure.logDetail !== undefined) failureLog(deps)(`[site-backup] ${toolId}: failed code=${failure.code} detail=${failure.logDetail}`);
-}
-
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
-const INSPECT_CODES: Record<string, string> = {
-  "repo-not-found": "REPOSITORY_NOT_FOUND",
-  "repo-not-private": "REPOSITORY_NOT_PRIVATE",
-  "no-push-permission": "NO_PUSH_PERMISSION",
-  "repo-empty": "REPOSITORY_EMPTY",
-  "branch-not-found": "BRANCH_NOT_FOUND",
-  "folder-is-file": "FOLDER_IS_FILE",
-  "provider-error": "PROVIDER_ERROR",
-  "network-unreachable": "NETWORK_UNREACHABLE",
-  diverged: "DIVERGED_BRANCH",
-};
-
-/** A provider failure as this tool's `{code, message}`, logging any server-only detail. */
-export function providerRefusal({ deps, toolId, failure }: { deps: SiteBackupToolDeps; toolId: string; failure: { readonly code: string; readonly message: string; readonly logDetail?: string } }, _optional: Record<string, never> = {}): Refusal {
-  logFailureDetail({ deps, toolId, failure });
-  return { ok: false, code: INSPECT_CODES[failure.code] ?? "PROVIDER_ERROR", message: failure.message };
-}
-
-export async function inspect(
-  { deps, provider, toolId, input }: { deps: SiteBackupToolDeps; provider: SourceControlProvider; toolId: string; input: CredentialedRepositoryTarget & { branch?: string; folder: string } },
-  _optional: Record<string, never> = {}
-): Promise<Extract<InspectBackupRepositoryResult, { ok: true }> | Refusal> {
-  const result = await provider.inspectBackupRepository(input);
-  return result.ok ? result : providerRefusal({ deps, toolId, failure: result });
-}
-
-async function requireBackupPermissions(deps: SiteBackupToolDeps, ctx: SiteBackupCall): Promise<void> {
-  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: PUSH_PERMISSION }, { entityType: DOMAIN });
-  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: CREDENTIAL_WRITE_PERMISSION }, { entityType: "custom-credentials" });
+async function requireBackupPermissions<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(deps: SiteBackupToolDeps<TSource, TContent, TRequest>, ctx: SiteBackupCall): Promise<void> {
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.request.authorize }), workspaceId: deps.request.workspaceId, principalId: ctx.principal.id, permission: PUSH_PERMISSION }, { entityType: DOMAIN });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.request.authorize }), workspaceId: deps.request.workspaceId, principalId: ctx.principal.id, permission: CREDENTIAL_WRITE_PERMISSION }, { entityType: "custom-credentials" });
 }
 
 const UNAVAILABLE: Refusal = { ok: false, code: "UNAVAILABLE", message: "site backup is not available in this runtime: it has no site folder on disk" };
@@ -205,11 +177,11 @@ const UNAVAILABLE: Refusal = { ok: false, code: "UNAVAILABLE", message: "site ba
  *
  * @complexity O(site files) for the walk, O(database size) for the snapshot, four GETs.
  */
-export async function planSiteBackup(required: { deps: SiteBackupToolDeps; call: SiteBackupCall }, _optional: Record<string, never> = {}): Promise<unknown> {
+export async function planSiteBackup<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(required: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; call: SiteBackupCall }, _optional: Record<string, never> = {}): Promise<unknown> {
   const { deps, call: ctx } = required;
   const input = parsePlanInput({ deps: deps.deps, rawInput: ctx.input, SITE_BACKUP_SCOPES: deps.siteBackupScopes });
   await requireBackupPermissions(deps, ctx);
-  const sources = deps.siteBackupSources;
+  const sources = deps.request.siteBackupSources;
   if (!sources) return { planned: false, code: UNAVAILABLE.code, message: UNAVAILABLE.message };
 
   const credential = await resolveBackupCredential({ deps, requested: input.credential });
@@ -233,10 +205,6 @@ export async function planSiteBackup(required: { deps: SiteBackupToolDeps; call:
 // site_backup_push
 // ---------------------------------------------------------------------------
 
-/** How long one push call waits for its job before reporting progress: under the 6-minute cut-off
- *  of a delegated tool call (`push-jobs.ts`), with room for the checks before the upload. */
-export const PUSH_WAIT_MS = 4 * 60 * 1000;
-
 export type PushResult =
   | { pushed: true; commitSha: string; commitUrl: string; repository: string; branch: string; folder: string; filesWritten: number; totalBytes: number; credentialWarnings?: readonly CredentialWarning[] }
   | { pushed: false; cancelled: true }
@@ -250,8 +218,8 @@ export type PushResult =
  *
  * @complexity O(1) plan and job lookup; then see {@link pushPlannedBackup}.
  */
-export async function pushSiteBackup(
-  required: { deps: SiteBackupToolDeps; call: SiteBackupCall },
+export async function pushSiteBackup<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(
+  required: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; call: SiteBackupCall },
   optional: { waitMs?: number } = {}
 ): Promise<PushResult> {
   const { deps, call: ctx } = required;
@@ -259,11 +227,11 @@ export async function pushSiteBackup(
   await requireBackupPermissions(deps, ctx);
   if (ctx.signal.aborted) return { pushed: false, cancelled: false, reason: "abandoned" };
 
-  const jobs = deps.siteBackupPushJobs;
-  const key = { planId, principalId: ctx.principal.id, workspaceId: deps.workspaceId };
+  const jobs = deps.request.siteBackupPushJobs ?? deps.siteBackupPushJobs;
+  const key = { planId, principalId: ctx.principal.id, workspaceId: deps.request.workspaceId };
   let job = jobs.find(key);
   if (!job) {
-    const taken = deps.siteBackupPlanStore.take(key);
+    const taken = (deps.request.siteBackupPlanStore ?? deps.siteBackupPlanStore).take(key);
     if (!taken.ok) return { pushed: false, cancelled: false, code: taken.code, message: PLAN_TAKE_MESSAGES[taken.code] };
     job = jobs.start({ key, progress: deps.initialPushProgress({ plan: taken.plan }), run: ({ signal, progress }) => runObservedBackupPush({ deps, plan: taken.plan, run: { signal, progress } }) });
   }
@@ -274,3 +242,12 @@ export async function pushSiteBackup(
   return inProgressResult({ formatByteSize: deps.formatByteSize, planId, progress: waited.progress, elapsedMs: waited.elapsedMs });
 }
 
+export function createSiteBackupService<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent> = SiteBackupRequestDeps<TSource, TContent>>(required: Omit<SiteBackupToolDeps<TSource, TContent, TRequest>, "request" | "siteBackupPushJobs"> & {
+  createSiteBackupPushJobs: () => SiteBackupPushJobs<PushResult>;
+}, _optional: Record<string, never> = {}) {
+  const siteBackupPushJobs = required.createSiteBackupPushJobs();
+  return {
+    planSiteBackup: ({ deps, call }: { deps: TRequest; call: SiteBackupCall }, options: Record<string, never> = {}) => planSiteBackup({ deps: { ...required, request: deps, siteBackupPushJobs }, call }, options),
+    pushSiteBackup: ({ deps, call }: { deps: TRequest; call: SiteBackupCall }, options: { waitMs?: number } = {}) => pushSiteBackup({ deps: { ...required, request: deps, siteBackupPushJobs }, call }, options),
+  };
+}

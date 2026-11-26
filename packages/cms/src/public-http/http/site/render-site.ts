@@ -26,7 +26,7 @@ const EMPTY_ASSIGNED_TERMS: readonly AssignedTermView[] = [];
  *  just the slice of it they need rather than repeating this whole shape — split out purely for
  *  {@link renderSite}'s own complexity, no change to the accepted call shape (an inline object type
  *  and a structurally-identical named interface are the same type to every existing caller). */
-export interface RenderSiteRequired {
+export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
   renderAssets?: (required: { scripts: readonly DeclaredScript[]; static?: true }) => Promise<DocumentAssets>;
   transformBody?: (required: { html: string }) => Promise<string>;
   scripts?: readonly DeclaredScript[];
@@ -46,13 +46,13 @@ export interface RenderSiteRequired {
   loadLiquidSandbox: () => Promise<{ renderLiquidInSandbox: (required: { source: string; ctx: SiteRenderContext }) => Promise<string> }>;
   loadHandlebarsSandbox: () => Promise<{ renderHandlebarsInSandbox: (required: { source: string; ctx: SiteRenderContext }) => Promise<string> }>;
   renderBlock: (required: { node: JsonValue; ctx: SiteRenderContext }) => string;
-  renderStaticPage: (required: { theme: NonNullable<RenderSiteRequired['theme']>; pageId: string; menus: RenderSiteRequired['staticMenus'] }) => string | undefined;
+  renderStaticPage: (required: { theme: NonNullable<RenderSiteRequired<TMenu>['theme']>; pageId: string; menus: RenderSiteRequired<TMenu>['staticMenus'] }) => string | undefined;
   injectSiteAssistantIntoStaticPage: (required: { html: string; enabled: boolean | 'react' | 'vanilla' }) => string;
   entryContent: (ctx: SiteRenderContext) => string;
   entryList: (ctx: SiteRenderContext, props: Record<string, never>) => string;
   productEntryContent: (ctx: SiteRenderContext) => string;
   productEntryList: (ctx: SiteRenderContext) => string;
-  pageShell: (required: { title: string; theme: RenderSiteRequired['theme']; body: string; extraHead: string | undefined; siteAssistantEnabled: RenderSiteRequired['siteAssistantEnabled']; documentAssets: DocumentAssets }) => string;
+  pageShell: (required: { title: string; theme: RenderSiteRequired<TMenu>['theme']; body: string; extraHead: string | undefined; siteAssistantEnabled: RenderSiteRequired<TMenu>['siteAssistantEnabled']; documentAssets: DocumentAssets }) => string;
   route: "home" | "post" | "products" | "product";
   siteTitle: string;
   posts: PostRecord[];
@@ -130,7 +130,7 @@ export interface RenderSiteRequired {
    * caller, and every existing test) behaves as "no menu bound to either location", i.e. each
    * static theme's own authored header/footer content renders unchanged — not a breaking change.
    */
-  staticMenus?: { header?: readonly StaticMenuItem[]; footer?: readonly StaticMenuItem[] };
+  staticMenus?: Readonly<Record<string, TMenu>>;
   /**
    * Explore's Preview tab (2026-08-12, `.liquid` template render) — when set, names the exact
    * `theme.liquidTemplates` key to render, bypassing {@link resolveLiquidTemplateId}'s own
@@ -162,7 +162,7 @@ function siteWidgetContext(
 
 /** {@link renderSite}'s own `ctx` construction, pulled out so the four `??`/`?.` defaulting
  *  expressions are counted once here instead of against the top-level dispatcher's budget. */
-function buildSiteRenderContext(required: RenderSiteRequired): SiteRenderContext {
+function buildSiteRenderContext<TMenu = readonly StaticMenuItem[]>(required: RenderSiteRequired<TMenu>): SiteRenderContext {
   return {
     siteTitle: required.siteTitle,
     route: required.route,
@@ -199,7 +199,7 @@ function buildSiteRenderContext(required: RenderSiteRequired): SiteRenderContext
  * side-effect-free, so calling it eagerly from each tier-render helper below (rather than only when
  * actually needed, the way the original closure was invoked lazily) produces identical output.
  */
-function fallbackSiteBody(ctx: SiteRenderContext, route: SiteRenderContext["route"], required: RenderSiteRequired): string {
+function fallbackSiteBody<TMenu = readonly StaticMenuItem[]>(ctx: SiteRenderContext, route: SiteRenderContext["route"], required: RenderSiteRequired<TMenu>): string {
   let main: string;
   switch (route) {
     case "post": main = required.entryContent(ctx); break;
@@ -224,8 +224,8 @@ function fallbackSiteBody(ctx: SiteRenderContext, route: SiteRenderContext["rout
  * either (this was a live bug: a static-tier home page never showed the widget even with
  * `site.assistant.public_enabled` on, since `pageShell`'s own injection never ran for this branch).
  */
-async function renderStaticTierHomePage(
-  { theme, route, staticMenus, extraHead, siteAssistantEnabled, renderAssets, required }: { theme: NonNullable<RenderSiteRequired['theme']>; route: SiteRenderContext["route"]; staticMenus: RenderSiteRequired["staticMenus"]; extraHead: string | undefined; siteAssistantEnabled: (boolean | 'react' | 'vanilla'); renderAssets: RenderSiteRequired['renderAssets']; required: RenderSiteRequired }, _optional = {}
+async function renderStaticTierHomePage<TMenu = readonly StaticMenuItem[]>(
+  { theme, route, staticMenus, extraHead, siteAssistantEnabled, renderAssets, required }: { theme: NonNullable<RenderSiteRequired<TMenu>['theme']>; route: SiteRenderContext["route"]; staticMenus: RenderSiteRequired<TMenu>["staticMenus"]; extraHead: string | undefined; siteAssistantEnabled: (boolean | 'react' | 'vanilla'); renderAssets: RenderSiteRequired<TMenu>['renderAssets']; required: RenderSiteRequired<TMenu> }, _optional = {}
 ): Promise<string | undefined> {
   if (theme.manifest.tier !== "static" || route !== "home") return undefined;
   const staticHtml = required.renderStaticPage({ theme, pageId: "index", menus: staticMenus });
@@ -262,8 +262,8 @@ async function renderStaticTierHomePage(
  *  own `worker_threads` sandbox, and degrades to {@link fallbackSiteBody} on ANY failure: a syntax
  *  error, a disallowed tag/filter the worker's defensive re-lint caught, or a sandbox timeout/OOM.
  *  Never a 500 (SPEC-004 REQ-10 spirit). */
-async function renderTemplatedTierBody(
-  { theme, route, liquidTemplateIdOverride, ctx, required }: { theme: NonNullable<RenderSiteRequired['theme']>; route: SiteRenderContext["route"]; liquidTemplateIdOverride: string | undefined; ctx: SiteRenderContext; required: RenderSiteRequired }, _optional = {}
+async function renderTemplatedTierBody<TMenu = readonly StaticMenuItem[]>(
+  { theme, route, liquidTemplateIdOverride, ctx, required }: { theme: NonNullable<RenderSiteRequired<TMenu>['theme']>; route: SiteRenderContext["route"]; liquidTemplateIdOverride: string | undefined; ctx: SiteRenderContext; required: RenderSiteRequired<TMenu> }, _optional = {}
 ): Promise<string> {
   const liquidId = liquidTemplateIdOverride ?? required.resolveLiquidTemplateId({ route, liquidTemplates: theme.liquidTemplates });
   const source = liquidId ? theme.liquidTemplates[liquidId] : undefined;
@@ -281,7 +281,7 @@ async function renderTemplatedTierBody(
 /** Handlebars tier body — same contract as {@link renderTemplatedTierBody}, engine swapped: resolve
  *  the route to a `.hbs` template, render it inside its own `worker_threads` sandbox, and degrade to
  *  {@link fallbackSiteBody} on ANY failure. Never a 500. */
-async function renderHandlebarsTierBody({ theme, route, ctx, required }: { theme: NonNullable<RenderSiteRequired['theme']>; route: SiteRenderContext["route"]; ctx: SiteRenderContext; required: RenderSiteRequired }, _optional = {}): Promise<string> {
+async function renderHandlebarsTierBody<TMenu = readonly StaticMenuItem[]>({ theme, route, ctx, required }: { theme: NonNullable<RenderSiteRequired<TMenu>['theme']>; route: SiteRenderContext["route"]; ctx: SiteRenderContext; required: RenderSiteRequired<TMenu> }, _optional = {}): Promise<string> {
   const hbsId = required.resolveHandlebarsTemplateId({ route, handlebarsTemplates: theme.handlebarsTemplates });
   const source = hbsId ? theme.handlebarsTemplates[hbsId] : undefined;
   try {
@@ -294,7 +294,7 @@ async function renderHandlebarsTierBody({ theme, route, ctx, required }: { theme
 
 /** Declarative (JSON block-tree) tier body — the default tier, synchronous unlike its two siblings
  *  above since `renderBlock`'s own walk never crosses a `worker_threads` boundary. */
-function renderDeclarativeTierBody({ theme, route, ctx, required }: { theme: NonNullable<RenderSiteRequired['theme']>; route: SiteRenderContext["route"]; ctx: SiteRenderContext; required: RenderSiteRequired }, _optional = {}): string {
+function renderDeclarativeTierBody<TMenu = readonly StaticMenuItem[]>({ theme, route, ctx, required }: { theme: NonNullable<RenderSiteRequired<TMenu>['theme']>; route: SiteRenderContext["route"]; ctx: SiteRenderContext; required: RenderSiteRequired<TMenu> }, _optional = {}): string {
   const templateId = required.resolveTemplateId({ route, templates: theme.templates });
   const tree = templateId ? theme.templates[templateId] : undefined;
   return tree ? required.renderBlock({ node: tree, ctx }) : fallbackSiteBody(ctx, route, required);
@@ -316,7 +316,7 @@ function resolvePageTitle({ route, post, siteTitle }: { route: SiteRenderContext
  * tier's own `renderBlock` walk stays fully synchronous, so most calls still
  * resolve on the same tick the returned promise is awaited.
  */
-export async function renderSite(required: RenderSiteRequired, _optional = {}): Promise<string> {
+export async function renderSite<TMenu = readonly StaticMenuItem[]>(required: RenderSiteRequired<TMenu>, _optional = {}): Promise<string> {
   const { theme, route } = required;
   const ctx = buildSiteRenderContext(required);
 
@@ -346,7 +346,7 @@ export async function renderSite(required: RenderSiteRequired, _optional = {}): 
 }
 
 /** Resolve body contributions before the document slots, so optional comment assets join declarations. */
-async function finishManagedDocument({ required, title, body }: { required: RenderSiteRequired; title: string; body: string }): Promise<string> {
+async function finishManagedDocument<TMenu = readonly StaticMenuItem[]>({ required, title, body }: { required: RenderSiteRequired<TMenu>; title: string; body: string }): Promise<string> {
   const transformed = required.transformBody ? await required.transformBody({ html: body }) : body;
   const scripts = [...required.theme?.manifest.scripts ?? [], ...required.scripts ?? []];
   const documentAssets = required.renderAssets ? await required.renderAssets({ scripts }) : { head: required.renderScriptAssets({ scripts: scripts.filter(script => script.consent === undefined) }), body: '' };

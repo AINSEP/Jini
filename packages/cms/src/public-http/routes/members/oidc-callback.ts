@@ -1,5 +1,5 @@
 import { memberClientAddress, memberRequestLimitReply, type PublicMemberRawRoute } from "./shared.js";
-import { memberOidcFailure, memberOidcLimitResponse, memberOidcRedirect, type MemberOidcRedirectDeps } from "./oidc-shared.js";
+import { runMemberOidcPreflight, memberOidcFailure, memberOidcLimitResponse, memberOidcRedirect, type MemberOidcRedirectDeps } from "./oidc-shared.js";
 
 /**
  * @file `GET /api/members/v1/workspaces/:workspaceId/oidc/:providerId/callback` — the PUBLIC top-level
@@ -69,3 +69,28 @@ export const memberOidcCallbackRoute: PublicMemberRawRoute<MemberOidcCallbackRou
     }
   },
 };
+
+export async function completeMemberOidcRouteOutcome<TContext, TResult>(required: {
+  readContext: () => Promise<TContext>; readBrowserBinding: () => string;
+  complete: (required: { context: TContext; browserBinding: string }) => Promise<{ kind: 'signed_in'; result: TResult } | Extract<MemberOidcCallbackOutcome, { kind: 'email_verification_required' }>>;
+  sessionCookie: (result: TResult) => string; announce: (result: TResult) => void;
+}, _optional = {}): Promise<MemberOidcCallbackOutcome> {
+  const context = await required.readContext();
+  const browserBinding = required.readBrowserBinding();
+  const linked = await required.complete({ context, browserBinding });
+  if (linked.kind === 'email_verification_required') return linked;
+  return { kind: 'signed_in', sessionCookie: () => required.sessionCookie(linked.result), announce: () => required.announce(linked.result) };
+}
+
+export function bindMemberOidcCallbackRoute<TRequest>(required: {
+  deps: Omit<MemberOidcCallbackRouteDeps, 'callbackUrl' | 'complete' | 'onFailed'>;
+  requestDeps: (input: { request: TRequest; deps: MemberOidcCallbackRouteDeps }) => MemberOidcCallbackRouteDeps;
+  writeHeaders: (request: TRequest) => void; observe: (request: TRequest) => void; check: (request: TRequest) => boolean;
+}, _optional = {}) {
+  const boundPerRequest = (): never => { throw new Error('bound per request by requestDeps'); };
+  return { spec: memberOidcCallbackRoute, deps: { ...required.deps, callbackUrl: boundPerRequest, complete: boundPerRequest, onFailed: boundPerRequest },
+    requestDeps: required.requestDeps,
+    preflight: (request: TRequest, run: () => unknown) => runMemberOidcPreflight({ writeHeaders: () => required.writeHeaders(request),
+      observe: () => required.observe(request), check: () => required.check(request), run }),
+  };
+}

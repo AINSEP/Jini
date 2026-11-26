@@ -1,3 +1,4 @@
+import type { createRenditionAccess } from "../../../media/site/rendition-access.js";
 import { guardMediaRenditionRepo, resolveMediaRendition, sniffContentType, lookupMediaOriginalBlob, PRIVATE_NO_STORE, REVALIDATING_PUBLIC, resolveRenditionTransformSpec, ifNoneMatchSatisfied, renditionCacheControl, decideMediaOriginalReply, inlineOriginalType, SVG_CONTENT_SECURITY_POLICY, type MediaRecord } from '../../../media/index.js';
 import type { RenditionAccess } from '../../../media/site/rendition-access.js';
 import type { sanitizeOriginalBytes } from '../../../media/original-response.js';
@@ -285,4 +286,69 @@ async function sendResolvedRendition(
       .set(CACHE_CONTROL_HEADER, renditionCacheControl({ gated: access.gated }))
       .set("Content-Type", result.contentType)
       .send(result.bytes);
+}
+
+export function createPublicMediaHandlers<TContext, TAccess, TRequest, TResponse>(required: {
+  deps: Omit<Parameters<typeof mediaRenditionRoute>[0]['deps'], 'access' | 'readEntitlement' | 'sendMediaOriginalTrashed' | 'writeMediaOriginalReply'>;
+  accessDeps: Parameters<typeof createRenditionAccess>[0]; createRenditionAccess: typeof createRenditionAccess;
+  createMemberAccessResolver: () => {
+    resolveContext: (input: { workspaceId: string; sessionToken: string | undefined; nowIso: string }) => Promise<TContext>;
+    decide: (input: { access: TAccess; context: TContext }) => { allowed: boolean };
+  };
+  readSessionToken: (required: { request: TRequest }) => string | undefined; nowIso: () => string;
+  resolvePostMemberAccess: (input: { raw: string | null | undefined }) => TAccess;
+  writer: {
+    status: (required: { response: TResponse; code: number }) => void; set: (required: { response: TResponse; name: string; value: string }) => void;
+    json: (required: { response: TResponse; body: unknown }) => void; end: (required: { response: TResponse }) => void;
+    send: (required: { response: TResponse; bytes: Uint8Array }) => void;
+  };
+  sendMediaOriginalTrashed: (required: { response: TResponse }) => void;
+  writeMediaOriginalReply: (required: { response: TResponse; reply: ReturnType<typeof decideMediaOriginalReply> }) => void;
+}, _optional = {}) {
+  return {
+    rendition: { method: 'get' as const, path: '/m/:assetId/:transformSpec/:filename',
+      handle: (input: { request: TRequest; params: Readonly<Record<string, string | undefined>>; ifNoneMatch: () => string | string[] | undefined; range: () => string | undefined; response: TResponse }) =>
+        mediaRenditionRoute({ ...resolveMediaAccessDecision({ ports: required, request: input.request, response: input.response }), facts: { ...readRenditionRouteParams(input), ifNoneMatch: input.ifNoneMatch, range: input.range } }),
+    },
+    // Both URL generations use the same gate, byte sniffing and response headers. The suffix is
+    // for static-host MIME inference; it never selects the live response's Content-Type.
+    original: { method: 'get' as const, path: ['/m/:assetId/original', '/m/:assetId/original.:ext'],
+      handle: (input: { request: TRequest; params: Readonly<Record<string, string | undefined>>; ifNoneMatch: () => string | string[] | undefined; range: () => string | undefined; response: TResponse }) =>
+        mediaOriginalVideoRoute({ ...resolveMediaAccessDecision({ ports: required, request: input.request, response: input.response }), facts: { ...readRenditionRouteParams(input), ifNoneMatch: input.ifNoneMatch, range: input.range } }),
+    },
+  };
+}
+
+function resolveMediaAccessDecision<TContext, TAccess, TRequest, TResponse>({ ports, request, response }: {
+  ports: Parameters<typeof createPublicMediaHandlers<TContext, TAccess, TRequest, TResponse>>[0]; request: TRequest; response: TResponse;
+}, _optional = {}): Pick<Parameters<typeof mediaRenditionRoute>[0], 'deps' | 'res'> {
+  const deps: Parameters<typeof mediaRenditionRoute>[0]['deps'] = {
+    get workspaceId() { return ports.deps.workspaceId; },
+    get rendition() { return ports.deps.rendition; },
+    get original() { return ports.deps.original; },
+    get blobStore() { return ports.deps.blobStore; },
+    resolveMediaRendition: ports.deps.resolveMediaRendition, sanitizeOriginalBytes: ports.deps.sanitizeOriginalBytes,
+    parseRangeHeader: ports.deps.parseRangeHeader, hash: ports.deps.hash,
+    ImageTransformUnavailableError: ports.deps.ImageTransformUnavailableError, ImageSourceCorruptError: ports.deps.ImageSourceCorruptError,
+    sendMediaOriginalTrashed: () => ports.sendMediaOriginalTrashed({ response }), writeMediaOriginalReply: reply => ports.writeMediaOriginalReply({ response, reply }),
+    get access() { return ports.createRenditionAccess(ports.accessDeps); },
+/** Route-local duplicate of `pages.ts`'s own `createMemberAccessResolver` — built per request from
+ *  `deps`, never a module-level singleton, same "tests inject their own in-memory repos per
+ *  composition" reason that file's own doc gives. */
+    readEntitlement: async () => {
+      const resolver = ports.createMemberAccessResolver();
+      const context = await resolver.resolveContext({ workspaceId: ports.deps.workspaceId,
+        sessionToken: ports.readSessionToken({ request }), nowIso: ports.nowIso() });
+      return ({ entry }) => resolver.decide({ access: ports.resolvePostMemberAccess({ raw: entry.memberAccessJson }), context }).allowed;
+    },
+  };
+  const res: Parameters<typeof mediaRenditionRoute>[0]['res'] = {
+    status: code => { ports.writer.status({ response, code }); return res; }, set: (name, value) => { ports.writer.set({ response, name, value }); return res; },
+    json: body => { ports.writer.json({ response, body }); }, end: () => { ports.writer.end({ response }); }, send: bytes => { ports.writer.send({ response, bytes }); },
+  };
+  return { deps, res };
+}
+
+function readRenditionRouteParams(required: { params: Readonly<Record<string, string | undefined>> }, _optional = {}): { assetId: string; transformSpec: string } {
+  return { assetId: String(required.params.assetId ?? ""), transformSpec: String(required.params.transformSpec ?? "") };
 }

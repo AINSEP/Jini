@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { DEFAULT_THEME_SLOTS } from '../../../../../themes/theme-slots.js';
-import { finishStaticTierDocument } from '../static-tier.js';
+import { serveStaticThemeIndex, finishStaticTierDocument } from '../static-tier.js';
 
 it('substitutes bodies before assigning listing keys and keeps menus, previews, collections, render and head in order', async () => {
   const order: string[] = [];
@@ -17,4 +17,18 @@ it('substitutes bodies before assigning listing keys and keeps menus, previews, 
   }, input: { pageId: 'index', html: 'source', currentPath: '/', staticMenus: undefined, postPreviewsAccess: {} } });
   expect(html).toContain('<meta name="asset">');
   expect(order).toEqual(['expand', 'embeds', 'body', 'menus', 'previews', 'collections', 'render', 'assets']);
+});
+
+it('keeps authored title only for an undefined successful lookup and sequences finish, head, chat and send', async () => {
+  for (const rejected of [false, true]) {
+    const order: string[] = [];
+    let sent = '';
+    await serveStaticThemeIndex({ theme: { pages: { index: '<title>Authored</title>' } }, staticMenus: { header: [{ label: 'small' }] }, extraHead: '<title>Fold</title>', siteAssistantEnabled: 'react', access: {}, pageId: 'index', currentPath: '/',
+      title: async () => { order.push('title'); if (rejected) throw new Error('offline'); return undefined; },
+      finish: async ({ input }) => { order.push('finish'); expect(input.staticMenus?.header).toEqual([{ label: 'small' }]); return '<html><head><title>Authored</title></head><body></body></html>'; },
+      chat: ({ html, enabled }) => { order.push('chat'); expect(enabled).toBe('react'); return html; },
+      perVisitor: () => { order.push('visitor'); return {}; }, send: async ({ html }) => { order.push('send'); sent = html; } });
+    expect(order).toEqual(['title', 'finish', 'chat', 'visitor', 'send']);
+    expect(sent).toContain(rejected ? '<title>Fold</title>' : '<title>Authored</title>');
+  }
 });

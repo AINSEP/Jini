@@ -1,15 +1,16 @@
+import type { SiteBackupSources } from "./sources.js";
 
 
 import type { CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
 
 import type { CredentialedRepositoryTarget, SourceControlProvider } from "../../source-control/site/provider-module.js";
-import { pickSourceControlProviderForApi } from "../../source-control/registry.js";
 
-import { resolveDefaultForSourceControl, SourceControlCredentialSecretStoreUnconfiguredError } from "../../source-control/site/store.js";
-import type { SourceControlCredentialSetRepoPort, SourceControlProviderId } from "@jini-ai/core/contracts/site/source-control-credentials";
+import type { resolveDefaultForSourceControl } from "../../source-control/site/store.js";
+import type { SourceControlProviderId } from "@jini-ai/core/contracts/site/source-control-credentials";
 
 
-import { type SiteBackupToolDeps, type Refusal, failureLog } from "./backup-service.js";
+import type { SiteBackupRequestDeps, SiteBackupRepositoryPlanContent, SiteBackupToolDeps, Refusal } from "./backup-service.js";
+import { failureLog } from "./backup-service.shared.js";
 
 // ---------------------------------------------------------------------------
 // Credential
@@ -30,14 +31,8 @@ export function backupTarget({ deps, credential, owner, repo }: { deps: SiteBack
 }
 
 /** Every git-host provider an enabled plugin ships, or the refusal when there is none. */
-async function loadBackupProviders(deps: SiteBackupToolDeps): Promise<{ ok: true; providers: readonly SourceControlProvider[]; noProviderMessage: string } | Refusal> {
-  const built = await deps.buildSourceControlProviders({
-    load: deps.loadSourceControlProviders,
-    workspaceId: deps.workspaceId,
-    httpClient: deps.siteBackupHttpClient ?? deps.customCredentialsHttpClient,
-    ...(deps.observability === undefined ? {} : { observability: deps.observability }),
-    ...(deps.siteBackupSleep ? { sleep: deps.siteBackupSleep } : {}),
-  });
+async function loadBackupProviders<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(deps: SiteBackupToolDeps<TSource, TContent, TRequest>): Promise<{ ok: true; providers: readonly SourceControlProvider[]; noProviderMessage: string } | Refusal> {
+  const built = await deps.buildSourceControlProviders({ deps: deps.request }, {});
   for (const refusal of built.refusals) failureLog(deps)(`[site-backup] ${refusal}`);
   if (built.providers.length === 0) {
     return { ok: false, code: "NO_PROVIDER", message: built.noProviderMessage };
@@ -63,8 +58,8 @@ function labelList(labels: readonly string[]): string {
  *
  * @complexity O(saved credentials).
  */
-async function pickCredentialLabel({ deps, providers, requested }: { deps: SiteBackupToolDeps; providers: readonly SourceControlProvider[]; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<{ ok: true; label: string } | Refusal> {
-  const saved = await deps.listCustomCredentials({ repo: deps.customCredentialSetRepo }, { workspaceId: deps.workspaceId });
+async function pickCredentialLabel<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, providers, requested }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; providers: readonly SourceControlProvider[]; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<{ ok: true; label: string } | Refusal> {
+  const saved = await deps.listCustomCredentials({ deps: deps.request }, { workspaceId: deps.request.workspaceId });
   const labels = saved.map((credential) => credential.label);
   if (requested !== undefined) {
     if (labels.includes(requested)) return { ok: true, label: requested };
@@ -88,8 +83,29 @@ async function pickCredentialLabel({ deps, providers, requested }: { deps: SiteB
   return { ok: false, code: "CREDENTIAL_AMBIGUOUS", message: `${matching.length} saved credentials point at ${where} (${labelList(matching)}); name one with 'credential'.` };
 }
 
-function unreadableCredentialMessage({ deps, label }: { deps: SiteBackupToolDeps; label: string }, _optional: Record<string, never> = {}): string {
-  const status = deps.siteBackupSiteKeyStatus();
+/**
+ * This site's own site key status ({@link inspectSiteKeyMaterial}), resolved over THIS site's
+ * site-aware source ordering ({@link siteKeySourcesForSiteDir} — site-key plan §A3b, the same
+ * composed helper the admin site key route's `resolveSiteKeySources` reuses) rather than the
+ * module-wide env-then-legacy-file default `inspectSiteKeyMaterial()` falls back to when called
+ * bare. That default cannot see a per-site key file at all (the per-site key folder), so a site
+ * whose OWN key is active but has no env var and no legacy shared file would be reported `active:
+ * false` — the exact gap {@link unreadableCredentialMessage} used to surface as "this server has no
+ * site key" for a site that in fact has one.
+ *
+ * Falls back to the bare, non-site-aware status only when this runtime has no site folder at all
+ * (`deps.siteBackupSources` absent — the in-memory `app.ts` runtime; in practice the plan tool's own
+ * `UNAVAILABLE` check already refuses before this is ever reached for that case, but the push path
+ * re-resolves the credential independently and must not throw if it ever is).
+ *
+ * @complexity O(1) — one `.site-meta.json` read plus a fixed-size source list, matching
+ *   {@link inspectSiteKeyMaterial}'s own cost.
+ */
+function unreadableCredentialMessage<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, label }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; label: string }, _optional: Record<string, never> = {}): string {
+  const status = (deps.request.siteBackupSiteKeyStatus ?? (() => {
+    const siteDir = deps.request.siteBackupSources?.siteDir;
+    return siteDir === undefined ? deps.serverSiteKeyStatus() : deps.siteBackupSiteKeyStatus({ siteDir });
+  }))();
   if (status.active) return deps.credentialMessages.active({ label });
   if (status.invalid) return deps.credentialMessages.invalid({ label });
   return deps.credentialMessages.missing({ label });
@@ -104,11 +120,11 @@ function unreadableCredentialMessage({ deps, label }: { deps: SiteBackupToolDeps
  *
  * @complexity O(providers) repo reads, at most one decrypt each.
  */
-async function resolveHostConnection({ deps, providers, requested }: { deps: SiteBackupToolDeps; providers: readonly SourceControlProvider[]; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<ResolvedBackupCredential | Refusal | null> {
-  const repo = deps.sourceControlCredentialSetRepo;
+async function resolveHostConnection<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, providers, requested }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; providers: readonly SourceControlProvider[]; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<ResolvedBackupCredential | Refusal | null> {
+  const repo = deps.request.sourceControlCredentialSetRepo;
   if (!repo) return null;
   for (const provider of providers) {
-    const lookup = await findHostConnection({ deps, repo, provider, providerId: provider.id });
+    const lookup = await findHostConnection({ deps, provider, providerId: provider.id });
     if (!lookup.ok) return lookup;
     if (lookup.found && (requested === undefined || requested === lookup.found.label)) return hostCredential({ found: lookup.found, provider });
   }
@@ -118,17 +134,16 @@ async function resolveHostConnection({ deps, providers, requested }: { deps: Sit
 type HostConnection = NonNullable<Awaited<ReturnType<typeof resolveDefaultForSourceControl>>>;
 
 /** One host's default saved connection (or null); an unconfigured store is the safe CREDENTIAL_UNREADABLE diagnosis. */
-async function findHostConnection(required: {
-  deps: SiteBackupToolDeps;
-  repo: SourceControlCredentialSetRepoPort;
+async function findHostConnection<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(required: {
+  deps: SiteBackupToolDeps<TSource, TContent, TRequest>;
   provider: SourceControlProvider;
   providerId: SourceControlProviderId;
 }): Promise<{ ok: true; found: HostConnection | null } | Refusal> {
   const { deps, provider } = required;
   try {
-    return { ok: true, found: await resolveDefaultForSourceControl({ deps: deps.deps, repo: required.repo, sealer: deps.siteAssistantSecretSealer }, { workspaceId: deps.workspaceId, providerId: required.providerId }) };
+    return { ok: true, found: await deps.resolveDefaultForSourceControl({ deps: deps.request }, { workspaceId: deps.request.workspaceId, providerId: required.providerId }) };
   } catch (err) {
-    if (err instanceof SourceControlCredentialSecretStoreUnconfiguredError) return { ok: false, code: "CREDENTIAL_UNREADABLE", message: unreadableCredentialMessage({ deps, label: `${provider.label} connection` }) };
+    if (deps.isSourceControlCredentialSecretStoreUnconfiguredError(err)) return { ok: false, code: "CREDENTIAL_UNREADABLE", message: unreadableCredentialMessage({ deps, label: `${provider.label} connection` }) };
     throw err;
   }
 }
@@ -147,7 +162,7 @@ function hostCredential(required: { found: HostConnection; provider: SourceContr
  *
  * @complexity O(saved credentials) plus one decrypt.
  */
-export async function resolveBackupCredential({ deps, requested }: { deps: SiteBackupToolDeps; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<ResolvedBackupCredential | Refusal> {
+export async function resolveBackupCredential<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, requested }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; requested: string | undefined }, _optional: Record<string, never> = {}): Promise<ResolvedBackupCredential | Refusal> {
   const providers = await loadBackupProviders(deps);
   if (!providers.ok) return providers;
   const picked = await pickCredentialLabel({ deps, providers: providers.providers, requested });
@@ -157,13 +172,13 @@ export async function resolveBackupCredential({ deps, requested }: { deps: SiteB
   }
   let resolved;
   try {
-    resolved = await deps.resolveCustomCredentialByLabel({ repo: deps.customCredentialSetRepo, sealer: deps.siteAssistantSecretSealer }, { workspaceId: deps.workspaceId, label: picked.label });
+    resolved = await deps.resolveCustomCredentialByLabel({ deps: deps.request }, { workspaceId: deps.request.workspaceId, label: picked.label });
   } catch (err) {
     if (deps.isCustomCredentialSecretStoreUnconfiguredError(err)) return { ok: false, code: "CREDENTIAL_UNREADABLE", message: unreadableCredentialMessage({ deps, label: picked.label }) };
     throw err;
   }
   if (!resolved) return { ok: false, code: "CREDENTIAL_NOT_FOUND", message: `the credential '${picked.label}' was deleted while the backup was being prepared` };
-  const provider = pickSourceControlProviderForApi({ providers: providers.providers, baseUrl: resolved.baseUrl, noProviderMessage: providers.noProviderMessage });
+  const provider = deps.pickSourceControlProviderForApi({ providers: providers.providers, baseUrl: resolved.baseUrl, noProviderMessage: providers.noProviderMessage });
   if (!provider.ok) return { ok: false, code: "NO_PROVIDER", message: provider.message };
   return { ok: true, label: picked.label, baseUrl: resolved.baseUrl, connection: resolved.connection, provider: provider.provider };
 }

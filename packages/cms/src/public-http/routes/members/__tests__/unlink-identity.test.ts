@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
-import { memberUnlinkIdentityRoute, type MemberUnlinkIdentityRouteDeps } from "../unlink-identity.js";
+import { bindMemberUnlinkIdentityRoute, memberUnlinkIdentityRoute, type MemberUnlinkIdentityRouteDeps } from "../unlink-identity.js";
 
 /** @file The public member identity-unlink spec: an EMPTY JSON object body only, the presenting member
  * session before any counter, the strict per-IP then per-member counters before the unlink, the host session
@@ -124,4 +124,12 @@ describe("memberUnlinkIdentityRoute", () => {
     expect(response.status).toBe(429);
     expect(calls).toEqual([`current:${COOKIE}`]);
   });
+});
+
+it("keeps the unlink preflight headers before its no-op observer and refuses before the raw spec", async () => {
+  const order: string[] = [];
+  const { deps } = harness();
+  const binding = bindMemberUnlinkIdentityRoute({ deps, writeHeaders: () => { order.push("headers"); }, observe: () => {}, check: () => { order.push("check"); return false; } });
+  binding.preflight({}, () => { order.push("raw"); });
+  expect(order).toEqual(["headers", "check"]);
 });
