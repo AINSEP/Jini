@@ -62,7 +62,7 @@ export interface MediaContentEditorProps {
     useEditor: typeof useMediaContentEditor;
     usePreview: (required: { widgetType: string; config: Record<string, unknown> }) => { loading: boolean; error: string | null; document: string; paneWidth: number; frameRef: (node: HTMLDivElement | null) => void };
     useMediaPickerItems: Parameters<typeof useMediaContentEditor>[0]["useMediaPickerItems"];
-    useTabBarKeyboard: (required: { tabs: readonly { id: MediaContentMode; label: string }[]; activeId: string; onChange: (id: string) => void }) => { onKeyDown: (event: KeyboardEvent<HTMLElement>) => void };
+    useTabBarKeyboard: (required: { tabs: readonly { id: MediaContentMode; label: string }[]; activeId: string; onChange: (id: string) => void }) => { onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void };
   };
   kit: {
     Icon: ComponentType<{ name: "alert-triangle" | "play" | "volume" | "image" | "arrow-up" | "close" | "plus"; size: number } & AriaAttributes>;

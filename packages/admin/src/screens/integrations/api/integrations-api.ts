@@ -1,4 +1,4 @@
-import type { AdminExternalMcpConnectStart, AdminExternalMcpServer, AdminExternalMcpServerInput, ExternalMcpToolApprovalDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpConnectStart, AdminExternalMcpServer, AdminExternalMcpServerInput, ExternalMcpDeleteEnvelope, ExternalMcpToolApprovalDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import type { AdminExternalMcpAdmissionsSnapshot, AdminExternalMcpConfigFailure, AdminExternalMcpProbeResult, AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "@jini-ai/core/contracts/hosted-mcp";
 import type { AdminWebhookDeliveryResponse, AdminWebhookSubscriptionResponse } from "@jini-ai/core/contracts/site/cms-integrations";
 import type { AgentPluginFiles, AgentPluginListRow } from "../../../agent-plugins/models.js";
@@ -144,7 +144,7 @@ function createExternalMcpApi({ request, workspaceId }: IntegrationsApiDeps) {
   /** Removes one external MCP server. 404s on an id that was never configured rather than
    *  reporting success, so deleting a typo cannot read as deleting the real server. */
   deleteExternalMcpServer: ({ serverId }: { serverId: string }, _optional: Record<string, never> = {}) =>
-    request<{ removed: boolean; restartRequired: boolean }>(
+    request<ExternalMcpDeleteEnvelope>(
       { path: `/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}` },
       { init: { method: "DELETE" } }
     ),

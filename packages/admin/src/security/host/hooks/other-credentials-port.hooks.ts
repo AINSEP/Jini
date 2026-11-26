@@ -1,4 +1,4 @@
-import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpServer, ExternalMcpDeleteEnvelope } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import type { AdminExecutionCredential, AdminExecutionCredentialPatch, SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
 import type { MediaProviderEditPatch as MediaProviderFields } from "../../../react/kit-media-providers.js";
 import type { AdminMediaProviderMap } from "../../../screens/media/api/media-api.js";
@@ -39,5 +39,5 @@ export interface OtherCredentialsPort {
   removeMediaProvider(required: { providerId: string }, optional?: Record<string, never>): Promise<AdminMediaProviderMap>;
 
   listExternalMcpServers(): Promise<{ servers: AdminExternalMcpServer[] }>;
-  deleteExternalMcpServer(required: { serverId: string }, optional?: Record<string, never>): Promise<{ removed: boolean; restartRequired: boolean }>;
+  deleteExternalMcpServer(required: { serverId: string }, optional?: Record<string, never>): Promise<ExternalMcpDeleteEnvelope>;
 }

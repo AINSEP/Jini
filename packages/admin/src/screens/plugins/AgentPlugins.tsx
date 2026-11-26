@@ -1,7 +1,7 @@
 import { useId, type ComponentType, type CSSProperties } from "react";
 import type { Translate } from "@jini-ai/core/text";
 import type { AgentPluginListRow } from "../../agent-plugins/models.js";
-import { I18nProvider, SettingsDialogShell, type SettingsDialogTab } from "../../react/kit.js";
+import { I18nProvider, SettingsDialogShell, type KitDictionaries, type SettingsDialogTab } from "../../react/kit.js";
 import { PluginRulesProvider } from "./rules-context.js";
 import type { PluginRules } from "./rules.js";
 import { AgentPluginUpdateControl } from "./AgentPluginUpdateControl.js";
@@ -83,7 +83,7 @@ export interface AgentPluginsProps {
     agentPluginInstallPort: AgentPluginInstallPort;
     defaultAgentPluginSurfacesPort: AgentPluginSurfacesPort;
     translateAdminNavLabel: (required: { locale: string; key: string }) => string;
-    dictionaries: Record<string, Record<string, string>>;
+    dictionaries: KitDictionaries;
     uninstallNote: string;
     marketplaceNote: string;
     downloadedNote: string;

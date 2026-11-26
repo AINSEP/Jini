@@ -1,6 +1,6 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
 import type { AdminWebhookSubscriptionResponse } from "@jini-ai/core/contracts/site/cms-integrations";
-import type { TabBarProps, SourceConfigDependencies } from "../../react/kit.js";
+import type { KitDictionaries, TabBarProps, SourceConfigDependencies } from "../../react/kit.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { resolveActiveTabId } from "@jini-ai/core/text";
 import { providersTabs } from "./ProvidersTabs.js";
@@ -103,7 +103,7 @@ export interface ProvidersProps {
   };
   kit: {
     TabBar: ComponentType<TabBarProps>;
-    I18nProvider: ComponentType<{ initialLocale: string; dictionaries: Record<string, Record<string, string>>; fallbackLocale: string; syncDocumentAttributes: boolean; children: ReactNode }>;
+    I18nProvider: ComponentType<{ initialLocale: string; dictionaries: KitDictionaries; fallbackLocale: string; syncDocumentAttributes: boolean; children: ReactNode }>;
     ExternalMcpSettingsPanel: ComponentType<{ dependencies: SourceConfigDependencies; showTitle: boolean; saveStatusLabel: string | undefined }>;
     AlwaysAllowPanel: ComponentType;
     McpServer: ComponentType;
@@ -111,7 +111,7 @@ export interface ProvidersProps {
     ComingSoonPanel: ComponentType<{ label: string; note: string; children: ReactNode }>;
   };
   deps: {
-    dictionaries: Record<string, Record<string, string>>;
+    dictionaries: KitDictionaries;
     t: (required: { locale: string; key: string }) => string;
     tIntegrations: (required: { locale: string; key: string }) => string;
     restartLabel: (required: { locale: string }) => string;
