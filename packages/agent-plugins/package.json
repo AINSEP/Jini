@@ -13,6 +13,15 @@
     "kind": "plugin-packaging",
     "runtime": "universal",
     "entries": {
+      "./connect/new-site-agent-plugin-tokens": "node",
+      "./site/set-enabled": "node",
+      "./site/memory": "node",
+      "./site/install-upload": "node",
+      "./site/install-tool": "node",
+      "./site/exports/runtime": "universal",
+      "./site/update-effects": "node",
+      "./site/exports/source": "universal",
+      "./site/exports/diagnostics": "universal",
       ".": "universal",
       "./lifecycle": "node",
       "./lifecycle/yauzl": "node",
@@ -173,6 +182,51 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./connect/new-site-agent-plugin-tokens": {
+      "types": "./dist/connect/new-site-agent-plugin-tokens.d.ts",
+      "import": "./dist/connect/new-site-agent-plugin-tokens.js",
+      "default": "./dist/connect/new-site-agent-plugin-tokens.js"
+    },
+    "./site/set-enabled": {
+      "types": "./dist/site/set-enabled.d.ts",
+      "import": "./dist/site/set-enabled.js",
+      "default": "./dist/site/set-enabled.js"
+    },
+    "./site/memory": {
+      "types": "./dist/site/memory.d.ts",
+      "import": "./dist/site/memory.js",
+      "default": "./dist/site/memory.js"
+    },
+    "./site/install-upload": {
+      "types": "./dist/site/install-upload.d.ts",
+      "import": "./dist/site/install-upload.js",
+      "default": "./dist/site/install-upload.js"
+    },
+    "./site/install-tool": {
+      "types": "./dist/site/install-tool.d.ts",
+      "import": "./dist/site/install-tool.js",
+      "default": "./dist/site/install-tool.js"
+    },
+    "./site/exports/runtime": {
+      "types": "./dist/site/exports/runtime.d.ts",
+      "import": "./dist/site/exports/runtime.js",
+      "default": "./dist/site/exports/runtime.js"
+    },
+    "./site/update-effects": {
+      "types": "./dist/site/update-effects.d.ts",
+      "import": "./dist/site/update-effects.js",
+      "default": "./dist/site/update-effects.js"
+    },
+    "./site/exports/source": {
+      "types": "./dist/site/exports/source.d.ts",
+      "import": "./dist/site/exports/source.js",
+      "default": "./dist/site/exports/source.js"
+    },
+    "./site/exports/diagnostics": {
+      "types": "./dist/site/exports/diagnostics.d.ts",
+      "import": "./dist/site/exports/diagnostics.js",
+      "default": "./dist/site/exports/diagnostics.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

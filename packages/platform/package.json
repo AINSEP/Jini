@@ -13,6 +13,7 @@
     "kind": "abstraction",
     "runtime": "node",
     "entries": {
+      "./mail/email-template-tool-registrations": "node",
       "./secrets/root-key/reconcile": "node",
       ".": "node",
       "./fetch-with-timeout": "node",
@@ -92,6 +93,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./mail/email-template-tool-registrations": {
+      "types": "./dist/mail/email-template-tool-registrations.d.ts",
+      "import": "./dist/mail/email-template-tool-registrations.js",
+      "default": "./dist/mail/email-template-tool-registrations.js"
+    },
     "./secrets/root-key/reconcile": {
       "types": "./dist/secrets/root-key/reconcile.d.ts",
       "import": "./dist/secrets/root-key/reconcile.js",

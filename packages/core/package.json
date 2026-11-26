@@ -13,6 +13,8 @@
     "kind": "kernel",
     "runtime": "universal",
     "entries": {
+      "./contracts/site/public-origin": "universal",
+      "./contracts/site/vault-context": "universal",
       "./tool-metadata/agent-pause": "universal",
       "./contracts/site/approval-i18n": "universal",
       ".": "universal",
@@ -365,6 +367,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./contracts/site/public-origin": {
+      "types": "./dist/contracts/site/public-origin.d.ts",
+      "import": "./dist/contracts/site/public-origin.js",
+      "default": "./dist/contracts/site/public-origin.js"
+    },
+    "./contracts/site/vault-context": {
+      "types": "./dist/contracts/site/vault-context.d.ts",
+      "import": "./dist/contracts/site/vault-context.js",
+      "default": "./dist/contracts/site/vault-context.js"
+    },
     "./tool-metadata/agent-pause": {
       "types": "./dist/tool-metadata/agent-pause.d.ts",
       "import": "./dist/tool-metadata/agent-pause.js",

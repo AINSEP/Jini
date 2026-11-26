@@ -59,7 +59,9 @@ it("a missed editor update rolls back staged envelopes", async () => {
   expect(await f.repo.updateIfVersion({ record: { ...f.record, sealedEnv: sealed }, expectedVersion: 1,
     replaces: { sealedEnv: null, sealedOAuth: null } })).toBe(false);
   expect(await f.vaultRepo.list({ workspaceId: "ws", kind: "mcp-env", ownerKey: "server", principalId: null })).toEqual([]);
-  expect(f.queries.some(query => query.sql.startsWith("update"))).toBe(true);
+  const update = f.queries.find(query => query.sql.startsWith("update"));
+  expect(update?.sql.split(" where ")[1]).toMatch(/"version" = \$\d+/);
+  expect(update?.parameters).toContain(1);
 });
 
 it("access update writes no credential columns", async () => {
@@ -69,6 +71,11 @@ it("access update writes no credential columns", async () => {
   const update = f.queries.find(query => query.sql.startsWith("update"))?.sql.split(" where ")[0];
   expect(update).toContain('"enabled"');
   expect(update).not.toMatch(/oauth|env_secret|auth_mode|command/);
+  expect(update).toContain('"write_grants_updated_by_principal_id"');
+  expect(update).toContain('"write_grants_updated_at"');
+  const query = f.queries.find(query => query.sql.startsWith("update"))!;
+  expect(query.parameters).toContain("actor");
+  expect(query.parameters).toContain("now");
   expect(f.locks).toEqual(["secrets_vault:ws"]);
 });
 

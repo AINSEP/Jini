@@ -13,6 +13,7 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./identity/tool-registrations": "node",
       "./members/public-member-auth-response": "universal",
       "./members/public-member-response": "universal",
       ".": "universal",
@@ -198,6 +199,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./identity/tool-registrations": {
+      "types": "./dist/identity/tool-registrations.d.ts",
+      "import": "./dist/identity/tool-registrations.js",
+      "default": "./dist/identity/tool-registrations.js"
+    },
     "./members/public-member-auth-response": {
       "types": "./dist/members/public-member-auth-response.d.ts",
       "import": "./dist/members/public-member-auth-response.js",

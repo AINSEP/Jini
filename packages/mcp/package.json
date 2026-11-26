@@ -31,11 +31,12 @@
       "./federation/hosted/external-mcp-repo": "node",
       "./react/external-mcp/ExternalMcpAdmissionsBanner": "browser",
       "./react/external-mcp/ExternalMcpSettingsPanel.hooks": "browser",
-      "./react/external-mcp/hooks/use-external-mcp-admissions.hooks": "browser"
+      "./react/external-mcp/hooks/use-external-mcp-admissions.hooks": "browser",
+      "./external/tool-registrations": "node"
     },
     "optionalPeers": {
-      "kysely": "opt-in: hosted MCP SQL \u2014 Install kysely to use the hosted MCP SQL repository.",
-      "react": "opt-in: react browser bindings; import @jini-ai/mcp/react/external-mcp/ExternalMcpAdmissionsBanner \u2014 React browser bindings could not load react. Install react to enable this feature, or check its installed version."
+      "kysely": "opt-in: hosted MCP SQL — Install kysely to use the hosted MCP SQL repository.",
+      "react": "opt-in: react browser bindings; import @jini-ai/mcp/react/external-mcp/ExternalMcpAdmissionsBanner — React browser bindings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -137,6 +138,11 @@
       "types": "./dist/react/external-mcp/hooks/use-external-mcp-admissions.hooks.d.ts",
       "import": "./dist/react/external-mcp/hooks/use-external-mcp-admissions.hooks.js",
       "default": "./dist/react/external-mcp/hooks/use-external-mcp-admissions.hooks.js"
+    },
+    "./external/tool-registrations": {
+      "types": "./dist/external/tool-registrations.d.ts",
+      "import": "./dist/external/tool-registrations.js",
+      "default": "./dist/external/tool-registrations.js"
     }
   },
   "bin": {

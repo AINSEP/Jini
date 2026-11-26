@@ -90,4 +90,13 @@ describe("files copy execution", () => {
     expect(deps.destination.fs.prepareSite).toHaveBeenCalledOnce();
     expect(deps.destination.fs.writePrepared).toHaveBeenCalledWith(described.mock.calls[0]![0].batch, {});
   });
+  it("same-batch collisions retain the exact response and one-file approval", async () => {
+    const { deps, described, askHuman, handler, ctx } = fixture();
+    const input = { sources: [{ root: "site", path: "one/source.txt" }, { root: "site", path: "two/source.txt" }], destination: { kind: "site" } };
+    expect(await handler(ctx(input))).toEqual({ applied: true, written: ["source.txt"], skipped: ["source.txt"], notWritten: [] });
+    expect(described).toHaveBeenCalledExactlyOnceWith({ batch: { folder: "/site", writes: [{ path: "source.txt", bytes: Buffer.from("approved bytes"), overwrite: false }] }, toolId: "files_copy" }, {});
+    expect(askHuman).toHaveBeenCalledOnce();
+    expect(deps.destination.fs.writePrepared).toHaveBeenCalledOnce();
+  });
+
 });

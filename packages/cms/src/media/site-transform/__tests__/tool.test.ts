@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { writePreparedFiles } from "../../../fs-files/write-files.js";
 import { describe, expect, it, vi } from "vitest";
 import { createApprovalHandler, type ApprovalAnswer, type SurfaceExchangeStore, type ToolExecutionContext } from "@jini-ai/core";
 import type { AssetTheme, PreparedAssetBatch } from "@jini-ai/core/contracts/site/asset-transfer-tool-ports";
@@ -13,7 +17,7 @@ function fixture() {
       siteFolder: vi.fn(() => "/site"), inspect: vi.fn(() => ({ overwrite: false })),
       prepareSite: vi.fn(({ folder, files }: { folder: string; files: { path: string; content: string; encoding: "base64" }[] }): PreparedAssetBatch<Buffer> => ({ folder, writes: files.map(({ path, content }) => ({ path, bytes: Buffer.from(content, "base64"), overwrite: false })) })),
       preparePicked: vi.fn(({ files }: { files: { path: string; content: string; encoding: "base64" }[] }): PreparedAssetBatch<Buffer> => ({ folder: "/picked", writes: files.map(({ path, content }) => ({ path, bytes: Buffer.from(content, "base64"), overwrite: true })) })),
-      writePrepared: vi.fn(({ writes }: { folder: string; writes: PreparedAssetBatch<Buffer>["writes"] }) => ({ written: writes.map(({ path }) => path), notWritten: [] })),
+      writePrepared: vi.fn(({ writes }: { folder: string; writes: PreparedAssetBatch<Buffer>["writes"] }) => ({ written: writes.map(({ path }) => path), notWritten: [] as string[] })),
       chooseNextName: vi.fn(({ desiredPath }: { desiredPath: string; existingPaths: Set<string> }) => desiredPath),
     },
     theme: { findTheme: vi.fn(() => ({ dir: "/theme", status: "ready" })), checkThemeWrite: vi.fn(), writeThemeFile: vi.fn(), reloadTheme: vi.fn(() => ({ dir: "/theme", status: "ready" })) },
@@ -88,4 +92,30 @@ describe("image transform execution", () => {
     expect(destinationKit.writeAssetFiles).not.toHaveBeenCalled();
     expect(deps.destination.fs.writePrepared).not.toHaveBeenCalled();
   });
+  it("the prepared writer omits failed on success and preserves a named partial failure", async () => {
+    const root = mkdtempSync(join(tmpdir(), "image-transform-writer-"));
+    try {
+      for (const fails of [false, true]) {
+        const { deps, handler, ctx } = fixture();
+        const folder = join(root, fails ? "partial" : "success");
+        mkdirSync(folder);
+        deps.destination.fs.siteFolder.mockReturnValue(folder);
+        deps.destination.fs.writePrepared.mockImplementation(batch => writePreparedFiles({ ...batch, resolveFsFilePath: ({ rootPath, relativePath }) => join(rootPath, relativePath) }));
+        if (fails) mkdirSync(join(folder, "blocked.png"));
+        const result = await handler(ctx({ source: { root: "site", path: "source.png" }, outputs: [{ path: "first.png", format: "png" }, { path: "blocked.png", format: "png" }, { path: "last.png", format: "png" }], destination: { kind: "site" } })) as { applied: boolean; written: string[]; notWritten: string[]; failed?: { path: string; reason: string } };
+        expect(result.applied).toBe(!fails);
+        if (fails) {
+          expect(result.written).toEqual(["first.png"]);
+          expect(result.failed).toEqual({ path: "blocked.png", reason: expect.any(String) });
+          expect(result.notWritten).toEqual(["last.png"]);
+          expect(existsSync(join(folder, "last.png"))).toBe(false);
+        } else {
+          expect(Object.hasOwn(result, "failed")).toBe(false);
+          expect(result.written).toEqual(["first.png", "blocked.png", "last.png"]);
+          expect(result.notWritten).toEqual([]);
+        }
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
 });

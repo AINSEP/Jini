@@ -75,12 +75,18 @@
       "./react/recovery/Recovery": "browser",
       "./site/repo.memory": "node",
       "./transfer/confirmation-ui": "node",
-      "./transfer/destination-store": "node"
+      "./transfer/destination-store": "node",
+      "./site/tool-registrations": "node"
     }
   },
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./site/tool-registrations": {
+      "types": "./dist/site/tool-registrations.d.ts",
+      "import": "./dist/site/tool-registrations.js",
+      "default": "./dist/site/tool-registrations.js"
+    },
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
