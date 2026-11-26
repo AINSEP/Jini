@@ -59,7 +59,9 @@ it("a missed editor update rolls back staged envelopes", async () => {
   expect(await f.repo.updateIfVersion({ record: { ...f.record, sealedEnv: sealed }, expectedVersion: 1,
     replaces: { sealedEnv: null, sealedOAuth: null } })).toBe(false);
   expect(await f.vaultRepo.list({ workspaceId: "ws", kind: "mcp-env", ownerKey: "server", principalId: null })).toEqual([]);
-  expect(f.queries.some(query => query.sql.startsWith("update"))).toBe(true);
+  const update = f.queries.find(query => query.sql.startsWith("update"));
+  expect(update?.sql.split(" where ")[1]).toMatch(/"version" = \$\d+/);
+  expect(update?.parameters).toContain(1);
 });
 
 it("access update writes no credential columns", async () => {

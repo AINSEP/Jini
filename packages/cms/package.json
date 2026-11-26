@@ -13,6 +13,13 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./posts/email-template-store": "node",
+      "./forms/site/publish-content": "universal",
+      "./forms/site/protect-existing-files": "universal",
+      "./content-types/site/publish-content": "universal",
+      "./content-duplication/tool-registrations": "universal",
+      "./fs-files/tool-registrations": "node",
+      "./fs-files/agent-tools": "node",
       "./public-http/routes/site/pages/extra-head": "universal",
       "./public-http/http/site/bare-page": "universal",
       "./public-http/http/site/render/components/marketing": "universal",
@@ -1269,6 +1276,41 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./posts/email-template-store": {
+      "types": "./dist/posts/email-template-store.d.ts",
+      "import": "./dist/posts/email-template-store.js",
+      "default": "./dist/posts/email-template-store.js"
+    },
+    "./forms/site/publish-content": {
+      "types": "./dist/forms/site/publish-content.d.ts",
+      "import": "./dist/forms/site/publish-content.js",
+      "default": "./dist/forms/site/publish-content.js"
+    },
+    "./forms/site/protect-existing-files": {
+      "types": "./dist/forms/site/protect-existing-files.d.ts",
+      "import": "./dist/forms/site/protect-existing-files.js",
+      "default": "./dist/forms/site/protect-existing-files.js"
+    },
+    "./content-types/site/publish-content": {
+      "types": "./dist/content-types/site/publish-content.d.ts",
+      "import": "./dist/content-types/site/publish-content.js",
+      "default": "./dist/content-types/site/publish-content.js"
+    },
+    "./content-duplication/tool-registrations": {
+      "types": "./dist/content-duplication/tool-registrations.d.ts",
+      "import": "./dist/content-duplication/tool-registrations.js",
+      "default": "./dist/content-duplication/tool-registrations.js"
+    },
+    "./fs-files/tool-registrations": {
+      "types": "./dist/fs-files/tool-registrations.d.ts",
+      "import": "./dist/fs-files/tool-registrations.js",
+      "default": "./dist/fs-files/tool-registrations.js"
+    },
+    "./fs-files/agent-tools": {
+      "types": "./dist/fs-files/agent-tools.d.ts",
+      "import": "./dist/fs-files/agent-tools.js",
+      "default": "./dist/fs-files/agent-tools.js"
+    },
     "./public-http/routes/site/pages/extra-head": {
       "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
       "import": "./dist/public-http/routes/site/pages/extra-head.js",

@@ -13,6 +13,8 @@
     "kind": "vendor-integration-gateway",
     "runtime": "node",
     "entries": {
+      "./api-connections/shared-owner": "universal",
+      "./api-connections/contribution": "universal",
       "./api-connections/shared-oauth-disconnect": "node",
       "./media-providers": "node",
       "./media-providers/catalog": "universal",
@@ -108,6 +110,16 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./api-connections/shared-owner": {
+      "types": "./dist/api-connections/shared-owner.d.ts",
+      "import": "./dist/api-connections/shared-owner.js",
+      "default": "./dist/api-connections/shared-owner.js"
+    },
+    "./api-connections/contribution": {
+      "types": "./dist/api-connections/contribution.d.ts",
+      "import": "./dist/api-connections/contribution.js",
+      "default": "./dist/api-connections/contribution.js"
+    },
     "./api-connections/shared-oauth-disconnect": {
       "types": "./dist/api-connections/shared-oauth-disconnect.d.ts",
       "import": "./dist/api-connections/shared-oauth-disconnect.js",
