@@ -2,6 +2,7 @@
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { FetchMutationOptions, MutationResult } from "@jini-ai/core/fetch";
 import { bindExternalMcpAdmissions } from "../hooks/use-external-mcp-admissions.hooks.js";
 import { useExternalMcp } from "../hooks/use-external-mcp.hooks.js";
 
@@ -23,7 +24,10 @@ test("saved updates carry the saved version and conflicts retain the last known 
     credentialDraftError: () => null, describeApiError: ({ e }) => String(e),
     VERSION_CONFLICT_MESSAGE: "This server changed elsewhere.", isVersionConflict: ({ error }) => error instanceof Error && error.message === "conflict",
     translate: ({ key }) => key,
-    mergeSourceUpdate: ({ previous, patch }) => ({ fields: { ...previous?.fields, ...patch.fields }, enabled: patch.enabled ?? previous?.enabled ?? true, label: patch.label ?? previous?.label }),
+    mergeSourceUpdate: ({ previous, patch }) => {
+      const label = patch.label ?? previous?.label;
+      return { fields: { ...previous?.fields, ...patch.fields }, enabled: patch.enabled ?? previous?.enabled ?? true, ...(label !== undefined && { label }) };
+    },
     resolveExternalMcpEffectiveAuthMode: fields => fields.authMode || "none",
     resolveExternalMcpEffectiveTransport: fields => fields.transport || "stdio",
     validateExternalMcpOAuthIdentity: () => null,
@@ -46,7 +50,8 @@ test("admissions binding retains transient classification and resolves wired cop
     hooks: {
       useCopyHook,
       useFetchQuery: () => ({ data: undefined, error: null, status: "loading", isFetching: true, refetch: () => {} }),
-      useFetchMutation: ({ run }) => ({ status: "idle", error: null, mutate: ({ input }) => run({ input }), reset: () => {} }),
+      useFetchMutation: <TInput, TOutput>({ run }: Pick<FetchMutationOptions<TInput, TOutput>, "run">): MutationResult<TInput, TOutput> =>
+        ({ status: "idle", error: null, mutate: ({ input }) => run({ input }), reset: () => {} }),
     },
     deps: {
       port: { getAdmissions: vi.fn(), me: vi.fn(), restartAssistantDaemon: vi.fn() },

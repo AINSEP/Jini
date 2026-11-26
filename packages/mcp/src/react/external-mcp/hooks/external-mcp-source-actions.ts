@@ -33,7 +33,7 @@ export async function addSource({ input, deps, port, locale, lastKnown, setResta
   try {
     const { server } = await port.saveExternalMcpServer({
       serverId,
-      body: toWriteBody({ fields: input.fields, enabled: true, deps }, { label: input.fields.label }),
+      body: toWriteBody({ fields: input.fields, enabled: true, deps }, { ...(input.fields.label !== undefined && { label: input.fields.label }) }),
     });
     setRestartRequired(true);
     const item = toItem({ server, deps }, { locale });
@@ -82,7 +82,7 @@ export async function updateSource({ id, patch, deps, port, locale, lastKnown, s
     const previous = lastKnown.current.get(id);
     const merged = deps.mergeSourceUpdate({ previous, patch });
     try {
-      const { server } = await port.saveExternalMcpServer({ serverId: id, body: { ...toWriteBody({ fields: merged.fields, enabled: merged.enabled, deps }, { label: merged.label }), ...expectedVersionOf({ item: previous }) } });
+      const { server } = await port.saveExternalMcpServer({ serverId: id, body: { ...toWriteBody({ fields: merged.fields, enabled: merged.enabled, deps }, { ...(merged.label !== undefined && { label: merged.label }) }), ...expectedVersionOf({ item: previous }) } });
       setRestartRequired(true);
       const item = toItem({ server, deps }, { locale });
       const changedToken = (merged.fields.accessToken ?? '') !== '';
