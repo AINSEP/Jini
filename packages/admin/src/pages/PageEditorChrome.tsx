@@ -2,7 +2,7 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { Translate } from "@jini-ai/core/text";
 import type { PageEditorProps } from "./PageEditor.js";
 import type { PageEditorController } from "./hooks/use-page-editor.hooks.js";
-import { pickerValueToChoice, THEME_DEFAULT_SENTINEL, type PageEditorView } from "./page-editor-rules.js";
+import type { PageEditorView } from "./page-editor-rules.js";
 
 const VIEWS: ReadonlyArray<{ key: PageEditorView; label: string }> = [
   { key: "html", label: "HTML" },
@@ -211,7 +211,7 @@ export function PageEditorToolbarEnd({ kit, deps,
     <div className="page-editor-toolbar-end">
       {view === "preview" ? <WiredThemePreviewReloadButton /> : null}
       {bodyFormat === "html" ? (
-        <PageEditorTemplatePicker availableTemplates={availableTemplates} templateChoice={templateChoice} setTemplateChoice={setTemplateChoice} onViewTemplateClick={onViewTemplateClick} t={t} pickerValue={pickerValue} ViewTemplateButton={ViewTemplateButton} />
+        <PageEditorTemplatePicker deps={deps} availableTemplates={availableTemplates} templateChoice={templateChoice} setTemplateChoice={setTemplateChoice} onViewTemplateClick={onViewTemplateClick} t={t} pickerValue={pickerValue} ViewTemplateButton={ViewTemplateButton} />
       ) : null}
     </div>
   );
@@ -327,7 +327,7 @@ function PageEditorStatusSelect({ status, setStatus, t }: Pick<Parameters<typeof
   );
 }
 
-function PageEditorTemplatePicker({ availableTemplates, templateChoice, setTemplateChoice, onViewTemplateClick, t, pickerValue, ViewTemplateButton }: Pick<Parameters<typeof PageEditorToolbarEnd>[0], "availableTemplates" | "templateChoice" | "setTemplateChoice" | "onViewTemplateClick" | "t"> & { pickerValue: string; ViewTemplateButton: PageEditorProps["kit"]["ViewTemplateButton"] }, _optional = {}) {
+function PageEditorTemplatePicker({ deps, availableTemplates, templateChoice, setTemplateChoice, onViewTemplateClick, t, pickerValue, ViewTemplateButton }: Pick<Parameters<typeof PageEditorToolbarEnd>[0], "availableTemplates" | "templateChoice" | "setTemplateChoice" | "onViewTemplateClick" | "t" | "deps"> & { pickerValue: string; ViewTemplateButton: PageEditorProps["kit"]["ViewTemplateButton"] }, _optional = {}) {
   return (
     <div className="editor-template-picker">
           <ViewTemplateButton
@@ -337,7 +337,7 @@ function PageEditorTemplatePicker({ availableTemplates, templateChoice, setTempl
             agentHandleId="page-view-template"
           />
           {availableTemplates.length > 0 ? (
-            <PageEditorTemplateOptions availableTemplates={availableTemplates} setTemplateChoice={setTemplateChoice} t={t} pickerValue={pickerValue} />
+            <PageEditorTemplateOptions deps={deps} availableTemplates={availableTemplates} setTemplateChoice={setTemplateChoice} t={t} pickerValue={pickerValue} />
           ) : (
             <select
               disabled
@@ -358,7 +358,8 @@ function PageEditorTemplatePicker({ availableTemplates, templateChoice, setTempl
   );
 }
 
-function PageEditorTemplateOptions({ availableTemplates, setTemplateChoice, t, pickerValue }: Pick<Parameters<typeof PageEditorTemplatePicker>[0], "availableTemplates" | "setTemplateChoice" | "t" | "pickerValue"> & { pickerValue: string }, _optional = {}) {
+function PageEditorTemplateOptions({ deps, availableTemplates, setTemplateChoice, t, pickerValue }: Pick<Parameters<typeof PageEditorTemplatePicker>[0], "availableTemplates" | "setTemplateChoice" | "t" | "pickerValue" | "deps"> & { pickerValue: string }, _optional = {}) {
+  const { pickerValueToChoice, THEME_DEFAULT_SENTINEL } = deps;
   return (
     <select
               value={pickerValue}

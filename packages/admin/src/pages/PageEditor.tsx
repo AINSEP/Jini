@@ -74,6 +74,14 @@ export interface PageEditorProps {
     standingDraftRecoveryMessage: (required: { draft: NonNullable<PageEditorController["recoverableDraft"]>; serverUpdatedAt: string; t: Translate }) => string;
     pageExternalChangeBindings: { agentHandle: typeof agentHandle; copy: { messageKey: string; regionAgentLabel: string; loadLatestAgentLabel: string; keepEditsAgentLabel: string } };
     pageEditorSurface: (required: { view: PageEditorView; canvasStyling: PageEditorController["canvasStyling"] }) => { kind: "preview" } | { kind: "html" } | { kind: "interactive-pending" } | { kind: "interactive"; styling: CanvasStyling };
+    pickerValueToChoice: typeof import("./page-editor-rules.js").pickerValueToChoice;
+    THEME_DEFAULT_SENTINEL: string;
+    pageAutosaveStaleBasisMessage: typeof import("./page-editor-rules.js").pageAutosaveStaleBasisMessage;
+    pageVersionConflictMessage: typeof import("./page-editor-rules.js").pageVersionConflictMessage;
+    devicePreviewWidths: Readonly<Record<import("../shell/components/DevicePreview/DevicePreview.hooks.js").DevicePreviewDevice, number>>;
+    isProtectedEmbedElement: typeof import("./lib/embed-placeholder.js").isProtectedEmbedElement;
+    pagePreviewYoutubeIds: typeof import("./lib/page-preview-youtube.js").pagePreviewYoutubeIds;
+    previewIframeSandbox: string;
     videoLink: (required: { id: string }) => string;
     /** Host's dev-build flag (e.g. a bundler's `DEV` constant) — gates dev-only instrumentation logs;
      *  injected so this package stays bundler-neutral. */

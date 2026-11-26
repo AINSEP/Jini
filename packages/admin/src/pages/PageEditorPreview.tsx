@@ -1,7 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { pagePreviewYoutubeIds } from "./lib/page-preview-youtube.js";
-import { PAGE_PREVIEW_IFRAME_SANDBOX } from "./page-editor-rules.js";
 import type { Translate } from "@jini-ai/core/text";
 
 /**
@@ -148,11 +146,16 @@ export function PagePreview({
   /** REQUIRED hook prop: the theme preview refresh hook, bound at the editor's composition point so
    *  tests can drive `revision` without the live theme-refresh channel. */
   kit: { DevicePreviewFrame: ComponentType<{ width: number; frameRef: (node: HTMLDivElement | null) => void; paneWidth: number; expanded?: boolean; children: ReactNode }> };
-  deps: { videoLink: (required: { id: string }) => string };
+  deps: {
+    videoLink: (required: { id: string }) => string;
+    pagePreviewYoutubeIds: typeof import("./lib/page-preview-youtube.js").pagePreviewYoutubeIds;
+    previewIframeSandbox: string;
+  };
   t: Translate;
 }) {
   const { usePreviewEmbedIds, useThemePreviewFrameHook } = hooks;
   const { DevicePreviewFrame } = kit;
+  const { pagePreviewYoutubeIds, previewIframeSandbox } = deps;
   const canShowLiveSite = status === "published" && !dirty;
   // Lifted from `PagePreviewFrame` so the frame and the embed lookup share ONE result: the same
   // `revision` that refreshes the iframe re-asks for its video ids.
@@ -194,6 +197,7 @@ export function PagePreview({
           {/* Collapsed vs. expanded frame/scaler heights: see `devicePreviewFrameStyles`. */}
           <DevicePreviewFrame width={width} frameRef={frameRef} paneWidth={paneWidth} expanded={expanded}>
             <PagePreviewFrame
+              previewIframeSandbox={previewIframeSandbox}
               fresh={fresh}
               slug={slug}
               version={version}
@@ -277,6 +281,7 @@ function PagePreviewFab({ expanded, onToggle, t }: { expanded: boolean; onToggle
  * pattern `PageEditorToolbarEnd` above uses for `PageEditor`'s own render branches.
  */
 function PagePreviewFrame({
+  previewIframeSandbox,
   fresh,
   slug,
   version,
@@ -286,6 +291,7 @@ function PagePreviewFrame({
   onFrameLoad,
   t,
 }: {
+  previewIframeSandbox: string;
   /** `useThemePreviewFrame`'s result, owned by `PagePreview` (shared with the embed lookup). */
   fresh: { liveUrl: string; templateUrl: string; canShowLiveSite: boolean };
   slug: string;
@@ -306,7 +312,7 @@ function PagePreviewFrame({
         src={fresh.liveUrl}
         title={t("Page preview")}
         className="page-preview-iframe"
-        sandbox={PAGE_PREVIEW_IFRAME_SANDBOX}
+        sandbox={previewIframeSandbox}
         referrerPolicy="no-referrer"
         onLoad={(e) => onFrameLoad(e.currentTarget)}
       />
@@ -328,7 +334,7 @@ function PagePreviewFrame({
         name={previewFormTarget}
         title={t("Page preview")}
         className="page-preview-iframe"
-        sandbox={PAGE_PREVIEW_IFRAME_SANDBOX}
+        sandbox={previewIframeSandbox}
         referrerPolicy="no-referrer"
         onLoad={(e) => onFrameLoad(e.currentTarget)}
       />

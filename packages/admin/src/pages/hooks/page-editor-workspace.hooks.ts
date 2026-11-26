@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import type { HeadlessThemeTier as ThemeTier } from "@jini-ai/core/contracts/headless/contracts";
 import type { AdminPost } from "../../posts/api/posts-api.types.js";
 import type { SaveConflict as PageSaveConflict } from "../../shell/lib/version-conflict.js";
-import { prettifyHtml } from "../lib/prettify-html.js";
-import { pageAcceptsHtmlBody, pageEditableHtml, type PageEditorView } from "../page-editor-rules.js";
+import type { PageEditorView } from "../page-editor-rules.js";
+import type { PageEditorDependencies } from "./use-page-editor.hooks.js";
 import type { usePageEditorLoad } from "./page-editor-load.hooks.js";
 import type { usePageEditorHydration } from "./page-editor-load.hooks.js";
 import { applyLoadedPage } from "./page-editor-load.hooks.js";
@@ -98,7 +98,7 @@ import type { usePageEditorRestore } from "./page-editor-recovery.hooks.js";
  *  savable, and therefore has to count as dirty — otherwise the Save button never shows its pending
  *  dot, `useDirtyGuard` lets a navigate-away discard the work without asking, and the standing-draft
  *  autosave below never fires at all. */
-export function computeContentDirty({ page, draft }: { page: AdminPost | null; draft: { title: string; slug: string; status: "draft" | "published"; html: string; savedHtml: string } }, _options = {}
+export function computeContentDirty({ page, draft, pageAcceptsHtmlBody }: { page: AdminPost | null; pageAcceptsHtmlBody: PageEditorDependencies["pageAcceptsHtmlBody"]; draft: { title: string; slug: string; status: "draft" | "published"; html: string; savedHtml: string } }, _options = {}
 ): boolean {
   if (page === null) return false;
   const metaDirty = draft.title !== page.title || draft.slug !== page.slug || draft.status !== page.status;
@@ -178,6 +178,7 @@ export function usePageEditorWorkspace(input: ReturnType<typeof usePageEditorLoa
 export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEditorHydration>, _optional = {}) {
   const { deps, boundT, setPage, setError, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, html, setHtml, savedHtml, setSavedHtml, setView, flushInteractiveEdits, setSaveConflict } = input;
   const { useWiredEditorHtmlJump } = deps.hooks;
+  const { prettifyHtml, pageEditableHtml } = deps;
 
   // HTML tab pretty-printing (owner-reported regression, 2026-08-11 — verified nothing formatted this
   // view before either; see `lib/prettify-html.ts`'s file header). `draftHtml` is a LOCAL, display-only
@@ -235,7 +236,7 @@ export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEdito
    * safely close over them with an empty dependency array.
    */
   const applyExternalPage = useCallback((fresh: AdminPost) => {
-    applyLoadedPage(fresh, { setPage, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, setHtml, setSavedHtml });
+    applyLoadedPage({ post: fresh, setters: { setPage, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, setHtml, setSavedHtml }, pageEditableHtml });
     setDraftHtml(prettifyHtml({ html: pageEditableHtml(fresh) }));
     setSaveConflict(null);
     // Bug B, Slice B3 (dev-only instrumentation, pages-redo plan): this bump remounts the Interactive
@@ -246,7 +247,7 @@ export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEdito
       console.debug("[page-editor] interactive", { phase: "contentRevision:increment", ms: Math.round(performance.now()) });
     }
     setContentRevision((n) => n + 1);
-  }, [deps.isDevMode]);
+  }, [deps.isDevMode, prettifyHtml, pageEditableHtml]);
   return { ...input, draftHtml, setDraftHtml, htmlScrollTopRef, onHtmlScroll, contentRevision, setContentRevision, onInteractiveSourceError, flushInteractiveSafely, flushPendingEdits, onRequestEditHtml, htmlTextareaRef, consumeJumpFormatting, applyExternalPage };
 }
 

@@ -4,8 +4,6 @@ import type { Translate } from "@jini-ai/core/text";
 import type { HeadlessThemeTier as ThemeTier } from "@jini-ai/core/contracts/headless/contracts";
 import type { PageEditorProps } from "./PageEditor.js";
 import type { PageEditorController } from "./hooks/use-page-editor.hooks.js";
-import { DEVICE_PREVIEW_WIDTHS } from "../shell/components/DevicePreview/DevicePreview.hooks.js";
-import { isProtectedEmbedElement } from "./lib/embed-placeholder.js";
 import { PagePreview } from "./PageEditorPreview.js";
 
 /**
@@ -122,10 +120,10 @@ function PageEditorPreviewPane({ kit, deps, useThemePreviewFrameHook, html, body
   return (
     <PagePreview
         hooks={{ useThemePreviewFrameHook, usePreviewEmbedIds: previewEmbeds.usePreviewEmbedIds }}
-        kit={{ DevicePreviewFrame: kit.DevicePreviewFrame }} deps={{ videoLink: deps.videoLink }}
+        kit={{ DevicePreviewFrame: kit.DevicePreviewFrame }} deps={{ videoLink: deps.videoLink, pagePreviewYoutubeIds: deps.pagePreviewYoutubeIds, previewIframeSandbox: deps.previewIframeSandbox }}
         html={html}
         bodyJson={bodyJson}
-        width={DEVICE_PREVIEW_WIDTHS[device]}
+        width={deps.devicePreviewWidths[device]}
         slug={slug}
         version={version}
         status={status}
@@ -167,7 +165,7 @@ function PageEditorHtmlPane({ setHtml, draftHtml, setDraftHtml, htmlTextareaRef,
   );
 }
 
-function PageEditorInteractivePane({ html, contentRevision, t, embedPlaceholderDescriber, onRequestEditHtml, onInteractiveSourceError, interactiveEditorRef, setHtmlFromCanvas, surface, InteractiveHtmlEditor }: Pick<Parameters<typeof PageEditorPane>[0], "html" | "contentRevision" | "t" | "embedPlaceholderDescriber" | "onRequestEditHtml" | "onInteractiveSourceError" | "interactiveEditorRef" | "setHtmlFromCanvas"> & { surface: { kind: "interactive"; styling: import("../react/kit.js").CanvasStyling } } & { InteractiveHtmlEditor: PageEditorProps["kit"]["InteractiveHtmlEditor"] }, _optional = {}) {
+function PageEditorInteractivePane({ deps, html, contentRevision, t, embedPlaceholderDescriber, onRequestEditHtml, onInteractiveSourceError, interactiveEditorRef, setHtmlFromCanvas, surface, InteractiveHtmlEditor }: Pick<Parameters<typeof PageEditorPane>[0], "deps" | "html" | "contentRevision" | "t" | "embedPlaceholderDescriber" | "onRequestEditHtml" | "onInteractiveSourceError" | "interactiveEditorRef" | "setHtmlFromCanvas"> & { surface: { kind: "interactive"; styling: import("../react/kit.js").CanvasStyling } } & { InteractiveHtmlEditor: PageEditorProps["kit"]["InteractiveHtmlEditor"] }, _optional = {}) {
   return (
     <InteractiveHtmlEditor
       key={contentRevision}
@@ -175,7 +173,7 @@ function PageEditorInteractivePane({ html, contentRevision, t, embedPlaceholderD
       html={html}
       onChange={setHtmlFromCanvas}
       canvasStyling={surface.styling}
-      isProtectedElement={isProtectedEmbedElement}
+      isProtectedElement={deps.isProtectedEmbedElement}
       describeEmbedPlaceholder={embedPlaceholderDescriber}
       onRequestEditHtml={onRequestEditHtml}
       onSerializationError={onInteractiveSourceError}
