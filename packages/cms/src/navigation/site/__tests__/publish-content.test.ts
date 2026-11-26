@@ -1,5 +1,5 @@
 import { applyRunActor, createRepoPublishHandler } from "../../../publish/content/repo-handler.js";
-import { updateMenuTree } from "../../node/index.js";
+import { updateMenuTree } from "@jini-ai/cms/navigation/node";
 import { expect, it, vi } from "vitest";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
 import { InMemoryMenuRepo, type NavMenuEntry } from "../../index.js";

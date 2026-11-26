@@ -84,6 +84,7 @@
       "./contracts/site/site-key": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/speech-transcription": "universal",
+      "./contracts/standing-draft": "universal",
       "./contracts/site/strict-base64": "node",
       "./contracts/site/tool-metadata-approval-policy": "universal",
       "./contracts/site/daemon": "universal",

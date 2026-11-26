@@ -872,7 +872,11 @@
       "./routing/public-path": "universal",
       "./react/posts/post-editor-input.rules": "universal",
       "./react/publish-content/hooks/publish-content-confirm.rules": "universal",
-      "./react/publish-content/hooks/use-publish-content-confirm.hooks": "browser"
+      "./react/publish-content/hooks/use-publish-content-confirm.hooks": "browser",
+      "./core/days-remaining": "universal",
+      "./admin-http/routes/external-mcp/provider-refusal": "universal",
+      "./publish/content/peer-transport-error": "universal",
+      "./publish/trust/handshake-error": "universal"
     },
     "isolation": {
       "domains": {
