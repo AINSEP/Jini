@@ -30,6 +30,21 @@ import type { PageEditorView, PageSavePlan } from "../page-editor-rules.js";
  */
 
 export interface PageEditorDependencies extends EmbedMarkerReaders {
+  prettifyHtml: typeof import("../lib/prettify-html.js").prettifyHtml;
+  unchangedSaveHandlers: typeof import("../../shell/lib/unchanged-save-warning.js").unchangedSaveHandlers;
+  pageDirtyGuardBaseline: typeof import("../page-editor-rules.js").pageDirtyGuardBaseline;
+  pageRefreshMayHaveUnsavedEdits: typeof import("../page-editor-rules.js").pageRefreshMayHaveUnsavedEdits;
+  pageEditableHtml: typeof import("../page-editor-rules.js").pageEditableHtml;
+  pageAcceptsHtmlBody: typeof import("../page-editor-rules.js").pageAcceptsHtmlBody;
+  createEmbedPlaceholderDescriber: typeof import("../lib/embed-placeholder.js").createEmbedPlaceholderDescriber;
+  slugRedirectPath: typeof import("../../shell/lib/slug-redirect-path.js").slugRedirectPath;
+  editorTemplateOptions: typeof import("../../shell/lib/editor-template-options.rules.js").editorTemplateOptions;
+  pagePreviewFormTarget: typeof import("../page-editor-rules.js").pagePreviewFormTarget;
+  buildPageAutosaveDraft: typeof import("../page-editor-rules.js").buildPageAutosaveDraft;
+  buildPageSavePlan: typeof import("../page-editor-rules.js").buildPageSavePlan;
+  pagePartialSaveMessage: typeof import("../page-editor-rules.js").pagePartialSaveMessage;
+  pageSaveSuccessMessage: typeof import("../page-editor-rules.js").pageSaveSuccessMessage;
+  pageUnchangedSaveMessage: typeof import("../page-editor-rules.js").pageUnchangedSaveMessage;
   port: PageEditorPort<AdminPost, AdminPagePluginEmbed, StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot>;
   /** Separate from `port` because it reaches a different surface entirely — a theme's static asset
    *  files, not the JSON admin API. See `theme-canvas-port.hooks.ts`. */

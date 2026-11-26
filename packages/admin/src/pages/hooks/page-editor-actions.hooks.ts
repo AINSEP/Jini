@@ -1,11 +1,10 @@
 import { useCallback } from "react";
 import type { AdminPost } from "../../posts/api/posts-api.types.js";
 
-import { buildPageAutosaveDraft, buildPageSavePlan, pagePartialSaveMessage, pageSaveSuccessMessage, pageUnchangedSaveMessage } from "../page-editor-rules.js";
 import type { usePageEditorPreviewWorkspace } from "./page-editor-preview.hooks.js";
 export function usePageEditorSave(input: ReturnType<typeof usePageEditorPreviewWorkspace>, _optional = {}) {
   const { deps, port, navigate, t, locale, write, setPage, setError, setMessage, title, slug, setSlug, status, setStatus, templateChoice, setSavedTemplateChoice, html, setSavedHtml, setSaving, setSaveSettlement, setSaveConflict, settlement, autosave } = input;
-  const { pageAdminPath, writePage, applySavedPage, applySaveFailure, readVersionConflict, isUnexpectedServerFailure } = deps;
+  const { pageAdminPath, writePage, applySavedPage, applySaveFailure, readVersionConflict, isUnexpectedServerFailure, buildPageSavePlan, buildPageAutosaveDraft, pagePartialSaveMessage, pageSaveSuccessMessage, pageUnchangedSaveMessage } = deps;
 
   /**
    * Persists the working copy against a specific basis row — the version-guarded core both
@@ -97,7 +96,7 @@ export function usePageEditorSave(input: ReturnType<typeof usePageEditorPreviewW
         }
       }
     },
-    [html, title, slug, status, templateChoice, locale, port, navigate, t, settlement, autosave.clearStandingDraft, autosave.preserveFailedSave]
+    [html, title, slug, status, templateChoice, locale, port, navigate, t, settlement, autosave.clearStandingDraft, autosave.preserveFailedSave, buildPageSavePlan, buildPageAutosaveDraft, pagePartialSaveMessage, pageSaveSuccessMessage, pageUnchangedSaveMessage]
   );
   return { ...input, runSave };
 }

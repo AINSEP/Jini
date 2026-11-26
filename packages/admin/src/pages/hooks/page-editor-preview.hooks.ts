@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PageEditorDependencies } from "./use-page-editor.hooks.js";
 
-import { prettifyHtml } from "../lib/prettify-html.js";
-
-import { buildPageAutosaveDraft, pagePreviewFormTarget } from "../page-editor-rules.js";
 import type { usePageEditorHtmlWorkspace } from "./page-editor-workspace.hooks.js";
 import type { usePageEditorActions } from "./page-editor-actions.hooks.js";
 import { computeContentDirty } from "./page-editor-workspace.hooks.js";
@@ -63,14 +60,14 @@ function isPublishedUnchanged({ status, contentDirty, templateChoice, savedTempl
 export function usePageEditorPreviewWorkspace(input: ReturnType<typeof usePageEditorHtmlWorkspace>, _optional = {}) {
   const { deps, html, view, previewExpanded, setPreviewExpanded, setDraftHtml, consumeJumpFormatting } = input;
   const { usePreviewPaneWidth } = deps.hooks;
-  const { document } = deps;
+  const { document, prettifyHtml } = deps;
 
   const prevViewRef = useRef(view);
   useEffect(() => {
     // A jump into the HTML view keeps the caller's own formatting; any other entry prettifies.
     if (view === "html" && prevViewRef.current !== "html" && !consumeJumpFormatting()) setDraftHtml(prettifyHtml({ html }));
     prevViewRef.current = view;
-  }, [view, html, consumeJumpFormatting]);
+  }, [view, html, consumeJumpFormatting, prettifyHtml]);
 
   // Leaving the Preview tab collapses (2026-09-16) — the expanded surface only ever shows the
   // preview, so any other view being selected means the operator is done with it. Returning to
@@ -108,6 +105,7 @@ export function usePageEditorPreviewWorkspace(input: ReturnType<typeof usePageEd
 export function usePageEditorPreview(input: ReturnType<typeof usePageEditorActions>, _optional = {}) {
   const { deps, page, title, slug, status, templateChoice, savedTemplateChoice, html, savedHtml } = input;
   const { useAgentScreenEntry } = deps.hooks;
+  const { pagePreviewFormTarget, pageAcceptsHtmlBody } = deps;
 
   // Pending-html preview (2026-09-09) — see `PageEditorController.previewFormRef`'s own doc. The
   // hidden form's DOM node; `PagePreview` attaches it via `ref`. `previewFormTarget` is `""` before
@@ -141,7 +139,7 @@ export function usePageEditorPreview(input: ReturnType<typeof usePageEditorActio
   useAgentScreenEntry({ entry: page === null ? null : { kind: page.kind, id: page.id, title: page.title, slug: page.slug, status: page.status } });
 
   // Template-preview fix (2026-08-11) — see `contentDirty`'s doc on `PageEditorController`.
-  const contentDirty = computeContentDirty({ page, draft: { title, slug, status, html, savedHtml } });
+  const contentDirty = computeContentDirty({ page, pageAcceptsHtmlBody, draft: { title, slug, status, html, savedHtml } });
   // The Save button's own "is there anything unsaved" signal — split out to a named variable (was
   // previously inlined at the return statement) so `useExternalEntryRefresh`'s `isDirty` below reads
   // the SAME value `dirty` reports, rather than a second copy of this expression that could drift.
@@ -151,6 +149,7 @@ export function usePageEditorPreview(input: ReturnType<typeof usePageEditorActio
 
 export function usePageEditorPreviewSubmit(input: ReturnType<typeof usePageEditorRecovery>, _optional = {}) {
   const { deps, page, title, slug, status, templateChoice, savedTemplateChoice, html, view, autosave, contentRevision, previewForm, contentDirty } = input;
+  const { buildPageAutosaveDraft } = deps;
 
   // Standing-draft autosave scheduling — fires a debounced write whenever the working copy actually
   // differs from what's saved. Deliberately does NOT clear the draft when `contentDirty` goes back
@@ -161,7 +160,7 @@ export function usePageEditorPreviewSubmit(input: ReturnType<typeof usePageEdito
   useEffect(() => {
     if (!page || !contentDirty) return;
     autosave.scheduleAutosave(buildPageAutosaveDraft({ page, form: { title, slug, html } }));
-  }, [page, contentDirty, title, slug, html, autosave.scheduleAutosave]);
+  }, [page, contentDirty, title, slug, html, autosave.scheduleAutosave, buildPageAutosaveDraft]);
 
   const previewMatchesLive = isPublishedUnchanged({ status, contentDirty, templateChoice, savedTemplateChoice });
   // Pending-html preview's debounced auto-submit (2026-09-09) — see `PageEditorController
