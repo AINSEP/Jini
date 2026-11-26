@@ -37,7 +37,7 @@ it("authorizes import and share handlers before any backend effect", async () =>
 
 it("resolves live request deps once per dispatch and push poll (mutation: resolve-deps-at-registration)", async () => {
   const copy = { importDescription: "Import", commitDescription: "Commit", shareDescription: "Share" };
-  const mounted = { current: { workspaceId: "first", authorize: vi.fn(async () => ({ allowed: true })) } };
+  const mounted = { current: { workspaceId: "first", authorize: vi.fn(async () => ({ allowed: true, reason: "test" })) } };
   const first = mounted.current;
   const resolveDeps = vi.fn(({ deps }: { deps: typeof mounted; ctx: ToolExecutionContext }) => deps.current);
   const planSiteBackup = vi.fn(async (_required: { deps: typeof first; call: ToolExecutionContext }, _optional: Record<string, never>) => ({ planned: true }));
@@ -55,7 +55,7 @@ it("resolves live request deps once per dispatch and push poll (mutation: resolv
     const handler = registrations.find(tool => tool.descriptor.id === id)!.handler;
     mounted.current = first;
     await handler(contexts[0]!);
-    const second = { workspaceId: "second", authorize: vi.fn(async () => ({ allowed: false })) };
+    const second = { workspaceId: "second", authorize: vi.fn(async () => ({ allowed: false, reason: "denied" })) };
     mounted.current = second;
     await handler(contexts[1]!);
     const operation = id === "site_backup_plan" ? planSiteBackup : pushSiteBackup;
@@ -70,7 +70,7 @@ it("resolves live request deps once per dispatch and push poll (mutation: resolv
 
 it("dispatches import and share with live backends without constructing backup services", async () => {
   const listPage = vi.fn(async () => ({ imports: [] })); const list = vi.fn(async () => []);
-  const authorize = vi.fn(async () => ({ allowed: true }));
+  const authorize = vi.fn(async () => ({ allowed: true, reason: "test" }));
   const deps: SiteBackupToolDeps = { workspaceId: "workspace", authorize, siteImportBackend: { importBackup: vi.fn(), listPage }, siteShareBackend: { create: vi.fn(), list, revoke: vi.fn() } };
   const resolveDeps = vi.fn(({ deps }: { deps: SiteBackupToolDeps; ctx: ToolExecutionContext }) => deps);
   const planSiteBackup = vi.fn(); const pushSiteBackup = vi.fn();
@@ -82,7 +82,7 @@ it("dispatches import and share with live backends without constructing backup s
   expect(resolveDeps).not.toHaveBeenCalled();
   expect(await registrations.find(tool => tool.descriptor.id === "site_import_list")!.handler(ctx)).toEqual({ imports: [] });
   expect(await registrations.find(tool => tool.descriptor.id === "site_share_list")!.handler(ctx)).toEqual({ shares: [] });
-  Object.assign(deps, { authorize: vi.fn(async () => ({ allowed: false })) });
+  Object.assign(deps, { authorize: vi.fn(async () => ({ allowed: false, reason: "denied" })) });
   await expect(registrations.find(tool => tool.descriptor.id === "site_share_list")!.handler(ctx)).rejects.toThrow();
   expect(resolveDeps).toHaveBeenCalledTimes(3); expect(listPage).toHaveBeenCalledOnce(); expect(list).toHaveBeenCalledOnce();
   expect(planSiteBackup).not.toHaveBeenCalled(); expect(pushSiteBackup).not.toHaveBeenCalled();

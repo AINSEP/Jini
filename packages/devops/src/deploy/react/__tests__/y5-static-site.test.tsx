@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { bindPublishCredentials } from "../hooks/use-publish-credentials.hooks.js";
 import { bindStaticPublish } from "../hooks/use-static-publish.hooks.js";
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
@@ -96,7 +97,7 @@ test("publish sends one trigger, stops at three poll failures, and clears timers
   let first!: Promise<void>;
   act(() => { first = mounted.result.current.publish({ credentialId: "selected" }); });
   await act(() => mounted.result.current.publish({ credentialId: "selected" }));
-  expect(triggerPublish).toHaveBeenCalledExactlyOnceWith({ config: { target: "first", fields: {} }, projectName: "", credentialId: "selected" });
+  expect(triggerPublish).toHaveBeenCalledExactlyOnceWith({ config: { target: "first", fields: {} }, projectName: "first", credentialId: "selected" });
   await act(async () => { settle({ status: "running", startedAtIso: null, finishedAtIso: null, target: "first" }); await first; });
   await act(() => vi.advanceTimersByTimeAsync(4500));
   expect(getPublishStatus).toHaveBeenCalledTimes(3);

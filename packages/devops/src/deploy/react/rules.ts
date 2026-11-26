@@ -368,7 +368,7 @@ export function ownerPasswordLabelKey({ defaultOwnerPasswordUnsafe, copy }: { de
  *  routes failed, or a publish `StaticPublishOutcome` with `ok: false`). @complexity O(1). */
 export function runStatusTone(
   { status }: { status: "idle" | "running" | "completed" | "errored" },
-  { ok = true }: { ok?: boolean } = {},
+  { ok = true }: { ok?: boolean | undefined } = {},
 ): "neutral" | "warning" | "ok" | "error" {
   if (status === "idle") return "neutral";
   if (status === "running") return "warning";

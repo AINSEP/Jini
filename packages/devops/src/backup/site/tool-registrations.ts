@@ -5,7 +5,7 @@ import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { SiteImportBackend } from "./import-backend.js";
 import type { SiteShareBackend } from "./share-backend.js";
 import type { parseSiteImportInput } from "./import-backend.js";
-import type { parseStaticExportInput } from "./static-export-selection.js";
+import type { StaticExportInput } from "./static-export-selection.js";
 import { SiteShareRefusal } from "./share-refusal.js";
 import { PLAN_TOOL_ID, PUSH_PERMISSION, SITE_BACKUP_DOMAIN as DOMAIN, SITE_BACKUP_PUSH_TOOL_ID } from "./backup-service.js";
 
@@ -15,6 +15,9 @@ export interface SiteBackupToolDeps {
 }
 
 const MUTATES_DURABLE_STATE = "mutates-durable-state";
+
+/** The host binds its own `StaticExportSelectionPolicy` into the injected parser, so the wiring layer never owns path policy or refusal text. */
+type ParseStaticExportInput = (required: { input: unknown }) => StaticExportInput;
 
 /**
  * @file The site-backup domain's agent tools: Git backup (`site_backup_plan`/`site_backup_push`, whose
@@ -137,7 +140,7 @@ export const siteBackupDerivedRisk: DerivedRiskByToolId = new Map<string, AgentT
  * `CREDENTIAL_UNREADABLE` in `backup-service.ts`, and its own text must never be published.
  */
 /** One share tool's effect once authorized: its exact input contract, then the backend call. */
-type ShareAction = (required: { backend: NonNullable<SiteBackupToolDeps["siteShareBackend"]>; raw: Record<string, unknown>; ctx: ToolExecutionContext; parseStaticExportInput: typeof parseStaticExportInput; format?: "static" }) => Promise<unknown>;
+type ShareAction = (required: { backend: NonNullable<SiteBackupToolDeps["siteShareBackend"]>; raw: Record<string, unknown>; ctx: ToolExecutionContext; parseStaticExportInput: ParseStaticExportInput; format?: "static" }) => Promise<unknown>;
 
 const SHARE_ACTIONS: Record<"create" | "static" | "list" | "revoke", ShareAction> = {
   static: async ({ backend, raw, ctx, parseStaticExportInput }) => backend.create({ principalId: ctx.principal.id, signal: ctx.signal, format: "static", ...parseStaticExportInput({ input: raw }) }),
@@ -156,7 +159,7 @@ const SHARE_ACTIONS: Record<"create" | "static" | "list" | "revoke", ShareAction
 };
 
 /** Authorization stays on the existing backup contributor; backend effects are shared with HTTP. */
-async function handleShare(required: { deps: SiteBackupToolDeps; ctx: ToolExecutionContext; action: "create" | "static" | "list" | "revoke"; parseStaticExportInput: typeof parseStaticExportInput }, _optional: Record<string, never> = {}): Promise<unknown> {
+async function handleShare(required: { deps: SiteBackupToolDeps; ctx: ToolExecutionContext; action: "create" | "static" | "list" | "revoke"; parseStaticExportInput: ParseStaticExportInput }, _optional: Record<string, never> = {}): Promise<unknown> {
   const { deps, ctx, action, parseStaticExportInput } = required;
   const raw = requireInputRecord({ input: ctx.input });
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: PUSH_PERMISSION }, { entityType: DOMAIN });
@@ -179,7 +182,7 @@ export function bindSiteBackupTools<THost, TRequest extends SiteBackupToolDeps>(
   catalogModule: string;
   toolMetadata: NonNullable<Parameters<typeof buildDomainRegistrations>[0]["metadata"]>;
   modelFacingErrors: readonly ModelFacingErrorRule[];
-  parseStaticExportInput: typeof parseStaticExportInput;
+  parseStaticExportInput: ParseStaticExportInput;
   parseSiteImportInput: typeof parseSiteImportInput;
   parseSiteImportListQuery: (required: { query: Record<string, unknown> }) => { ok: true; value: { cursor?: string } } | { ok: false; error: { message: string } };
   resolveDeps: (required: { deps: THost; ctx: ToolExecutionContext }, optional: Record<string, never>) => TRequest;

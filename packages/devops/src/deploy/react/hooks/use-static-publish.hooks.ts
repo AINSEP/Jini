@@ -9,7 +9,7 @@ import { useStaticPublishRun, useStaticPublishPolling } from "./static-publish-r
 import { publish } from "./static-publish-actions.js";
 
 type AdminStaticPublishTargetId = string;
-interface AdminStaticPublishConfig {
+export interface AdminStaticPublishConfig {
   target: AdminStaticPublishTargetId;
   fields: Readonly<Record<string, string>>;
 }
@@ -26,7 +26,7 @@ type AdminPublishRunStatus = "idle" | "running" | "completed" | "errored";
 /** Mirrors `PublishRunSnapshot` (same file) — the trigger+poll run slot for a publish to a
  *  static host, independent of {@link AdminExportRunSnapshot}'s own run slot (a plain export and a
  *  publish are different server-side operations with their own process-local state). */
-interface AdminPublishRunSnapshot {
+export interface AdminPublishRunSnapshot {
   status: AdminPublishRunStatus;
   startedAtIso: string | null;
   finishedAtIso: string | null;
@@ -41,7 +41,7 @@ interface AdminPublishRunSnapshot {
 /** Mirrors the JSON shape `GET .../system/publish/preview` returns — see that route's own doc
  *  comment in the server publish route. A pure read: never starts a run, never echoes a credential's value,
  *  only whether one is configured. */
-interface AdminStaticPublishPreview {
+export interface AdminStaticPublishPreview {
   target: AdminStaticPublishTargetId;
   valid: boolean;
   validationError: string | null;
