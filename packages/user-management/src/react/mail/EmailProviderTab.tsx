@@ -164,7 +164,7 @@ function ProviderCard<P extends EmailProviderView, Ch extends EmailProviderChoic
  */
 export function shownProviderId<P extends Pick<EmailProviderView, 'id' | 'lanes'>>(
   { providers, selectedId, isFullyActive }: { providers: readonly P[]; selectedId: string | null | undefined; isFullyActive: (required: { provider: Pick<P, 'lanes'> }) => boolean },
-  _options = {},
+  _options: Record<string, never> = {},
 ): string | undefined {
   const pick = providers.find((p) => p.id === selectedId) ?? providers.find((p) => isFullyActive({ provider: p })) ?? providers.find((p) => p.lanes.length > 0) ?? providers[0];
   return pick?.id;
@@ -173,7 +173,7 @@ export function shownProviderId<P extends Pick<EmailProviderView, 'id' | 'lanes'
 /** `label` minus one trailing `(…)` group (no nested parentheses) and the whitespace around it;
  *  `label` unchanged when it does not end in one. Same result as
  *  `label.replace(/\s*\([^()]*\)\s*$/, "")`, in one linear pass. */
-function withoutTrailingParenthetical({ label }: { label: string }, _options = {}): string {
+function withoutTrailingParenthetical({ label }: { label: string }, _options: Record<string, never> = {}): string {
   const body = label.trimEnd();
   if (!body.endsWith(')')) return label;
   const open = body.lastIndexOf('(');
@@ -185,7 +185,7 @@ function withoutTrailingParenthetical({ label }: { label: string }, _options = {
  * A segment's name: the provider's label without a trailing "(…)" aside — "Console (local
  * development, sends nothing)" reads as "Console"; the card keeps the full label. Pure.
  */
-export function segmentLabel({ label }: { label: string }, _options = {}): string {
+export function segmentLabel({ label }: { label: string }, _options: Record<string, never> = {}): string {
   return withoutTrailingParenthetical({ label }) || label;
 }
 
