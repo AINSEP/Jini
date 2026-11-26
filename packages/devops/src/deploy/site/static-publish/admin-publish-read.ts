@@ -51,14 +51,14 @@ function publicCredentialSpec(spec: DeployTargetCredentialSpec): {
   };
 }
 
-function credentialChoice({ value }: { value: unknown }, _options = {}): { credentialId?: string } {
+export function credentialChoice({ value }: { value: unknown }, _options = {}): { credentialId?: string } {
   if (value === undefined) return {};
   if (typeof value !== "string" || !value.trim()) throw new ToolInputError({ message: "credentialId must be a non-empty string naming the selected connection. Reload and choose it again." });
   return { credentialId: value };
 }
 
 /** The HTTP projection calls the same authenticated inspection used by the chat preview. */
-async function httpPublishPreview(required: {
+export async function httpPublishPreview(required: {
   deps: AdminPublishSiteDeps; credentialSource: PublishCredentialSource; registry: DeployTargetRegistry;
   config: StaticPublishConfig; query: Record<string, unknown>;
 }, _options = {}) {
@@ -75,7 +75,7 @@ async function httpPublishPreview(required: {
 }
 
 /** The preview query's target + config, or the 400 message for whichever part is missing/invalid. */
-async function readPreviewTarget({ deps, query }: { deps: AdminPublishSiteDeps; query: Record<string, unknown> }): Promise<{ ok: true; read: Extract<Awaited<ReturnType<typeof readTargetConfig>>, { ok: true }> } | { ok: false; error: string }> {
+export async function readPreviewTarget({ deps, query }: { deps: AdminPublishSiteDeps; query: Record<string, unknown> }): Promise<{ ok: true; read: Extract<Awaited<ReturnType<typeof readTargetConfig>>, { ok: true }> } | { ok: false; error: string }> {
   if (typeof query.target !== "string" || query.target.trim() === "") return { ok: false, error: "'target' query param (non-empty string) is required" };
   const read = await readTargetConfig({ deps, targetId: query.target, raw: query, blankAsAbsent: true });
   if (!read.ok) return { ok: false, error: read.error };

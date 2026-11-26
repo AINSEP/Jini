@@ -1,6 +1,7 @@
 import type { CommentsProviderAdapter, CommentsProviderRegistry } from "@jini-ai/core/contracts/site/comments-providers";
 import { describe, expect, it, vi } from "vitest";
 
+import { createCommentSubmitHandler } from "../../../../comments/express/index.js";
 import type { CommentSubmission } from "../../../../comments/types.js";
 import { commentFormReturnTo, commentProviderIngress, isSameOriginCommentPost } from "../comments-submit.js";
 
@@ -102,4 +103,19 @@ describe("commentProviderIngress", () => {
     const providers = { active: async () => ({ providerId: "native", revision: 1, adapter }) } as unknown as CommentsProviderRegistry;
     expect(await commentProviderIngress({ providers, siteId: "s" }).submit(submission)).toEqual({ ok: false, reason: "rate-limited" });
   });
+});
+
+it('refuses foreign-origin requests before enumerating the comment provider', async () => {
+  const { registerCommentsSubmitRoute } = await import('../comments-submit.js');
+  const active = vi.fn();
+  let submit!: import('express').RequestHandler;
+  const app = { post: (_path: string, _parser: unknown, handler: import('express').RequestHandler) => { submit = handler; } } as unknown as import('express').Express;
+  registerCommentsSubmitRoute({ app, deps: { createCommentSubmitHandler, ingressPolicy: { submit: async () => ({ ok: false, reason: 'disabled' }) }, workspaceId: 'w', rateLimiter: { check: async () => ({ allowed: true }) }, ipHashSalt: Promise.resolve('salt'), providers: { active } as unknown as CommentsProviderRegistry,
+    clientIp: () => '127.0.0.1', onAccepted: () => {}, isSameOriginCommentPost: () => false, formParser: (_req, _res, next) => next(),
+  } });
+  const json = vi.fn();
+  const response = { status: vi.fn(() => ({ json })) } as unknown as import('express').Response;
+  await submit({} as import('express').Request, response, vi.fn());
+  expect(response.status).toHaveBeenCalledWith(403);
+  expect(active).not.toHaveBeenCalled();
 });

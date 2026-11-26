@@ -1,3 +1,6 @@
+import type { Express, Request, RequestHandler } from 'express';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import type { createCommentSubmitHandler } from '../../../comments/express/index.js';
 import type { CommentsProviderRegistry } from "@jini-ai/core/contracts/site/comments-providers";
 
 import type { CommentSubmission } from "../../../comments/types.js";
@@ -55,4 +58,61 @@ export function commentProviderIngress({ providers, siteId }: { providers: Comme
       authorIpHash: String(submission.ingressContext.authorIpHash), honeypotValue: String(submission.ingressContext.honeypotValue) });
     return result.ok ? { ok: true, comment: { id: result.id, status: result.status } } : result;
   } };
+}
+
+/** Mounts Jini's handler with the site's ingress, request budget, salt and proxy policy.
+ * @throws TypeError at registration when `deps.ipHashSalt` is missing; any other missing/invalid
+ *   handler dependency (Jini's TypeError) surfaces as a 500 through `next(error)` on the first
+ *   request, once the salt promise has settled.
+ * @complexity O(1) route setup; request work belongs to the Jini handler.
+ */
+export function registerCommentsSubmitRoute({ app, deps }: { app: Express; deps: {
+  createCommentSubmitHandler: typeof createCommentSubmitHandler;
+  ingressPolicy: Parameters<typeof createCommentSubmitHandler>[0]['ingressPolicy'];
+  workspaceId: string;
+  rateLimiter: Parameters<typeof createCommentSubmitHandler>[0]['rateLimiter'];
+  ipHashSalt: Promise<string>;
+  providers?: CommentsProviderRegistry;
+  clientIp: Parameters<typeof createCommentSubmitHandler>[0]['clientIp'];
+  onAccepted: NonNullable<NonNullable<Parameters<typeof createCommentSubmitHandler>[1]>['onAccepted']>;
+  isSameOriginCommentPost: (required: { request: Request }) => boolean;
+  formParser: RequestHandler;
+} }, _optional: Record<string, never> = {}): void {
+  // Named refusal rather than "Cannot read properties of undefined (reading 'then')", which is
+  // what a caller missing this dependency produced on 2026-10-08.
+  if (typeof deps.ipHashSalt?.then !== "function") {
+    throw new TypeError("registerCommentsSubmitRoute requires deps.ipHashSalt (a Promise<string> from resolveCommentsIpHashSalt at the composition root)");
+  }
+  const handler = deps.ipHashSalt.then((ipHashSalt) => deps.createCommentSubmitHandler({
+    ingressPolicy: { submit: async submission => {
+      const owner = deps.providers ? commentProviderIngress({ providers: deps.providers, siteId: deps.workspaceId }) : deps.ingressPolicy;
+      return owner.submit(submission);
+    } },
+    workspaceId: deps.workspaceId,
+    ipHashSalt,
+    rateLimiter: deps.rateLimiter,
+    clientIp: deps.clientIp,
+  }, { onAccepted: deps.onAccepted, formRedirect: ({ request }) => request.is('application/x-www-form-urlencoded')
+    ? commentFormReturnTo({ value: request.body?.returnTo }) : undefined }));
+  // Observed here so a construction failure is not an unhandled rejection at boot; each request
+  // below re-awaits the same promise and hands that failure to Express's error path instead.
+  handler.catch((error: unknown) => {
+    console.error("[comments] Could not prepare the comment submission handler:",
+      describeErrorForLog({ err: error }));
+  });
+  const submit: RequestHandler = async (request, response, next) => {
+    if (!deps.isSameOriginCommentPost({ request })) {
+      response.status(403).json({ error: 'A same-origin comment submission is required' });
+      return undefined;
+    }
+    let built: RequestHandler;
+    try {
+      built = await handler;
+    } catch (error) {
+      next(error);
+      return undefined;
+    }
+    return built(request, response, next);
+  };
+  app.post("/api/site/comments", deps.formParser, submit);
 }

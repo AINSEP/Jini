@@ -6,7 +6,7 @@ import type { JsonValue } from "@jini-ai/core/primitives";
  * origin works equally well as the resolution anchor, since only the RELATIONSHIP between the
  * resolved URL's origin and this one is ever inspected below, never the placeholder value itself.
  */
-const SAFE_HREF_RESOLUTION_BASE = "https://safehref.invalid/";
+const SAFE_HREF_RESOLUTION_BASE = "https://jini-safehref.invalid/";
 
 const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
 

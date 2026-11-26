@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { refuseUnexpectedKeys } from '@jini-ai/core';
+import { refuseUnexpectedKeys, refuseUnexpectedKeysPort } from '@jini-ai/core';
 import { notConfirmedResult } from '../human-confirm.js';
 
 it('distinguishes a declined confirmation from expiry and abandonment', () => {
@@ -11,4 +11,6 @@ it('distinguishes a declined confirmation from expiry and abandonment', () => {
 it('refuses the first unexpected input key', () => {
   expect(() => refuseUnexpectedKeys({ input: { allowed: 1, confirm: true, confirmationToken: 'x' }, allowed: ['allowed'] })).toThrow("'confirm' is not an input of this tool. Only a click in the confirm dialog confirms it — nothing in the tool input can.");
   expect(() => refuseUnexpectedKeys({ input: { allowed: 1 }, allowed: ['allowed'] })).not.toThrow();
+  expect(() => refuseUnexpectedKeysPort({ allowed: 1, confirm: true, confirmationToken: 'x' }, ['allowed'])).toThrow("'confirm' is not an input of this tool. Only a click in the confirm dialog confirms it — nothing in the tool input can.");
+  expect(() => refuseUnexpectedKeysPort({ allowed: 1 }, ['allowed'])).not.toThrow();
 });

@@ -5,7 +5,7 @@ it('transforms managed bodies before collecting assets and bypasses the shell fo
   const order: string[] = [];
   const required: RenderSiteRequired = {
     theme: null, route: 'home', siteTitle: 'Site', posts: [], footerCredit: 'credit', renderScriptAssets: () => '',
-    resolveTemplateId: () => undefined, resolveLiquidTemplateId: () => undefined, resolveHandlebarsTemplateId: () => undefined,
+    resolveTemplateId: () => null, resolveLiquidTemplateId: () => null, resolveHandlebarsTemplateId: () => null,
     loadLiquidSandbox: async () => ({ renderLiquidInSandbox: async () => '' }), loadHandlebarsSandbox: async () => ({ renderHandlebarsInSandbox: async () => '' }), renderBlock: () => '',
     renderStaticPage: () => '<!doctype html><html><head></head><body>static</body></html>',
     injectSiteAssistantIntoStaticPage: ({ html }) => html,

@@ -86,8 +86,10 @@ function activeAnalyticsRecord({ record, policy, nowMs }: { record: Partial<Cons
 
 /** The old engine's analytics proof shape (receipt id + policy), from the new cookie. Undefined unless
  * analytics is allowed and a server receipt exists. @complexity O(cookie header). */
-export function analyticsProof({ state, cookieHeader }: { state: ConsentState; cookieHeader: string | undefined }, _optional = {}): ConsentAnalyticsProof | undefined {
+export function analyticsProof(required: { state: ConsentState; cookieHeader: string | undefined }, _optional = {}): ConsentAnalyticsProof | undefined {
+  const { state } = required;
   if (state.analyticsLevel !== 'full') return undefined;
+  const { cookieHeader } = required;
   const raw = cookieHeader?.match(new RegExp(`(?:^|;\\s*)${CONSENT_COOKIE}=([^;]*)`))?.[1];
   let receiptId: string | undefined;
   try { receiptId = parseStored({ raw: raw === undefined ? null : decodeURIComponent(raw) })?.r; } catch { receiptId = undefined; }

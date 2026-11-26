@@ -4,7 +4,7 @@ import type { CommerceOrderView } from "../../catalog/plugin-server.js";
 
 const admission = {
   workspaceId: "w", markNoStore: vi.fn(), resolveCommerce: () => true,
-  checkLimit: async () => ({ allowed: true, retryAfterSeconds: 0 }), setRetryAfter: vi.fn(), buyer: async () => "m",
+  checkLimit: async () => ({ allowed: true as const }), setRetryAfter: vi.fn(), buyer: async () => "m",
 };
 const write = { ...admission, sameOrigin: () => true, checkoutOrigin: async () => "https://shop", requestOrigin: () => "https://foreign", activate: vi.fn(async () => ({ ready: true, reason: null })) };
 const view = { order: { id: "o", status: "pending", totalAmount: { minorUnits: 10, currency: "USD" }, placedAt: "now", version: 1 }, payment: { status: "pending", amount: { minorUnits: 10, currency: "USD" }, captured: { minorUnits: 0, currency: "USD" }, refunded: { minorUnits: 0, currency: "USD" }, next: { kind: "redirect", url: "https://provider/capability" }, providerScope: "secret" }, intent: { ok: true } } as unknown as CommerceOrderView;

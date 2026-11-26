@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { ConsentConfig } from '@jini-ai/core/contracts/site/cookie-consent';
-import { readVisitorConsent } from '../http.js';
+import { analyticsProof, readVisitorConsent, receiptAllowsAnalytics } from '../http.js';
 import { refreshDocumentState, type DocumentState } from '../document-state.js';
 import { siteConsentDocumentAssets } from '../document-assets.js';
 
@@ -12,6 +12,16 @@ it('does not read the cookie getter when the banner is off', async () => {
     facts: () => ({ get cookieHeader() { return cookie(); }, secGpc: null, dnt: null, nowMs: 0 }) });
   expect(state.analyticsLevel).toBe('anonymous');
   expect(cookie).not.toHaveBeenCalled();
+  expect(analyticsProof({ state, get cookieHeader() { return cookie(); } })).toBeUndefined();
+  expect(cookie).not.toHaveBeenCalled();
+});
+
+it('refuses a retired analytics receipt', async () => {
+  const readReceipt = vi.fn(async () => null);
+  expect(await receiptAllowsAnalytics({ proof: { receiptId: 'retired', policyVersion: 'p' },
+    readSnapshot: async () => ({ ...config, enabled: true }), snapshotUnavailable: () => false,
+    readPolicyVersion: async () => 'p', readReceipt, nowMs: () => 0 })).toBe(false);
+  expect(readReceipt).toHaveBeenCalledWith({ id: 'retired' });
 });
 
 it('shares a pending document refresh across two app builds', async () => {

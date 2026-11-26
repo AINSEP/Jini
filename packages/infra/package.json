@@ -13,6 +13,9 @@
     "kind": "persistence-adapter",
     "runtime": "node",
     "entries": {
+      "./events/outbox": "node",
+      "./events/memory-bus": "node",
+      "./events/domain-outbox": "node",
       "./events/outbox-trace-parent": "node"
     }
   },

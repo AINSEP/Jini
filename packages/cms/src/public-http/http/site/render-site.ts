@@ -40,9 +40,9 @@ export interface RenderSiteRequired {
   theme: { manifest: { name: string; tier: string; scripts?: readonly DeclaredScript[] }; templates: Record<string, JsonValue>; liquidTemplates: Record<string, string>; handlebarsTemplates: Record<string, string> } | null;
   footerCredit: string;
   renderScriptAssets: (required: { scripts: readonly DeclaredScript[] }) => string;
-  resolveTemplateId: (required: { route: SiteRenderContext['route']; templates: Record<string, JsonValue> }) => string | undefined;
-  resolveLiquidTemplateId: (required: { route: SiteRenderContext['route']; liquidTemplates: Record<string, string> }) => string | undefined;
-  resolveHandlebarsTemplateId: (required: { route: SiteRenderContext['route']; handlebarsTemplates: Record<string, string> }) => string | undefined;
+  resolveTemplateId: (required: { route: SiteRenderContext['route']; templates: Record<string, JsonValue> }) => string | null | undefined;
+  resolveLiquidTemplateId: (required: { route: SiteRenderContext['route']; liquidTemplates: Record<string, string> }) => string | null | undefined;
+  resolveHandlebarsTemplateId: (required: { route: SiteRenderContext['route']; handlebarsTemplates: Record<string, string> }) => string | null | undefined;
   loadLiquidSandbox: () => Promise<{ renderLiquidInSandbox: (required: { source: string; ctx: SiteRenderContext }) => Promise<string> }>;
   loadHandlebarsSandbox: () => Promise<{ renderHandlebarsInSandbox: (required: { source: string; ctx: SiteRenderContext }) => Promise<string> }>;
   renderBlock: (required: { node: JsonValue; ctx: SiteRenderContext }) => string;

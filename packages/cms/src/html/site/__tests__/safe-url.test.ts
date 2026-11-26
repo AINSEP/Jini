@@ -3,7 +3,11 @@ import { extractYoutubeVideoId, safeImageSrc } from '../safe-url.js';
 
 it('admits relative images and applies private-path policy after URL normalization', () => {
   const isPrivatePath = vi.fn((path: string) => path === '/workspaces/w/media/id/original');
-  for (const value of ['/images/cover.png', 'images/cover.png', '../cover.png']) expect(safeImageSrc({ value, isPrivatePath })).toBe(value);
+  for (const value of ['/images/cover.png', 'images/cover.png', '../cover.png']) {
+    const result = safeImageSrc({ value, isPrivatePath });
+    expect(result).toBe(value);
+    expect(result).not.toContain('jini-safehref.invalid');
+  }
   expect(safeImageSrc({ value: '/workspaces/w/media/id/./original', isPrivatePath })).toBeNull();
   expect(isPrivatePath).toHaveBeenLastCalledWith('/workspaces/w/media/id/original');
 });

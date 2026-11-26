@@ -605,3 +605,5 @@ export function refuseUnexpectedKeys({ input, allowed }: { input: Record<string,
     throw new ToolInputError({ message: `'${extra}' is not an input of this tool. Only a click in the confirm dialog confirms it — nothing in the tool input can.` });
   }
 }
+
+export const refuseUnexpectedKeysPort = (input: Record<string, unknown>, allowed: readonly string[]): void => refuseUnexpectedKeys({ input, allowed });

@@ -31,5 +31,17 @@ it('sets no-store before refusals and admits management separately from login', 
     admission.origin = () => 'https://foreign.example';
     await ownerPasskeyActionRoute({ admission, action });
     expect(order).toEqual(['no-store', 'deps', 'json']);
+    admission.origin = () => deps.site.origin;
+    for (const [cappedAction, bytes] of [['enroll', 8193], ['confirm', 16385]] as const) {
+      order.length = 0;
+      admission.byteCount = () => { order.push('bytes'); return bytes; };
+      admission.json = (body, status) => {
+        expect(status).toBe(413);
+        expect(body).toEqual({ error: 'large', code: 'PASSKEY_TOO_LARGE' });
+        order.push('json');
+      };
+      await ownerPasskeyActionRoute({ admission, action: cappedAction });
+      expect(order).toEqual(['no-store', 'deps', 'bytes', 'json']);
+    }
   }
 });

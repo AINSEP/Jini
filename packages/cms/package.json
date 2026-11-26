@@ -794,7 +794,8 @@
       "./public-http/routes/site/pages/handlers/marketing": "universal",
       "./public-http/routes/site/pages/handlers/post": "universal",
       "./public-http/routes/site/pages/handlers/post-not-found": "universal",
-      "./public-http/routes/site/pages/handlers/slug-routes": "universal"
+      "./public-http/routes/site/pages/handlers/slug-routes": "universal",
+      "./admin-http/routes/external-mcp/route-helpers": "universal"
     },
     "isolation": {
       "domains": {
@@ -1268,7 +1269,8 @@
         "./html/site/safe-url": "media",
         "./admin-http/routes/media/provider-catalog": "media",
         "./admin-http/routes/system/publish-credentials/list": "admin-http",
-        "./public-http/http/site/render-site": "presentation"
+        "./public-http/http/site/render-site": "presentation",
+        "./admin-http/routes/external-mcp/route-helpers": "admin-http"
       }
     },
     "optionalPeers": {
@@ -5196,6 +5198,11 @@
       "types": "./dist/public-http/routes/site/pages/handlers/slug-routes.d.ts",
       "import": "./dist/public-http/routes/site/pages/handlers/slug-routes.js",
       "default": "./dist/public-http/routes/site/pages/handlers/slug-routes.js"
+    },
+    "./admin-http/routes/external-mcp/route-helpers": {
+      "types": "./dist/admin-http/routes/external-mcp/route-helpers.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/route-helpers.js",
+      "default": "./dist/admin-http/routes/external-mcp/route-helpers.js"
     }
   },
   "files": [
