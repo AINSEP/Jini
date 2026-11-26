@@ -5096,7 +5096,8 @@
     "@jini-ai/agent-plugins": "workspace:^",
     "@jini-ai/cms": "workspace:^",
     "@jini-ai/core": "workspace:^",
-    "@testing-library/user-event": "^14.6.1"
+    "@testing-library/user-event": "^14.6.1",
+    "@jini-ai/chat": "workspace:^"
   },
   "typesVersions": {
     "*": {

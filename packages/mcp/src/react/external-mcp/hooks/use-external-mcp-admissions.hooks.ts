@@ -2,14 +2,40 @@ import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AdminExternalMcpAdmissionsSnapshot } from "@jini-ai/core/contracts/hosted-mcp";
-import type { useFetchMutation, useFetchQuery } from "@jini-ai/ui/fetch-query";
-import type { hasPermission } from "@jini-ai/ui/panel-kit";
-
-import type { admissionRestartHelps } from "@jini-ai/admin/screens/settings/external-mcp-tool-drift";
-import type { describeAdmissionDrift } from "@jini-ai/admin/screens/settings/external-mcp-connection-drift";
-import { type AdmissionDriftConnection, type SavedConnectionIntent } from "@jini-ai/admin/screens/settings/external-mcp-drift-types";
+import type { FetchMutationOptions, FetchQueryOptions, MutationResult, QueryResult } from "@jini-ai/core/fetch";
 
 import { type Translate } from '@jini-ai/core/text';
+
+/** One saved-vs-live disagreement row, as the host's injected drift describer reports it. */
+export interface AdmissionDriftEntry {
+  readonly connectionId: string;
+  readonly remoteName: string | null;
+  readonly kind: string;
+  readonly messageKey: string;
+  readonly messageVars: Readonly<Record<string, string>>;
+}
+
+/** A connection with something to say about saved-vs-live tool admission. */
+export interface AdmissionDriftConnection {
+  readonly connectionId: string;
+  readonly liveToolCount: number;
+  readonly notLoaded: readonly string[];
+  readonly savedToolCount: number;
+  readonly entries: readonly AdmissionDriftEntry[];
+}
+
+/** A roster card's saved intent (its `allowedToolNames` field value and on/off toggle). */
+export interface SavedConnectionIntent {
+  readonly allowedToolNames: string;
+  readonly enabled: boolean;
+  readonly transport?: string;
+  readonly command?: string;
+  readonly needsSignIn?: boolean;
+}
+
+/** The injected fetch-query hooks (the host's `useFetchQuery`/`useFetchMutation`). */
+export type UseFetchQueryHook = <T>(required: Pick<FetchQueryOptions<T>, "key" | "fetch">, optional?: Omit<FetchQueryOptions<T>, "key" | "fetch">) => QueryResult<T>;
+export type UseFetchMutationHook = <TInput, TOutput>(required: Pick<FetchMutationOptions<TInput, TOutput>, "run">, optional?: Omit<FetchMutationOptions<TInput, TOutput>, "run">) => MutationResult<TInput, TOutput>;
 /**
  * @file The transport behind Settings → External MCP's "what is the assistant actually running"
  * banner: three reads the app already had clients for, and never called together.
@@ -40,7 +66,7 @@ export interface ExternalMcpAdmissionsPort {
   restartAssistantDaemon(): Promise<{ ok: boolean; reason?: string }>;
 }
 
-export interface ExternalMcpAdmissionsController {
+export interface ExternalMcpAdmissionsController<Connection extends AdmissionDriftConnection = AdmissionDriftConnection> {
   readonly loading: boolean;
   /** A sentence to render when the daemon could not be asked AND the automatic wait for it is over.
    *  `null` when it answered, and `null` while {@link waitingForAssistant} is still true. */
@@ -49,7 +75,7 @@ export interface ExternalMcpAdmissionsController {
    *  booting or respawning) and this hook is still re-asking — see {@link useUnavailableRetry}. */
   readonly waitingForAssistant: boolean;
   /** Only connections with something to say — an agreeing roster renders nothing. */
-  readonly connections: readonly AdmissionDriftConnection[];
+  readonly connections: readonly Connection[];
   /** Whether any listed disagreement would change on a restart. Independent of permissions. */
   readonly restartHelps: boolean;
   /** D-4: whether this principal may actually restart the assistant. */
@@ -269,19 +295,21 @@ function resolveRefusal({ outcome, t }: { outcome: RestartOutcome | null; t: Tra
  * @complexity O(c · t) in connections and their refused tools.
  * @overallScore 100
  */
-export function useExternalMcpAdmissions(deps: {
+export function useExternalMcpAdmissions<Copy, Connection extends AdmissionDriftConnection>(deps: {
   port: ExternalMcpAdmissionsPort;
   savedAllowedToolNamesById: Readonly<Record<string, SavedConnectionIntent>>;
   t: Translate;
-  useFetchQuery: typeof useFetchQuery; useFetchMutation: typeof useFetchMutation;
-  hasPermission: typeof hasPermission; describeAdmissionDrift: typeof describeAdmissionDrift; admissionRestartHelps: typeof admissionRestartHelps;
-  driftCopy: Parameters<typeof describeAdmissionDrift>[0]["copy"];
+  useFetchQuery: UseFetchQueryHook; useFetchMutation: UseFetchMutationHook;
+  hasPermission: (required: { permissions: readonly string[]; permission: string }) => boolean;
+  describeAdmissionDrift: (required: { snapshot: AdminExternalMcpAdmissionsSnapshot | undefined; savedById: Readonly<Record<string, SavedConnectionIntent>>; copy: Copy }) => readonly Connection[];
+  admissionRestartHelps: (required: { connections: readonly Connection[] }) => boolean;
+  driftCopy: Copy;
   describeApiError: (required: { e: unknown; fallback: string }) => string;
   isApiError: (error: unknown) => error is AdminHttpError;
   apiUnreachableCode: string; requestTimeoutCode: string;
   setTimeout: typeof globalThis.setTimeout; clearTimeout: typeof globalThis.clearTimeout;
   reportRestartFailure: (error: unknown) => void;
-}, _optional: Record<string, never> = {}): ExternalMcpAdmissionsController {
+}, _optional: Record<string, never> = {}): ExternalMcpAdmissionsController<Connection> {
   const { port, savedAllowedToolNamesById, t, useFetchQuery, useFetchMutation, hasPermission, describeAdmissionDrift, admissionRestartHelps, driftCopy, describeApiError, isApiError, apiUnreachableCode, requestTimeoutCode, setTimeout, clearTimeout, reportRestartFailure } = deps;
 
   const admissions = useFetchQuery({ key: ADMISSIONS_KEY, fetch: () => port.getAdmissions() });

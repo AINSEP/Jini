@@ -6,7 +6,7 @@ import { useRouteGuardedMenuEditor } from "../hooks/use-route-guarded-menu-edito
 
 it("cancels Back with the mounted dirty callback once and removes its listener on unmount", () => {
   const confirmLeave = vi.fn(() => false);
-  const controller = { confirmLeave } as MenuEditorController;
+  const controller = { confirmLeave } as unknown as MenuEditorController;
   const target = new EventTarget();
   const unsubscribe = vi.fn();
   const { result, unmount } = renderHook(() => useRouteGuardedMenuEditor({ menuId: "menu",

@@ -1,13 +1,22 @@
+import type { ComponentType } from "react";
+
 import { DockHeader, type DockConversationTools, type DockHeaderProps } from "./DockHeader.js";
 
-import type { ChatCleanupPanel } from "@jini-ai/chat/react/chat-cleanup/ChatCleanupPanel";
+/** The slice of the host's wired chat cleanup this header reads (structural: the host injects the
+ *  cleanup hook and its panel, so this package carries no edge to the chat package). */
+export interface DockChatCleanup {
+  readonly listHooks: DockConversationTools["listProps"]["hooks"];
+  readonly open: boolean;
+  readonly selectedIds: readonly string[];
+  readonly select: (required: { ids: string[] }) => void;
+  readonly togglePin: (required: { id: string; pinned: boolean }) => void;
+  readonly visibleConversations: DockConversationTools["visibleConversations"];
+}
 
-import type { WiredChatCleanup } from "@jini-ai/chat/react/chat-cleanup/chat-cleanup.hooks";
-
-export interface DockCleanupHeaderProps extends Omit<DockHeaderProps, "conversationTools"> {
-  readonly ChatCleanupPanel: typeof ChatCleanupPanel;
+export interface DockCleanupHeaderProps<Cleanup extends DockChatCleanup> extends Omit<DockHeaderProps, "conversationTools"> {
+  readonly ChatCleanupPanel: ComponentType<{ cleanup: Cleanup; confirm: DockHeaderProps["conversationDelete"]["confirm"] }>;
   /** Required, no default: the switcher's list hooks, pins, selection and cleanup (`useDockChatCleanup` in the app). */
-  readonly useChatCleanup: (required: { t: DockHeaderProps["t"]; locale: string; untitled: string }) => WiredChatCleanup;
+  readonly useChatCleanup: (required: { t: DockHeaderProps["t"]; locale: string; untitled: string }) => Cleanup;
 }
 
 /**
@@ -19,7 +28,7 @@ export interface DockCleanupHeaderProps extends Omit<DockHeaderProps, "conversat
  * @returns The Jini header with the cleanup mounted.
  * @complexity O(1) beyond `DockHeader`'s own render.
  */
-export function DockCleanupHeader({ ChatCleanupPanel, useChatCleanup, ...header }: DockCleanupHeaderProps, _optional = {}) {
+export function DockCleanupHeader<Cleanup extends DockChatCleanup>({ ChatCleanupPanel, useChatCleanup, ...header }: DockCleanupHeaderProps<Cleanup>, _optional = {}) {
   const chatCleanup = useChatCleanup({ t: header.t, locale: header.locale, untitled: header.chatI18n.t("Untitled") });
   const conversationTools: DockConversationTools = {
     listProps: {

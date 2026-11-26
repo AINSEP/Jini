@@ -188,7 +188,9 @@
     "@testing-library/react": "^16.3.0",
     "react-dom": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "jsdom": "^26.1.0"
+    "jsdom": "^26.1.0",
+    "@jini-ai/ui": "workspace:^",
+    "@jini-ai/admin": "workspace:^"
   },
   "peerDependencies": {
     "kysely": "^0.29.6",

@@ -117,7 +117,7 @@ async function exportTemplate(required: {
 }, _options = {}): Promise<PluginExportTemplate> {
   const { selected, consentOff, host } = required;
   return { plugin: selected.owner.id, component: selected.component, version: selected.definition.version,
-    minVersion: selected.definition.minVersion, consent: selected.definition.consent, consentOff,
+    ...(selected.definition.minVersion === undefined ? {} : { minVersion: selected.definition.minVersion }), consent: selected.definition.consent, consentOff,
     frameHosts: selected.definition.externalHosts?.frame ?? [], scriptData: (selected.definition.scripts?.length ?? 0) > 0,
     template: await required.deps.source.readFile({ plugin: selected.owner.plugin, filename: selected.definition.template }),
     props: (required.config.props === undefined ? {} : required.config.props) as Readonly<Record<string, unknown>>, host };

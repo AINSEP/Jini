@@ -135,7 +135,7 @@ export function useMessagesChangeHandler(
 ): (messages: ChatMessage[]) => void {
   const settledRunMessageId = useRef<string | null>(null);
   const publishedToolProgress = useRef<ToolProgressMark | null>(null);
-  const history = useRef<Partial<Pick<UseAssistantChats, "paneKey" | "initialMessages">>>({});
+  const history = useRef<{ paneKey?: UseAssistantChats["paneKey"] | undefined; initialMessages?: UseAssistantChats["initialMessages"] | undefined }>({});
 
   return useCallback(
     (messages: ChatMessage[]) => {

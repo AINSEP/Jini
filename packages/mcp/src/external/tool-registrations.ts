@@ -1,8 +1,8 @@
 import { ToolAccessLoweringError } from '@jini-ai/core/tool-access-change';
 import { toolMetadata } from '@jini-ai/core/tool-metadata/external-mcp';
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolContributor, type ToolExecutionContext, type ToolExecutionOptions, type HumanConfirmer } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
-import type { requireToolPermission } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
+import type { requireToolPermission } from '@jini-ai/core';
 import { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
 import type { ExternalMcpToolDeps as BaseExternalMcpToolDeps } from '@jini-ai/core/contracts/site/external-mcp-tool-ports';
 import type { ChatDeleteSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
@@ -95,7 +95,7 @@ async function saveSubmittedExternalMcpConfiguration(
   const { connection, connectionCode } = await probeSavedExternalMcpConfiguration({
     server, routeDeps, locale,
   });
-  const hint = [routeDeps.formatCredentialHint({ hint: server.accessTokenHint, locale }), routeDeps.formatCredentialHints({ hints: server.envTokenHints, locale })].filter(Boolean).join(' · ');
+  const hint = [routeDeps.formatCredentialHint({ hint: server.accessTokenHint ?? null, locale }), routeDeps.formatCredentialHints({ hints: server.envTokenHints, locale })].filter(Boolean).join(' · ');
   const hintPrefix = hint ? `${hint}. ` : '';
   return { saved: true, server, connection: connectionCode, message: `${hintPrefix}${connection}` };
 }
@@ -126,7 +126,7 @@ async function probeSavedExternalMcpConfiguration(
 }
 
 /** Project the engine's classified run without exposing any submitted credential. */
-function externalMcpSaveResult({ run, locale, routeDeps }: { routeDeps: Pick<ExternalMcpToolDeps, "credentialText">; run: SecretCardRun<Record<string, unknown>>; locale: string }, { validationField }: { validationField?: string } = {}): Record<string, unknown> {
+function externalMcpSaveResult({ run, locale, routeDeps }: { routeDeps: Pick<ExternalMcpToolDeps, "credentialText">; run: SecretCardRun<Record<string, unknown>>; locale: string }, { validationField }: { validationField?: string | undefined } = {}): Record<string, unknown> {
   if (run.status === "saved") return run.saved;
   if (run.status === "cancelled") return { saved: false, cancelled: true };
   if (run.status === "blank") return { saved: false, cancelled: false, reason: "invalid", message: routeDeps.credentialText({ id: "blank", locale }) };

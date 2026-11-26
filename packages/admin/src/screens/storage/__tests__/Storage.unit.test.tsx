@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { RetentionPassResult } from "@jini-ai/platform/retention";
 
-import type { StorageClient, StorageReport } from "../api/storage-api.js";
+import type { RetentionPassResult, StorageClient, StorageReport } from "../api/storage-api.js";
 import type { ScreenshotCleanupClient } from "../api/screenshot-cleanup-api.js";
 import { StorageScreen } from "../StorageScreen.js";
 import { useWiredStorage } from "../hooks/use-storage.hooks.js";

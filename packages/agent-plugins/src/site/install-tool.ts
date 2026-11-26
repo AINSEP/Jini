@@ -48,7 +48,7 @@ export const AGENT_PLUGINS_INSTALL_TOOL_ID = "agent_plugins_install";
 export const derivedRisk: DerivedRiskByToolId = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
 
 export function buildRegistrations(deps: AgentPluginsInstallToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
-  return buildDomainRegistrations({ metadata: deps.toolMetadata, domain: "agent-plugins-install", catalogModule: "@jini-ai/agent-plugins/site/install-tool", catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
+  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: "@jini-ai/agent-plugins/site/install-tool", catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
     handlers: {
       [AGENT_PLUGINS_INSTALL_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "install" }),
       [AGENT_PLUGINS_UPDATE_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "update" }),

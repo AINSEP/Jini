@@ -1,5 +1,5 @@
 import { requireInputRecord, requireString, redactSecrets, ToolInputError, type ToolHandler } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
 import type { ChatDeleteSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
 import type { ExternalMcpAccessSnapshot, ExternalMcpServerRecord, SaveExternalMcpServerInput } from '@jini-ai/core/contracts/hosted-mcp';
 import { applyExternalMcpAccess, externalMcpAccessSnapshot, parseArgs, parseAllowedToolNames, parseWriteAllowedToolNames, readExternalMcpToolGrants, ExternalMcpValidationError } from '../federation/hosted/index.js';

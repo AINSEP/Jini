@@ -132,7 +132,7 @@ export interface InstallUploadedAgentPluginOptional {
   readonly snapshotSettings?: import("@jini-ai/agent-plugins/lifecycle").UpdateAgentPluginRequired["snapshotSettings"];
   readonly archiveReader: AgentPluginArchiveReaderPort;
   readonly lifecycle: Pick<ReturnType<typeof createAgentPluginLifecycle>, 'installAgentPlugin' | 'listInstalledPlugins' | 'stageForRemoval' | 'restoreStagedTrees' | 'removeFrozenPackageTree' | 'setAgentPluginActivation' | 'isAgentPluginRecordedAsBundled' | 'resolveAgentPluginActivation'>;
-  readonly createLifecycle: (required: { layout: AgentPluginLayout }, optional: Pick<AgentPluginLifecyclePorts, 'mcpProvisioning' | 'identityAdmission'>) => Pick<ReturnType<typeof createAgentPluginLifecycle>, 'updateAgentPlugin'>;
+  readonly createLifecycle: (required: { layout: AgentPluginLayout }, optional: Partial<Pick<AgentPluginLifecyclePorts, 'mcpProvisioning'>> & Pick<AgentPluginLifecyclePorts, 'identityAdmission'>) => Pick<ReturnType<typeof createAgentPluginLifecycle>, 'updateAgentPlugin'>;
   readonly maxAgentPluginInstallArchiveBytes: () => number;
   readonly contain: PluginStateEffects['contain'];
   readonly assertOwnedPluginPath: (input: { contain: PluginStateEffects['contain']; workspaceRoot: string; entryPath: string }) => Promise<string>;

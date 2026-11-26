@@ -102,7 +102,7 @@ export async function fetchAgents({ request, agentsUrl, fetchTimeoutMs, ApiError
     basePath: agentsUrl,
     requireJson: true,
     signal: AbortSignal.timeout(fetchTimeoutMs),
-    errorFactory: ({ error }) => new ApiError({ message: `GET ${agentsUrl} answered ${error.status}`, status: error.status }, { code: error.code, body: error.body }),
+    errorFactory: ({ error }) => new ApiError({ message: `GET ${agentsUrl} answered ${error.status}`, status: error.status }, { code: error.code, ...(error.body === undefined ? {} : { body: error.body }) }),
   });
   return readAgentsResponse({ inventory, label: `GET ${agentsUrl}` });
 }
@@ -159,7 +159,7 @@ export async function rescanAgentsInto(
     basePath: agentsUrl,
     requireJson: true,
     signal: AbortSignal.timeout(fetchTimeoutMs),
-    errorFactory: ({ error }) => new ApiError({ message: `POST ${agentsUrl}/rescan answered ${error.status}`, status: error.status }, { code: error.code, body: error.body }),
+    errorFactory: ({ error }) => new ApiError({ message: `POST ${agentsUrl}/rescan answered ${error.status}`, status: error.status }, { code: error.code, ...(error.body === undefined ? {} : { body: error.body }) }),
   }).catch((error: unknown) => {
     // Fall back on an unusable response; a failed/canceled fetch still rejects as before.
     if ((error instanceof ApiError && error.status > 0) || error instanceof SyntaxError) return null;

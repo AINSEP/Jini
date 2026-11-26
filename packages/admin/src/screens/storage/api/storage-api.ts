@@ -1,6 +1,19 @@
-import type { RetentionPassResult, RetentionPolicyKind } from "@jini-ai/platform/retention";
 import type { AdminHttp } from "../../../shell/lib/admin-http/request.js";
 import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
+
+/** A retention class the host's retention runner sweeps (wire shape, declared structurally). */
+export type RetentionPolicyKind = "cache" | "derived" | "old-copy";
+export interface RetentionMeasurement { readonly bytes: number | null; readonly items?: number }
+export interface RetentionSweepResult { readonly freedBytes: number | null; readonly removed: number }
+/** One policy's outcome within a retention pass. */
+export type RetentionPolicyOutcome =
+  | { readonly id: string; readonly kind: RetentionPolicyKind; readonly status: "measured"; readonly measurement: RetentionMeasurement }
+  | { readonly id: string; readonly kind: RetentionPolicyKind; readonly status: "swept"; readonly result: RetentionSweepResult }
+  | { readonly id: string; readonly kind: RetentionPolicyKind; readonly status: "failed"; readonly message: string };
+/** A whole retention pass, as `GET`/`POST` storage cleanup answers it. */
+export type RetentionPassResult =
+  | { readonly status: "completed"; readonly dryRun: boolean; readonly startedAt: number; readonly finishedAt: number; readonly policies: readonly RetentionPolicyOutcome[] }
+  | { readonly status: "stopped"; readonly dryRun: boolean };
 
 /**
  * @file The admin's client for the owner-only storage routes the website mounts from

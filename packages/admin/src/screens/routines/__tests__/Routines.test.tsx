@@ -2,6 +2,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { RoutineRow } from "@jini-ai/core/contracts/site/routines";
+import { createDictionaryTranslator } from "@jini-ai/core/text";
 import { projectRoutineRow } from "../project-routine-row.js";
 import { useRoutinesController } from "../Routines.hooks.js";
 import { RoutinesApiError, type RoutinesApi } from "../routines-api.js";
@@ -16,7 +17,7 @@ const row: RoutineRow = {
 
 describe("routines", () => {
   it("projects Waiting for approval and Catch-up run together", () => {
-    const view = projectRoutineRow({ row, locale: "en", t: ({ key }) => key });
+    const view = projectRoutineRow({ row, locale: "en", t: createDictionaryTranslator({ featureDictionary: {} }) });
     expect(view.badges).toEqual(["Catch-up run", "Waiting for approval"]);
     expect(view.outcomeLabel).toBe("Running");
   });

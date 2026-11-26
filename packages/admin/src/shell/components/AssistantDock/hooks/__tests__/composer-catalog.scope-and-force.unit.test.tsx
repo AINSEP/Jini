@@ -6,9 +6,13 @@ import { projectComposerCapabilities } from "../../../../../screens/plugins/comp
 
 it("hides the prior scope catalog immediately and forwards forced reloads", async () => {
   let scope = "a";
-  let forceReload!: () => void;
+  // A forced reload is what the host's skills-changed event asks for.
+  const host = new EventTarget();
+  const page = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
+  const forceReload = () => { host.dispatchEvent(new Event("skills-changed")); };
   const reload = vi.fn(async () => [{ groupId: "skills", groupLabel: "Skills", item: { id: "skill", label: "Skill" } }]);
-  const input = { useBootScopeHook: () => ({ queryScope: scope, checking: false, principalId: scope }), createInstalledSource: vi.fn(() => ({ id: "installed", list: reload, reload })), createBundledSource: () => ({ id: "bundled", list: async () => [] }), watch: ({ forceReload: force }: { forceReload: () => void; refreshVisible: () => void }) => { forceReload = force; return () => {}; }, reportFailure: vi.fn() };
+  const input = { useBootScopeHook: () => ({ queryScope: scope, checking: false, principalId: scope }), createInstalledSource: vi.fn(() => ({ id: "installed", list: reload, reload })), createBundledSource: () => ({ id: "bundled", list: async () => [] }), deps: { startVisibleInterval: () => () => {} }, window: host, document: page, skillsChangedEvent: "skills-changed",
+    getAssistantDockOpen: () => false, subscribeToAssistantDock: () => () => {}, reportFailure: vi.fn() };
   const { result, rerender } = renderHook(() => useComposerCapabilities(input));
   await waitFor(() => expect(result.current.composerCapabilities.byItemId.has("skill")).toBe(true));
   act(() => forceReload());

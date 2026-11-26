@@ -346,6 +346,9 @@ importers:
       '@jini-ai/agentic':
         specifier: workspace:^
         version: link:../agentic
+      '@jini-ai/chat':
+        specifier: workspace:^
+        version: link:../chat
       '@jini-ai/cms':
         specifier: workspace:^
         version: link:../cms

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { RetentionPassResult, RetentionPolicyKind, RetentionPolicyOutcome } from "@jini-ai/platform/retention";
 import type { StoragePanel } from "../StoragePanel.js";
 
-import type { StorageClient, StoragePass, StorageReport } from "../api/storage-api.js";
+import type { RetentionPassResult, RetentionPolicyKind, RetentionPolicyOutcome, StorageClient, StoragePass, StorageReport } from "../api/storage-api.js";
 
 /** What Jini's `StoragePanel` asks its required `useStorage` hook for. */
 export type StorageView = ReturnType<Parameters<typeof StoragePanel>[0]["useStorage"]>;

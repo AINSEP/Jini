@@ -25,7 +25,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
 } {
   const items = [...(options.media ?? [])];
 
-  function newItem(input: { filename: string; contentType: string; dataBase64: string }, opts: { alt?: string; caption?: string; credit?: string }): AdminMedia {
+  function newItem(input: { filename: string; contentType: string; dataBase64: string }, opts: { alt?: string | undefined; caption?: string; credit?: string }): AdminMedia {
     return {
       id: `fake-${items.length + 1}`,
       workspaceId: "fake-ws",
