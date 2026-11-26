@@ -18,11 +18,12 @@ it("newsletter_update_campaign clears an explicit null preheader and preserves a
     id: "list-1", workspaceId: "ws-1", name: "Readers", slug: "readers", isDefault: true,
     status: "active", createdAt: now, updatedAt: now,
   }] });
+  // Deliberately partial fake: the update handler reads only these ports, never the mailer/outbox/bus wiring.
   const deps = {
     workspaceId: "ws-1", authorize: async () => ({ allowed: true, reason: "test" }),
     newsletterReady: Promise.resolve(), newsletterCampaignRepo: campaignRepo, newsletterListRepo: listRepo,
     clock: { nowIso: () => now }, idGen: { newId: () => "unused" },
-  } as NewsletterToolDeps;
+  } as unknown as NewsletterToolDeps;
   const handler = createNewsletterUpdateCampaignHandler(deps);
   const context = { principal: { id: "actor-1" }, signal: new AbortController().signal };
 

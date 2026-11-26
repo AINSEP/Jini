@@ -3,12 +3,12 @@ import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { Kysely } from "kysely";
 import { createUserTrashAdapter, type UserTrashAdapterDeps } from "./user-trash-adapter.js";
 
-interface UserTrashTables {
+type UserTrashTables = {
   principals: { workspace_id: string; id: string; status: string; display_name: string; disabled_at: string | null };
   identity_users: { workspace_id: string; principal_id: string; username: string };
   sessions: { workspace_id: string; principal_id: string };
   outbox_events: Record<string, unknown>;
-}
+};
 
 export function bindKernelUserTrashAdapter({ kernelFor, entityType }: {
   kernelFor: (required: { store: StorageKernel<unknown, unknown> }) => () => StorageKernel<Kysely<unknown>, unknown>;

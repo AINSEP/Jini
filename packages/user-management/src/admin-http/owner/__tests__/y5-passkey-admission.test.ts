@@ -9,7 +9,18 @@ describe("owner passkey mount admission", () => {
     const json = vi.fn();
     const passkeyDeps = vi.fn();
     const noStore = vi.fn();
-    await routes[5]!.handle({ noStore, authenticate: async () => ({ kind: "tool", principal: { id: "owner" } }), ownerPrincipalId: async () => "owner", passkeyDeps, workspaceId: "ws", json } as Parameters<(typeof routes)[number]["handle"]>[0]);
+    const admission: Parameters<(typeof routes)[number]["handle"]>[0] = {
+      workspaceId: "ws", passkeyDeps, noStore, json,
+      authenticate: async () => ({ kind: "tool", principal: { id: "owner" } }), ownerPrincipalId: async () => "owner",
+      isJson: vi.fn(), fetchSite: vi.fn(), origin: vi.fn(), body: vi.fn(), byteCount: vi.fn(), rate: vi.fn(),
+      retryAfter: vi.fn(), empty: vi.fn(), failure: vi.fn(), signedIn: vi.fn(),
+      services: {
+        beginOwnerPasskeyEnrollment: vi.fn(), confirmOwnerPasskeyEnrollment: vi.fn(), beginOwnerPasskeyLogin: vi.fn(),
+        completeOwnerPasskeyLogin: vi.fn(), removeOwnerPasskey: vi.fn(),
+      },
+      copy: { ownerRequired: "owner required", origin: "origin", tooLarge: "too large", rate: "rate" },
+    };
+    await routes[5]!.handle(admission);
     expect(noStore).toHaveBeenCalledTimes(1);
     expect(json).toHaveBeenCalledWith({ isOwner: false, credentials: [] });
     expect(passkeyDeps).not.toHaveBeenCalled();
@@ -38,11 +49,11 @@ it('binds request admission without store reads for nonowners and delegates sign
   const routes: { method: string; path: string; handle(req: object, res: object): Promise<void> }[] = [];
   const store = vi.fn(() => ({})); const signedIn = vi.fn(); const noStore = vi.fn(); const json = vi.fn();
   const result = { sessionToken: 'signed-in' };
-  const bind = bindOwnerPasskeyRoutes({ root: '/passkeys', mount: input => { routes.push(input); },
+  const bind = bindOwnerPasskeyRoutes({ root: '/passkeys', mount: (input: (typeof routes)[number]) => { routes.push(input); },
     workspaceId: () => 'ws', store, mfa: async () => ({ seededOwnerPrincipalId: 'owner' }), webauthn: () => ({}),
     site: () => ({ deps: { passkeyOrigin: 'https://trusted.test' }, name: 'Site', copy: { unavailable: 'missing', insecure: 'insecure' } }),
     unavailableMessage: 'missing', authenticate: async () => ({ kind: 'tool', principal: { id: 'other' } }), ownerPrincipalId: async () => 'owner',
-    isJson: () => true, header: ({ name }) => name === 'origin' ? 'https://trusted.test' : undefined,
+    isJson: () => true, header: ({ name }: { name: string }) => name === 'origin' ? 'https://trusted.test' : undefined,
     body: () => ({}), byteCount: () => 2, rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident: vi.fn(), signedIn,
     services: { completeOwnerPasskeyLogin: async () => result }, copy: {}, operation: 'passkey', incidentOptions: {},
   } as unknown as Parameters<typeof bindOwnerPasskeyRoutes<object, object, object>>[0]);
