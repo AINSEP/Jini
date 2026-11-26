@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // The React bindings (src/react/skills) build with tsconfig.react.json's react-jsx, which the root
+  // tsconfig.json excludes; compile test JSX with the same automatic runtime.
+  esbuild: { jsx: 'automatic' },
   test: {
     // Vitest 3 fakes every timer API by default, requestAnimationFrame included, which replaces the
     // frame stubs the settle tests install themselves. Keep Vitest 2's default set.
