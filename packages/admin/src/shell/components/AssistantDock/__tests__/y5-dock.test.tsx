@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState, type ComponentProps } from "react";
 
 import { bindAssistantDock } from "../AssistantDock.js";
 import { bindAssistantDockState, useAssistantDockState } from "../AssistantDock.state.hooks.js";
@@ -9,8 +9,15 @@ import { bindExecutionConfig } from "../hooks/execution-config.hooks.js";
 import type { ExecutionConfig } from "@jini-ai/core/contracts/execution";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { subscribeStoredKeyRefresh } from "../hooks/execution-config-refresh.js";
-
-vi.mock("../DockLeadingAccessory.js", () => ({ DockLeadingAccessory: () => null }));
+import { useAssistantTransportSeam } from "../hooks/assistant-transport.hooks.js";
+import { visibleAssistantRuntimePreferences, REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
+import { resolveSkillsAvailable } from "../hooks/composer-files.hooks.js";
+import { FailureSurfaceContext } from "../AgentFailureCard.hooks.js";
+import { DockLeadingAccessory } from "../DockLeadingAccessory.js";
+import { FolderPathButton } from "../FolderPathButton.js";
+import { dockSettingsMenuSections } from "../dock-header-rules.js";
+import { CHAT_TOOL_CALL_OPTIONS, chatPaneDisplayProps } from "../chat-display-preferences.js";
+import { composerFooterLeading } from "../assistant-dock-props.js";
 
 test("stored-key refresh ignores unrelated namespaces and retains global refresh", () => {
   let notify!: (scope: readonly string[] | null) => void;
@@ -86,6 +93,7 @@ const input: Parameters<typeof useAssistantDockState>[0] = {
     useByokRuntimeSeam: () => ({ byokRuntime: { model: "", models: [] }, handleByokModelChange: vi.fn() }),
     useLocalCliSelectionSeam: () => ({ localCliSelection: { agentId: "agent" }, handleLocalCliSelectionChange: vi.fn() }),
     useChatsSeam: () => { order.push("chats"); return chats; },
+    useAssistantTransportSeam,
     useAssistantTransport: ({ ensureConversationId, persistUserTurn }) => {
       order.push("transport");
       return { async startRun() {
@@ -115,6 +123,7 @@ const input: Parameters<typeof useAssistantDockState>[0] = {
     useConversationRefreshSignal: () => undefined,
   },
   deps: {
+    visibleAssistantRuntimePreferences, resolveSkillsAvailable,
     agUiApprovals: { answersExchange: () => false, answer: async () => false },
     translateMedia: ({ key }) => key, legacyManifestNames: ["legacy.json"],
     createExecutionPort: () => ({ detectLocalAgents: async () => [] }), selectedAgentWarning: () => null,
@@ -125,8 +134,99 @@ const input: Parameters<typeof useAssistantDockState>[0] = {
   },
 };
 
+const paneInput: Parameters<typeof bindDockChatPane>[0] = {
+    kit: { FailureSurfaceProvider: FailureSurfaceContext.Provider, DockLeadingAccessory, FolderPathButton, JiniChatProvider: ({ children }) => <>{children}</>, ChatSettingsDialog: () => null, ConversationTitle: () => null,
+      DockCleanupHeader: () => null, ChatCleanupPanel: () => null, SkillInstallConfirmation: () => null, ConfirmDialog: () => null,
+      PushToTalkMicButton: () => null, chat: { useT: () => key => key } },
+    hooks: { useDockChatCleanup: vi.fn(), useWiredAssistantSubagentsSettings: vi.fn() },
+    deps: { dockSettingsMenuSections, toolCallOptions: CHAT_TOOL_CALL_OPTIONS, replyLengthOptions: REPLY_LENGTH_OPTIONS, chatPaneDisplayProps, createAdminTypedAnswerPoster: () => Object.assign(async () => "not-pending" as const, { toolName: "ask" }),
+      createMidRunMessagePoster: () => async () => "not-running", fetch, baseUrl: "", onSecretRedacted: vi.fn(), subscribeToAdminPageSurfaces: () => () => {},
+      translateAiAssistant: ({ key }) => key, skillInstallConfirmationHost: { hooks: { useSkillInstallConfirmation: () => ({ dialogRef: { current: null }, onDialogClick: vi.fn(), source: "files", onConfirm: vi.fn() }) }, failureHost: { ApiError: Error, describeApiError: ({ fallback }) => fallback, redactionOptions: {} }, classNames: { dialogBackdrop: "backdrop", dialog: "dialog", noticeError: "error", editorActions: "actions", buttonPrimary: "primary", buttonSecondary: "secondary", buttonDanger: "danger" } },
+      voiceInputEnabled: false, isDesktopAdmin: () => false,
+      hasUsableAdminKey: () => false, assistantTitleKey: "Host assistant", folderWindowNoteKey: "Folder window opened on the host",
+      localCliDataAttribute: "data-host-local-cli" },
+  };
+
 beforeEach(() => { order.length = 0; vi.clearAllMocks(); });
 afterEach(cleanup);
+
+test.each([false, true])("the injected transport seam preserves override=%s and daemon-start feedback", (override) => {
+  const seam = vi.fn(useAssistantTransportSeam);
+  const useTransport = vi.fn(input.hooks.useAssistantTransport);
+  const useDefaultTransport = vi.fn(input.hooks.useAssistantTransport);
+  const useBound = bindAssistantDockState({ ...input, hooks: { ...input.hooks,
+    useAssistantTransportSeam: seam, useAssistantTransport: override ? useDefaultTransport : useTransport,
+  } });
+  const { result } = renderHook(() => useBound({ ...input.props, ...(override ? { useAssistantTransport: useTransport } : {}) }));
+  expect(seam).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    executionConfigRef: result.current.executionConfigRef, ensureConversationId: chats.ensureConversationId,
+    readExecutionConfigForSend: result.current.readExecutionConfigForSend,
+    readLocalCliSelectionForSend: result.current.readLocalCliSelectionForSend, persistUserTurn: expect.any(Function),
+  }), { useTransport });
+  expect(useDefaultTransport).not.toHaveBeenCalled();
+  act(() => useTransport.mock.calls[0]![0].onDaemonStartingChange!({ starting: true }));
+  expect(result.current.daemonStarting).toBe(true);
+  act(() => useTransport.mock.calls.at(-1)![0].onDaemonStartingChange!({ starting: false }));
+  expect(result.current.daemonStarting).toBe(false);
+});
+
+test("the dock uses the injected runtime visibility and skill availability rules", () => {
+  const visible = vi.fn(visibleAssistantRuntimePreferences);
+  const available = vi.fn(resolveSkillsAvailable);
+  const useDiscoverySelect = vi.fn(input.hooks.useDiscoverySelect);
+  const { result } = renderHook(() => useAssistantDockState({ ...input,
+    hooks: { ...input.hooks, useDiscoverySelect },
+    deps: { ...input.deps, visibleAssistantRuntimePreferences: visible, resolveSkillsAvailable: available },
+  }));
+  expect(visible).toHaveBeenCalledExactlyOnceWith({ agent: undefined });
+  expect(result.current.runtime.visible).toEqual({ preferSubagents: false, useClaudeInChrome: false, replyLength: true });
+  expect(available).toHaveBeenCalledExactlyOnceWith({ executionMode: "byok", agents: undefined, selectedAgentId: "agent" });
+  expect(useDiscoverySelect).toHaveBeenCalledWith(expect.objectContaining({ skillsAvailable: true }));
+});
+
+test("the pane uses the supplied failure provider, settings choices, accessories and display helper", () => {
+  const { result } = renderHook(() => useAssistantDockState(input));
+  const dock = result.current;
+  const provider = vi.fn((props: Parameters<typeof FailureSurfaceContext.Provider>[0]) => <FailureSurfaceContext.Provider {...props} />);
+  const sections = vi.fn(dockSettingsMenuSections);
+  const display = vi.fn(chatPaneDisplayProps);
+  const leading = vi.fn(() => <p>leading</p>);
+  const header = vi.fn((_props: ComponentProps<typeof paneInput.kit.DockCleanupHeader>) => null);
+  const dialog = vi.fn((_props: ComponentProps<typeof paneInput.kit.ChatSettingsDialog>) => null);
+  const toolCallOptions = CHAT_TOOL_CALL_OPTIONS.slice(0, 1);
+  const replyLengthOptions = REPLY_LENGTH_OPTIONS.slice(0, 1);
+  const PaneView = bindDockChatPane({ ...paneInput,
+    kit: { ...paneInput.kit, FailureSurfaceProvider: provider, DockLeadingAccessory: leading, DockCleanupHeader: header, ChatSettingsDialog: dialog },
+    deps: { ...paneInput.deps, dockSettingsMenuSections: sections, toolCallOptions, replyLengthOptions, chatPaneDisplayProps: display },
+  });
+  const pane = vi.fn((props: ComponentProps<typeof dock.ChatPaneView>) => {
+    expect(useContext(FailureSurfaceContext)).toBe(dock.failureSurface.actions);
+    return <>{props.header}{props.leadingAccessory}<p>{props.toolCallDisplay}</p></>;
+  });
+  render(<PaneView dock={{ ...dock, ChatPaneView: pane }} />);
+  expect(provider.mock.calls[0]![0].value).toBe(dock.failureSurface.actions);
+  expect(sections).toHaveBeenCalledExactlyOnceWith({ t: expect.any(Function), toolCallOptions, replyLengthOptions }, { display: dock.chatDisplay, agentPlugins: dock.agentPlugins });
+  expect(header.mock.calls[0]![0]).toEqual(expect.objectContaining({ toolCallOptions, replyLengthOptions }));
+  expect(dialog.mock.calls[0]![0].displaySections).toBe(sections.mock.results[0]!.value);
+  expect(display).toHaveBeenCalledExactlyOnceWith({ preferences: dock.chatDisplay.preferences });
+  expect(screen.getByText("leading")).toBeTruthy();
+  expect(screen.getByText("show")).toBeTruthy();
+});
+
+test("the footer uses the injected folder button with its translator before voice", () => {
+  const useT = () => (key: string) => `chat:${key}`;
+  const folder = vi.fn(({ useTHook, onPick, picking }: Parameters<typeof FolderPathButton>[0]) =>
+    <button disabled={picking} onClick={onPick}>{useTHook()("Choose a folder")}</button>);
+  const folderPicker = { available: true, picking: false, pickFolder: vi.fn() };
+  const kit = { FolderPathButton: folder, chat: { useT } };
+  const view = render(composerFooterLeading({ folderPicker, voice: <button>voice</button>, kit }));
+  expect(folder.mock.calls[0]![0]).toEqual({ picking: false, onPick: folderPicker.pickFolder, useTHook: useT });
+  expect(screen.getAllByRole("button").map(button => button.textContent)).toEqual(["chat:Choose a folder", "voice"]);
+  screen.getByRole("button", { name: "chat:Choose a folder" }).click();
+  expect(folderPicker.pickFolder).toHaveBeenCalledOnce();
+  view.rerender(<>{composerFooterLeading({ folderPicker: { ...folderPicker, available: false }, voice: <button>voice</button>, kit })}</>);
+  expect(screen.getAllByRole("button").map(button => button.textContent)).toEqual(["voice"]);
+});
 
 test("first-turn adoption and durability precede dispatch and deep links share the chats controller", async () => {
   const useStateHook = bindAssistantDockState(input);
@@ -148,18 +248,7 @@ test("a conversation switch remounts the pane while adopting an id keeps its tra
     return <p>pane</p>;
   }
   const dock = { ...result.current, ChatPaneView: Pane };
-  const PaneView = bindDockChatPane({
-    kit: { JiniChatProvider: ({ children }) => <>{children}</>, ChatSettingsDialog: () => null, ConversationTitle: () => null,
-      DockCleanupHeader: () => null, ChatCleanupPanel: () => null, SkillInstallConfirmation: () => null, ConfirmDialog: () => null,
-      PushToTalkMicButton: () => null, chat: { useT: () => key => key } },
-    hooks: { useDockChatCleanup: vi.fn(), useWiredAssistantSubagentsSettings: vi.fn() },
-    deps: { createAdminTypedAnswerPoster: () => Object.assign(async () => "not-pending" as const, { toolName: "ask" }),
-      createMidRunMessagePoster: () => async () => "not-running", fetch, baseUrl: "", onSecretRedacted: vi.fn(), subscribeToAdminPageSurfaces: () => () => {},
-      translateAiAssistant: ({ key }) => key, skillInstallConfirmationHost: { hooks: { useSkillInstallConfirmation: () => ({ dialogRef: { current: null }, onDialogClick: vi.fn(), source: "files", onConfirm: vi.fn() }) }, failureHost: { ApiError: Error, describeApiError: ({ fallback }) => fallback, redactionOptions: {} }, classNames: { dialogBackdrop: "backdrop", dialog: "dialog", noticeError: "error", editorActions: "actions", buttonPrimary: "primary", buttonSecondary: "secondary", buttonDanger: "danger" } },
-      voiceInputEnabled: false, isDesktopAdmin: () => false,
-      hasUsableAdminKey: () => false, assistantTitleKey: "Host assistant", folderWindowNoteKey: "Folder window opened on the host",
-      localCliDataAttribute: "data-host-local-cli" },
-  });
+  const PaneView = bindDockChatPane(paneInput);
   const view = render(<PaneView dock={dock} />);
   view.rerender(<PaneView dock={{ ...dock, chats: { ...dock.chats, activeId: "adopted" } }} />);
   expect(mounts).toHaveBeenCalledTimes(1);

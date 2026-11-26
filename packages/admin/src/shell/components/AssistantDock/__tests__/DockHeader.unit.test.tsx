@@ -10,6 +10,7 @@ import { DockHeader, type DockConversationTools, type DockHeaderProps } from "..
 import type { KitConversationListProps } from "../../../../react/kit.js";
 import { CHAT_TOOL_CALL_OPTIONS, DEFAULT_CHAT_DISPLAY } from "../chat-display-preferences.js";
 import { REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
+import { DockCleanupHeader, type DockChatCleanup } from "../DockCleanupHeader.js";
 
 /**
  * @file `DockHeader` — the dock's replacement for `ChatPane`'s default header — rendered on its
@@ -57,6 +58,28 @@ async function openSettingsMenu() {
 }
 
 describe("DockHeader", () => {
+  it("uses the injected cleanup header without forwarding its binding fields", () => {
+    const props = headerProps();
+    const Header = vi.fn((_props: DockHeaderProps) => null);
+    const cleanup: DockChatCleanup = { listHooks: {}, open: true, selectedIds: ["b"], select: vi.fn(),
+      togglePin: vi.fn(), visibleConversations: ({ conversations }) => conversations };
+    const useChatCleanup = vi.fn(() => cleanup);
+    const ChatCleanupPanel = vi.fn((_props: { cleanup: DockChatCleanup; confirm: DockHeaderProps["conversationDelete"]["confirm"] }) => <p>cleanup</p>);
+    render(<DockCleanupHeader {...props} DockHeader={Header} useChatCleanup={useChatCleanup} ChatCleanupPanel={ChatCleanupPanel} />);
+    expect(useChatCleanup).toHaveBeenCalledExactlyOnceWith({ t: props.t, locale: props.locale, untitled: "Untitled" });
+    const forwarded = Header.mock.calls[0]![0];
+    expect(forwarded).not.toHaveProperty("DockHeader");
+    expect(forwarded).not.toHaveProperty("useChatCleanup");
+    expect(forwarded).not.toHaveProperty("ChatCleanupPanel");
+    expect(forwarded).toEqual(expect.objectContaining({ activeTitle: props.activeTitle, chats: props.chats }));
+    expect(forwarded.conversationTools?.listProps).toEqual({ hooks: cleanup.listHooks, onTogglePin: cleanup.togglePin,
+      selectable: true, selectedIds: cleanup.selectedIds, onSelectionChange: cleanup.select });
+    expect(forwarded.conversationTools?.visibleConversations).toBe(cleanup.visibleConversations);
+    render(<>{forwarded.conversationTools?.accessory}</>);
+    expect(screen.getByText("cleanup")).toBeTruthy();
+    expect(ChatCleanupPanel.mock.calls[0]![0]).toEqual({ cleanup, confirm: props.conversationDelete.confirm });
+  });
+
   it("names the heading after the active conversation's display title, as text and tooltip", () => {
     render(<DockHeader {...headerProps({ activeTitle: "Quarterly report" })} />);
     const heading = screen.getByRole("heading", { level: 2, name: "Quarterly report" });

@@ -6,7 +6,7 @@ import type { useConfirmRequest } from "../../../react/index.js";
 import type { useNativeFolderPicker } from "../../../screens/fs-files/use-native-folder-picker.hooks.js";
 import type { SkillInstallView } from "../../../screens/skills/skills-screen.types.js";
 import type { useSelectedSkills, useComposerDiscoveryDraft, useSkillOnlySend } from "../../../screens/plugins/composer-skills.hooks.js";
-import { visibleAssistantRuntimePreferences, type AgentRuntimePreferenceSupport } from "./assistant-runtime-preferences.js";
+import type { visibleAssistantRuntimePreferences, AgentRuntimePreferenceSupport } from "./assistant-runtime-preferences.js";
 import type { UseAssistantChats } from "../../hooks/use-assistant-chats.hooks.js";
 import type { useConversationRefreshSignal } from "./hooks/conversation-refresh.hooks.js";
 import type { useAgentFailureSurface } from "./AgentFailureCard.hooks.js";
@@ -18,10 +18,10 @@ import { useRuntimeAccessSeam, useAgentsPlaceholderSeam } from "./hooks/runtime-
 // Every call below goes through the `useXSeam` wrappers rather than the bare hooks — see
 // `AssistantDock.hooks.tsx`'s "Seam layer" doc for why.
 import type { useRunContext } from "./hooks/run-context.hooks.js";
-import { resolveSkillsAvailable, type useSkillAwareAttachmentUploader, type useFolderDropBridge } from "./hooks/composer-files.hooks.js";
+import type { resolveSkillsAvailable, useSkillAwareAttachmentUploader, useFolderDropBridge } from "./hooks/composer-files.hooks.js";
 import type { useComposerDiscoverySelect } from "./hooks/composer-discovery.hooks.js";
 import type { useSelectedAgentPlugins, useSelectedPluginChips } from "./hooks/selected-agent-plugins.hooks.js";
-import { useAssistantTransportSeam, type useLocalCliDaemonPrewarm, type AssistantTransportInput } from "./hooks/assistant-transport.hooks.js";
+import type { useAssistantTransportSeam, useLocalCliDaemonPrewarm, AssistantTransportInput } from "./hooks/assistant-transport.hooks.js";
 import { useExecutionConfigSeam, type UseExecutionConfig } from "./hooks/execution-config.hooks.js";
 import type { AssistantDockProps } from "./AssistantDock.js";
 import { useDockComposerInput } from "./dock-composer-input.hooks.js";
@@ -46,6 +46,7 @@ type DockProps = {
     useLocalCliSelectionSeam: (required: { override: AssistantDockProps["useLocalCliSelection"]; input: Parameters<NonNullable<AssistantDockProps["useLocalCliSelection"]>>[0] }) => ReturnType<NonNullable<AssistantDockProps["useLocalCliSelection"]>>;
     useChatsSeam: (required: { override: AssistantDockProps["useChats"] }, optional: { principalId: string | undefined }) => UseAssistantChats;
     useAssistantTransport: (input: AssistantTransportInput) => ChatTransport;
+    useAssistantTransportSeam: typeof useAssistantTransportSeam;
     useAttachmentUploaderSeam: (required: { override: AssistantDockProps["useAttachmentUploader"]; t: (key: string) => string }) => ReturnType<NonNullable<AssistantDockProps["useAttachmentUploader"]>>;
     useAttachmentValidatorSeam: (required: { override: AssistantDockProps["useAttachmentValidator"] }) => ReturnType<NonNullable<AssistantDockProps["useAttachmentValidator"]>>;
     useSkillInstall: () => SkillInstallView & { proposeFiles: (files: readonly File[], paths?: readonly string[]) => Promise<void>; fail: (message: string) => void };
@@ -72,6 +73,8 @@ type DockProps = {
     useConversationRefreshSignal: typeof useConversationRefreshSignal;
   };
   deps: {
+    visibleAssistantRuntimePreferences: typeof visibleAssistantRuntimePreferences;
+    resolveSkillsAvailable: typeof resolveSkillsAvailable;
     agUiApprovals: Parameters<Parameters<typeof useAssistantDockState>[0]["hooks"]["useDockRendererRegistry"]>[0]["agUiApprovals"];
     translateMedia: (required: { locale: string; key: string }) => string;
     legacyManifestNames: readonly string[];
@@ -178,7 +181,7 @@ type DockExecution = ReturnType<typeof useDockExecution>;
 
 /** Conversation history, the run transport and the attachment upload/validation ports. */
 function useDockTransport({ props, execution, locale, hooks, deps }: { props: DockProps["props"]; execution: DockExecution; locale: string } & Pick<Parameters<typeof useAssistantDockState>[0], "hooks" | "deps">, _optional = {}) {
-  const { useChatsSeam, useAttachmentUploaderSeam, useAttachmentValidatorSeam, useSkillInstall, useSkillUploader } = hooks;
+  const { useChatsSeam, useAssistantTransportSeam, useAttachmentUploaderSeam, useAttachmentValidatorSeam, useSkillInstall, useSkillUploader } = hooks;
   const { translateMedia, legacyManifestNames } = deps;
   const {
     agentBridge = null,
@@ -220,7 +223,7 @@ function useDockTransport({ props, execution, locale, hooks, deps }: { props: Do
 /** The selected agent, its sign-in warning, runtime access and the runtime switches that apply to it. */
 function useDockAgent({ props, execution, locale, runtimePreferences, hooks, deps }: { props: DockProps["props"]; execution: DockExecution; locale: string; runtimePreferences: ReturnType<typeof useDockPreferences>["runtimePreferences"] } & Pick<Parameters<typeof useAssistantDockState>[0], "hooks" | "deps">, _optional = {}) {
   const { useRuntimeAccess, useAgentsPlaceholder, useSelectedAgentAuthWarning } = hooks;
-  const { createExecutionPort, selectedAgentWarning } = deps;
+  const { createExecutionPort, selectedAgentWarning, visibleAssistantRuntimePreferences } = deps;
   const { useRuntimeAccess: useRuntimeAccessOverride } = props;
   const { executionConfig, executionPolicy, localCliSelection } = execution;
   // D-21(b): the picker's inventory has no auth status, so the sign-in warning reads Settings'
@@ -241,6 +244,7 @@ type DockTransport = ReturnType<typeof useDockTransport>;
 /** The composer: discovery catalog, pinned plugins and skills, voice input and folder drop/pick. */
 function useDockComposer({ props, renderers, execution, agent, transportState, hooks, deps }: { props: DockProps["props"]; renderers: ReturnType<typeof useDockChrome>["renderers"]; execution: DockExecution; agent: DockAgent; transportState: DockTransport } & Pick<Parameters<typeof useAssistantDockState>[0], "hooks" | "deps">, _optional = {}) {
   const { useComposerCapabilitiesSeam, usePins, useSelectedSkills, useComposerDiscoveryDraft, useComposerSendStopGuard, useDiscoverySelect, useChips } = hooks;
+  const { resolveSkillsAvailable } = deps;
   const { onFolderDropCaptureReady } = props;
   const { mcpUiToolCaller } = renderers;
   const { executionConfig, localCliSelection } = execution;
