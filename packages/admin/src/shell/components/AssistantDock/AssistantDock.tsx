@@ -25,7 +25,7 @@ import type { AssistantDockState } from "./AssistantDock.state.hooks.js";
  * the page genuinely resizes rather than reserving a gap."
  *
  * Hosts `@jini-ai/chat/react`'s `<ChatPane>` against the host's own `@jini-ai/core`+`@jini-ai/daemon`
- * kernel (`apps/website/src/server/inbound/assistant/agent-daemon-server.ts`, proxied by `apps/website/src/server/runtime/composition/modules/assistant.ts`).
+ * kernel (`host src/server/inbound/assistant/agent-daemon-server.ts`, proxied by `host src/server/runtime/composition/modules/assistant.ts`).
  * Tool execution is not a prop here — it happens server-side: the spawned coding-agent CLI gets
  * `.mcp.json`-injected access to the host's registered tools (`src/assistant/tool-registrations.ts`)
  * and calls them through the daemon's `/api/delegated-tool-calls` gate, which shows up in this
@@ -33,8 +33,8 @@ import type { AssistantDockState } from "./AssistantDock.state.hooks.js";
  *
  * `uploadAttachments` below wires the composer's existing (host-agnostic, `@jini-ai/chat/react`-
  * native) drag-and-drop and file-picker mechanism to this daemon's own `/api/attachments` route —
- * see that route's registration in `apps/website/src/server/inbound/assistant/agent-daemon-scope.ts` and its proxy pass-
- * through in `apps/website/src/server/runtime/composition/modules/assistant.ts` for the rest of the chain (`onStarted` claims the
+ * see that route's registration in `host src/server/inbound/assistant/agent-daemon-scope.ts` and its proxy pass-
+ * through in `host src/server/runtime/composition/modules/assistant.ts` for the rest of the chain (`onStarted` claims the
  * upload and hands the daemon's `AgentExecutor.run()` real `imagePaths`). No `attachmentAccept` is
  * passed — see that prop's own doc, below, for why.
  *
@@ -186,7 +186,7 @@ export interface AssistantDockProps {
  * the header and leading-accessory JSX moved out (below) and left the body room for the inline idiom.
  *
  * Complexity history: 6 cyclomatic / 2 cognitive (measured; ESLint's `complexity`/`sonarjs/cognitive-complexity`
- * rules, `npx eslint apps/admin/src/components/AssistantDock/AssistantDock.tsx` with both ceilings
+ * rules, `npx eslint admin src/components/AssistantDock/AssistantDock.tsx` with both ceilings
  * temporarily set to 1 to read the exact counts). Was 5/2 after the 2026-08-14 resolver-idiom pass
  * (11/2 before it — see the resolver group's own doc comment) until the `chat.get_state`-hang fix
  * (2026-08-30) added one more flat `?.` on `<ChatPane agentControl={{ bridgeAccess:

@@ -55,7 +55,7 @@ it.each([true, false])("a forbidden store leaves healthy credentials and the fai
       ConnectedMarkIcon: () => null, DisclosureChevronIcon: () => null, SearchIcon: () => null },
     deps: {
       ACCESS_TOKEN_CATEGORIES: categories, ACCESS_TOKEN_PROVIDER_COPY: providerCopy, showCopyKeysEntry: false, viewerTimeZone: "UTC",
-      removeLabel: "Remove stored copy", removeTokenHandleLabel: ({ provider }) => `Remove ${provider}`, storedTokenNotice: "Stored encrypted.", hostingPluginsHref: "/plugins",
+      removeLabel: "Remove stored copy", customCredentialBaseUrlPlaceholder: "https://api.example.com", removeTokenHandleLabel: ({ provider }) => `Remove ${provider}`, storedTokenNotice: "Stored encrypted.", hostingPluginsHref: "/plugins",
       providerGroupHandleLabel: () => "Hosting credentials", tokenRowHandleLabel: ({ name }) => name,
       fieldNameHandleSegment: ({ fieldName }) => fieldName, fieldHelpText: () => "", accessTokenExtraFieldIdSuffix: ({ fieldName }) => fieldName,
       resolveTabBarTabIndex: () => 0, otherCredentialMatchesQuery: () => true,

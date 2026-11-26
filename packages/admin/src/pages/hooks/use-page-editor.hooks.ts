@@ -400,7 +400,7 @@ export interface PageEditorController {
    * The live-site iframe is cross-origin in dev (`siteUrl`'s own origin, `:3000` vs. the admin's
    * `:5173` — see `PagePreview`'s own doc). Reading or driving scroll on a foreign `Window` is a
    * browser security restriction this code cannot route around without the site itself cooperating
-   * (out of scope — another agent owns `apps/website`), so that branch's position is NOT remembered.
+   * (out of scope — another agent owns the host backend), so that branch's position is NOT remembered.
    * Since 2026-10-05 the template-preview branch is in the same position: `PAGE_PREVIEW_IFRAME_SANDBOX`
    * dropped `allow-same-origin`, so every preview document has an opaque origin and this handler's
    * `try` swallows the `SecurityError` on both branches. Restoring it needs the preview document to

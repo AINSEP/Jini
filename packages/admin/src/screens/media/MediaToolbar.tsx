@@ -83,8 +83,8 @@ function MediaUploadFileField({ fileInputId, fileInputRef, uploading, activeTab,
 }
 
 // Hand-copied, not imported — same "kept in sync manually with the server's real ceiling"
-// pattern as `FILE_HANDLER_ALLOWED_MIME_TYPES` (`apps/admin/src/features/posts/hooks/
-// use-post-editor.hooks.ts`) and `IMPORTABLE_CONTENT_TYPES` (`apps/website/src/features/
+// pattern as `FILE_HANDLER_ALLOWED_MIME_TYPES` (`admin src/features/posts/hooks/
+// use-post-editor.hooks.ts`) and `IMPORTABLE_CONTENT_TYPES` (`host src/features/
 // media-import/fetch-image.ts`): mirrors `DEFAULT_ALLOWED_MIME_TYPES`
 // (`@jini-ai/cms/media`'s `media-service.ts`), which has accepted `video/mp4`/`video/webm`
 // since 2026-08-24 — this attribute drifted out of sync with that until 2026-09-07 (see the

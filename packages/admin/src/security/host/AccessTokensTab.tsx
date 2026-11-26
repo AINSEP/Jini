@@ -38,6 +38,7 @@ export interface AccessTokensTabBindings {
     showCopyKeysEntry: boolean;
     viewerTimeZone: string | undefined;
     removeLabel: string;
+    customCredentialBaseUrlPlaceholder: string;
     removeTokenHandleLabel: (required: { provider: string }) => string;
     storedTokenNotice: string;
     hostingPluginsHref: string;

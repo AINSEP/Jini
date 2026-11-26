@@ -36,34 +36,32 @@ export function extractResumeCapableAgentIds(agents: readonly AgentWithMemoryFla
 }
 
 /**
- * The last resume-capable agentId set observed from `/api/agents` — module-scoped, same "outlive
+ * The last resume-capable agentId set observed from `/api/agents` — instance-owned, same "outlive
  * the component, read fresh per call" shape the provider cache above uses. This is the
  * live binding `useAssistantTransport`'s `getResumeCapableAgentIds` option reads through
  * {@link getResumeCapableAgentIds} below.
  *
  * Starts empty: before the first `/api/agents` response resolves, every agentId fails open to the
- * full-transcript path — see `assistant-transport.ts`'s `CreateTovuAssistantTransportOptions
+ * full-transcript path — see `assistant-transport.ts`'s `CreateAssistantTransportOptions
  * .getResumeCapableAgentIds` doc for why "not yet known" must mean "send everything," not "send
  * only the latest message."
  */
-let resumeCapableAgentIds: ReadonlySet<string> = new Set();
-
-/** Test seam — same purpose as `execution-settings.ts`'s `resetLocalAgentDetectionCache`: this
- *  module's state persists across cases in a file, so a suite asserting on it needs to start cold. */
-export function resetResumeCapableAgentIds(): void {
-  resumeCapableAgentIds = new Set();
+/** Test seam — same purpose as `execution-settings.ts`'s `resetLocalAgentDetectionCache`: the
+ *  injected state persists across cases in a file, so a suite asserting on it needs to start cold. */
+export function resetResumeCapableAgentIds({ resumeCapableAgentIds }: Parameters<typeof getResumeCapableAgentIds>[0]): void {
+  resumeCapableAgentIds.current = new Set();
 }
 
 /**
- * {@link useAssistantTransport}'s `getResumeCapableAgentIds` — a stable top-level reference (same
+ * {@link useAssistantTransport}'s `getResumeCapableAgentIds` — bound by the host to its instance (same
  * "never captured by value" shape `isAgUiTransportEnabled` already has for `getAgUiEnabled`) so the
  * memoized transport always reads the CURRENT set, not whatever was live when it was built.
  *
  * Exported for the same reason {@link extractResumeCapableAgentIds} is: a test asserting that
- * `listAgents`/`rescanAgents` actually populated the module state needs a way to read it back.
+ * `listAgents`/`rescanAgents` actually populated the instance state needs a way to read it back.
  */
-export function getResumeCapableAgentIds(): ReadonlySet<string> {
-  return resumeCapableAgentIds;
+export function getResumeCapableAgentIds({ resumeCapableAgentIds }: { resumeCapableAgentIds: { current: ReadonlySet<string> } }): ReadonlySet<string> {
+  return resumeCapableAgentIds.current;
 }
 
 /** Records one fresh inventory everywhere that reads it: the resume-capable set the transport
@@ -71,9 +69,9 @@ export function getResumeCapableAgentIds(): ReadonlySet<string> {
  *  settles on, not inside {@link fetchAgents}: a GET that was in flight across a rescan answers
  *  with the older list, which must not overwrite what the rescan recorded. */
 export function recordAgents<T extends readonly AgentWithMemoryFlag[]>(
-  { agents, writeAgentsSnapshot }: { agents: T; writeAgentsSnapshot: (required: { agents: readonly ChatPaneAgent[] }) => void }, _options: Record<string, never> = {},
+  { agents, writeAgentsSnapshot, resumeCapableAgentIds }: { agents: T; resumeCapableAgentIds: Parameters<typeof getResumeCapableAgentIds>[0]["resumeCapableAgentIds"]; writeAgentsSnapshot: (required: { agents: readonly ChatPaneAgent[] }) => void }, _options: Record<string, never> = {},
 ): T {
-  resumeCapableAgentIds = extractResumeCapableAgentIds(agents);
+  resumeCapableAgentIds.current = extractResumeCapableAgentIds(agents);
   writeAgentsSnapshot({ agents });
   return agents;
 }
@@ -142,8 +140,8 @@ function rememberAgentsDeadline(
 }
 
 /** Writes a fresh inventory into the cache and everything that reads it. */
-export function replaceAgents({ loader, agents, clock, writeAgentsSnapshot }: { loader: CachedLoader<ChatPaneAgent[]>; agents: ChatPaneAgent[]; clock: () => number; writeAgentsSnapshot: Parameters<typeof recordAgents>[0]["writeAgentsSnapshot"] }, _options: Record<string, never> = {}): ChatPaneAgent[] {
-  recordAgents({ agents, writeAgentsSnapshot });
+export function replaceAgents({ loader, agents, clock, writeAgentsSnapshot, resumeCapableAgentIds }: { resumeCapableAgentIds: Parameters<typeof getResumeCapableAgentIds>[0]["resumeCapableAgentIds"]; loader: CachedLoader<ChatPaneAgent[]>; agents: ChatPaneAgent[]; clock: () => number; writeAgentsSnapshot: Parameters<typeof recordAgents>[0]["writeAgentsSnapshot"] }, _options: Record<string, never> = {}): ChatPaneAgent[] {
+  recordAgents({ agents, writeAgentsSnapshot, resumeCapableAgentIds });
   loader.replace({ value: agents });
   rememberAgentsDeadline({ agents: loader.peek() ?? agents, clock });
   return agents;
@@ -153,7 +151,7 @@ export function replaceAgents({ loader, agents, clock, writeAgentsSnapshot }: { 
  *  cache-bypassing GET does instead. When both fail it rejects without touching the cache, so a
  *  failed rescan never overwrites a good inventory (`ChatPane` keeps showing the last good list). */
 export async function rescanAgentsInto(
-  { loader, request, agentsUrl, fetchTimeoutMs, ApiError, clock, writeAgentsSnapshot }: { loader: CachedLoader<ChatPaneAgent[]>; request: Parameters<typeof fetchAgents>[0]["request"]; agentsUrl: string; fetchTimeoutMs: number; ApiError: Parameters<typeof fetchAgents>[0]["ApiError"]; clock: () => number; writeAgentsSnapshot: Parameters<typeof recordAgents>[0]["writeAgentsSnapshot"] }, _options: Record<string, never> = {},
+  { loader, request, agentsUrl, fetchTimeoutMs, ApiError, clock, writeAgentsSnapshot, resumeCapableAgentIds }: { resumeCapableAgentIds: Parameters<typeof getResumeCapableAgentIds>[0]["resumeCapableAgentIds"]; loader: CachedLoader<ChatPaneAgent[]>; request: Parameters<typeof fetchAgents>[0]["request"]; agentsUrl: string; fetchTimeoutMs: number; ApiError: Parameters<typeof fetchAgents>[0]["ApiError"]; clock: () => number; writeAgentsSnapshot: Parameters<typeof recordAgents>[0]["writeAgentsSnapshot"] }, _options: Record<string, never> = {},
 ): Promise<ChatPaneAgent[]> {
   const inventory = await request<{ agents?: AgentWithMemoryFlag[] }>({ path: "/rescan", method: "POST" }, {
     basePath: agentsUrl,
@@ -167,7 +165,7 @@ export async function rescanAgentsInto(
   });
   // An empty rescan is normal during daemon restart; the fresh GET below retries it.
   const rescanned = inventory === null ? null : await orFallback({ work: () => readAgentsResponse({ inventory, label: `POST ${agentsUrl}/rescan` }), fallback: null, step: "Decode rescanned agents" });
-  return replaceAgents({ loader, agents: rescanned ?? (await fetchAgents({ request, agentsUrl, fetchTimeoutMs, ApiError })), clock, writeAgentsSnapshot });
+  return replaceAgents({ loader, agents: rescanned ?? (await fetchAgents({ request, agentsUrl, fetchTimeoutMs, ApiError })), clock, writeAgentsSnapshot, resumeCapableAgentIds });
 }
 
 /** Shares GET ownership through Jini's boot-scoped cache; accepted snapshot deadlines govern reads.

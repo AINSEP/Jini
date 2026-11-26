@@ -1,7 +1,6 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ComponentType, type RefObject } from "react";
 import type { DataTable, RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
-import type { RecurringSchedulePicker, useRecurringSchedulePicker } from "@jini-ai/ui";
-import type { RoutineRow } from "@jini-ai/core/contracts/site/routines";
+import type { RoutineRow, RoutineSchedule, Weekday } from "@jini-ai/core/contracts/site/routines";
 import type { RoutinesController } from "./Routines.hooks.js";
 import type { createDictionaryTranslator } from "@jini-ai/core/text";
 export type RoutinesT = ReturnType<typeof createDictionaryTranslator>;
@@ -16,9 +15,22 @@ import { RoutineForm } from "./RoutineForm.js";
  * authorized conversation without selecting or starting anything here.
  */
 export type RoutinesKit = Readonly<{
-  DataTable: typeof DataTable; RowMenu: typeof RowMenu; ConfirmDialog: typeof ConfirmDialog; RecurringSchedulePicker: typeof RecurringSchedulePicker;
+  DataTable: typeof DataTable; RowMenu: typeof RowMenu; ConfirmDialog: typeof ConfirmDialog; RecurringSchedulePicker: ComponentType<{ value: RoutineSchedule; onChange: (next: RoutineSchedule) => void; useRecurringSchedulePicker: SchedulePickerHook }>;
 }>;
-export type SchedulePickerHook = typeof useRecurringSchedulePicker;
+export type SchedulePickerHook = (required: { value: RoutineSchedule; onChange: (next: RoutineSchedule) => void; timezones?: string[] | undefined }) => {
+  open: boolean;
+  toggleOpen: () => void;
+  close: () => void;
+  containerRef: RefObject<HTMLDivElement | null>;
+  state: { kind: RoutineSchedule["kind"]; minute: number; time: string; weekday: Weekday; timezone: string };
+  timezones: string[];
+  setKind: (kind: RoutineSchedule["kind"]) => void;
+  setMinute: (minute: number) => void;
+  setTime: (time: string) => void;
+  setWeekday: (weekday: Weekday) => void;
+  setTimezone: (timezone: string) => void;
+  commit: () => void;
+};
 export type ConversationLinkBuilder = () => Readonly<{ hrefFor: (required: { conversationId: string }) => string }>;
 type Confirming = Readonly<{ kind: "pause" | "delete"; row: RoutineRow }> | null;
 
