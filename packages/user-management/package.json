@@ -89,6 +89,10 @@
       "./member-login/oidc-login": "node",
       "./member-login/link-service": "node",
       "./react/members/members-i18n": "browser",
+      "./react/mail/Email": "browser",
+      "./react/mail/EmailProviderTab": "browser",
+      "./react/mail/EmailTemplateEditor": "browser",
+      "./react/mail/email-view.types": "browser",
       "./members/auth-mail": "universal",
       "./newsletter/errors": "universal",
       "./newsletter/types": "universal",
@@ -574,6 +578,26 @@
       "types": "./dist/react/members/members-i18n.d.ts",
       "import": "./dist/react/members/members-i18n.js",
       "default": "./dist/react/members/members-i18n.js"
+    },
+    "./react/mail/Email": {
+      "types": "./dist/react/mail/Email.d.ts",
+      "import": "./dist/react/mail/Email.js",
+      "default": "./dist/react/mail/Email.js"
+    },
+    "./react/mail/EmailProviderTab": {
+      "types": "./dist/react/mail/EmailProviderTab.d.ts",
+      "import": "./dist/react/mail/EmailProviderTab.js",
+      "default": "./dist/react/mail/EmailProviderTab.js"
+    },
+    "./react/mail/EmailTemplateEditor": {
+      "types": "./dist/react/mail/EmailTemplateEditor.d.ts",
+      "import": "./dist/react/mail/EmailTemplateEditor.js",
+      "default": "./dist/react/mail/EmailTemplateEditor.js"
+    },
+    "./react/mail/email-view.types": {
+      "types": "./dist/react/mail/email-view.types.d.ts",
+      "import": "./dist/react/mail/email-view.types.js",
+      "default": "./dist/react/mail/email-view.types.js"
     },
     "./members/auth-mail": {
       "types": "./dist/members/auth-mail.d.ts",
