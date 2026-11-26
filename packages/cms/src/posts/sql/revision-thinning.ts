@@ -2,6 +2,9 @@ import type { CleanupPreviewStore } from "@jini-ai/core/contracts/storage";
 import { createRevisionThinning } from "../revision-thinning.js";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Kysely } from "kysely";
+import { requireInputRecord, ToolInputError, type ApprovalSteps, type ToolExecutionContext, type ToolHandler } from "@jini-ai/core";
+import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
+import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 
 type ContentKernel = StorageKernel<Kysely<{
   posts: { workspace_id: string; id: string; status: string; version: number };
@@ -135,3 +138,36 @@ export function bindRevisionThinning(required: RevisionThinningRequired, _option
 }
 
 export type RevisionThinningBinding = ReturnType<typeof bindRevisionThinning>;
+type Prepared = { scope: RevisionThinningScope; count: number; previewToken: string };
+
+/**
+ * The agent tool body: explicit preview in `prepare`, an owner approval card, then apply with the
+ * previewed token. No `rememberKey`: every thinning permanently deletes history, so it always asks.
+ * Not registered in the catalog while thinning is disabled (STOP 6).
+ */
+export function revisionThinningApprovalHandler(
+  { binding, surfaces, workspaceId, approvalToolHandler, thinningCard }: {
+    binding: RevisionThinningBinding; surfaces: AssistantSurfaceDeps; workspaceId: string;
+    thinningCard: (required: { prepared: Prepared }) => HumanConfirmSpec;
+    approvalToolHandler(required: {
+      surfaces: AssistantSurfaceDeps;
+      prepare: ApprovalSteps<Prepared, HumanConfirmSpec>["prepare"];
+      describe: (required: { ctx: ToolExecutionContext; prepared: Prepared }) => HumanConfirmSpec | Promise<HumanConfirmSpec>;
+      run: ApprovalSteps<Prepared, HumanConfirmSpec>["run"];
+    }, optional: { flag: string; ask: (required: { prepared: Prepared }) => boolean }): ToolHandler;
+  },
+  _optional: Record<string, never> = {},
+): ToolHandler {
+  return approvalToolHandler({ surfaces,
+    prepare: async ({ ctx }) => {
+      const input = requireInputRecord({ input: ctx.input });
+      const scope = { workspaceId, postId: input.postId as string, kind: input.kind as string };
+      const preview = await binding.preview({ principal: ctx.principal.id, scope, before: input.before }, {}).catch((error: unknown) => {
+        throw new ToolInputError({ message: error instanceof Error ? error.message : "Revision thinning refused." });
+      });
+      return { scope, count: preview.count, previewToken: preview.previewToken };
+    },
+    describe: thinningCard,
+    run: async ({ ctx, prepared }) => ({ thinned: true, ...await binding.apply({ principal: ctx.principal.id, scope: prepared.scope, previewToken: prepared.previewToken, confirm: true }, {}) }),
+  }, { flag: "thinned", ask: ({ prepared }) => prepared.count > 0 });
+}

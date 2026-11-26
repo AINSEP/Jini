@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import type { VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import { InMemoryMediaProviderCredentialRepo } from "../provider-credential-store.memory.js";
+import { TurnLock } from "@jini-ai/db/kernel";
 
 it("primitive upsert cannot enter between replacement snapshot and publication", async () => {
   const events: string[] = [];
@@ -12,9 +13,7 @@ it("primitive upsert cannot enter between replacement snapshot and publication",
     applyBatch: async () => { await held; events.push("publish"); return []; },
     put: async ({ record }) => { events.push("upsert"); return { ...record, isDefault: false }; },
     find: async () => null, patchMeta: async () => { throw new Error("unused"); }, delete: async () => false };
-  let tail = Promise.resolve();
-  const withWrite = <T>({ run }: { run: () => Promise<T> }) => { const result = tail.then(run); tail = result.then(() => {}, () => {}); return result; };
-  const repo = new InMemoryMediaProviderCredentialRepo({ vault, policy: { ownerKey: "test", legacyIds: {}, parseMeta: () => ({ baseUrl: null, model: null }) }, withWrite });
+  const repo = new InMemoryMediaProviderCredentialRepo({ vault, policy: { ownerKey: "test", legacyIds: {}, parseMeta: () => ({ baseUrl: null, model: null }) }, providerWrites: new TurnLock() });
   const replacement = repo.replaceWorkspace({ workspaceId: "w", plan: () => ({ upserts: [], tombstoneProviderIds: [] }) });
   await read;
   const primitive = repo.upsert({ workspaceId: "w", providerId: "p", baseUrl: null, model: null, sealed: null, keyTail: null, aadVersion: 0, createdAt: "now", updatedAt: "now" });

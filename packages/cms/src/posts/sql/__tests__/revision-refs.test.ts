@@ -3,7 +3,8 @@ import Database from "better-sqlite3";
 import { sql } from "kysely";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { postRevisionRefProbes } from "../revision-refs.js";
-import { bindRevisionThinning } from "../revision-thinning.js";
+import { bindRevisionThinning, revisionThinningApprovalHandler } from "../revision-thinning.js";
+import { createApprovalHandler, type ToolExecutionContext } from "@jini-ai/core";
 
 it("an unreadable inverse retains the revision under the append/thin fence", async () => {
   const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
@@ -29,4 +30,32 @@ it("an unreadable inverse retains the revision under the append/thin fence", asy
     expect(lock).toHaveBeenCalledWith("post_revisions:w:post");
     expect(await kernel.query(sql`SELECT id FROM post_revisions ORDER BY seq`)).toEqual([{ id: "old" }, { id: "new" }]);
   } finally { await kernel.close(); }
+});
+
+it("approval card raised before any revision delete; decline deletes nothing", async () => {
+  const binding = { preview: vi.fn(async () => ({ ids: ["old"], count: 1, previewToken: "preview" })),
+    apply: vi.fn(async () => ({ deleted: ["old"], kept: [] })) };
+  let confirmed = false;
+  const askHuman = vi.fn(async () => {
+    expect(binding.apply).not.toHaveBeenCalled();
+    return confirmed ? { confirmed: true as const } : { confirmed: false as const, reason: "declined" as const };
+  });
+  const thinningCard = vi.fn(() => ({ toolId: "post_thin_revisions", errorCode: "POST", title: "Thin", details: [], confirmLabel: "Delete" }));
+  const surfaces = { surfaceExchanges: { open: vi.fn(), deliver: vi.fn(), findTypedAnswerTarget: vi.fn(), size: vi.fn() } };
+  const handler = revisionThinningApprovalHandler({ binding, surfaces, workspaceId: "w", thinningCard,
+    approvalToolHandler: (required, optional) => createApprovalHandler({
+      prepare: required.prepare,
+      describe: ({ ctx, prepared }) => ({ ask: optional.ask({ prepared }), description: required.describe({ ctx, prepared }) }),
+      askHuman, run: required.run, notConfirmed: () => ({ thinned: false }),
+    }),
+  });
+  const ctx: ToolExecutionContext = { executionId: "execution", principal: { id: "owner" }, run: { id: "run" }, signal: new AbortController().signal,
+    input: { postId: "post", kind: "post", before: "2026-03-01" } };
+  expect(await handler(ctx)).toEqual({ thinned: false });
+  expect(binding.apply).not.toHaveBeenCalled();
+  expect(thinningCard).toHaveBeenCalledWith(expect.objectContaining({ prepared: { scope: { workspaceId: "w", postId: "post", kind: "post" }, count: 1, previewToken: "preview" } }));
+  confirmed = true;
+  expect(await handler(ctx)).toEqual({ thinned: true, deleted: ["old"], kept: [] });
+  expect(binding.apply).toHaveBeenCalledWith({ principal: "owner", scope: { workspaceId: "w", postId: "post", kind: "post" }, previewToken: "preview", confirm: true }, {});
+  expect(askHuman).toHaveBeenCalledTimes(2);
 });
