@@ -22,8 +22,8 @@ export interface MediaGenerationToolDeps {
   authorize: ToolPermissionAuthorizationPort;
   storage: MediaToolStoragePorts;
   providers: ImageGenerationPorts;
-  tracker?: Tracker;
-  imageCodec?: ImageCodecPort;
+  tracker?: Tracker | undefined;
+  imageCodec?: ImageCodecPort | undefined;
   findModel(required: { id: string }, optional?: Record<string, never>): { provider: string } | undefined;
   missingCredential(required: { providerId: string }, optional?: Record<string, never>): { generated: false; message: string; credentialSetup: ToolFailureDiagnostic };
 }

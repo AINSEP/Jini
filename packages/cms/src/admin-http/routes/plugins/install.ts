@@ -135,18 +135,21 @@ export function respondInstallFailure({ error, deps }: { error: unknown; deps: {
   deps.failure(error);
 }
 
+/** The host's failure writer for every plugin-install route (JSON and raw ZIP alike). */
+export type PluginInstallFailureWriter = (facts: { error: unknown; principalId: () => string; json: (body: unknown, status: number) => void; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
+
 /** Local sources are explicitly opt-in, even for admins. ZIP parsing follows authorization. */
 export function registerPluginInstallRoutes<Parser>(required: {
   mountJson<Input, Output, Deps>(required: {
     spec: JsonRouteSpec<Input, Output, Deps, { id: string }>;
     deps: Deps;
-    failure: (facts: { error: unknown; principalId: () => string; json: (body: unknown, status: number) => void; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
+    failure: PluginInstallFailureWriter;
   }): void;
   parserFactory(required: { type: "application/zip"; limit: number; inflate: false }): Parser;
   mountRaw<Deps>(required: {
     spec: { method: 'post'; path: string; handle(required: { raw: RouteInputContext; deps: Deps; context?: { id: string } | undefined; authorize?: JsonRouteAuthorize | undefined }, _optional?: Record<string, never>): Promise<Response> };
     requestDeps: (facts: Omit<Parameters<typeof readZipUpload>[0]["deps"], "uploadLimitText" | "parseZip"> & { parseZip(parser: Parser): Promise<unknown> }) => Deps;
-    failure: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"];
+    failure: PluginInstallFailureWriter;
   }): void;
   installer: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"]["installer"];
   onInstalled: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"]["onInstalled"];
@@ -157,7 +160,7 @@ export function registerPluginInstallRoutes<Parser>(required: {
   const parser = required.parserFactory({ type: "application/zip", limit: required.maxArchiveBytes, inflate: false });
   const matrix = [[folderPluginInstallPreviewRoute, false, true], [folderPluginInstallRoute, false, false], [zipPluginInstallPreviewRoute, true, true], [zipPluginInstallRoute, true, false]] as const;
   for (const [spec, zip, preview] of matrix) {
-    const failureWriter: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"] = facts => {
+    const failureWriter: PluginInstallFailureWriter = facts => {
       if (!preview) required.onFailure({ actorId: facts.principalId(), reasonClass: facts.error instanceof required.installError ? "refused" : "internal" });
       respondInstallFailure({ error: facts.error, deps: { installError: required.installError, json: facts.json, failure: error => facts.incident(error, { operation: required.operation, code: "INTERNAL_ERROR" }) } });
     };

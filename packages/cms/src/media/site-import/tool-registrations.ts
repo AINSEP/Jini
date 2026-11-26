@@ -14,8 +14,8 @@ export interface MediaImportToolDeps {
   storage: MediaToolStoragePorts;
   source: MediaImportSourcePorts;
   refusals: MediaImportRefusalPorts;
-  tracker?: Tracker;
-  imageCodec?: ImageCodecPort;
+  tracker?: Tracker | undefined;
+  imageCodec?: ImageCodecPort | undefined;
   readonly refuseUnexpectedKeys: (input: Record<string, unknown>, allowed: readonly string[]) => void;
   replacement: {
     findById(required: { id: string }, optional?: Record<string, never>): Promise<MediaRecord | null>;
@@ -111,7 +111,7 @@ export const mediaImportDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = 
  * @complexity O(n) in the uploaded bytes for hashing/storage; fixed-count repository operations.
  */
 export async function persistImportedMedia(
-  required: { storage: MediaToolStoragePorts; input: MediaToolUploadInput; sourceUrl: string; actorId: string; tracker?: Tracker },
+  required: { storage: MediaToolStoragePorts; input: MediaToolUploadInput; sourceUrl: string; actorId: string; tracker?: Tracker | undefined },
   _optional: Record<string, never> = {},
 ): Promise<{ media: ImportedMediaView }> {
   const { storage, input, sourceUrl, actorId, tracker } = required;

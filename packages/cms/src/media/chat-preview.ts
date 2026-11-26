@@ -16,7 +16,7 @@ const MEDIA_CHAT_PREVIEW_MAX_EDGE_PX = 320;
  * @complexity O(pixels) time/space for one decode and one small encode.
  */
 export async function withChatPreview<T extends { media: { title: string; publicUrl: string | null } }>(
-  { routeDeps, bytes, contentType, result }: { routeDeps: { imageCodec?: ImageCodecPort }; bytes: Uint8Array; contentType: string; result: T },
+  { routeDeps, bytes, contentType, result }: { routeDeps: { imageCodec?: ImageCodecPort | undefined }; bytes: Uint8Array; contentType: string; result: T },
   _optional: Record<string, never> = {},
 ) {
   // Raster only, like media_view_image: these are the unsanitized source bytes, so an SVG never

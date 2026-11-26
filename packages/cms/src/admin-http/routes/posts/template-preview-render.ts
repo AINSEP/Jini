@@ -201,7 +201,7 @@ export async function renderBarePostPreview({ deps, post }: { deps: {
   return deps.renderBareEntryDocument({
     post,
     siteTitle,
-    pageHtmlEmbeds,
+    ...(pageHtmlEmbeds !== undefined && { pageHtmlEmbeds }),
     widgetInlineResolved: widgets.inlineResolved,
     mediaTransformVersions,
     mediaAssetMetadata,

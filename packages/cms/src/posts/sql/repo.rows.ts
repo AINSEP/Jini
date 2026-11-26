@@ -63,7 +63,7 @@ interface PostsTable {
   show_author: ColumnType<SqlBool, boolean | undefined, boolean>;
 }
 
-export interface PostTables { posts: PostsTable; post_revisions: PostRevisionsTable }
+export type PostTables = { posts: PostsTable; post_revisions: PostRevisionsTable };
 
 export type PostRow = Selectable<PostTables["posts"]>;
 export type PostRevisionRow = Selectable<PostTables["post_revisions"]>;

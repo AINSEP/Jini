@@ -80,7 +80,8 @@ export interface MediaContentEditorController {
 
   rows: MediaItemRow[];
   maxItems: number;
-  updateItem: (required: { index: number; patch: Partial<MediaItem> }, optional?: Record<string, never>) => void;
+  /** An `undefined` `alt`/`caption` in `patch` removes that key, so the library's own text is used at render time. */
+  updateItem: (required: { index: number; patch: MediaItemPatch }, optional?: Record<string, never>) => void;
   moveItem: (required: { index: number; delta: -1 | 1 }, optional?: Record<string, never>) => void;
   removeItem: (required: { index: number }, optional?: Record<string, never>) => void;
 
@@ -235,10 +236,20 @@ function mediaLayoutFields({ widgetType, state, emitMedia }: { widgetType: strin
   };
 }
 
+/** A per-item edit: a present-but-`undefined` `alt`/`caption` clears that key (contract: omitted, not empty). */
+export type MediaItemPatch = { slug?: string; alt?: string | undefined; caption?: string | undefined };
+
+/** Applies `patch` to `item`, dropping `alt`/`caption` when the patch clears them. */
+function applyMediaItemPatch(item: MediaItem, patch: MediaItemPatch): MediaItem {
+  const alt = "alt" in patch ? patch.alt : item.alt;
+  const caption = "caption" in patch ? patch.caption : item.caption;
+  return { slug: patch.slug ?? item.slug, ...(alt !== undefined && { alt }), ...(caption !== undefined && { caption }) };
+}
+
 /** Per-item edit, reorder and remove handlers. */
 function mediaItemEditors({ state, setItems }: { state: MediaContentState; setItems: (required: { items: MediaItem[] }) => void }): Pick<MediaContentEditorController, "updateItem" | "moveItem" | "removeItem"> {
   return {
-    updateItem: ({ index, patch }, _options: Record<string, never> = {}) => setItems({ items: state.media.items.map((item, i) => (i === index ? { ...item, ...patch } : item)) }),
+    updateItem: ({ index, patch }, _options: Record<string, never> = {}) => setItems({ items: state.media.items.map((item, i) => (i === index ? applyMediaItemPatch(item, patch) : item)) }),
     moveItem: ({ index, delta }, _options: Record<string, never> = {}) => {
       const next = moveMediaItem({ items: state.media.items, from: index, to: index + delta });
       if (next !== state.media.items) setItems({ items: next });

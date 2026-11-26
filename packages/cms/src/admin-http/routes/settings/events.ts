@@ -77,6 +77,11 @@ export const settingsEventsRoute = {
  *
  * @complexity O(1).
  */
+/** The preview feed's resume option: only a string theme revision resumes; anything else starts fresh. */
+function themeResumeOption(revision: unknown): { resumeRevision?: string } {
+  return typeof revision === "string" ? { resumeRevision: revision } : {};
+}
+
 function resumeCursor({ lastEventId, afterRevision, head }: { lastEventId: string | undefined; afterRevision: unknown; head: number }): number {
   const resumeFrom = Number(lastEventId ?? (typeof afterRevision === 'string' ? afterRevision : undefined));
   return Number.isFinite(resumeFrom) && resumeFrom >= 0 ? Math.min(resumeFrom, head) : head;
@@ -319,7 +324,7 @@ export async function openSettingsEventsRequest(required: {
         // Theme events have their own type and never advance the settings ledger's Last-Event-ID.
         previewFeed ??= required.createPreviewFeed({ isReservedPath: required.isReservedPath, read: required.readPreview,
           emit: ({ frame }, _options = {}) => { request.write({ frame: `event: theme-preview-refresh\ndata: ${JSON.stringify(frame)}\n\n` }); },
-        }, { resumeRevision: typeof request.themeRevision() === "string" ? request.themeRevision() as string : undefined });
+        }, themeResumeOption(request.themeRevision()));
         return timers.schedule({ work, ms });
       },
       clear: timers.clear,

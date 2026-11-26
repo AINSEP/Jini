@@ -31,7 +31,7 @@ it('preserves typed snapshots, distinguishes missing consent and writes refusal 
   let run!: () => Promise<unknown>;
   let refuse!: () => void;
   const mount: Parameters<typeof registerPublishTriggerRoute<{ target: string; customDomain?: string; region: string }, typeof registry, typeof snapshot>>[0]['mount'] = input => {
-    run = () => input.spec.handle({ input: { body: { target: 'target', projectName: 'project' } }, deps: input.deps, context: { id: 'owner' }, authorize: async () => {} });
+    run = async () => input.spec.handle({ input: { body: { target: 'target', projectName: 'project' } }, deps: input.deps, context: { id: 'owner' }, authorize: async () => {} });
     refuse = () => input.refusal({ response: { status: 403, body: { error: 'denied' } }, json: () => { order.push('write'); }, principalId: () => 'owner' });
   };
   const required = { mount, readConfig: async () => ({ ok: true as const, config: { target: 'target', region: 'region' }, registry }),

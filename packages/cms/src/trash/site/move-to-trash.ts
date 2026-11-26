@@ -64,7 +64,7 @@ export interface MoveToTrashRequired {
      * refused as `version-changed` rather than trashing whatever is there now. `undefined` (the
      * caller never read a version, or the kind has none) skips the check.
      */
-    expectedVersion?: number | null;
+    expectedVersion?: number | null | undefined;
   }
 
 export interface MoveToTrashDeps {

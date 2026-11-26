@@ -49,10 +49,10 @@ function widgetTypeRefusal({ id, state, excludedTypes }: { id: string; state: Re
 /** An entry row plus its sorted term ids (`undefined` when it has none). */
 type EntryRow = TrashableEntryRecord & { termIds?: string[] };
 
-const withTerms = async (p: EntryPublishPorts, row: TrashableEntryRecord): Promise<EntryRow> => ({
-  ...row,
-  termIds: await readTermIds({ ports: p.terms, contentType: row.type, contentId: row.id }),
-});
+const withTerms = async (p: EntryPublishPorts, row: TrashableEntryRecord): Promise<EntryRow> => {
+  const termIds = await readTermIds({ ports: p.terms, contentType: row.type, contentId: row.id });
+  return { ...row, ...(termIds !== undefined && { termIds }) };
+};
 
 type EntryWriteInput = { ports: EntryPublishPorts; deps: Parameters<typeof gatewayDeps>[0]["deps"]; workspaceId: string; id: string; state: Record<string, unknown>; expectedVersion: number | undefined; principalId: string; excludedTypes: readonly string[] };
 

@@ -239,6 +239,7 @@ export function canConfirmSelection(
 
 /** A sole target is unambiguous; multiple targets still require the operator's selection. */
 export function singlePublishPeerId(peers: readonly PublishContentPeerView[]): string | null {
-  return peers.length === 1 ? peers[0].id : null;
+  const [sole] = peers;
+  return peers.length === 1 && sole ? sole.id : null;
 }
 

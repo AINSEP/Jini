@@ -423,7 +423,7 @@ export function bindTrashItemTool(required: {
         readLiveVersion: async (input) => { const row = await required.readLiveSnapshot(input, { kernel: routeDeps.db, registry: routeDeps.registry }); return row && { version: row.version ?? null }; },
         moveToTrash: (input) => required.moveToTrash(input, { registry: routeDeps.registry, trash: routeDeps.trash, authorize: routeDeps.authorize, clock: routeDeps.clock, readLiveSnapshot: input => required.readLiveSnapshot(input, { kernel: routeDeps.db, registry: routeDeps.registry }) }),
         actorPluginId: required.actorPluginId, userKind: required.kinds.user, presentation: required.presentation, metadata: required.metadata,
-      } }, { trashUser: optional.trashUser });
+      } }, { ...(optional.trashUser !== undefined && { trashUser: optional.trashUser }) });
     },
   };
 }

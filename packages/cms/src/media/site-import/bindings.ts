@@ -29,7 +29,7 @@ export function bindMediaImportTools<TVideo extends Pick<VideoImportOptions, "po
   openFsFileForRead: MediaImportSourcePorts["readLocal"];
   uploadLimitForFile(required: { name: string; type: string }): number;
   uploadCaps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
-  fetchImage(required: { deps: { httpClient: HttpClientPort; plainHttpTestOrigins?: readonly string[] }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
+  fetchImage(required: { deps: { httpClient: HttpClientPort; plainHttpTestOrigins?: readonly string[] | undefined }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
   validateImageBytes: MediaImportSourcePorts["validateBytes"];
   createConvertingUploader(input: { uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number }; mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: { video?: TVideo | undefined }): (input: MediaToolUploadInput) => Promise<{ media: MediaRecord }>; replaceMediaFile: typeof replaceMediaFile;
   EgressRefusedError: new (required: { message: string }, optional: { callerSafeMessage: string }) => Error & { readonly callerSafeMessage: string };

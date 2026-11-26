@@ -17,13 +17,13 @@ it('registers one static spec and reads each trust context only after registry a
   const trustContext = vi.fn(() => { order.push('trust'); return current; });
   let run!: () => Promise<unknown>;
   const mount = vi.fn<Parameters<typeof registerPublishDestinationsRoute<{ revision: number }, { id: string; label: string }, { count: number }, { granted: boolean }>>[0]['mount']>(input => {
-    run = () => input.spec.handle({ input: undefined, deps: input.requestDeps({ trustContext }), context: { id: 'owner' }, authorize: async () => { order.push('system.read'); } });
+    run = async () => input.spec.handle({ input: undefined, deps: input.requestDeps({ trustContext }), context: { id: 'owner' }, authorize: async () => { order.push('system.read'); } });
   });
   registerPublishDestinationsRoute({ mount, workspaceId: 'ws', operation: 'publish',
     loadRegistry: async () => { order.push('registry'); return { revision: 1 }; }, listPeers: peers,
     listDestinations: async ({ registry, peers }) => ({ count: registry.revision + peers.length }),
     authorize: async () => { order.push('rbac'); return { allowed: false, reason: 'denied' }; },
-    authorizeForTrust: trust => async () => { order.push('grant'); return trust.granted ? { allowed: true } : { allowed: false, reason: 'denied' }; },
+    authorizeForTrust: trust => async () => { order.push('grant'); return trust.granted ? { allowed: true, reason: '' } : { allowed: false, reason: 'denied' }; },
   });
   expect(mount).toHaveBeenCalledTimes(1); expect(trustContext).not.toHaveBeenCalled();
   expect(await run()).toEqual({ ok: true, value: { count: 1 } });

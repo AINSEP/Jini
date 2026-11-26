@@ -118,7 +118,7 @@ export function PublishContentDialog({
       {view.rows.some(row => row.entityType === "form") && <p>{t(deps.formRecipientNotice)}</p>}
 
       {renderPublishPeerPicker({ view, t })}
-      {view.peers.length === 1 && (
+      {view.peers.length === 1 && view.peers[0] && (
         <p className="muted publish-content-target">
           {t("Publishing to")} <strong>{view.peers[0].label}</strong>
         </p>
