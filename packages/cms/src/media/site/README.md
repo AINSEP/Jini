@@ -116,6 +116,25 @@ Bind every writer and purge to the same fence. Lock order is process-local singl
 asset fence from inside a byte fence. This import/staging slice does not replace the separate
 replacement/restore or purge/collector work. Consume it together with the host bindings.
 
+#### Journal provenance and writer eligibility (J1a/J1c)
+
+Types live in `@jini-ai/core/contracts/blob-gc` (`BlobJournalIdentity`, `BlobJournalEligibility`);
+the pure rules in `@jini-ai/cms/media` (`planRenditionJournal`, `classifyJournalEntry`).
+
+- A rendition row records its own byte digest (`AssetRenditionRecord.sha256`); the original
+  passthrough records the source digest. A purge/rollback `cleanupJournal` receives `renditions`
+  (derived keys only, own digest, deduplicated against the original's key) and
+  `unverifiedRenditionKeys` (no or conflicting digest: report, never journal eligible).
+- `reason` is journaled only when the caller states it (`purgeMedia` input `reason`); rollback
+  always says `upload-rollback`. Never default a missing reason to `owner-purge`.
+- `classifyJournalEntry` is keep-by-default: no reason, unknown reason/role, bad digest, a key that
+  is not `storageKeyFor(digest)`, `upload-rollback`, and `trash-ttl` (unless `allowTrashTtl`) are
+  all keep. A candidate is not authority to unlink: re-read entry and ownership inside `withKeys`.
+- Every writer that takes ownership of a key (upload claim, dedup hit, resurrection, rendition
+  save, import, replacement) calls `journalEligibility.clearForKeys` after its owner row is active,
+  in the same fence/transaction. The port is optional until the host binds it (T1); nothing here
+  enables a sweep.
+
 ### `where-used` / `purge-media`
 
 `findMediaWhereUsed({ deps, input }, { includeTrashed? })` reports every place a media asset is
