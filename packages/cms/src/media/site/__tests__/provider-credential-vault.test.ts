@@ -10,7 +10,7 @@ it("a row whose kind, ownerKey, principalId or binding differs from the policy i
     const row = { ...good, ...patch };
     const applyBatch = vi.fn(async () => []);
     const vault: VaultRepoPort = { list: async () => [row], find: async () => row, put: async () => row, patchMeta: async () => row, delete: async () => true, applyBatch };
-    const repo = new MediaProviderCredentialVaultRepo({ vault, policy });
+    const repo = new MediaProviderCredentialVaultRepo({ vault, policy, idGen: { newId: () => "fresh" } });
     const reader = mediaProviderVault({ vault, providerId: "p", policy });
     if (!reader.findOne) throw new Error("missing singleton read");
     await expect(reader.findOne(mediaVaultScope({ workspaceId: "w", providerId: "p", policy }))).rejects.toMatchObject({ code: "context" });

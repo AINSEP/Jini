@@ -81,6 +81,7 @@ export class RevertConflictError extends Error {
 }
 
 export interface RevertChangeSetDeps {
+  transaction<T>({ work }: { work: () => Promise<T> }, _optional?: Record<string, never>): Promise<T>;
   changeSets: ChangeSetRepoPort;
   registry: RevertRegistry;
   clock: ClockPort;
@@ -156,10 +157,36 @@ export async function revertChangeSet(
   _optional: RevertChangeSetOptional = {}
 ): Promise<ChangeSetRecord> {
   const { deps, input } = required;
-  const { changeSets, registry } = deps;
 
   requireForceAllowed({ input });
 
+  return deps.transaction({ work: async () => {
+    const { registry } = deps;
+    const { items } = await loadAppliedChangeSet(required);
+    const ordered = [...items].sort((a, b) => b.position - a.position);
+
+    await requireRevertibleItems({ ordered, registry, input }, _optional);
+
+    // All preconditions passed — apply inverses in descending position (INV-05: all-or-nothing).
+    // The actor is whoever is reverting now, never the item's original writer.
+    const inverseOptional = _optional.actorId === undefined ? {} : { actorId: _optional.actorId };
+    for (const item of ordered) {
+      const reverter = registry.resolve(item.entityType, item.operation)!;
+      await reverter.applyInverse({
+        workspaceId: input.workspaceId,
+        item,
+      }, inverseOptional);
+    }
+
+    return finalizeRevert(required);
+  } });
+}
+
+async function loadAppliedChangeSet(
+  { deps, input }: RevertChangeSetRequired,
+  _optional: RevertChangeSetOptional = {},
+) {
+  const { changeSets } = deps;
   // (1) exists in workspace
   const found = await changeSets.findById({
     workspaceId: input.workspaceId,
@@ -178,21 +205,14 @@ export async function revertChangeSet(
     );
   }
 
-  const ordered = [...items].sort((a, b) => b.position - a.position);
+  return { changeSet, items };
+}
 
-  await requireRevertibleItems({ ordered, registry, input }, _optional);
-
-  // All preconditions passed — apply inverses in descending position (INV-05: all-or-nothing).
-  // The actor is whoever is reverting now, never the item's original writer.
-  const inverseOptional = _optional.actorId === undefined ? {} : { actorId: _optional.actorId };
-  for (const item of ordered) {
-    const reverter = registry.resolve(item.entityType, item.operation)!;
-    await reverter.applyInverse({
-      workspaceId: input.workspaceId,
-      item,
-    }, inverseOptional);
-  }
-
+async function finalizeRevert(
+  { deps, input }: RevertChangeSetRequired,
+  _optional: RevertChangeSetOptional = {},
+): Promise<ChangeSetRecord> {
+  const { changeSets } = deps;
   // Compare-and-set: re-assert the change set is still 'applied' before flipping,
   // so a concurrent revert that already flipped it loses here (RT-003 / INV-006).
   const latest = await changeSets.findById({

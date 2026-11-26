@@ -44,6 +44,18 @@ function setup(options: { allowed?: readonly string[] } = {}) {
   };
   const deps: ChangeSetToolDeps = {
     authorize, workspaceId: WORKSPACE_ID, changeSets, revertRegistry: widgetRegistry(widget),
+    revertTransaction: async ({ work }) => {
+      const before = await changeSets.listByWorkspace({ workspaceId: WORKSPACE_ID });
+      const version = widget.version;
+      const reverted = [...widget.reverted];
+      try { return await work(); }
+      catch (error) {
+        for (const row of before) await changeSets.save(row);
+        widget.version = version;
+        widget.reverted.splice(0, widget.reverted.length, ...reverted);
+        throw error;
+      }
+    },
     clock: { nowMs: () => Date.parse(LATER) }, idGen: { newId: () => 'generated-id' },
     outbox: { enqueue: async () => {} } as unknown as ChangeSetToolDeps['outbox'],
   };
