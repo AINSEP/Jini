@@ -22,9 +22,9 @@ function renderDropZone() {
 it("highlights an unlocked drag and clears the highlight when it leaves", () => {
   const { zone, received } = renderDropZone();
   expect(fireEvent.dragOver(zone)).toBe(false);
-  expect(zone).toHaveClass("is-dragging");
+  expect(zone).toHaveClass("jini-install-tab-is-dragging");
   fireEvent.dragLeave(zone);
-  expect(zone).not.toHaveClass("is-dragging");
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
   expect(received).toEqual([]);
 });
 
@@ -34,7 +34,7 @@ it("passes all dropped files in order and clears the drag highlight", () => {
   const second = new File(["second"], "second.zip", { type: "application/zip" });
   fireEvent.dragOver(zone);
   expect(fireEvent.drop(zone, { dataTransfer: { files: [first, second] } })).toBe(false);
-  expect(zone).not.toHaveClass("is-dragging");
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
   expect(received).toEqual([[first, second]]);
 });
 
@@ -42,7 +42,7 @@ it("prevents a locked drag from highlighting or delivering files", () => {
   const { zone, received, lock } = renderDropZone();
   lock.current = true;
   expect(fireEvent.dragOver(zone)).toBe(false);
-  expect(zone).not.toHaveClass("is-dragging");
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
   expect(fireEvent.drop(zone, { dataTransfer: { files: [new File(["zip"], "package.zip")] } })).toBe(false);
   expect(received).toEqual([]);
 });
@@ -50,10 +50,10 @@ it("prevents a locked drag from highlighting or delivering files", () => {
 it("clears an existing highlight when an upload locks before the drop", () => {
   const { zone, received, lock } = renderDropZone();
   fireEvent.dragOver(zone);
-  expect(zone).toHaveClass("is-dragging");
+  expect(zone).toHaveClass("jini-install-tab-is-dragging");
   lock.current = true;
   fireEvent.drop(zone, { dataTransfer: { files: [new File(["zip"], "package.zip")] } });
-  expect(zone).not.toHaveClass("is-dragging");
+  expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
   expect(received).toEqual([]);
 });
 

@@ -570,7 +570,7 @@ describe("SeoEntrySection / EntryPicker", () => {
     renderSeo({}, ENTRIES_TAB);
     await user.click(screen.getByRole("combobox", { name: "Entry" }));
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
-    expect(screen.getByText("No matches")).toHaveClass("select-empty");
+    expect(screen.getByText("No matches")).toHaveClass("jini-ui-select-empty");
   });
 
   it("choosing an entry calls setEntryId", async () => {
