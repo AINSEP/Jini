@@ -16,14 +16,14 @@ import { useProviders } from "./hooks/use-providers.hooks.js";
  * External MCP was one of the Settings page's thirteen tabs, reachable only by knowing to open
  * Settings and scroll a sidebar of unrelated concerns (Instructions, Privacy, Dialog appearance,
  * About). It is not a setting in the sense the rest of that page is — it is connections to
- * third-party systems, each holding a credential, each able to fail independently of anything Tovu
+ * third-party systems, each holding a credential, each able to fail independently of anything the host
  * itself does. (A Composio tab lived here too until 2026-09-27, when Composio became the `composio`
  * agent plugin, connected through External MCP like any other remote server.)
  *
  * MCP Server and Webhooks joined this SAME screen on 2026-09-10 (second pass, owner call) — moved
  * here verbatim from `features/integrations/DeveloperApi.tsx`, which this change retires. That page
  * used to be its own nav row ("APIs & Webhooks") holding the mirror-image direction: OTHER TOOLS
- * reaching Tovu (MCP Server, an MCP client connecting IN) or Tovu reaching OUT to a subscriber
+ * reaching the host (MCP Server, an MCP client connecting IN) or the host reaching OUT to a subscriber
  * (Webhooks). The owner's call was that four rows under one "Add-Ons" group had grown one row too
  * many for what is really one concern — "this install's outside connections" — split only by
  * direction of travel, not by whether the connection needs its own top-level nav slot. Collapsing
@@ -190,6 +190,24 @@ function ProvidersView(props: ProvidersProps & {
           ancestor for every themed tab body on this page. Glass follows the document scheme
           through the shared theme controller at that same ancestor. */}
       <div className="page providers-page" {...themeBoundary}>
+        {ProvidersHeader({ locale, deps })}
+        <TabBar
+          ariaLabel={t({ locale: locale, key: "Integrations" })}
+          tabs={tabs}
+          activeId={activeTabId}
+          onChange={(nextTabId) => navigateProvidersTab({ nextTabId })}
+          containerHandle="providers-tab-bar"
+        />
+
+        <ProvidersTabBody {...props} p={p} locale={locale} activeTabId={activeTabId} />
+      </div>
+    </I18nProvider>
+  );
+}
+
+function ProvidersHeader({ locale, deps }: { locale: string; deps: ProvidersProps["deps"] }, _optional = {}) {
+  const { t } = deps;
+  return (
         <div
           className="page-header"
           {...agentHandle({ handle: "providers-header" }, {
@@ -206,16 +224,5 @@ function ProvidersView(props: ProvidersProps & {
             </p>
           </div>
         </div>
-        <TabBar
-          ariaLabel={t({ locale: locale, key: "Integrations" })}
-          tabs={tabs}
-          activeId={activeTabId}
-          onChange={(nextTabId) => navigateProvidersTab({ nextTabId })}
-          containerHandle="providers-tab-bar"
-        />
-
-        <ProvidersTabBody {...props} p={p} locale={locale} activeTabId={activeTabId} />
-      </div>
-    </I18nProvider>
   );
 }

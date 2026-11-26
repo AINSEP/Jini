@@ -863,7 +863,8 @@
       "./admin-http/routes/posts/template-preview-render": "universal",
       "./routing/public-path": "universal",
       "./react/posts/post-editor-input.rules": "universal",
-      "./react/publish-content/hooks/publish-content-confirm.rules": "universal"
+      "./react/publish-content/hooks/publish-content-confirm.rules": "universal",
+      "./react/publish-content/hooks/use-publish-content-confirm.hooks": "browser"
     },
     "isolation": {
       "domains": {
@@ -1100,6 +1101,12 @@
           "kysely",
           "parse5",
           "react"
+        ],
+        "./react/publish-content/hooks/use-publish-content-confirm.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
         ]
       },
       "shared": [
@@ -1394,7 +1401,8 @@
         "./admin-http/routes/posts/template-preview-render": "presentation",
         "./routing/public-path": "routing",
         "./react/posts/post-editor-input.rules": "posts",
-        "./react/publish-content/hooks/publish-content-confirm.rules": "publish"
+        "./react/publish-content/hooks/publish-content-confirm.rules": "publish",
+        "./react/publish-content/hooks/use-publish-content-confirm.hooks": "publish"
       }
     },
     "optionalPeers": {
@@ -5647,6 +5655,11 @@
       "types": "./dist/react/publish-content/hooks/publish-content-confirm.rules.d.ts",
       "import": "./dist/react/publish-content/hooks/publish-content-confirm.rules.js",
       "default": "./dist/react/publish-content/hooks/publish-content-confirm.rules.js"
+    },
+    "./react/publish-content/hooks/use-publish-content-confirm.hooks": {
+      "types": "./dist/react/publish-content/hooks/use-publish-content-confirm.hooks.d.ts",
+      "import": "./dist/react/publish-content/hooks/use-publish-content-confirm.hooks.js",
+      "default": "./dist/react/publish-content/hooks/use-publish-content-confirm.hooks.js"
     }
   },
   "files": [

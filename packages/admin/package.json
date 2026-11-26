@@ -817,7 +817,9 @@
       "./pages/PageEditorPreview": "browser",
       "./posts/hooks/use-posts.hooks": "browser",
       "./screens/storage/storage-screen-bindings": "browser",
-      "./security/host/AccessTokensTab.hooks": "browser"
+      "./security/host/AccessTokensTab.hooks": "browser",
+      "./screens/plugins/AgentPlugins": "browser",
+      "./screens/plugins/Plugins": "browser"
     },
     "isolation": {
       "shared": [
@@ -5114,6 +5116,16 @@
       "types": "./src/security/host/AccessTokensTab.hooks.ts",
       "import": "./src/security/host/AccessTokensTab.hooks.ts",
       "default": "./src/security/host/AccessTokensTab.hooks.ts"
+    },
+    "./screens/plugins/AgentPlugins": {
+      "types": "./src/screens/plugins/AgentPlugins.tsx",
+      "import": "./src/screens/plugins/AgentPlugins.tsx",
+      "default": "./src/screens/plugins/AgentPlugins.tsx"
+    },
+    "./screens/plugins/Plugins": {
+      "types": "./src/screens/plugins/Plugins.tsx",
+      "import": "./src/screens/plugins/Plugins.tsx",
+      "default": "./src/screens/plugins/Plugins.tsx"
     }
   },
   "files": [
