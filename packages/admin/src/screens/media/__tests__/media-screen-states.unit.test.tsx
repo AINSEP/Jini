@@ -13,9 +13,8 @@ vi.mock("../MediaPreview.js", () => ({ MediaPreview: () => null }));
 
 afterEach(cleanup);
 
-it("Media Trash explains retention and displays each supplied countdown", () => {
-  const { t } = createMediaDictionary({ commonDictionary: {} });
-  const props = {
+const { t } = createMediaDictionary({ commonDictionary: {} });
+const props = {
     activeTab: "trash", visibleMedia: [], mediaExpandHandles: ["media-item-legacy"], retentionDays: 30,
     error: null, conversionNotice: null, editingItem: null, editingId: null, rowSavingId: null,
     locale: "en", viewerTimeZone: "UTC", t: (key: string) => t({ locale: "en", key }),
@@ -31,7 +30,20 @@ it("Media Trash explains retention and displays each supplied countdown", () => 
       ServerLabel: ({ value }: { value: string }) => <span>{value}</span>,
       RowMenu: () => null, ChromePlaybackNote: () => null,
     },
-  } as unknown as Parameters<typeof MediaLibraryPanel>[0];
+} as unknown as Parameters<typeof MediaLibraryPanel>[0];
+
+it("an active tab hides countdowns while the previous Trash rows are still displayed", () => {
+  const legacy = {
+    id: "legacy", title: "Legacy", status: "trashed", contentType: "image/png", trashDaysRemaining: 44,
+  } as Parameters<typeof MediaLibraryPanel>[0]["visibleMedia"][number] & { trashDaysRemaining: number };
+  const { container, rerender } = render(<MediaLibraryPanel {...props} visibleMedia={[legacy]} />);
+  expect(screen.getByText("44 days left")).toBeTruthy();
+  rerender(<MediaLibraryPanel {...props} activeTab="images" visibleMedia={[legacy]} />);
+  expect(screen.queryByText("44 days left")).toBeNull();
+  expect(container.querySelectorAll(".media-card")).toHaveLength(1);
+});
+
+it("Media Trash explains retention and displays each supplied countdown", () => {
   const policy = "Items moved to Trash now are permanently deleted after 30 days. Items trashed earlier keep the date shown on their row.";
   const { rerender } = render(<MediaLibraryPanel {...props} />);
   expect(screen.getByText(policy)).toBeTruthy();

@@ -24,8 +24,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "در حال بارگذاری…",
     "Each item shows how many days it has left.":
       "برای هر مورد نشان داده می‌شود که چند روز از آن باقی مانده است.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "موارد {days} روز پس از انتقال به زباله‌دان برای همیشه حذف می‌شوند.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "مواردی که اکنون به سطل زباله منتقل می‌شوند پس از {days} روز برای همیشه حذف می‌شوند. موارد قبلی تاریخ نمایش‌داده‌شده در ردیف خود را حفظ می‌کنند.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "موارد حذف‌شده اینجا می‌مانند تا بتوانید تا پایان روزهایشان آن‌ها را بازیابی کنید. مدخل‌های مجموعه در سطل زباله نگه‌داری نمی‌شوند. فایل‌های حذف‌شدهٔ پوسته به سطل زبالهٔ خود پوسته می‌روند — از دستیار بخواهید آن‌ها را بازیابی کند.",
     Post: "نوشته",
@@ -82,8 +82,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "جارٍ التحميل…",
     "Each item shows how many days it has left.":
       "يعرض كل عنصر عدد الأيام المتبقية له.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "تُحذف العناصر نهائيًا بعد {days} يومًا من نقلها إلى سلة المهملات.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "تُحذف العناصر المنقولة الآن إلى سلة المهملات نهائيًا بعد {days} يومًا. تحتفظ العناصر السابقة بالتاريخ المعروض في صفها.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "تنتظر العناصر المحذوفة هنا لتتمكن من استعادتها حتى تنتهي أيامها. لا تُحفظ عناصر المجموعات في سلة المهملات. تنتقل ملفات القالب المحذوفة إلى سلة مهملات القالب نفسه — اطلب من المساعد استعادتها.",
     // "Widgets" deliberately does not reuse `admin-nav-i18n.ts`'s own choice ("العناصر", literally
@@ -145,8 +145,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "読み込み中…",
     "Each item shows how many days it has left.":
       "各項目に残りの日数が表示されます。",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "項目はゴミ箱に移動してから {days} 日後に完全に削除されます。",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "今ゴミ箱に移動した項目は {days} 日後に完全に削除されます。以前に移動した項目には、その行に表示された日付が適用されます。",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "削除した項目は残り日数がなくなるまでここに保管され、復元できます。コレクションの項目はゴミ箱に保存されません。削除したテーマファイルはテーマ専用のゴミ箱に移動します。復元はアシスタントに依頼してください。",
     Post: "投稿",
@@ -203,8 +203,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "로딩 중…",
     "Each item shows how many days it has left.":
       "각 항목에 남은 일수가 표시됩니다.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "항목은 휴지통으로 이동한 지 {days}일 후에 영구 삭제됩니다.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "지금 휴지통으로 옮기는 항목은 {days}일 후 영구 삭제됩니다. 이전에 옮긴 항목은 해당 행에 표시된 날짜가 유지됩니다.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "삭제된 항목은 남은 일수가 끝날 때까지 여기에 보관되며 복원할 수 있습니다. 컬렉션 항목은 휴지통에 보관되지 않습니다. 삭제한 테마 파일은 해당 테마의 휴지통으로 이동합니다. 복원하려면 어시스턴트에게 요청하세요.",
     Post: "게시물",
@@ -261,8 +261,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "Wczytywanie…",
     "Each item shows how many days it has left.":
       "Każdy element pokazuje, ile dni mu zostało.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "Elementy są trwale usuwane po {days} dniach od przeniesienia do Kosza.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "Elementy przeniesione teraz do kosza zostaną trwale usunięte po {days} dniach. Wcześniejsze elementy zachowują datę widoczną w ich wierszu.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Usunięte elementy czekają tutaj, aby można je było przywrócić, dopóki nie upłyną ich dni. Wpisy kolekcji nie są przechowywane w Koszu. Usunięte pliki motywu trafiają do kosza danego motywu — poproś asystenta o ich przywrócenie.",
     Post: "Wpis",
@@ -319,8 +319,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "Betöltés…",
     "Each item shows how many days it has left.":
       "Minden elem mutatja, hány napja maradt még.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "Az elemek a Kukába helyezésük után {days} nappal véglegesen törlődnek.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "A most kukába helyezett elemek {days} nap után végleg törlődnek. A korábbi elemeknél a sorukban látható dátum marad érvényben.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "A törölt elemek itt várnak, így visszaállíthatja őket, amíg le nem telnek a napjaik. A gyűjtemények bejegyzései nem kerülnek a Kukába. A törölt témafájlok a téma saját kukájába kerülnek — kérd meg az asszisztenst a visszaállításukra.",
     Post: "Bejegyzés",
@@ -377,8 +377,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "Loading…": "Chargement…",
     "Each item shows how many days it has left.":
       "Chaque élément indique combien de jours il lui reste.",
-    "Items are permanently deleted {days} days after they are moved to Trash.":
-      "Les éléments sont supprimés définitivement {days} jours après leur placement dans la corbeille.",
+    "Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.":
+      "Les éléments placés maintenant dans la corbeille sont supprimés définitivement après {days} jours. Les éléments précédents conservent la date indiquée sur leur ligne.",
     "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Les éléments supprimés attendent ici pour que vous puissiez les restaurer jusqu’à la fin de leurs jours restants. Les entrées de collection ne sont pas conservées dans la corbeille. Les fichiers de thème supprimés vont dans la corbeille du thème — demandez à l’assistant de les restaurer.",
     Post: "Article",

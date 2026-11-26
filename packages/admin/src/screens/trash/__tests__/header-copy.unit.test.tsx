@@ -3,6 +3,7 @@ import { render, screen } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it } from "vitest";
 import { Trash } from "../Trash.js";
 import type { TrashController } from "../hooks/use-trash.hooks.js";
+import type { AdminTrashItemDto } from "@jini-ai/core/contracts/site/cms-trash";
 
 /** A controller over an empty trash: only the fields the header, toolbar and (empty) list read. */
 function emptyController(overrides: Partial<TrashController> = {}): TrashController {
@@ -19,6 +20,19 @@ function emptyController(overrides: Partial<TrashController> = {}): TrashControl
 }
 
 describe("Trash header copy", () => {
+  it("the current window does not replace previously assigned deadlines", () => {
+    const legacy: AdminTrashItemDto = {
+      id: "trash-legacy", entityType: "post", entityId: "legacy", title: "Legacy post",
+      subtitle: null, trashedAt: "2026-11-25T00:00:00.000Z", purgeAfter: "2027-01-08T00:00:00.000Z",
+      daysRemaining: 44, actorPrincipalId: "user-1", actorPluginId: null, actorUsername: "owner",
+    };
+    const { container } = render(<Trash useTrashHook={() => emptyController({ retentionDays: 30, items: [legacy] })} translateAdminNavLabel={({ key }) => key} />);
+    const description = container.querySelector(".jini-page-header .jini-page-description");
+    expect(description?.textContent).toBe("Items moved to Trash now are permanently deleted after 30 days. Items trashed earlier keep the date shown on their row. Each item shows how many days it has left.");
+    expect(screen.getByRole("columnheader", { name: "Days left" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "44" })).toBeInTheDocument();
+  });
+
   it("says each item shows its remaining days, not the retired fixed 30-day claim", () => {
     render(<Trash useTrashHook={emptyController as never} translateAdminNavLabel={(({ key }: { key: string }) => key) as never} />);
     expect(screen.getByText("Each item shows how many days it has left.")).toBeInTheDocument();
@@ -29,7 +43,7 @@ describe("Trash header copy", () => {
     // 14 is deliberately not the host's 30: a hard-coded window would still print 30 here.
     const { container } = render(<Trash useTrashHook={() => emptyController({ retentionDays: 14 })} translateAdminNavLabel={(({ key }: { key: string }) => key) as never} />);
     const description = container.querySelector(".jini-page-header .jini-page-description");
-    expect(description).toHaveTextContent("Items are permanently deleted 14 days after they are moved to Trash. Each item shows how many days it has left.");
+    expect(description).toHaveTextContent("Items moved to Trash now are permanently deleted after 14 days. Items trashed earlier keep the date shown on their row. Each item shows how many days it has left.");
   });
 
   it("states no window until the first page has reported one", () => {

@@ -39,6 +39,7 @@ export function MediaGridOrEmpty({ useMediaCardDetailsHook, useMediaPreviewHook,
           useMediaCardMetadataHook={useMediaCardMetadataHook}
           key={item.id}
           item={item}
+          showTrashCountdown={activeTab === "trash"}
           handle={mediaExpandHandles[index]}
           onExpand={() => onExpand(index)}
           menu={{ editingId, locale, viewerTimeZone, rowSavingId, isPhone, onOpenDetails: openDetails, onToggleEdit, onTrash, onRestore, onRequestPurge }}

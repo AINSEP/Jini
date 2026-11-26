@@ -45,9 +45,9 @@ function MediaCardMetadata(props: { useMediaCardMetadataHook: typeof useMediaCar
  * loaded shape feeds two places: how the picture fits, and the "1440×900 · 0:38" part of the card's
  * second info row (owner design, 2026-11-01 — they were badges on the picture).
  */
-export function MediaCard({ item, handle, onExpand, menu, t, useMediaPreviewHook, useMediaCardMetadataHook, kit, deps }: {
+export function MediaCard({ item, showTrashCountdown, handle, onExpand, menu, t, useMediaPreviewHook, useMediaCardMetadataHook, kit, deps }: {
   useMediaPreviewHook: MediaProps["hooks"]["useMediaPreviewHook"]; useMediaCardMetadataHook: typeof useMediaCardMetadata;
-  item: MediaGridPage["media"][number]; handle: string | undefined; onExpand: () => void; menu: MediaCardMenuProps; t: (key: string) => string;
+  item: MediaGridPage["media"][number]; showTrashCountdown: boolean; handle: string | undefined; onExpand: () => void; menu: MediaCardMenuProps; t: (key: string) => string;
 } & Pick<MediaProps, "kit" | "deps">, _optional = {}) {
   const { RowMenu, ServerLabel, ChromePlaybackNote } = kit;
   const { mediaTranslate } = deps;
@@ -86,7 +86,7 @@ export function MediaCard({ item, handle, onExpand, menu, t, useMediaPreviewHook
           />
         </div>
         <MediaCardMetadata useMediaCardMetadataHook={useMediaCardMetadataHook} item={item} locale={menu.locale} viewerTimeZone={menu.viewerTimeZone} shape={preview.shape} t={t} />
-        {item.status === "trashed" && item.trashDaysRemaining !== undefined ? <p className="page-description">{t("{days} days left").replace("{days}", String(item.trashDaysRemaining))}</p> : null}
+        {showTrashCountdown && item.status === "trashed" && item.trashDaysRemaining !== undefined ? <p className="page-description">{t("{days} days left").replace("{days}", String(item.trashDaysRemaining))}</p> : null}
         <ChromePlaybackNote item={item} t={t} />
       </div>
     </div>

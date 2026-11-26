@@ -40,6 +40,7 @@ export interface GridPages {
   exactItem: AdminMedia | null;
   /** Workspace-wide counts per tab from the server, never counted from loaded rows. */
   counts: MediaGridPage["counts"] | null;
+  retentionDays: number | null;
   hasUntypedActive: boolean;
   /** Days a trashed asset is kept before purge, from the page on screen; `null` before page one or when the server omits it. */
   retentionDays: number | null;
@@ -147,6 +148,7 @@ export function useGridPages(required: GridPagesDeps, optional: { itemId?: strin
     items,
     exactItem: exactItemFor({ loaded, exactPage: exact.data }),
     ...summarizeGrid({ shown, more, cursor }),
+    retentionDays: tab === "trash" ? (first.data?.retentionDays ?? null) : null,
     error: first.error,
     loadMore,
     retryLoadMore: loadMore,
