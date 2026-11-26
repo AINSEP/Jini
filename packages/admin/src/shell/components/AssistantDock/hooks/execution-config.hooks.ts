@@ -195,13 +195,27 @@ export function bindExecutionConfig({ hooks, deps }: {
     subscribeRefresh: ({ revalidate }: { revalidate: () => void }) => subscribeStoredKeyRefresh({ revalidate, deps: deps.refresh }),
     onLoadFailure: deps.onStoredKeyLoadFailure,
   };
-  return function useBoundExecutionConfig(_required: Record<string, never>, { port = deps.port, persistWrite = deps.persistWrite } = {}): UseExecutionConfig {
+  return function useBoundExecutionConfig(_required: Record<string, never>, { useBootScope = hooks.useBootScopeHook, useLoader = hooks.useCachedLoaderHook, useInvalidator = hooks.useInvalidateHook, useLedger = hooks.useLedgerHook, useStoredKey = hooks.useStoredKeyHook, ...seams }: {
+    useBootScope?: typeof useAdminBootScope; useLoader?: FetchQueryAdapter["useCachedLoader"]; useInvalidator?: FetchQueryAdapter["useInvalidate"];
+    useLedger?: typeof useExecutionConfigLedger; useStoredKey?: typeof useStoredAdminKey; port?: DockExecutionConfigPort;
+    persistWrite?: (required: { write: ExecutionWrite; failureLog: string }) => Promise<boolean>;
+  } = {}): UseExecutionConfig {
+    // Non-hook seams default by spread, not `=`: same values without a branch apiece.
+    const { port, persistWrite } = { port: deps.port, persistWrite: deps.persistWrite, ...seams };
     const persistMode = useCallback(({ write }: { write: ExecutionWrite }) =>
       persistWrite({ write, failureLog: deps.modeFailureLog }), [persistWrite]);
     return useExecutionConfig({
       port, initialConfig: deps.initialConfig, namespace: deps.namespace,
-      ...hooks, ledgerIo, storedKeyIo,
+      useBootScopeHook: useBootScope, useCachedLoaderHook: useLoader, useInvalidateHook: useInvalidator,
+      useLedgerHook: useLedger, useStoredKeyHook: useStoredKey, ledgerIo, storedKeyIo,
       applyChange: deps.applyChange, persistWrite: persistMode,
     });
   };
+}
+
+export function useExecutionConfigSeam({ override, hooks: { useExecutionConfigHook } }: {
+  override: ((required: Record<string, never>) => UseExecutionConfig) | undefined;
+  hooks: { useExecutionConfigHook: (required: Record<string, never>) => UseExecutionConfig };
+}, _optional = {}): UseExecutionConfig {
+  return (override ?? useExecutionConfigHook)({});
 }

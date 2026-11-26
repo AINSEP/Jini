@@ -23,7 +23,7 @@ export interface KitChatPaneAgentBridgeAccess {
   respondSuccess: (invocationId: string, output: unknown) => Promise<void>;
   respondError: (invocationId: string, message: string) => Promise<void>;
 }
-export interface KitChatPaneAgentControlOptions { enabled?: boolean; bridgeAccess?: KitChatPaneAgentBridgeAccess; webmcp?: boolean }
+export interface KitChatPaneAgentControlOptions { enabled?: boolean; bridgeAccess?: KitChatPaneAgentBridgeAccess | undefined; webmcp?: boolean }
 export interface KitChatPaneRunContextInput { prompt: string; selection: ChatPaneAgentSelection; workingDirectory: string | null }
 /** The opaque per-run context the daemon receives, or a builder of it from the composer's state. */
 export type KitChatPaneRunContext = Record<string, unknown> | ((input: KitChatPaneRunContextInput) => Record<string, unknown> | undefined);
@@ -40,7 +40,7 @@ export type KitToolCallDisplay = 'show' | 'collapsed' | 'hidden';
 /** The chat pane's props the admin dock passes (a structural subset of the chat library's own). */
 export interface KitChatPaneProps {
   transport: ChatTransport; sendingLabel?: string | undefined; nativeToolPolicy?: NativeToolPolicyInput; agents?: readonly ChatPaneAgent[];
-  runtimeAccess?: ChatPaneRuntimeAccess; title?: string; initialMessages?: ChatMessage[];
+  runtimeAccess?: ChatPaneRuntimeAccess; title?: string; initialMessages?: ChatMessage[] | undefined;
   refreshSignal?: { loadMessages: () => Promise<ChatMessage[]>; visibility: EventTarget & { readonly visibilityState: string }; focus: EventTarget };
   conversationId?: string | null; selection?: ChatPaneAgentSelection; onSelectionChange?: (selection: ChatPaneAgentSelection) => void;
   runContext?: KitChatPaneRunContext; agentControl?: KitChatPaneAgentControlOptions; onMessagesChange?: (messages: ChatMessage[]) => void;
