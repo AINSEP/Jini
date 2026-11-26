@@ -325,12 +325,17 @@ export function contributeRecoveryTools<D extends RecoveryToolDeps>({ host }: { 
   return { domain: "recovery", build: (deps, surfaces) => buildRecoveryRegistrations({ deps, surfaces, host }), risk: recoveryDerivedRisk };
 }
 
+/** The host owns its gateway (token vocabulary, TTL, storage): this binder only forwards the host's
+ * gateway deps to the host-injected gateway functions, so it is generic over their deps shape. */
+type WithGatewayDeps<TFn, TDeps> = TFn extends (input: infer TInput, ...rest: infer TRest) => infer TOut
+  ? (input: Omit<TInput, "deps"> & { deps: TDeps }, ...rest: TRest) => TOut : never;
+
 export function bindRecoveryTools<D extends RecoveryToolDeps & Pick<BuildRestoreHooksInput, "idGen" | "databaseLedgerRepo" | "migrationRunsRepo"> & {
-  siteStatusRepo: BuildRestoreHooksInput["siteStatus"]; dbOps: RecoveryToolDeps["dbOps"] & BuildRestoreHooksInput["dbOps"]; gatedMutations: { gatewayDeps: Parameters<typeof gatewayPlan>[0]["deps"] };
+  siteStatusRepo: BuildRestoreHooksInput["siteStatus"]; dbOps: RecoveryToolDeps["dbOps"] & BuildRestoreHooksInput["dbOps"]; gatedMutations: { gatewayDeps: unknown };
 }>(required: Omit<RecoveryToolHost<D>, "plan" | "confirm" | "execute" | "describe" | "confirmedRestore" | "buildRestoreHooks"> & {
   buildRestoreHooks(input: Omit<BuildRestoreHooksInput, "planHashOf" | "resolveActorClassIdentity">): ReturnType<typeof buildRestoreHooks>;
-  gatewayPlan: typeof gatewayPlan; gatewayConfirm: typeof gatewayConfirm;
-  gatewayExecute(input: Omit<Parameters<typeof gatewayExecute>[0], "hooks"> & { hooks: ReturnType<typeof buildRestoreHooks> }): ReturnType<ReturnType<typeof buildRestoreHooks>["executeMutation"]>;
+  gatewayPlan: WithGatewayDeps<typeof gatewayPlan, D["gatedMutations"]["gatewayDeps"]>; gatewayConfirm: WithGatewayDeps<typeof gatewayConfirm, D["gatedMutations"]["gatewayDeps"]>;
+  gatewayExecute(input: Omit<Parameters<typeof gatewayExecute>[0], "hooks" | "deps"> & { deps: D["gatedMutations"]["gatewayDeps"]; hooks: ReturnType<typeof buildRestoreHooks> }): ReturnType<ReturnType<typeof buildRestoreHooks>["executeMutation"]>;
   toRecoveryResult: typeof toRecoveryResult;
   dialog: { errorCode: string; title: string; restorePointLabel: string; warning: string; confirmLabel: string };
   humanConfirmedToolHandler(surfaces: AssistantSurfaceDeps, spec: Omit<Parameters<RecoveryToolHost<D>["confirmedRestore"]>[0], "surfaces" | "describe"> & { flag: string; dialog: RecoveryToolHost<D>["describe"] }): ToolHandler;
