@@ -1,7 +1,6 @@
 import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
 import type { AgentPluginListRow } from "../../agent-plugins/models.js";
 import { type SettingsDialogTab } from "../../react/kit.js";
-import { AddAgentPluginPanel } from "./AddAgentPluginPanel.js";
 import { addPluginTabSoonTag, marketplaceTabSoonTag } from "./add-plugin-tab-soon.js";
 import { InstalledIcon, MarketplaceIcon, UploadIcon } from "./agent-plugins-visuals.js";
 import type { useAgentPluginInstall } from "./hooks/use-agent-plugin-install.hooks.js";
@@ -21,7 +20,7 @@ export function agentPluginsTabs(required: {
 
 function installedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[0], _optional = {}): SettingsDialogTab {
   const { props, controller, uninstallNoteId, onRequestToggleEnabled, agentPluginInstallPort } = required;
-  const { hooks, deps } = props;
+  const { hooks, deps, kit } = props;
   const { t } = controller;
 
   return {
@@ -32,7 +31,7 @@ function installedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[
       subtitle: t("Portable packages installed for this workspace."),
       panel: (
         <InstalledOnlyPanel
-          {...{ hooks, deps }}
+          {...{ hooks, deps, kit }}
           controller={controller}
           updatePort={agentPluginInstallPort}
           uninstallNoteId={uninstallNoteId}
@@ -44,7 +43,7 @@ function installedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[
 
 function downloadedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[0], _optional = {}): SettingsDialogTab {
   const { props, controller, uninstallNoteId, onRequestRemove, agentPluginInstallPort } = required;
-  const { hooks, deps } = props;
+  const { hooks, deps, kit } = props;
   const { t, onToggleEnabled } = controller;
 
   return {
@@ -55,7 +54,7 @@ function downloadedAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>
       subtitle: t("Every package downloaded to this workspace."),
       panel: (
         <DownloadedPanel
-          {...{ hooks, deps }}
+          {...{ hooks, deps, kit }}
           controller={controller}
           updatePort={agentPluginInstallPort}
           uninstallNoteId={uninstallNoteId}
@@ -77,6 +76,7 @@ function optionalNavHint(navHint: string | undefined, _optional = {}): { navHint
 function addAgentPluginsTab(required: Parameters<typeof agentPluginsTabs>[0], _optional = {}): SettingsDialogTab {
   const { props, controller, installController } = required;
   const { deps } = props;
+  const { AddAgentPluginPanel } = props.kit;
   const { t, locale } = controller;
   const { translateAdminNavLabel } = deps;
   return {
