@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "../../../__tests__/fetch-query-support.js";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, expectTypeOf, it, vi } from "vitest";
 import { useFetchQuery } from "@jini-ai/ui/fetch-query";
 import { useSettlementGeneration } from "@jini-ai/ui/panel-kit";
-import { AccessTokensTab, type AccessTokensTabBindings } from "../AccessTokensTab.js";
+import { AccessTokensTab, bindAccessTokensTab, type AccessTokensTabBindings } from "../AccessTokensTab.js";
 import { useAccessTokens, type AccessTokensArgs } from "../hooks/use-access-tokens.hooks.js";
 import { useMergedSecretsOrder, useRemoveConfirmDialog, useAddCustomCredentialDialog } from "../AccessTokensTab.hooks.js";
 import { localizePublishTargets, localizeSourceControlProviders } from "../../../shell/lib/descriptor-i18n.js";
@@ -22,6 +22,12 @@ const deps: AccessTokensArgs["deps"] = {
   buildCredentialConnectionInput: vi.fn(), buildSourceControlConnectionInput: vi.fn(), accessTokenExistingRowReadyToSave: () => false,
   accessTokenRowReadyToSave: () => false, buildAccessTokenConnectionInput: vi.fn(), buildAccessTokenUpdatePatch: vi.fn(), classifyAccessTokenSubmitError: () => ({ kind: "generic" }),
 };
+
+it("requires the other-credentials hook on the bound tab", () => {
+  expectTypeOf<Pick<Parameters<ReturnType<typeof bindAccessTokensTab>>[0], "useOtherCredentialsHook">>().toEqualTypeOf<{
+    useOtherCredentialsHook: AccessTokensTabBindings["hooks"]["useOtherCredentialsHook"];
+  }>();
+});
 
 it.each([true, false])("a forbidden store leaves healthy credentials and the failure notice visible (Tier 1 failure: %s)", async tier1Fails => {
   const credential = { credentialType: "vendor" as const, configured: true as const, accountLabel: null, id: "healthy", providerId: "host", label: "Healthy hosting key", isDefault: true, maskedToken: "tail", updatedAt: "2026-01-01", createdAt: "2026-01-01", worksFor: ["host"] };

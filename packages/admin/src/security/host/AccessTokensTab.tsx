@@ -136,13 +136,15 @@ export function AccessTokensTab({ hooks, kit, deps, ...props }: AccessTokensTabP
   );
 }
 
-export function bindAccessTokensTab(bindings: AccessTokensTabBindings, _optional: Record<string, never> = {}) {
+export function bindAccessTokensTab(bindings: Omit<AccessTokensTabBindings, "hooks"> & {
+  hooks: Omit<AccessTokensTabBindings["hooks"], "useOtherCredentialsHook">;
+}, _optional: Record<string, never> = {}) {
   return function BoundAccessTokensTab({ useAdminLocaleHook = bindings.hooks.useAdminLocaleHook,
-    useAccessTokensHook = bindings.hooks.useAccessTokensHook, useOtherCredentialsHook = bindings.hooks.useOtherCredentialsHook,
+    useAccessTokensHook = bindings.hooks.useAccessTokensHook, useOtherCredentialsHook,
     useCopyKeysHook = bindings.hooks.useCopyKeysHook, ...props }: {
     useAdminLocaleHook?: AccessTokensTabBindings["hooks"]["useAdminLocaleHook"];
     useAccessTokensHook?: AccessTokensTabBindings["hooks"]["useAccessTokensHook"];
-    useOtherCredentialsHook?: AccessTokensTabBindings["hooks"]["useOtherCredentialsHook"];
+    useOtherCredentialsHook: AccessTokensTabBindings["hooks"]["useOtherCredentialsHook"];
     useCopyKeysHook?: AccessTokensTabBindings["hooks"]["useCopyKeysHook"];
     showCopyKeysEntry?: boolean;
   }, _optional: Record<string, never> = {}) {
