@@ -10,7 +10,7 @@ import { SiteShareRefusal } from "./share-refusal.js";
 import type { SiteBackupScope, SiteBackupSources, SiteBackupHostLimit, SiteBackupInclude } from "./sources.js";
 import type { CredentialWarning } from "./credential-warnings.js";
 
-import type { SiteBackupCall, SiteBackupToolDeps, SiteBackupPlan, Refusal } from "./backup-service.js";
+import type { SiteBackupCall, SiteBackupRequestDeps, SiteBackupRepositoryPlanContent, SiteBackupToolDeps, SiteBackupPlan, Refusal } from "./backup-service.js";
 import { PLAN_TOOL_ID, logFailureDetail } from "./backup-service.shared.js";
 
 /** The restore-point name the database snapshot is captured under, so an orphan is recognizable. */
@@ -105,7 +105,7 @@ export function parsePlanInput({ rawInput, SITE_BACKUP_SCOPES, deps }: { deps: S
 }
 
 /** The site's display name from its `config.json`, falling back to the folder name. */
-async function readSiteName({ siteDir, deps }: { siteDir: string; deps: SiteBackupToolDeps }, _optional: Record<string, never> = {}): Promise<string> {
+async function readSiteName<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ siteDir, deps }: { siteDir: string; deps: SiteBackupToolDeps<TSource, TContent, TRequest> }, _optional: Record<string, never> = {}): Promise<string> {
   try {
     const config = JSON.parse(await deps.readConfigText({ siteDir })) as { name?: unknown };
     if (typeof config.name === "string" && config.name.trim() !== "") return config.name;
@@ -116,7 +116,7 @@ async function readSiteName({ siteDir, deps }: { siteDir: string; deps: SiteBack
 }
 
 /** What the plan tool returns on success: every fact the human should see before confirming. */
-export function planResult(plan: SiteBackupPlan, deps: SiteBackupToolDeps): Record<string, unknown> {
+export function planResult<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(plan: SiteBackupPlan, deps: SiteBackupToolDeps<TSource, TContent, TRequest>): Record<string, unknown> {
   const files = [...(plan.database ? [{ path: deps.siteBackupDatabasePath, bytes: plan.database.bytes.length }] : []), ...plan.files.map((file) => ({ path: file.path, bytes: file.bytes }))];
   return {
     planned: true,
@@ -147,21 +147,21 @@ export function planResult(plan: SiteBackupPlan, deps: SiteBackupToolDeps): Reco
  * Stores the checked plan under the caller's principal: stamps its creation time, the site's name,
  * schema and version, and the default commit message when none was given.
  */
-export async function savePlan(required: {
-  deps: SiteBackupToolDeps;
+export async function savePlan<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(required: {
+  deps: SiteBackupToolDeps<TSource, TContent, TRequest>;
   ctx: SiteBackupCall;
-  sources: SiteBackupSources;
+  sources: TSource;
   input: ParsedPlanInput;
   folderName: string;
   content: Pick<SiteBackupPlan, "credentialLabel" | "owner" | "repo" | "folder" | "repository"> & PreparedContent;
-}): Promise<SiteBackupPlan> {
+}): Promise<SiteBackupPlan<TContent>> {
   const { deps, input, content } = required;
-  const createdAt = deps.siteBackupNow().toISOString();
+  const createdAt = (deps.request.siteBackupNow ?? deps.siteBackupNow)().toISOString();
   const siteName = await readSiteName({ siteDir: required.sources.siteDir, deps });
-  return deps.siteBackupPlanStore.save({
+  return (deps.request.siteBackupPlanStore ?? deps.siteBackupPlanStore).save({
     principalId: required.ctx.principal.id,
-    workspaceId: deps.workspaceId,
-    content: {
+    workspaceId: deps.request.workspaceId,
+    content: deps.completePlanContent({ content: {
       target: { kind: "repository" },
       credentialLabel: content.credentialLabel,
       owner: content.owner,
@@ -178,9 +178,8 @@ export async function savePlan(required: {
       totalBytes: content.totalBytes,
       site: { name: siteName, folderName: required.folderName },
       schema: deps.runtimeSchemaVersion(),
-      producer: { ...deps.producer },
       createdAt,
-    },
+    }, sources: required.sources }, {}),
   });
 }
 
@@ -196,9 +195,9 @@ type PreparedContent = Pick<SiteBackupPlan, "database" | "files" | "skipped" | "
  *
  * @complexity O(database size).
  */
-async function captureBackupDatabase(required: { deps: SiteBackupToolDeps }): Promise<{ ok: true; database: NonNullable<PreparedContent["database"]>; credentialWarnings: readonly CredentialWarning[] } | Refusal> {
+async function captureBackupDatabase<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>(required: { deps: SiteBackupToolDeps<TSource, TContent, TRequest> }): Promise<{ ok: true; database: NonNullable<PreparedContent["database"]>; credentialWarnings: readonly CredentialWarning[] } | Refusal> {
   const { deps } = required;
-  const snapshot = await deps.captureDatabaseSnapshot({ dbOps: deps.dbOps, scopeId: SNAPSHOT_SCOPE_ID });
+  const snapshot = await deps.captureDatabaseSnapshot({ dbOps: deps.request.dbOps, scopeId: SNAPSHOT_SCOPE_ID });
   if (!snapshot.ok) {
     logFailureDetail({ deps, toolId: PLAN_TOOL_ID, failure: { code: "database-snapshot", ...(snapshot.logDetail !== undefined ? { logDetail: snapshot.logDetail } : {}) } });
     return { ok: false, code: "DATABASE_SNAPSHOT_FAILED", message: snapshot.message };
@@ -218,7 +217,7 @@ async function captureBackupDatabase(required: { deps: SiteBackupToolDeps }): Pr
  *
  * @complexity O(database size + site files).
  */
-export async function prepareContent({ deps, sources, include, host }: { deps: SiteBackupToolDeps; sources: SiteBackupSources; include: SiteBackupInclude; host: SiteBackupHostLimit }, _options = {}): Promise<{ ok: true; content: PreparedContent } | Refusal> {
+export async function prepareContent<TSource extends SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent>>({ deps, sources, include, host }: { deps: SiteBackupToolDeps<TSource, TContent, TRequest>; sources: TSource; include: SiteBackupInclude; host: SiteBackupHostLimit }, _options = {}): Promise<{ ok: true; content: PreparedContent } | Refusal> {
   let database: PreparedContent["database"] = null;
   const credentialWarnings: CredentialWarning[] = [];
   if (include.database) {
