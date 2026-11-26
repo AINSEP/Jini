@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, fireEvent, render, screen } from "../../../__tests__/ui-kit-render-support.js";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -235,8 +237,8 @@ describe("Select portal ownership", () => {
 });
 
 it("a keyboard-opened Select paints its portalled option panel", async () => {
-  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8")
-    + readFileSync(new URL("../styles/admin-widgets.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../styles/admin.css"), "utf8")
+    + readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../styles/admin-widgets.css"), "utf8");
   const user = userEvent.setup();
   const { container } = render(<Select value="a" onChange={vi.fn()} options={OPTIONS} aria-label="Pick one" />);
   screen.getByRole("combobox").focus();

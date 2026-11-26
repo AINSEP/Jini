@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -359,7 +361,7 @@ it('defaults the info trigger handle and preserves opt-out', () => {
 });
 
 it("InfoTip retains the below-placement marker and keyboard focus", async () => {
-  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../styles/admin.css"), "utf8");
   const user = userEvent.setup();
   render(<InfoTip label="Below help" placement="bottom" />);
   const trigger = screen.getByRole("button", { name: "Below help" });

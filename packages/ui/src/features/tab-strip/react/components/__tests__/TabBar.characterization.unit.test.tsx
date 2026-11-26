@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -76,7 +78,7 @@ describe("TabBar characterization", () => {
 });
 
 it("a selected UI TabBar item retains its count and underline", () => {
-  const css = readFileSync(new URL("../../../../../styles/admin.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../styles/admin.css"), "utf8");
   render(<TabBar tabs={[{ id: "a", label: "Alpha", count: 3, icon: <svg /> }]} activeId="a" onChange={vi.fn()} ariaLabel="Tabs" />);
   const tab = screen.getByRole("tab");
   expect(tab).toHaveAttribute("aria-selected", "true");

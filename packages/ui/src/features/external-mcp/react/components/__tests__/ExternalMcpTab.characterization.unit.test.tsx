@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen, waitFor, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -192,7 +194,7 @@ describe('ExternalMcpTab characterization', () => {
 });
 
 it('the empty external-tool view retains its layout', async () => {
-  const css = readFileSync(new URL('../../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../settings/dialog/styles/settings-dialog.css'), 'utf8');
   const { container } = render(<ExternalMcpTab dependencies={{ port: createPort({ sources: [] }) }} />);
   await screen.findByText('No MCP servers configured.');
   expect(container.querySelector('.jini-ui-external-mcp-empty')).not.toBeNull();

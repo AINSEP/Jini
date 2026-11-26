@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -277,7 +279,7 @@ it('defaults the expand control handle and preserves opt-out', () => {
 });
 
 it("SeeMore expands only its own text", async () => {
-  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../styles/admin.css"), "utf8");
   stubLayout(true);
   const user = userEvent.setup();
   const { container } = render(<><SeeMore toggleAriaLabel="First">First full text</SeeMore><SeeMore toggleAriaLabel="Second">Second full text</SeeMore></>);

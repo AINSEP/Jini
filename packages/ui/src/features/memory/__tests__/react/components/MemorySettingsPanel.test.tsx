@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -114,7 +116,7 @@ describe('MemorySettingsPanel', () => {
 });
 
 it('the expanded memory section retains its layout', async () => {
-  const css = readFileSync(new URL('../../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../settings/dialog/styles/settings-dialog.css'), 'utf8');
   const onToggleEnabled = vi.fn();
   const { container } = render(<MemorySettingsPanel {...props({ onToggleEnabled, savedMemory: {
     ...props().savedMemory, previewId: 'e1', previewBody: 'Full saved text',

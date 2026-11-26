@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -45,7 +47,7 @@ describe('ConnectorSearchBar', () => {
 });
 
 it('the connector toolbar keeps its search layout and Escape action', async () => {
-  const css = readFileSync(new URL('../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../settings/dialog/styles/settings-dialog.css'), 'utf8');
   const onChange = vi.fn();
   const { container } = render(<div className="tab-panel-toolbar"><ConnectorSearchBar value="slack" onChange={onChange} /></div>);
   expect(container.querySelector('.jini-ui-toolbar-search')).not.toBeNull();

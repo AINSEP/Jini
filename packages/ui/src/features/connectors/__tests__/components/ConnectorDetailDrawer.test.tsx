@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -587,7 +589,7 @@ describe('ConnectorDetailDrawer', () => {
 
 
 it('drawer, connector status and keyboard close agree with the shipped settings sheet', async () => {
-  const css = readFileSync(new URL('../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../settings/dialog/styles/settings-dialog.css'), 'utf8');
   const onClose = vi.fn();
   const { container } = render(<ConnectorDetailDrawer connector={makeConnector()} disabled={false}
     pendingAction={null} authorizationCancelFailed={false} authorizationError={null}
