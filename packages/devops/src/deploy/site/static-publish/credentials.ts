@@ -40,7 +40,7 @@ export function redactDeployTargetMessage({ message, credential, target }: {
  * Purpose:
  * `createEnvPublishCredentialSource` was, until 2026-08-15, the ONLY credential source this feature
  * wired up — see this file's git history for the original single-workspace-process reasoning
- * (`GITHUB_TOKEN`/`VERCEL_TOKEN` are plain operator-supplied env vars, the same category as
+ * (source-control and hosting tokens supplied as env vars are plain operator-supplied values, the same category as
  * the host’s export directory and admin-password settings). `createDbPublishCredentialSource` is the follow-up that
  * header predicted: backed by `publish-credentials/store.ts`'s `resolveDefaultForPublish` (the
  * provider-scoped decrypting read — see its own header), honouring `workspaceId` for real instead of
