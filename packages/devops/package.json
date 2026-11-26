@@ -142,7 +142,9 @@
       "./source-control/react/source-control-visuals": "browser",
       "./source-control/react/ProvidersTab": "browser",
       "./source-control/react/hooks/use-source-control-credentials.hooks": "browser",
-      "./deploy/site/static-publish/admin-publish-read": "universal"
+      "./deploy/site/static-publish/admin-publish-read": "universal",
+      "./deploy/react/download-dockerfile": "browser",
+      "./deploy/react/hooks/use-static-export.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -811,6 +813,16 @@
       "types": "./dist/deploy/site/static-publish/admin-publish-read.d.ts",
       "import": "./dist/deploy/site/static-publish/admin-publish-read.js",
       "default": "./dist/deploy/site/static-publish/admin-publish-read.js"
+    },
+    "./deploy/react/download-dockerfile": {
+      "types": "./dist/deploy/react/download-dockerfile.d.ts",
+      "import": "./dist/deploy/react/download-dockerfile.js",
+      "default": "./dist/deploy/react/download-dockerfile.js"
+    },
+    "./deploy/react/hooks/use-static-export.hooks": {
+      "types": "./dist/deploy/react/hooks/use-static-export.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-static-export.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-static-export.hooks.js"
     }
   },
   "typesVersions": {
@@ -850,6 +862,12 @@
       ],
       "deploy/site/static-publish/admin-publish-read": [
         "./dist/deploy/site/static-publish/admin-publish-read.d.ts"
+      ],
+      "deploy/react/download-dockerfile": [
+        "./dist/deploy/react/download-dockerfile.d.ts"
+      ],
+      "deploy/react/hooks/use-static-export.hooks": [
+        "./dist/deploy/react/hooks/use-static-export.hooks.d.ts"
       ]
     }
   },
