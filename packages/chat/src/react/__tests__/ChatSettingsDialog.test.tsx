@@ -12,7 +12,7 @@ describe('advanced chat settings', () => {
     ['.jini-chat-settings-dialog .jini-chat-settings-close', 'border-radius: var(--jini-chat-radius, 8px);'],
     ['.jini-chat-settings-row--master', 'border-radius: var(--jini-chat-radius-lg, 12px) var(--jini-chat-radius-lg, 12px) 0 0;'],
     ['.jini-chat-settings-capabilities', 'border-radius: 0 0 var(--jini-chat-radius-lg, 12px) var(--jini-chat-radius-lg, 12px);'],
-    ['.jini-chat-settings-dialog > .tab-bar .tab-bar-item', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+    ['.jini-chat-settings-dialog > .jini-ui-tab-bar .jini-ui-tab-bar-item', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
     ['.jini-chat-settings-legend', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
     ['.jini-chat-settings-segment', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
     ['.jini-chat-settings-note', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
@@ -100,7 +100,7 @@ describe('advanced chat settings', () => {
     const group = screen.getByRole('group', { name: 'Tool calls' });
     const radioHelp = within(group).getByRole('button', { name: /^• Show: Every call\.\s+• Hidden: Failed calls only\.$/ });
     // One ⓘ for the group, none per option, and the group's name stays its legend text.
-    expect(group.querySelectorAll('.info-tip-icon')).toHaveLength(1);
+    expect(group.querySelectorAll('.jini-ui-info-tip-icon')).toHaveLength(1);
     expect(radioHelp.closest('legend')).not.toBeNull();
     // The dialog bounds its own tips, so a host dock's narrower bounds never pull them off their icon.
     expect(radioHelp.closest('[data-jini-tip-bounds]')?.tagName).toBe('DIALOG');

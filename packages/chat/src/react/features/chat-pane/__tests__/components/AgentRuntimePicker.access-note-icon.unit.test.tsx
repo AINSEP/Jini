@@ -24,7 +24,7 @@ it('shows a warning icon, not the note paragraph, in the composer row', async ()
   const icon = screen.getByRole('button', { name: 'Full computer access' });
   expect(icon).toHaveAccessibleDescription(note);
   await user.hover(icon);
-  expect(document.querySelector('.info-tip-bubble')).toHaveTextContent(note);
+  expect(document.querySelector('.jini-ui-info-tip-bubble')).toHaveTextContent(note);
 });
 
 it('opens the tip on tap and keyboard focus', async () => {

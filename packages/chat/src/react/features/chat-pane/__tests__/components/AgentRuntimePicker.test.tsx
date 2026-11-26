@@ -279,7 +279,7 @@ describe('AgentRuntimePicker', () => {
     expect(model).toHaveTextContent(/^5\.6 Terra$/);
     // The styled bubble replaces the native title, which would stack a second tooltip on it.
     expect(model).not.toHaveAttribute('title');
-    const bubble = () => document.body.querySelector('.info-tip-bubble');
+    const bubble = () => document.body.querySelector('.jini-ui-info-tip-bubble');
     await user.hover(model);
     expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
     await user.unhover(model);

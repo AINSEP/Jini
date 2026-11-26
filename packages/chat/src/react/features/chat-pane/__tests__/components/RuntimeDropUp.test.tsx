@@ -15,7 +15,7 @@ const props: RuntimeDropUpProps = {
   width: 260,
 };
 
-const bubble = () => document.body.querySelector('.info-tip-bubble');
+const bubble = () => document.body.querySelector('.jini-ui-info-tip-bubble');
 
 function rect(top: number): DOMRect {
   return { top, bottom: top + 20, left: 400, right: 460, width: 60, height: 20, x: 400, y: top, toJSON: () => ({}) };
@@ -29,14 +29,14 @@ describe('RuntimeDropUp tooltip bubble', () => {
     render(<RuntimeDropUp {...props} />);
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }));
     expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
-    expect(bubble()).toHaveAttribute('class', 'info-tip-bubble');
+    expect(bubble()).toHaveAttribute('class', 'jini-ui-info-tip-bubble');
   });
 
   it('flips the bubble below a trigger at the very top of the viewport', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rect(0));
     render(<RuntimeDropUp {...props} />);
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }));
-    expect(bubble()).toHaveAttribute('class', 'info-tip-bubble info-tip-bubble-below');
+    expect(bubble()).toHaveAttribute('class', 'jini-ui-info-tip-bubble jini-ui-info-tip-bubble-below');
   });
 });
 
