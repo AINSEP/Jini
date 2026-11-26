@@ -203,7 +203,7 @@ async function captureBackupDatabase<TSource extends SiteBackupSources, TContent
     return { ok: false, code: "DATABASE_SNAPSHOT_FAILED", message: snapshot.message };
   }
   try {
-    const projected = await deps.siteBackupSanitize({ snapshot: snapshot.bytes });
+    const projected = await (deps.request.siteBackupSanitize ?? deps.siteBackupSanitize)({ snapshot: snapshot.bytes });
     return { ok: true, database: { bytes: projected.bytes, watermarkAtCapture: snapshot.watermarkAtCapture }, credentialWarnings: projected.credentialWarnings ?? [] };
   } catch (err) {
     if (err instanceof SiteShareRefusal) return { ok: false, code: err.code, message: err.message };

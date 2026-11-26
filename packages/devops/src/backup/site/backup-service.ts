@@ -91,6 +91,7 @@ export interface SiteBackupRequestDeps<TSource extends SiteBackupSources = SiteB
   readonly sourceControlCredentialSetRepo?: unknown;
   readonly observability?: ObservabilityPort;
   readonly dbOps: DbOpsPort; readonly siteBackupSources?: TSource | undefined;
+  readonly siteBackupSanitize?: ShareDatabaseSanitizer;
   readonly siteBackupPlanStore?: Pick<SiteBackupPlanStore<TContent>, "save" | "take">;
   readonly siteBackupSiteKeyStatus?: () => { active: boolean; invalid?: boolean };
   readonly siteBackupFailureLog?: (line: string) => void; readonly siteBackupNow?: () => Date;

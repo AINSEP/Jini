@@ -97,6 +97,33 @@ it("stores flat plan-time content and reuses the caller-bound push job (mutation
   expect(buildSourceControlProviders.mock.calls[0]?.[0].deps).toBe(first); expect(buildSourceControlProviders.mock.calls[1]?.[0].deps).toBe(second);
 });
 
+it("selects each request's sanitizer on one bound service (mutation: sanitizer-fixed-at-factory)", async () => {
+  const f = fixture();
+  const siteBackupSanitize = vi.fn<SiteBackupToolDeps["siteBackupSanitize"]>(async () => ({ bytes: Buffer.from("factory"), media: [] }));
+  const requestSanitize = vi.fn<SiteBackupToolDeps["siteBackupSanitize"]>(async () => ({ bytes: Buffer.from("request"), media: [] }));
+  f.captureDatabaseSnapshot.mockResolvedValue({ ok: true, bytes: Buffer.from("snapshot"), watermarkAtCapture: 1 });
+  f.collectSiteBackupFiles.mockResolvedValue({ files: [], skipped: [], scopeNotes: {} });
+  f.save.mockImplementation(({ content }: { content: SiteBackupRepositoryPlanContent }) => ({ ...f.plan, ...content }));
+  const service = createSiteBackupService({ ...f.deps, siteBackupSanitize,
+    createSiteBackupPushJobs: () => new SiteBackupPushJobs<import("../backup-service.js").PushResult>({}),
+    completePlanContent: ({ content }) => content, siteBackupNow: () => new Date(0),
+    readConfigText: async () => '{"name":"Site"}', runtimeSchemaVersion: () => ({ index: 1, tag: "one" }),
+    defaultCommitMessage: () => "Backup", manifestName: "backup.json", siteBackupDatabasePath: "database/content.db",
+    checkSiteBackupLimits: () => ({ ok: true, totalBytes: 7 }), skipOversizedFiles: ({ files }) => ({ files: [...files], skipped: [] }),
+    formatByteSize: ({ bytes }) => `${bytes} B` });
+  const first = f.deps.request;
+  const second: SiteBackupRequestDeps = { ...first, siteBackupSanitize: requestSanitize };
+  const call = { input: { owner: "owner", repo: "repo" }, principal: { id: "owner" }, signal: new AbortController().signal };
+  expect(await service.planSiteBackup({ deps: first, call })).toMatchObject({ planned: true });
+  expect(f.save.mock.calls[0]?.[0].content.database).toEqual({ bytes: Buffer.from("factory"), watermarkAtCapture: 1 });
+  expect(await service.planSiteBackup({ deps: second, call })).toMatchObject({ planned: true });
+  expect(f.save.mock.calls[1]?.[0].content.database).toEqual({ bytes: Buffer.from("request"), watermarkAtCapture: 1 });
+  expect(siteBackupSanitize).toHaveBeenCalledOnce();
+  expect(siteBackupSanitize).toHaveBeenCalledWith({ snapshot: Buffer.from("snapshot") });
+  expect(requestSanitize).toHaveBeenCalledOnce();
+  expect(requestSanitize).toHaveBeenCalledWith({ snapshot: Buffer.from("snapshot") });
+});
+
 it("uses the key-status override without sources and redacts only credential-store refusals", async () => {
   const f = fixture();
   const siteBackupSiteKeyStatus = vi.fn(() => ({ active: true }));
