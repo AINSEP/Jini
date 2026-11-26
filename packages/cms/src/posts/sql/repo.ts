@@ -40,6 +40,13 @@ import type { PostSearchKernel, PostSearchProjection } from "./search-index.cont
  */
 const notHeldAgentSchedule = sql<boolean>`NOT (posts.created_by_kind = 'agent' AND EXISTS (SELECT 1 FROM agent_pause_holds h WHERE h.workspace_id = posts.workspace_id AND posts.publish_at > h.held_since))`;
 
+/** Host-supplied clock, id, hashing and lock-key policy. Named (not `SqlPostRepo["runtime"]`) because a
+ * private member's type is erased from the emitted declarations, which left host callbacks untyped. */
+export interface SqlPostRepoRuntime {
+  nowIso: () => string; newId: () => string; hashJsonText: (text: string) => string;
+  postRevisionLockKey: (scope: { workspaceId: string; postId: string }) => string;
+}
+
 export class SqlPostRepo implements PostRepoPort, GoLiveCandidatesPort {
   protected readonly kernel: ContentKernel;
   private readonly search: PostSearchProjection;
@@ -47,8 +54,8 @@ export class SqlPostRepo implements PostRepoPort, GoLiveCandidatesPort {
   private readonly mediaAccessEvidence: MediaAccessEvidence;
   /** The same kernel, schema erased, for the Jini search adapters. */
   private readonly searchKernel: ContentKernel;
-  private readonly runtime: { nowIso: () => string; newId: () => string; hashJsonText: (text: string) => string; postRevisionLockKey: (scope: { workspaceId: string; postId: string }) => string };
-  constructor(required: { kernel: ContentKernel; search: PostSearchProjection; mediaAccessEvidence: MediaAccessEvidence } & SqlPostRepo["runtime"], _optional: Record<string, never> = {}) {
+  private readonly runtime: SqlPostRepoRuntime;
+  constructor(required: { kernel: ContentKernel; search: PostSearchProjection; mediaAccessEvidence: MediaAccessEvidence } & SqlPostRepoRuntime, _optional: Record<string, never> = {}) {
     this.kernel = required.kernel;
     this.mediaAccessEvidence = required.mediaAccessEvidence;
     this.search = required.search;
