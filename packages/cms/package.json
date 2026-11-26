@@ -13,6 +13,7 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./react/publish-content/PublishContentDialog": "browser",
       "./posts/email-template-store": "node",
       "./forms/site/publish-content": "universal",
       "./forms/site/protect-existing-files": "universal",
@@ -932,6 +933,7 @@
         ]
       },
       "forbidden": {
+        "./react/publish-content/PublishContentDialog": ["node:", "express", "kysely", "parse5"],
         "./react/posts/PostCoverImage": [
           "node:",
           "express",
@@ -1144,6 +1146,7 @@
         "src/widgets/payload-fields.ts"
       ],
       "entries": {
+        "./react/publish-content/PublishContentDialog": "publish",
         "./public-http/routes/site/pages/extra-head": "presentation",
         "./public-http/http/site/bare-page": "presentation",
         "./public-http/http/site/render/template-render-data": "media",
@@ -1410,6 +1413,11 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./react/publish-content/PublishContentDialog": {
+      "types": "./dist/react/publish-content/PublishContentDialog.d.ts",
+      "import": "./dist/react/publish-content/PublishContentDialog.js",
+      "default": "./dist/react/publish-content/PublishContentDialog.js"
+    },
     "./posts/email-template-store": {
       "types": "./dist/posts/email-template-store.d.ts",
       "import": "./dist/posts/email-template-store.js",

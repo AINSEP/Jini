@@ -66,3 +66,66 @@ test("providers localize labels, fall back to External MCP, and keep Soon bodies
   expect(screen.getByText("demo webhook").closest("[inert]")).toBeTruthy();
   expect(useIntegrationsHook).not.toHaveBeenCalled();
 });
+
+test("media metadata saves only the edited fields from the mount baseline", async () => {
+  const { useEditMediaPanel } = await import("../media/hooks/use-edit-media-panel.hooks.js");
+  const { createFakeMediaPort } = await import("../media/hooks/fake-media-port.js");
+  const { FetchQueryProvider, useFetchQuery, useFetchMutation } = await import("@jini-ai/ui/fetch-query");
+  const item = { id: "one", workspaceId: "ws", title: "Old", slug: "old", alt: "old alt", caption: "", credit: "",
+    sha256: "sha", status: "active" as const, createdAt: "", updatedAt: "", version: 1,
+    width: null, height: null, cssClass: null, htmlAttributes: null, contentType: "image/png", publicUrl: null,
+    description: "Stored description" };
+  const port = createFakeMediaPort({ media: [item] });
+  const update = vi.spyOn(port, "updateMedia");
+  const onSaved = vi.fn();
+  const { result, rerender } = renderHook(({ current }) => useEditMediaPanel({ item: current, onSaved, onCancel: vi.fn(),
+    hooks: { useFetchQuery, useFetchMutation }, deps: {
+      port, locale: "en", translate: ({ key }) => key,
+      embedPolicy: { allowedAttributeNames: [], isAllowedAttributeName: () => false, parseAttributes: () => ({ attributes: {}, errors: [], error: null }) },
+      embedMarkerSnippet: ({ value }) => value, writeText: vi.fn(), setTimeout,
+      describeApiError: ({ e }) => String(e),
+    } }), { initialProps: { current: item }, wrapper: FetchQueryProvider });
+  act(() => result.current.setTitle("Mine"));
+  rerender({ current: { ...item, alt: "Changed elsewhere" } });
+  await act(() => result.current.save());
+  expect(update).toHaveBeenLastCalledWith({ id: "one" }, { title: "Mine" });
+  expect(onSaved).toHaveBeenCalledOnce();
+  act(() => result.current.setDescription(" "));
+  await act(() => result.current.save());
+  expect(update).toHaveBeenLastCalledWith({ id: "one" }, { title: "Mine", description: "" });
+});
+
+test("media keeps the exact deep-link item available for editing and sends one pending upload", async () => {
+  const { useMedia } = await import("../media/hooks/use-media.hooks.js");
+  const { createFakeMediaPort } = await import("../media/hooks/fake-media-port.js");
+  const { useMediaWrites } = await import("@jini-ai/cms/react/media/hooks/use-media-writes.hooks");
+  const { FetchQueryProvider, useFetchQuery, useFetchMutation, useInvalidate } = await import("@jini-ai/ui/fetch-query");
+  const item = { id: "linked", workspaceId: "ws", title: "Linked", slug: "linked", alt: "", caption: "", credit: "",
+    sha256: "sha", status: "active" as const, createdAt: "", updatedAt: "", version: 1,
+    width: null, height: null, cssClass: null, htmlAttributes: null, contentType: "image/png", publicUrl: null };
+  const port = { ...createFakeMediaPort(), listMediaGrid: vi.fn() };
+  const upload = vi.spyOn(port, "uploadMedia");
+  let read!: (base64: string) => void;
+  const readFileAsBase64 = vi.fn(() => new Promise<string>(resolve => { read = resolve; }));
+  const useGridPages = vi.fn((_required: Parameters<Parameters<typeof useMedia>[0]["hooks"]["useGridPages"]>[0], _optional?: { itemId?: string | null | undefined }) => ({ items: [], exactItem: item, counts: null, hasUntypedActive: false,
+    error: null, hasMore: false, loadingMore: false, loadMoreError: null, loadMore: vi.fn(), retryLoadMore: vi.fn() }));
+  const { result } = renderHook(() => useMedia({ port, tab: "images", itemId: "linked", locale: "en", t: key => key,
+    hooks: { useGridPages, useMediaWrites, useFetchQuery, useFetchMutation, useInvalidate, useContentRefreshSubscription: () => {} },
+    deps: { readFileAsBase64, translate: ({ key }) => key, describeApiError: ({ e }) => String(e), sizeRefusalFromError: () => null },
+  }), { wrapper: FetchQueryProvider });
+  expect(useGridPages.mock.calls[0]?.[1]).toEqual({ itemId: "linked" });
+  act(() => result.current.setEditingId("linked"));
+  expect(result.current.editingItem).toEqual(item);
+  const input = document.createElement("input");
+  Object.defineProperty(input, "files", { value: [new File(["bytes"], "photo.png", { type: "image/png" })] });
+  result.current.fileInputRef.current = input;
+  let first!: Promise<void>;
+  act(() => { first = result.current.upload(); });
+  await act(() => result.current.upload());
+  expect(readFileAsBase64).toHaveBeenCalledOnce();
+  expect(upload).not.toHaveBeenCalled();
+  await act(async () => { read("encoded"); await first; });
+  expect(upload).toHaveBeenCalledExactlyOnceWith({ filename: "photo.png", contentType: "image/png", dataBase64: "encoded" }, { alt: undefined });
+  expect(result.current.uploading).toBe(false);
+  expect(result.current.uploadOpen).toBe(false);
+});

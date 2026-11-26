@@ -2,4 +2,4 @@
 "@jini-ai/cms": minor
 ---
 
-Expose the existing publish confirmation report rules through a universal package leaf.
+Expose universal confirmation report rules and an injected publish dialog with peer selection, report controls, and distinct plan/confirm actions.

@@ -2,4 +2,4 @@
 "@jini-ai/admin": minor
 ---
 
-Expose stored-credential removal and custom-credential dialog state over injected controllers.
+Expose stored-credential dialogs and a controller for independent credential-store reads, serialized replacement/removal, and search counts.

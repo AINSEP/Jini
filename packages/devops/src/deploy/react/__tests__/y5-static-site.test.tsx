@@ -121,7 +121,7 @@ test("credential edits survive save and verify, and a confirmed picker change su
     useLocaleHook: () => "en", useFetchQuery: <T,>() => ({ data: snapshot as T, status: "success" as const, error: null, isFetching: false, refetch: () => {} }),
   }, deps: {
     port: { listCredentials: async () => { throw new Error("reconcile down"); }, createCredential: vi.fn(), updateCredential, deleteCredential: vi.fn(), verifyCredential },
-    translate: ({ key }) => key, classifyCredentialSubmitError: () => ({ kind: "other" }),
+    translate: ({ key }) => key, classifyCredentialSubmitError: () => ({ kind: "generic" }),
     credentialDraftError: () => null, translateCredentialMessage: ({ message }) => message, describeApiError: ({ e }) => String(e),
     publishCredentialSaveErrorMessage: ({ error }) => error, publishCredentialsLoadErrorMessage: ({ error }) => error,
     publishCredentialSelectErrorMessage: ({ error }) => error, publishCredentialVerifyErrorMessage: ({ error }) => error,

@@ -2,4 +2,4 @@
 "@jini-ai/devops": minor
 ---
 
-Add a static-export hook binding for injected locale, copy, query, refresh, error, and clock collaborators.
+Add injected static-export and static-publish bindings and a publish-credential controller that preserves edits and confirmed picker changes during requests.

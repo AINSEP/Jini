@@ -13,6 +13,8 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./deploy/react/hooks/use-publish-credentials.hooks": "browser",
+      "./deploy/react/hooks/use-static-publish.hooks": "browser",
       "./source-control/site/bundled-provider-registry": "universal",
       "./static-export/site/route-manifest": "universal",
       ".": "node",
@@ -190,6 +192,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./deploy/react/hooks/use-publish-credentials.hooks": {
+      "types": "./dist/deploy/react/hooks/use-publish-credentials.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-publish-credentials.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-publish-credentials.hooks.js"
+    },
+    "./deploy/react/hooks/use-static-publish.hooks": {
+      "types": "./dist/deploy/react/hooks/use-static-publish.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-static-publish.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-static-publish.hooks.js"
+    },
     "./source-control/site/bundled-provider-registry": {
       "types": "./dist/source-control/site/bundled-provider-registry.d.ts",
       "import": "./dist/source-control/site/bundled-provider-registry.js",

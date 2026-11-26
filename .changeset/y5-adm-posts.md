@@ -3,4 +3,4 @@
 "@jini-ai/cms": minor
 ---
 
-Expose post editor input rules with injected file reading and image-drop insertion, plus an injectable posts list controller.
+Expose post editor input rules, an injected posts list controller, and the list view with sorting and trash confirmation.

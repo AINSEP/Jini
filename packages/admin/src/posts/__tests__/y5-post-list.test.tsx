@@ -51,3 +51,33 @@ test("initial read errors and later action errors retain distinct list states", 
   expect(result.current.posts).toEqual([post]);
   expect(result.current.rowSavingId).toBeNull();
 });
+
+test("the list notice distinguishes initial failure from action failure", async () => {
+  const { render, screen } = await import("@testing-library/react");
+  const { postsListNotice } = await import("../Posts.js");
+  const mounted = render(postsListNotice({ posts: null, error: "initial", t: key => key }));
+  expect(screen.getByText("initial").className).toBe("notice error");
+  mounted.rerender(postsListNotice({ posts: [post], error: "action", t: key => key }));
+  expect(screen.queryByText("action")).toBeNull();
+  mounted.rerender(postsListNotice({ posts: null, error: null, t: key => key }));
+  expect(screen.getByText("Loading posts…")).toBeTruthy();
+});
+
+test("the list columns preserve all sorting choices and use host URL builders", async () => {
+  const { PostsColumns } = await import("../PostsColumns.js");
+  const { render, screen, fireEvent } = await import("@testing-library/react");
+  const setSort = vi.fn();
+  render(<PostsColumns posts={[post, { ...post, id: "two", title: "Alpha", slug: "two" }]}
+    creating={false} createPost={vi.fn()} error={null} rowMenuHandleById={new Map([["one", "one"], ["two", "two"]])}
+    togglePostPublish={vi.fn()} setPendingDelete={vi.fn()} locale="en" t={key => key}
+    sort={{ column: "updated", direction: "desc" }} setSort={setSort}
+    kit={{ ServerLabel: ({ value }) => <>{value}</>, PublishSectionButton: () => null }}
+    deps={{ translate: ({ key }) => key, siteUrl: ({ path }) => `https://site.test${path}`,
+      postAdminPath: ({ slug }) => `/host/posts/${slug}`, postEditorRoute: ({ slug }) => `/posts/${slug}`,
+      navigate: vi.fn(), postRowMenuItems: () => [], viewerTimeZone: "UTC" }} />);
+  expect(screen.getByRole("link", { name: "One" }).getAttribute("href")).toBe("/host/posts/one");
+  expect(screen.getByRole("link", { name: "/one" }).getAttribute("href")).toBe("https://site.test/one");
+  fireEvent.click(screen.getByRole("button", { name: "Not sorted by Title. Activate to sort ascending." }));
+  expect(setSort).toHaveBeenCalledWith({ column: "title", direction: "asc" });
+  expect(screen.getByRole("columnheader", { name: /Sorted by updated date, newest first/ })).toBeTruthy();
+});
