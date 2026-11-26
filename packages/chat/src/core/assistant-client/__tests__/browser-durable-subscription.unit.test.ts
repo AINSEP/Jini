@@ -1,5 +1,5 @@
-import { expect, test, vi } from "vitest";
-import { browserDurableSubscriptionPorts } from "../browser-durable-subscription.js";
+import { describe, expect, it, test, vi } from "vitest";
+import { browserDurableSubscriptionPorts, browserTimeoutSchedule } from "../browser-durable-subscription.js";
 
 test("checkpoint ETags never suppress explicit recovery and reset after it", async () => {
   const request = vi.fn<typeof fetch>()
@@ -34,4 +34,22 @@ test("named error frames differ from native stream drops", () => {
   error(new Event("error"));
   expect(close).toHaveBeenCalledTimes(1);
   expect(dropped).toHaveBeenCalledTimes(1);
+});
+
+describe("browserTimeoutSchedule", () => {
+  it("runs the work once after the delay and the returned cancel stops a pending run", async () => {
+    vi.useFakeTimers();
+    try {
+      const work = vi.fn();
+      browserTimeoutSchedule({ work, delayMs: 50 });
+      const cancelled = vi.fn();
+      const cancel = browserTimeoutSchedule({ work: cancelled, delayMs: 50 });
+      cancel();
+      vi.advanceTimersByTime(49);
+      expect(work).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(work).toHaveBeenCalledTimes(1);
+      expect(cancelled).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
 });

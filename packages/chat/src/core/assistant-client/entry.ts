@@ -11,4 +11,4 @@ export { createChatAttachmentValidator } from "./attachment-liveness.js";
 export type { ChatAttachmentValidatorInput, ChatAttachmentValidatorOptions } from "./attachment-liveness.js";
 export { createA2uiActionPoster } from "./a2ui-action-poster.js";
 export type { A2uiActionPosterInput, CreateA2uiActionPosterOptions, A2uiActionDeliveryOutcome } from "./a2ui-action-poster.js";
-export { browserDurableSubscriptionPorts } from "./browser-durable-subscription.js";
+export { browserDurableSubscriptionPorts, browserTimeoutSchedule } from "./browser-durable-subscription.js";

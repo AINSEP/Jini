@@ -42,3 +42,14 @@ export function useApplyConversationDeepLink({ query, chats, lookupConversation,
     return () => { current = false; };
   }, [conversationId, principalId]);
 }
+
+/**
+ * The browser `replaceQuery` port for {@link useApplyConversationDeepLink}: swaps the current URL's query in
+ * place (`history.replaceState`, keeping its state), so the consumed deep-link parameter leaves no history entry.
+ * @complexity O(q) in the query length.
+ */
+export function replaceBrowserQuery({ query }: { query: URLSearchParams }, _optional: Record<string, never> = {}): void {
+  const url = new URL(window.location.href);
+  url.search = query.toString();
+  window.history.replaceState(window.history.state, "", url);
+}

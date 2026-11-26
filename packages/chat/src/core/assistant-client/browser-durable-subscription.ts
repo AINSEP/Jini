@@ -63,3 +63,13 @@ export function browserDurableSubscriptionPorts({ request, open, schedule, runPa
     schedule(required, _options) { return schedule(required); },
   };
 }
+
+/**
+ * The browser `schedule` port for {@link browserDurableSubscriptionPorts}: one `setTimeout`, cancelled by the
+ * returned function. Hosts pass it unless they need their own timer (tests).
+ * @complexity O(1).
+ */
+export function browserTimeoutSchedule({ work, delayMs }: { work: () => void; delayMs: number }, _optional: Record<string, never> = {}): () => void {
+  const timer = setTimeout(work, delayMs);
+  return () => clearTimeout(timer);
+}
