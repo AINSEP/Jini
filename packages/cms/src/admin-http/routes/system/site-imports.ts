@@ -10,7 +10,7 @@
  */
 
 import { defineJsonRoute, err, ok, type Result } from '@jini-ai/core/contracts/server';
-import type { SiteImportPage, SiteImportPageInput } from '@jini-ai/core/contracts/site/site-import-history';
+import type { SiteImportPage, SiteImportPageInput, SiteImportSource, SiteImportView } from '@jini-ai/core/contracts/site/site-import-history';
 
 export type SiteImportListQuery = { cursor?: string };
 export interface SiteImportListPrincipal { principalId: string }
@@ -166,4 +166,37 @@ export function parseOwnerSetupBody({ body }: { body: unknown }, _optional = {})
   if (!body || Object.keys(body).some(key => !OWNER_BODY_KEYS.includes(key))) return { refusal: "Only the new owner password and optional saved keys password are accepted." };
   const fields = body as { adminPassword: string; savedKeysPassword?: string };
   return { input: { adminPassword: fields.adminPassword, ...(fields.savedKeysPassword === undefined ? {} : { savedKeysPassword: fields.savedKeysPassword }) } };
+}
+
+export async function importSiteBackup({ backend, body, parseInput, principalId, signal }: {
+  backend: { importBackup: (required: { principalId: string; source: SiteImportSource; displayName?: string; requestId?: string }, optional?: { signal?: AbortSignal }) => Promise<SiteImportView> };
+  body: () => unknown;
+  parseInput: (required: { input: unknown }, optional?: Record<string, never>) => { source: SiteImportSource; displayName?: string; requestId?: string };
+  principalId: () => string;
+  signal: () => AbortSignal;
+}, _optional = {}) {
+  const input = parseInput({ input: body() });
+  const principal = principalId();
+  return backend.importBackup({ ...input, principalId: principal }, { signal: signal() });
+}
+
+export function readSiteImportOwner({ backend, principalId, importId }: {
+  backend: { get: (required: { principalId: string; importId: string }) => SiteImportView };
+  principalId: () => string; importId: () => string;
+}, _optional = {}) {
+  const imported = backend.get({ principalId: principalId(), importId: importId() });
+  return ownerSetupBody({ imported });
+}
+
+export async function completeSiteImportOwner({ body, backend: readBackend, principalId, importId, signal, refusal }: {
+  body: () => unknown;
+  backend: () => { completeOwner: (required: { principalId: string; importId: string; adminPassword: unknown; savedKeysPassword?: unknown }, optional?: { signal?: AbortSignal }) => Promise<SiteImportView> } | undefined;
+  principalId: () => string; importId: () => string; signal: () => AbortSignal;
+  refusal: (required: { code: 'INVALID_INPUT'; message: string }) => Error;
+}, _optional = {}) {
+  const parsed = parseOwnerSetupBody({ body: body() });
+  if ('refusal' in parsed) throw refusal({ code: 'INVALID_INPUT', message: parsed.refusal });
+  const backend = readBackend();
+  if (!backend) throw new Error('site import owner setup has no import backend');
+  return backend.completeOwner({ principalId: principalId(), importId: importId(), ...parsed.input }, { signal: signal() });
 }

@@ -31,3 +31,16 @@ export function memberSignInRefusal({ error, isSenderNotConfigured, senderNotCon
   if (error instanceof MemberValidationError) return { status: 400, body: { error: error.message } };
   return undefined;
 }
+
+/** Write `memberAuthRefusal`'s answer, or report the failure and answer the redacted 500. */
+export function sendMemberAuthError({ error, deps }: { error: unknown; deps: {
+  refusal: (required: { error: unknown }, options: { reset?: boolean }) => { status: number; body: { error: string; code?: string } } | undefined;
+  report: (required: { error: unknown; operation: string }) => { errorId: string };
+  json: (body: unknown, status: number) => void;
+  copy: { operation: string; visitorError: string };
+} }, options: { reset?: boolean } = {}): void {
+  const refusal = deps.refusal({ error }, options);
+  if (refusal) { deps.json(refusal.body, refusal.status); return; }
+  const { errorId } = deps.report({ error, operation: deps.copy.operation });
+  deps.json({ error: deps.copy.visitorError, errorId }, 500);
+}

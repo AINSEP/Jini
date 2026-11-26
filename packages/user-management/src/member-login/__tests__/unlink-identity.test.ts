@@ -36,3 +36,15 @@ it("rejects stale and future sessions and requires mail readiness for a pending 
   expect(prepareMemberChallenge).toHaveBeenCalledWith({ deps: links, input: { workspaceId: "w", email: member.email }, purpose: "signin" });
   expect(deliver).not.toHaveBeenCalled();
 });
+
+it("refuses unlinking the last sign-in method before any identity or session write", async () => {
+  const unlink = vi.fn(async () => {});
+  const revokeSessions = vi.fn(async () => {});
+  const saveMember = vi.fn(async () => {});
+  const links = { transaction: async (work: () => Promise<unknown>) => work(), lockKey: async () => {}, identities: { findByMemberAndProvider: async () => ({ id: 'identity' }), unlink } } as unknown as MemberLoginLinkDeps;
+  vi.mocked(prepareMemberChallenge).mockRejectedValueOnce(new Error('mail unavailable'));
+  await expect(unlinkMemberIdentity({ workspaceId: 'w', providerId: 'provider', readCurrent: async () => ({ member, session }), readProviderId: () => 'provider', links, readPasswordHash: async () => null, revokeSessions, saveMember, nowIso: () => '2026-01-01T00:01:00Z', userAgent: undefined, ip: 'ip' })).rejects.toMatchObject({ code: 'LOGIN_BLOCKED' });
+  expect(unlink).not.toHaveBeenCalled();
+  expect(revokeSessions).not.toHaveBeenCalled();
+  expect(saveMember).not.toHaveBeenCalled();
+});

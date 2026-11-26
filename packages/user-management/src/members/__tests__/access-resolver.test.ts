@@ -416,3 +416,13 @@ test('shared route resolver factory creates independent resolvers using the inje
   assert.ok(first instanceof DefaultMemberAccessResolver);
   assert.deepEqual(await first.resolveContext({ workspaceId: WORKSPACE_ID, nowIso: NOW }), { isAuthenticated: false, activeTierIds: [], isPaid: false });
 });
+
+
+test("activeMemberFromSession refuses sessions older than the member credential cutoff", async () => {
+  const { activeMemberFromSession } = await import('../access-resolver.js');
+  const sessions = new InMemoryMemberSessionRepo();
+  await sessions.save({ id: 'session', workspaceId: WORKSPACE_ID, memberId: 'member', tokenHash: hashToken('token'), createdAt: '2026-07-01T00:00:00.000Z', expiresAt: '2026-08-01T00:00:00.000Z' });
+  const member = { id: 'member', workspaceId: WORKSPACE_ID, email: 'm@example.test', status: 'active' as const, credentialsRevokedAt: '2026-07-02T00:00:00.000Z', createdAt: NOW, updatedAt: NOW, version: 1 };
+  assert.equal(await activeMemberFromSession({ deps: { memberSessionRepo: sessions, memberRepo: { findById: async () => member }, workspaceId: WORKSPACE_ID, sessionToken: () => 'token', nowIso: () => NOW } }), null);
+  assert.equal(await activeMemberFromSession({ deps: { memberSessionRepo: sessions, memberRepo: { findById: async () => ({ ...member, credentialsRevokedAt: '2026-06-01T00:00:00.000Z' }) }, workspaceId: WORKSPACE_ID, sessionToken: () => 'token', nowIso: () => NOW } }), 'member');
+});

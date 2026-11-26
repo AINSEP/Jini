@@ -54,3 +54,12 @@ it("excludes wrong-site, wrong-owner and ineligible credential rows", async () =
   for (const keyId of ["other-owner", "wrong-kind", "wrong-subtype"]) await attachments.attach({ siteId: "a", keyId, siteName: "A" });
   expect(await attachments.keyForLabel?.({ siteId: "a", label: "Label" })).toBeNull();
 });
+
+
+it("refuses duplicate granted worksFor aliases", async () => {
+  for (const id of ["one", "two"]) {
+    await sql`INSERT INTO vault VALUES (${id}, 'owner', 'custom', ${id}, '{"worksFor":["alias"]}')`.execute(db);
+    await attachments.attach({ siteId: "a", keyId: id, siteName: "A" });
+  }
+  await expect(attachments.keyForLabel?.({ siteId: "a", label: "alias" })).rejects.toThrow("duplicate");
+});

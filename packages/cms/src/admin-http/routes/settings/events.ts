@@ -199,3 +199,82 @@ function createChangeFeedTick({ workspaceId, ports }: Pick<Parameters<typeof set
     finally { state.ticking = false; }
   };
 }
+
+/**
+ * Response headers for this SSE stream's opening `writeHead()`, minus `Connection` on an HTTP/2
+ * request. Node's http2 compatibility layer throws `ERR_HTTP2_INVALID_CONNECTION_HEADER` the moment
+ * a `connection` header reaches `writeHead()` — HTTP/2 has no per-hop connection semantics for it to
+ * describe. Dropping it there costs nothing real: `keep-alive` was never anything but HTTP/1.1's
+ * already-default behavior for a persistent connection, so omitting the header changes no observable
+ * behavior for an HTTP/1.1 client, only stops a header HTTP/2 cannot accept from being sent to one.
+ *
+ * @param req - the originating request; only `httpVersionMajor` is read.
+ * @complexity O(1).
+ */
+export function sseWriteHeadHeaders({ httpVersionMajor }: { httpVersionMajor: number }, _optional = {}): Record<string, string> {
+  return {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    ...(httpVersionMajor < 2 ? { Connection: "keep-alive" } : {}),
+    // Defeats nginx response buffering, which otherwise holds frames until the buffer fills —
+    // indistinguishable from the feed being broken.
+    "X-Accel-Buffering": "no",
+  };
+}
+
+/**
+ * Admission for one subscription: 404 for another workspace, 401 when settings are not ready or
+ * nobody is authenticated, 403 when neither the settings nor the theme-preview channel is granted.
+ * Writes the refusal itself and returns null; otherwise returns who was admitted to what.
+ * @complexity O(1) plus one or two authorizer calls.
+ */
+export async function admitSubscriber({ deps }: { deps: {
+  rejectForeignWorkspace: () => boolean;
+  settingsReady: PromiseLike<unknown>;
+  principal: () => { id: string };
+  report: (error: unknown) => void;
+  includePreview: () => boolean;
+  authorize: (required: { principalId: string; includePreview: boolean }) => Promise<{ settings: boolean; preview: boolean; reason: string }>;
+  json: (body: unknown, status: number) => void;
+} }, _optional = {}): Promise<{ principal: { id: string }; access: { settings: boolean; preview: boolean; reason: string }; includePreview: boolean } | null> {
+  if (deps.rejectForeignWorkspace()) return null;
+
+  let principal: { id: string };
+  try {
+    await deps.settingsReady;
+    principal = deps.principal();
+  } catch (err) {
+    deps.report(err);
+    deps.json({ error: "unauthenticated", code: "UNAUTHENTICATED" }, 401);
+    return null;
+  }
+
+  const includePreview = deps.includePreview();
+  const access = await deps.authorize({ principalId: principal.id, includePreview });
+  if (!access.settings && !access.preview) {
+    deps.json({
+      error: `principal '${principal.id}' is not authorized for 'settings.read' (${access.reason})`,
+      code: "FORBIDDEN",
+      details: { permission: "settings.read", reason: access.reason },
+    }, 403);
+    return null;
+  }
+  return { principal, access, includePreview };
+}
+
+export function createNamespaceResolver({ deps }: { deps: { settingsRepo: { findDefinitionBySettingId: (required: { settingId: string }) => Promise<{ namespace: string } | null> } } }, _optional = {}) {
+
+
+  /** Namespace per settingId, cached for the connection's life: a settingId's namespace changes
+   *  only via `renameDefinition`, which appends its own revision and so re-notifies anyway. */
+  const namespaceBySettingId = new Map<string, string | null>();
+  const resolveNamespace = async ({ settingId }: { settingId: string }, _options: Record<string, never> = {}): Promise<string | null> => {
+    const cached = namespaceBySettingId.get(settingId);
+    if (cached !== undefined) return cached;
+    const definition = await deps.settingsRepo.findDefinitionBySettingId({ settingId });
+    const namespace = definition?.namespace ?? null;
+    namespaceBySettingId.set(settingId, namespace);
+    return namespace;
+  };
+  return resolveNamespace;
+}

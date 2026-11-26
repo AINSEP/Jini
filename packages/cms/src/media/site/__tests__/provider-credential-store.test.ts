@@ -1,10 +1,12 @@
+import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
+import { SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { describe, expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRepoPort } from "../provider-credential-contracts.js";
 import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps } from "../provider-credential-store.js";
 import { mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError } from "../provider-credential-store.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
-import { mediaVaultRecord } from "../provider-credential-vault.js";
+import { mediaProviderVault, mediaVaultRecord } from "../provider-credential-vault.js";
 
 const vaultPolicy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: { canonical: ["legacy"] },
   parseMeta: ({ meta }) => { const m = meta as Record<string, unknown>; return {
@@ -53,4 +55,27 @@ describe("media credential set", () => {
     expect(s.prepare).toHaveBeenCalledWith(expect.objectContaining({ provider: "canonical", payload: { apiKey: "secret" }, expectedRevision: null }));
     expect(s.records()[0]?.sealed?.ciphertext).toBe("canonical");
   });
+});
+
+
+it("opens a legacy credential under its stored identity and existing AAD", async () => {
+  const legacy = { ...row("legacy"), sealed: { keyId: "k", alg: "aes-256-gcm", nonce: "AwMDAwMDAwMDAwMD", ciphertext: "XtzCczNjOztYemE6gi+LeZ9ZzYTR7LYNg0DFHYCtNywiYNqJ21DCqQ==" } };
+  const s = setup([legacy]);
+  const keyring = { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(32).fill(7), deriveSigningSecret: async () => new Uint8Array(32) };
+  const sealer = new AesGcmSecretSealer({ keyring });
+  const open = vi.spyOn(sealer, "open");
+  const deps = { ...s.deps, sealer, createVault: ({ repo }: Parameters<MediaProviderCredentialResolveDeps["createVault"]>[0]) => new SecretsVaultService({
+    repo: repo.vault!, keyring, sealer, metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => "now", newId: () => "id",
+  }) };
+  expect(await resolveMediaProviderCredential({ deps, workspaceId: "w", providerId: "canonical" })).toEqual({ apiKey: "fixture-key", baseUrl: null, model: null });
+  expect(open).toHaveBeenCalledWith({ sealed: legacy.sealed }, { aad: 'secrets-vault:v1:["w","legacy","media-provider","test",null,null]' });
+});
+
+
+it("the singleton adapter delegates ownership validation to the vault service", async () => {
+  const s = setup([]);
+  const stored = { ...row("canonical"), ownerKey: "foreign" };
+  vi.mocked(s.vault.list).mockResolvedValue([stored]);
+  const vault = mediaProviderVault({ vault: s.vault, providerId: "canonical", policy: vaultPolicy });
+  expect(await vault.findOne!({ workspaceId: "w", kind: "media-provider", ownerKey: "test", principalId: null, binding: null })).toBe(stored);
 });

@@ -76,3 +76,28 @@ it("retry of an already revocation-pending connection does not advance generatio
   expect(result.remoteRevocation).toBe("confirmed");
   expect(f.tokenStore.entries.has(KEY)).toBe(false);
 });
+
+
+it("refuses another owner's credential before CAS, grant removal or token access", async () => {
+  const f = await fixture();
+  const compareAndSet = vi.spyOn(f.required.storage.records, "compareAndSet");
+  const removeKey = vi.spyOn(f.required.attachments, "removeKey");
+  const { report } = await inspectSharedOAuthDisconnect(f.required);
+  await expect(disconnectSharedOAuth({ ...f.required, ownerWorkspaceId: "other-owner", expectedRevision: report.revision, expectedDigest: report.sourceDigest })).rejects.toMatchObject({ code: "storage-conflict" });
+  expect(compareAndSet).not.toHaveBeenCalled();
+  expect(removeKey).not.toHaveBeenCalled();
+  expect(f.tokensFor).not.toHaveBeenCalled();
+});
+
+
+it("changed reviewed grants refuse CAS and grant removal", async () => {
+  const f = await fixture();
+  const { report } = await inspectSharedOAuthDisconnect(f.required);
+  const compareAndSet = vi.spyOn(f.required.storage.records, "compareAndSet");
+  const removeKey = vi.spyOn(f.required.attachments, "removeKey");
+  f.changeGrants();
+  await expect(disconnectSharedOAuth({ ...f.required, expectedRevision: report.revision, expectedDigest: report.sourceDigest })).rejects.toMatchObject({ code: "storage-conflict" });
+  expect(compareAndSet).not.toHaveBeenCalled();
+  expect(removeKey).not.toHaveBeenCalled();
+  expect(f.tokensFor).not.toHaveBeenCalled();
+});

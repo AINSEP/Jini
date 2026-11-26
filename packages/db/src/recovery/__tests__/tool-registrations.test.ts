@@ -98,3 +98,29 @@ test("a malformed internal confirm result must not proceed to execute", async ()
 test("Recovery never registers restore-point creation", () => {
   expect(buildRecoveryRegistrations(fixture()).map(row => row.descriptor.id)).not.toContain("backup_create_restore_point");
 });
+
+test("malformed deep-link input refuses before lookup and authorization precedes a valid lookup", async () => {
+  const f = fixture();
+  const registration = buildRecoveryRegistrations(f).find(row => row.descriptor.id === "recovery_resolve_deep_link")!;
+  await expect(registration.handler({ ...ctx, input: { envelope: { v: "invalid" } } })).rejects.toThrow();
+  expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
+  f.host.authorize = vi.fn(async () => { throw new Error("denied"); });
+  await expect(registration.handler({ ...ctx, input: { envelope: { v: 1, correlationId: "correlation", siteId: "site", restorePointId: "point", ledgerEventId: null, drift: "none", intent: "restore", issuedAt: "now" } } })).rejects.toThrow("denied");
+  expect(f.host.authorize).toHaveBeenCalled();
+  expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
+});
+
+
+test("the prepared restore preserves the gateway plan and an undefined createdAt property", async () => {
+  const f = fixture();
+  const plan = { planId: "plan", planHash: "hash", extra: "gateway-field" };
+  f.host.plan = vi.fn(async () => ({ ok: true, value: plan }));
+  f.deps.restorePointsRepo.list = vi.fn(async () => []);
+  let prepared: unknown;
+  const describe = f.host.describe;
+  f.host.describe = value => { prepared = value; return describe(value); };
+  await buildRecoveryRegistrations(f).find(row => row.descriptor.id === "backup_execute_restore")!.handler(ctx, { emitSurface: vi.fn() });
+  expect(prepared).toEqual({ restorePointId: "point", plan, createdAt: undefined });
+  expect((prepared as { plan: unknown }).plan).toBe(plan);
+  expect(Object.hasOwn(prepared as object, "createdAt")).toBe(true);
+});

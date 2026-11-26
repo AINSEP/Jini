@@ -49,7 +49,8 @@
       "./shell/find-menu": "desktop",
       "./shell/node-toolchain": "node",
       "./shell/speech/mac-on-device-transcriber": "node",
-      "./shell/speech/speech-ipc": "node"
+      "./shell/speech/speech-ipc": "node",
+      "./electron/memory-sampler": "desktop"
     },
     "isolation": {
       "entries": {
@@ -61,7 +62,8 @@
         "./shell/find-menu": "electron",
         "./shell/node-toolchain": "node-toolchain",
         "./shell/speech/speech-ipc": "speech",
-        "./shell/speech/mac-on-device-transcriber": "speech"
+        "./shell/speech/mac-on-device-transcriber": "speech",
+        "./electron/memory-sampler": "electron"
       }
     }
   },
@@ -250,6 +252,11 @@
       "types": "./dist/shell/speech/speech-ipc.d.ts",
       "import": "./dist/shell/speech/speech-ipc.js",
       "default": "./dist/shell/speech/speech-ipc.js"
+    },
+    "./electron/memory-sampler": {
+      "types": "./dist/electron/memory-sampler.d.ts",
+      "import": "./dist/electron/memory-sampler.js",
+      "default": "./dist/electron/memory-sampler.js"
     }
   },
   "files": [

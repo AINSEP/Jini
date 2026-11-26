@@ -13,6 +13,13 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./posts/email-template-store": "node",
+      "./forms/site/publish-content": "universal",
+      "./forms/site/protect-existing-files": "universal",
+      "./content-types/site/publish-content": "universal",
+      "./content-duplication/tool-registrations": "universal",
+      "./fs-files/tool-registrations": "node",
+      "./fs-files/agent-tools": "node",
       "./public-http/routes/site/pages/extra-head": "universal",
       "./public-http/http/site/bare-page": "universal",
       "./public-http/http/site/render/components/marketing": "universal",
@@ -786,7 +793,66 @@
       "./react/posts/hooks/post-editor-messages": "universal",
       "./react/posts/hooks/post-editor-state.rules": "universal",
       "./react/posts/hooks/post-editor-save.rules": "universal",
-      "./react/posts/hooks/use-post-url-dialog.hooks": "browser"
+      "./react/posts/hooks/use-post-url-dialog.hooks": "browser",
+      "./html/site/safe-url": "universal",
+      "./admin-http/routes/media/provider-catalog": "universal",
+      "./admin-http/routes/system/publish-credentials/list": "universal",
+      "./public-http/http/site/render-site": "universal",
+      "./public-http/routes/site/media-rendition": "universal",
+      "./public-http/routes/site/pages/handlers/marketing": "universal",
+      "./public-http/routes/site/pages/handlers/post": "universal",
+      "./public-http/routes/site/pages/handlers/post-not-found": "universal",
+      "./public-http/routes/site/pages/handlers/slug-routes": "universal",
+      "./admin-http/routes/external-mcp/route-helpers": "universal",
+      "./react/media/ExternalProvidersPanel": "browser",
+      "./react/media/MediaLoadMore": "browser",
+      "./react/media/chrome-playback-note": "browser",
+      "./react/media/media-icons": "browser",
+      "./react/media/use-media-provider-catalog.hooks": "browser",
+      "./react/media/hooks/use-grid-pages.hooks": "browser",
+      "./react/pages/hooks/use-preview-embed-ids.hooks": "browser",
+      "./react/posts/posts-list-rules": "universal",
+      "./react/posts/post-editor-rules": "universal",
+      "./react/posts/editor/notices/PostEditorNotices": "browser",
+      "./react/widgets/WidgetConfigFields/MediaContentEditor.hooks": "browser",
+      "./react/pages/page-editor-rules": "universal",
+      "./react/widgets/WidgetPickerDialog/WidgetPickerDialog": "browser",
+      "./react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks": "browser",
+      "./react/media/hooks/use-media-writes.hooks": "browser",
+      "./media/site/blob-write-bindings": "universal",
+      "./media/site/derived-media-link": "universal",
+      "./media/site/import-video-conversion": "universal",
+      "./media/site/publish-content": "universal",
+      "./navigation/site/publish-content": "universal",
+      "./pages/html-inverse": "universal",
+      "./pages/html-change-recording": "universal",
+      "./pages/html-reverter": "universal",
+      "./trash/permanent/tool-registrations": "universal",
+      "./site-inspection/tool-registrations": "universal",
+      "./taxonomy/site/publish-content": "universal",
+      "./trash/site/adapters/redirect": "node",
+      "./trash/site/adapters/member-credential-sql": "node",
+      "./widgets/site/publish-content": "universal",
+      "./publish/content/tool-registrations": "universal",
+      "./posts/post-create": "universal",
+      "./posts/post-update": "universal",
+      "./posts/post-retire": "universal",
+      "./posts/post-trash": "universal",
+      "./posts/reverters": "universal",
+      "./posts/sql/revision-refs": "node",
+      "./posts/sql/revision-thinning": "node",
+      "./posts/post-tool-delete": "universal",
+      "./posts/post-tool-deps": "universal",
+      "./posts/post-tool-duplicate": "universal",
+      "./posts/post-tool-input": "universal",
+      "./posts/post-tool-list": "universal",
+      "./posts/post-tool-policy": "universal",
+      "./posts/post-tool-update": "universal",
+      "./posts/preview-tool": "universal",
+      "./posts/publish-content": "universal",
+      "./posts/tool-registrations": "universal",
+      "./media/site-generation/generation-credentials": "universal",
+      "./site/keep-off-content-store": "node"
     },
     "isolation": {
       "domains": {
@@ -1268,7 +1334,17 @@
         "./react/posts/hooks/post-editor-messages": "posts",
         "./react/posts/hooks/post-editor-state.rules": "posts",
         "./react/posts/hooks/post-editor-save.rules": "posts",
-        "./react/posts/hooks/use-post-url-dialog.hooks": "posts"
+        "./react/posts/hooks/use-post-url-dialog.hooks": "posts",
+        "./public-http/routes/site/media-rendition": "media",
+        "./public-http/routes/site/pages/handlers/marketing": "presentation",
+        "./public-http/routes/site/pages/handlers/post": "presentation",
+        "./public-http/routes/site/pages/handlers/post-not-found": "presentation",
+        "./public-http/routes/site/pages/handlers/slug-routes": "presentation",
+        "./html/site/safe-url": "media",
+        "./admin-http/routes/media/provider-catalog": "media",
+        "./admin-http/routes/system/publish-credentials/list": "admin-http",
+        "./public-http/http/site/render-site": "presentation",
+        "./admin-http/routes/external-mcp/route-helpers": "admin-http"
       }
     },
     "optionalPeers": {
@@ -1287,6 +1363,41 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./posts/email-template-store": {
+      "types": "./dist/posts/email-template-store.d.ts",
+      "import": "./dist/posts/email-template-store.js",
+      "default": "./dist/posts/email-template-store.js"
+    },
+    "./forms/site/publish-content": {
+      "types": "./dist/forms/site/publish-content.d.ts",
+      "import": "./dist/forms/site/publish-content.js",
+      "default": "./dist/forms/site/publish-content.js"
+    },
+    "./forms/site/protect-existing-files": {
+      "types": "./dist/forms/site/protect-existing-files.d.ts",
+      "import": "./dist/forms/site/protect-existing-files.js",
+      "default": "./dist/forms/site/protect-existing-files.js"
+    },
+    "./content-types/site/publish-content": {
+      "types": "./dist/content-types/site/publish-content.d.ts",
+      "import": "./dist/content-types/site/publish-content.js",
+      "default": "./dist/content-types/site/publish-content.js"
+    },
+    "./content-duplication/tool-registrations": {
+      "types": "./dist/content-duplication/tool-registrations.d.ts",
+      "import": "./dist/content-duplication/tool-registrations.js",
+      "default": "./dist/content-duplication/tool-registrations.js"
+    },
+    "./fs-files/tool-registrations": {
+      "types": "./dist/fs-files/tool-registrations.d.ts",
+      "import": "./dist/fs-files/tool-registrations.js",
+      "default": "./dist/fs-files/tool-registrations.js"
+    },
+    "./fs-files/agent-tools": {
+      "types": "./dist/fs-files/agent-tools.d.ts",
+      "import": "./dist/fs-files/agent-tools.js",
+      "default": "./dist/fs-files/agent-tools.js"
+    },
     "./public-http/routes/site/pages/extra-head": {
       "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
       "import": "./dist/public-http/routes/site/pages/extra-head.js",
@@ -5156,6 +5267,281 @@
       "types": "./dist/react/posts/hooks/use-post-url-dialog.hooks.d.ts",
       "import": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js",
       "default": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js"
+    },
+    "./html/site/safe-url": {
+      "types": "./dist/html/site/safe-url.d.ts",
+      "import": "./dist/html/site/safe-url.js",
+      "default": "./dist/html/site/safe-url.js"
+    },
+    "./admin-http/routes/media/provider-catalog": {
+      "types": "./dist/admin-http/routes/media/provider-catalog.d.ts",
+      "import": "./dist/admin-http/routes/media/provider-catalog.js",
+      "default": "./dist/admin-http/routes/media/provider-catalog.js"
+    },
+    "./admin-http/routes/system/publish-credentials/list": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/list.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/list.js"
+    },
+    "./public-http/http/site/render-site": {
+      "types": "./dist/public-http/http/site/render-site.d.ts",
+      "import": "./dist/public-http/http/site/render-site.js",
+      "default": "./dist/public-http/http/site/render-site.js"
+    },
+    "./public-http/routes/site/media-rendition": {
+      "types": "./dist/public-http/routes/site/media-rendition.d.ts",
+      "import": "./dist/public-http/routes/site/media-rendition.js",
+      "default": "./dist/public-http/routes/site/media-rendition.js"
+    },
+    "./public-http/routes/site/pages/handlers/marketing": {
+      "types": "./dist/public-http/routes/site/pages/handlers/marketing.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/marketing.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/marketing.js"
+    },
+    "./public-http/routes/site/pages/handlers/post": {
+      "types": "./dist/public-http/routes/site/pages/handlers/post.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/post.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/post.js"
+    },
+    "./public-http/routes/site/pages/handlers/post-not-found": {
+      "types": "./dist/public-http/routes/site/pages/handlers/post-not-found.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/post-not-found.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/post-not-found.js"
+    },
+    "./public-http/routes/site/pages/handlers/slug-routes": {
+      "types": "./dist/public-http/routes/site/pages/handlers/slug-routes.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/slug-routes.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/slug-routes.js"
+    },
+    "./admin-http/routes/external-mcp/route-helpers": {
+      "types": "./dist/admin-http/routes/external-mcp/route-helpers.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/route-helpers.js",
+      "default": "./dist/admin-http/routes/external-mcp/route-helpers.js"
+    },
+    "./react/media/ExternalProvidersPanel": {
+      "types": "./dist/react/media/ExternalProvidersPanel.d.ts",
+      "import": "./dist/react/media/ExternalProvidersPanel.js",
+      "default": "./dist/react/media/ExternalProvidersPanel.js"
+    },
+    "./react/media/MediaLoadMore": {
+      "types": "./dist/react/media/MediaLoadMore.d.ts",
+      "import": "./dist/react/media/MediaLoadMore.js",
+      "default": "./dist/react/media/MediaLoadMore.js"
+    },
+    "./react/media/chrome-playback-note": {
+      "types": "./dist/react/media/chrome-playback-note.d.ts",
+      "import": "./dist/react/media/chrome-playback-note.js",
+      "default": "./dist/react/media/chrome-playback-note.js"
+    },
+    "./react/media/media-icons": {
+      "types": "./dist/react/media/media-icons.d.ts",
+      "import": "./dist/react/media/media-icons.js",
+      "default": "./dist/react/media/media-icons.js"
+    },
+    "./react/media/use-media-provider-catalog.hooks": {
+      "types": "./dist/react/media/use-media-provider-catalog.hooks.d.ts",
+      "import": "./dist/react/media/use-media-provider-catalog.hooks.js",
+      "default": "./dist/react/media/use-media-provider-catalog.hooks.js"
+    },
+    "./react/media/hooks/use-grid-pages.hooks": {
+      "types": "./dist/react/media/hooks/use-grid-pages.hooks.d.ts",
+      "import": "./dist/react/media/hooks/use-grid-pages.hooks.js",
+      "default": "./dist/react/media/hooks/use-grid-pages.hooks.js"
+    },
+    "./react/pages/hooks/use-preview-embed-ids.hooks": {
+      "types": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.d.ts",
+      "import": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.js",
+      "default": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.js"
+    },
+    "./react/posts/posts-list-rules": {
+      "types": "./dist/react/posts/posts-list-rules.d.ts",
+      "import": "./dist/react/posts/posts-list-rules.js",
+      "default": "./dist/react/posts/posts-list-rules.js"
+    },
+    "./react/posts/post-editor-rules": {
+      "types": "./dist/react/posts/post-editor-rules.d.ts",
+      "import": "./dist/react/posts/post-editor-rules.js",
+      "default": "./dist/react/posts/post-editor-rules.js"
+    },
+    "./react/posts/editor/notices/PostEditorNotices": {
+      "types": "./dist/react/posts/editor/notices/PostEditorNotices.d.ts",
+      "import": "./dist/react/posts/editor/notices/PostEditorNotices.js",
+      "default": "./dist/react/posts/editor/notices/PostEditorNotices.js"
+    },
+    "./react/widgets/WidgetConfigFields/MediaContentEditor.hooks": {
+      "types": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.js"
+    },
+    "./react/pages/page-editor-rules": {
+      "types": "./dist/react/pages/page-editor-rules.d.ts",
+      "import": "./dist/react/pages/page-editor-rules.js",
+      "default": "./dist/react/pages/page-editor-rules.js"
+    },
+    "./react/widgets/WidgetPickerDialog/WidgetPickerDialog": {
+      "types": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.d.ts",
+      "import": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.js",
+      "default": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.js"
+    },
+    "./react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks": {
+      "types": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.d.ts",
+      "import": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.js",
+      "default": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.js"
+    },
+    "./react/media/hooks/use-media-writes.hooks": {
+      "types": "./dist/react/media/hooks/use-media-writes.hooks.d.ts",
+      "import": "./dist/react/media/hooks/use-media-writes.hooks.js",
+      "default": "./dist/react/media/hooks/use-media-writes.hooks.js"
+    },
+    "./media/site/blob-write-bindings": {
+      "types": "./dist/media/site/blob-write-bindings.d.ts",
+      "import": "./dist/media/site/blob-write-bindings.js",
+      "default": "./dist/media/site/blob-write-bindings.js"
+    },
+    "./media/site/derived-media-link": {
+      "types": "./dist/media/site/derived-media-link.d.ts",
+      "import": "./dist/media/site/derived-media-link.js",
+      "default": "./dist/media/site/derived-media-link.js"
+    },
+    "./media/site/import-video-conversion": {
+      "types": "./dist/media/site/import-video-conversion.d.ts",
+      "import": "./dist/media/site/import-video-conversion.js",
+      "default": "./dist/media/site/import-video-conversion.js"
+    },
+    "./media/site/publish-content": {
+      "types": "./dist/media/site/publish-content.d.ts",
+      "import": "./dist/media/site/publish-content.js",
+      "default": "./dist/media/site/publish-content.js"
+    },
+    "./navigation/site/publish-content": {
+      "types": "./dist/navigation/site/publish-content.d.ts",
+      "import": "./dist/navigation/site/publish-content.js",
+      "default": "./dist/navigation/site/publish-content.js"
+    },
+    "./pages/html-inverse": {
+      "types": "./dist/pages/html-inverse.d.ts",
+      "import": "./dist/pages/html-inverse.js",
+      "default": "./dist/pages/html-inverse.js"
+    },
+    "./pages/html-change-recording": {
+      "types": "./dist/pages/html-change-recording.d.ts",
+      "import": "./dist/pages/html-change-recording.js",
+      "default": "./dist/pages/html-change-recording.js"
+    },
+    "./pages/html-reverter": {
+      "types": "./dist/pages/html-reverter.d.ts",
+      "import": "./dist/pages/html-reverter.js",
+      "default": "./dist/pages/html-reverter.js"
+    },
+    "./trash/permanent/tool-registrations": {
+      "types": "./dist/trash/permanent/tool-registrations.d.ts",
+      "import": "./dist/trash/permanent/tool-registrations.js",
+      "default": "./dist/trash/permanent/tool-registrations.js"
+    },
+    "./site-inspection/tool-registrations": {
+      "types": "./dist/site-inspection/tool-registrations.d.ts",
+      "import": "./dist/site-inspection/tool-registrations.js",
+      "default": "./dist/site-inspection/tool-registrations.js"
+    },
+    "./taxonomy/site/publish-content": {
+      "types": "./dist/taxonomy/site/publish-content.d.ts",
+      "import": "./dist/taxonomy/site/publish-content.js",
+      "default": "./dist/taxonomy/site/publish-content.js"
+    },
+    "./trash/site/adapters/redirect": {
+      "types": "./dist/trash/site/adapters/redirect.d.ts",
+      "import": "./dist/trash/site/adapters/redirect.js",
+      "default": "./dist/trash/site/adapters/redirect.js"
+    },
+    "./trash/site/adapters/member-credential-sql": {
+      "types": "./dist/trash/site/adapters/member-credential-sql.d.ts",
+      "import": "./dist/trash/site/adapters/member-credential-sql.js",
+      "default": "./dist/trash/site/adapters/member-credential-sql.js"
+    },
+    "./widgets/site/publish-content": {
+      "types": "./dist/widgets/site/publish-content.d.ts",
+      "import": "./dist/widgets/site/publish-content.js",
+      "default": "./dist/widgets/site/publish-content.js"
+    },
+    "./publish/content/tool-registrations": {
+      "types": "./dist/publish/content/tool-registrations.d.ts",
+      "import": "./dist/publish/content/tool-registrations.js"
+    },
+    "./posts/post-create": {
+      "types": "./dist/posts/post-create.d.ts",
+      "import": "./dist/posts/post-create.js"
+    },
+    "./posts/post-update": {
+      "types": "./dist/posts/post-update.d.ts",
+      "import": "./dist/posts/post-update.js"
+    },
+    "./posts/post-retire": {
+      "types": "./dist/posts/post-retire.d.ts",
+      "import": "./dist/posts/post-retire.js"
+    },
+    "./posts/post-trash": {
+      "types": "./dist/posts/post-trash.d.ts",
+      "import": "./dist/posts/post-trash.js"
+    },
+    "./posts/reverters": {
+      "types": "./dist/posts/reverters.d.ts",
+      "import": "./dist/posts/reverters.js"
+    },
+    "./posts/sql/revision-refs": {
+      "types": "./dist/posts/sql/revision-refs.d.ts",
+      "import": "./dist/posts/sql/revision-refs.js"
+    },
+    "./posts/sql/revision-thinning": {
+      "types": "./dist/posts/sql/revision-thinning.d.ts",
+      "import": "./dist/posts/sql/revision-thinning.js"
+    },
+    "./posts/post-tool-delete": {
+      "types": "./dist/posts/post-tool-delete.d.ts",
+      "import": "./dist/posts/post-tool-delete.js"
+    },
+    "./posts/post-tool-deps": {
+      "types": "./dist/posts/post-tool-deps.d.ts",
+      "import": "./dist/posts/post-tool-deps.js"
+    },
+    "./posts/post-tool-duplicate": {
+      "types": "./dist/posts/post-tool-duplicate.d.ts",
+      "import": "./dist/posts/post-tool-duplicate.js"
+    },
+    "./posts/post-tool-input": {
+      "types": "./dist/posts/post-tool-input.d.ts",
+      "import": "./dist/posts/post-tool-input.js"
+    },
+    "./posts/post-tool-list": {
+      "types": "./dist/posts/post-tool-list.d.ts",
+      "import": "./dist/posts/post-tool-list.js"
+    },
+    "./posts/post-tool-policy": {
+      "types": "./dist/posts/post-tool-policy.d.ts",
+      "import": "./dist/posts/post-tool-policy.js"
+    },
+    "./posts/post-tool-update": {
+      "types": "./dist/posts/post-tool-update.d.ts",
+      "import": "./dist/posts/post-tool-update.js"
+    },
+    "./posts/preview-tool": {
+      "types": "./dist/posts/preview-tool.d.ts",
+      "import": "./dist/posts/preview-tool.js"
+    },
+    "./posts/publish-content": {
+      "types": "./dist/posts/publish-content.d.ts",
+      "import": "./dist/posts/publish-content.js"
+    },
+    "./posts/tool-registrations": {
+      "types": "./dist/posts/tool-registrations.d.ts",
+      "import": "./dist/posts/tool-registrations.js"
+    },
+    "./media/site-generation/generation-credentials": {
+      "types": "./dist/media/site-generation/generation-credentials.d.ts",
+      "import": "./dist/media/site-generation/generation-credentials.js"
+    },
+    "./site/keep-off-content-store": {
+      "types": "./dist/site/keep-off-content-store.d.ts",
+      "import": "./dist/site/keep-off-content-store.js"
     }
   },
   "files": [
@@ -5212,7 +5598,9 @@
     "sharp": "^0.35.5",
     "typescript": "^5.6.0",
     "unpdf": "^1.9.1",
-    "@cfworker/json-schema": "^4.1.1"
+    "@cfworker/json-schema": "^4.1.1",
+    "@jini-ai/devops": "workspace:*",
+    "@jini-ai/user-management": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",

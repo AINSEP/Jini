@@ -79,3 +79,18 @@ test('an unstamped meta file is stamped once', async () => {
   assert.deepEqual(await reconcileRootKey({ ports: f.ports }), { action: 'noop', fingerprint: fingerprint(key) });
   assert.deepEqual(writes, [fingerprint(key)]);
 });
+
+test('invalid first-present material stops before a later valid source without a stamp', async () => {
+  const f = fixture({ others: [() => 'invalid', () => { throw new Error('later source read'); }] });
+  assert.deepEqual(await reconcileRootKey({ ports: f.ports }), { action: 'invalid', reason: 'not-hex' });
+  assert.deepEqual(f.calls, ['per-site']);
+});
+
+test('the fingerprint getter is read after per-site material and before later sources', async () => {
+  const order: string[] = [];
+  const f = fixture({ others: [() => { order.push('other'); return key; }] });
+  Object.defineProperty(f.ports, 'readPerSite', { value: () => { order.push('per-site'); return undefined; } });
+  Object.defineProperty(f.ports, 'stampedFingerprint', { get: () => { order.push('stamp'); return fingerprint(key); } });
+  await reconcileRootKey({ ports: f.ports });
+  assert.deepEqual(order.slice(0, 3), ['per-site', 'stamp', 'other']);
+});

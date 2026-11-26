@@ -40,7 +40,8 @@
       "./react/plugin-install-port": "browser",
       "./runtime/install-source": "universal",
       "./runtime/built-ins/word-count/plugin": "universal",
-      "./runtime/widget-partials": "universal"
+      "./runtime/widget-partials": "universal",
+      "./react/PluginProviderSettingsDialog": "browser"
     },
     "isolation": {
       "forbidden": {
@@ -200,6 +201,11 @@
       "types": "./dist/runtime/widget-partials.d.ts",
       "import": "./dist/runtime/widget-partials.js",
       "default": "./dist/runtime/widget-partials.js"
+    },
+    "./react/PluginProviderSettingsDialog": {
+      "types": "./dist/react/PluginProviderSettingsDialog.d.ts",
+      "import": "./dist/react/PluginProviderSettingsDialog.js",
+      "default": "./dist/react/PluginProviderSettingsDialog.js"
     }
   },
   "files": [

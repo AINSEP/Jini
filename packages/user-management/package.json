@@ -13,6 +13,7 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./identity/tool-registrations": "node",
       "./members/public-member-auth-response": "universal",
       "./members/public-member-response": "universal",
       ".": "universal",
@@ -151,7 +152,16 @@
       "./project-keys/tools": "universal",
       "./identity/user-purge": "universal",
       "./project-keys/sql/attachments": "node",
-      "./identity/sql/user-trash-adapter": "universal"
+      "./identity/sql/user-trash-adapter": "universal",
+      "./admin-http/owner/passkey-routes": "node",
+      "./react/auth/RecoveryCodesCard": "browser",
+      "./mail/status/provider-operations": "universal",
+      "./mail/status/provider-tool-registrations": "universal",
+      "./mail/status/delivery-tool-registrations": "universal",
+      "./mail/status/tool-registrations": "universal",
+      "./members/tool-registrations": "universal",
+      "./newsletter/tool-registrations": "universal",
+      "./newsletter/delivery/tool-registrations": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -184,7 +194,8 @@
         "./identity/repo.authentication": "server",
         "./identity/repo.authorization": "server",
         "./member-login/unlink-identity": "members",
-        "./member-login/oidc-request": "members"
+        "./member-login/oidc-request": "members",
+        "./admin-http/owner/passkey-routes": "server"
       },
       "shared": [
         "src/server/auth-challenge.ts",
@@ -199,6 +210,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./identity/tool-registrations": {
+      "types": "./dist/identity/tool-registrations.d.ts",
+      "import": "./dist/identity/tool-registrations.js",
+      "default": "./dist/identity/tool-registrations.js"
+    },
     "./members/public-member-auth-response": {
       "types": "./dist/members/public-member-auth-response.d.ts",
       "import": "./dist/members/public-member-auth-response.js",
@@ -893,6 +909,51 @@
       "types": "./dist/identity/sql/user-trash-adapter.d.ts",
       "import": "./dist/identity/sql/user-trash-adapter.js",
       "default": "./dist/identity/sql/user-trash-adapter.js"
+    },
+    "./admin-http/owner/passkey-routes": {
+      "types": "./dist/admin-http/owner/passkey-routes.d.ts",
+      "import": "./dist/admin-http/owner/passkey-routes.js",
+      "default": "./dist/admin-http/owner/passkey-routes.js"
+    },
+    "./react/auth/RecoveryCodesCard": {
+      "types": "./dist/react/auth/RecoveryCodesCard.d.ts",
+      "import": "./dist/react/auth/RecoveryCodesCard.js",
+      "default": "./dist/react/auth/RecoveryCodesCard.js"
+    },
+    "./mail/status/provider-operations": {
+      "types": "./dist/mail/status/provider-operations.d.ts",
+      "import": "./dist/mail/status/provider-operations.js",
+      "default": "./dist/mail/status/provider-operations.js"
+    },
+    "./mail/status/provider-tool-registrations": {
+      "types": "./dist/mail/status/provider-tool-registrations.d.ts",
+      "import": "./dist/mail/status/provider-tool-registrations.js",
+      "default": "./dist/mail/status/provider-tool-registrations.js"
+    },
+    "./mail/status/delivery-tool-registrations": {
+      "types": "./dist/mail/status/delivery-tool-registrations.d.ts",
+      "import": "./dist/mail/status/delivery-tool-registrations.js",
+      "default": "./dist/mail/status/delivery-tool-registrations.js"
+    },
+    "./mail/status/tool-registrations": {
+      "types": "./dist/mail/status/tool-registrations.d.ts",
+      "import": "./dist/mail/status/tool-registrations.js",
+      "default": "./dist/mail/status/tool-registrations.js"
+    },
+    "./members/tool-registrations": {
+      "types": "./dist/members/tool-registrations.d.ts",
+      "import": "./dist/members/tool-registrations.js",
+      "default": "./dist/members/tool-registrations.js"
+    },
+    "./newsletter/tool-registrations": {
+      "types": "./dist/newsletter/tool-registrations.d.ts",
+      "import": "./dist/newsletter/tool-registrations.js",
+      "default": "./dist/newsletter/tool-registrations.js"
+    },
+    "./newsletter/delivery/tool-registrations": {
+      "types": "./dist/newsletter/delivery/tool-registrations.d.ts",
+      "import": "./dist/newsletter/delivery/tool-registrations.js",
+      "default": "./dist/newsletter/delivery/tool-registrations.js"
     }
   },
   "files": [
@@ -946,7 +1007,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "@jini-ai/platform": "workspace:*"
   },
   "peerDependenciesMeta": {
     "argon2": {

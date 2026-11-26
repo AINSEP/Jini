@@ -24,7 +24,7 @@ import {
 
 export interface VaultServiceDeps {
   repo: VaultRepoPort;
-  keyring: KeyringPort;
+  keyring: Pick<KeyringPort, "activeKey">;
   sealer: SecretSealerPort;
   metaParsers: VaultMetaParsers;
   /** Host policy must throw on denial. No permissive default is provided. */

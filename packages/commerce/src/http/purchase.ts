@@ -1,4 +1,4 @@
-import { defineJsonRoute, ok, routeReply, type RouteReply } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, ok, routeReply, type RouteReply, type RateLimitResult } from '@jini-ai/core/contracts/server';
 import { CommerceCheckoutValidationError, CommerceOrderNotFoundError, CommercePriceNotFoundError, CommerceProductNotFoundError } from '../catalog/errors.js';
 import { commerceBuyerStatus, toCommerceBuyerOrder } from '../catalog/buyer-order.js';
 import type { CommerceOrderView } from '../catalog/plugin-server.js';
@@ -11,13 +11,13 @@ export async function admitPurchase(input: { workspaceId: string; requestedWorks
   { mode: 'read'; deps: {
   markNoStore(required: Record<string, never>): void;
   resolveCommerce(required: { mode: 'read' | 'write' }): boolean;
-  checkLimit(required: Record<string, never>): Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+  checkLimit(required: Record<string, never>): Promise<RateLimitResult>;
   setRetryAfter(required: { seconds: number }): void;
   buyer(required: Record<string, never>): Promise<string | null>;
 } } | { mode: 'write'; deps: {
   markNoStore(required: Record<string, never>): void;
   resolveCommerce(required: { mode: 'read' | 'write' }): boolean;
-  checkLimit(required: Record<string, never>): Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+  checkLimit(required: Record<string, never>): Promise<RateLimitResult>;
   setRetryAfter(required: { seconds: number }): void;
   buyer(required: Record<string, never>): Promise<string | null>;
   sameOrigin(required: Record<string, never>): boolean;

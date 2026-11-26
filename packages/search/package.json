@@ -22,7 +22,8 @@
       "./site/cms-document-source": "universal",
       "./site/access": "universal",
       "./site/index-state-store": "node",
-      "./public-http/routes/site/search": "universal"
+      "./public-http/routes/site/search": "universal",
+      "./site/media-search-source": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql search-index store; import @jini-ai/search/site/index-state-store — The SQL search-index store could not load kysely. Install kysely to enable this feature, or check its installed version."
@@ -85,6 +86,11 @@
       "types": "./dist/public-http/routes/site/search.d.ts",
       "import": "./dist/public-http/routes/site/search.js",
       "default": "./dist/public-http/routes/site/search.js"
+    },
+    "./site/media-search-source": {
+      "types": "./dist/site/media-search-source.d.ts",
+      "import": "./dist/site/media-search-source.js",
+      "default": "./dist/site/media-search-source.js"
     }
   },
   "files": [

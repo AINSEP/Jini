@@ -1,3 +1,4 @@
+import { addDeclaredHostsToPolicy, CSP_REPORT_ONLY_HEADER, type DeclaredPageHosts } from '@jini-ai/core/contracts/server/security-headers';
 import { mergeFormFlashIntoResult, type FormFlashPayload } from '../../../../forms/result-flash.js';
 import type { FormSubmissionRedirectResult } from '../../../../forms/types.js';
 import { injectListingScript } from '../../../../listing/index.js';
@@ -105,4 +106,10 @@ export async function finalizePublicPageHtml({ html, formResult, ports }: {
   // theme's plain "Sign in" link.
   if (ports.staticExport({})) return { html: finished };
   return { html: ports.memberAuthScript({ html: ports.formAttemptTokens({ html: finished }) }) };
+}
+
+/** The page's report-only policy names what its plugin exports declared; nothing is added otherwise. O(hosts). */
+export function addPluginExportHostsToResponse({ response, hosts }: { response: { getHeader?: (name: string) => unknown; setHeader: (name: string, value: string) => unknown } | undefined; hosts: DeclaredPageHosts | undefined }, _optional: Record<string, never> = {}): void {
+  const policy = response?.getHeader?.(CSP_REPORT_ONLY_HEADER);
+  if (hosts && response && typeof policy === "string") response.setHeader(CSP_REPORT_ONLY_HEADER, addDeclaredHostsToPolicy({ policy, hosts }));
 }

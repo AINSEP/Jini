@@ -111,3 +111,26 @@ export const zipPluginInstallRoute = {
     return new Response(JSON.stringify(reply.body), { status: reply.status, headers: { 'content-type': 'application/json; charset=utf-8' } });
   },
 };
+
+export async function readZipUpload({ deps }: { deps: {
+  isZip: () => boolean;
+  parseZip: () => Promise<unknown>;
+  body: () => unknown;
+  isBuffer: (value: unknown) => value is Uint8Array;
+  uploadLimitText: string;
+} }, _optional = {}): Promise<{ ok: true; archive: Uint8Array } | { ok: false; refusal: InstallRefusal }> {
+  if (!deps.isZip()) return { ok: false, refusal: { status: 400, code: "PLUGIN_INSTALL_INPUT_INVALID", error: "An application/zip upload is required." } };
+  const parseError = await deps.parseZip();
+  if (parseError) return { ok: false, refusal: zipParserRefusal({ error: parseError, uploadLimitText: deps.uploadLimitText }) };
+  if (!deps.isBuffer(deps.body())) return { ok: false, refusal: zipParserRefusal({ error: undefined, uploadLimitText: deps.uploadLimitText }) };
+  return { ok: true, archive: deps.body() as Uint8Array };
+}
+
+export function respondInstallFailure({ error, deps }: { error: unknown; deps: {
+  installError: abstract new (...args: never[]) => Error & { code: string };
+  json: (body: unknown, status: number) => void;
+  failure: (error: unknown) => void;
+} }, _optional = {}): void {
+  if (error instanceof deps.installError) { deps.json({ code: error.code, error: error.message }, pluginInstallErrorStatus({ code: error.code })); return; }
+  deps.failure(error);
+}

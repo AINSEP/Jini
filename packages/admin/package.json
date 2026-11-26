@@ -784,7 +784,28 @@
       "./shell/components/AssistantDock/hooks/composer-discovery.hooks": "browser",
       "./security/react/live/Security": "browser",
       "./shell/lib/execution-settings-ledger": "universal",
-      "./react/settings/SettingsPageLayout": "browser"
+      "./react/settings/SettingsPageLayout": "browser",
+      "./shell/components/AssistantDock/DockCleanupHeader": "browser",
+      "./screens/menus/hooks/use-route-guarded-menu-editor.hooks": "browser",
+      "./screens/routines/Routines": "browser",
+      "./screens/routines/RoutineForm": "browser",
+      "./screens/routines/Routines.hooks": "browser",
+      "./screens/routines/RoutinesMount": "browser",
+      "./screens/routines/project-routine-row": "universal",
+      "./screens/routines/routines-api": "universal",
+      "./shell/hooks/use-conversation-deep-link": "browser",
+      "./screens/storage/StorageScreen": "browser",
+      "./screens/storage/api/storage-api": "universal",
+      "./screens/storage/api/screenshot-cleanup-api": "universal",
+      "./screens/storage/hooks/use-storage.hooks": "browser",
+      "./screens/storage/hooks/use-screenshot-cleanup.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/agents-inventory.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/runtime-access.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/messages-change.hooks": "browser",
+      "./shell/lib/paint-admin-accent": "browser",
+      "./screens/email/EmailSegments": "browser",
+      "./screens/email/EmailTemplateEditor": "browser",
+      "./shell/components/AssistantDock/assistant-dock-props": "browser"
     },
     "isolation": {
       "shared": [
@@ -4916,6 +4937,111 @@
       "types": "./dist/react/settings/SettingsPageLayout.d.ts",
       "import": "./dist/react/settings/SettingsPageLayout.js",
       "default": "./dist/react/settings/SettingsPageLayout.js"
+    },
+    "./shell/components/AssistantDock/DockCleanupHeader": {
+      "types": "./dist/shell/components/AssistantDock/DockCleanupHeader.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockCleanupHeader.js",
+      "default": "./dist/shell/components/AssistantDock/DockCleanupHeader.js"
+    },
+    "./screens/menus/hooks/use-route-guarded-menu-editor.hooks": {
+      "types": "./dist/screens/menus/hooks/use-route-guarded-menu-editor.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-route-guarded-menu-editor.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-route-guarded-menu-editor.hooks.js"
+    },
+    "./screens/routines/Routines": {
+      "types": "./dist/screens/routines/Routines.d.ts",
+      "import": "./dist/screens/routines/Routines.js",
+      "default": "./dist/screens/routines/Routines.js"
+    },
+    "./screens/routines/RoutineForm": {
+      "types": "./dist/screens/routines/RoutineForm.d.ts",
+      "import": "./dist/screens/routines/RoutineForm.js",
+      "default": "./dist/screens/routines/RoutineForm.js"
+    },
+    "./screens/routines/Routines.hooks": {
+      "types": "./dist/screens/routines/Routines.hooks.d.ts",
+      "import": "./dist/screens/routines/Routines.hooks.js",
+      "default": "./dist/screens/routines/Routines.hooks.js"
+    },
+    "./screens/routines/RoutinesMount": {
+      "types": "./dist/screens/routines/RoutinesMount.d.ts",
+      "import": "./dist/screens/routines/RoutinesMount.js",
+      "default": "./dist/screens/routines/RoutinesMount.js"
+    },
+    "./screens/routines/project-routine-row": {
+      "types": "./dist/screens/routines/project-routine-row.d.ts",
+      "import": "./dist/screens/routines/project-routine-row.js",
+      "default": "./dist/screens/routines/project-routine-row.js"
+    },
+    "./screens/routines/routines-api": {
+      "types": "./dist/screens/routines/routines-api.d.ts",
+      "import": "./dist/screens/routines/routines-api.js",
+      "default": "./dist/screens/routines/routines-api.js"
+    },
+    "./shell/hooks/use-conversation-deep-link": {
+      "types": "./dist/shell/hooks/use-conversation-deep-link.d.ts",
+      "import": "./dist/shell/hooks/use-conversation-deep-link.js",
+      "default": "./dist/shell/hooks/use-conversation-deep-link.js"
+    },
+    "./screens/storage/StorageScreen": {
+      "types": "./dist/screens/storage/StorageScreen.d.ts",
+      "import": "./dist/screens/storage/StorageScreen.js",
+      "default": "./dist/screens/storage/StorageScreen.js"
+    },
+    "./screens/storage/api/storage-api": {
+      "types": "./dist/screens/storage/api/storage-api.d.ts",
+      "import": "./dist/screens/storage/api/storage-api.js",
+      "default": "./dist/screens/storage/api/storage-api.js"
+    },
+    "./screens/storage/api/screenshot-cleanup-api": {
+      "types": "./dist/screens/storage/api/screenshot-cleanup-api.d.ts",
+      "import": "./dist/screens/storage/api/screenshot-cleanup-api.js",
+      "default": "./dist/screens/storage/api/screenshot-cleanup-api.js"
+    },
+    "./screens/storage/hooks/use-storage.hooks": {
+      "types": "./dist/screens/storage/hooks/use-storage.hooks.d.ts",
+      "import": "./dist/screens/storage/hooks/use-storage.hooks.js",
+      "default": "./dist/screens/storage/hooks/use-storage.hooks.js"
+    },
+    "./screens/storage/hooks/use-screenshot-cleanup.hooks": {
+      "types": "./dist/screens/storage/hooks/use-screenshot-cleanup.hooks.d.ts",
+      "import": "./dist/screens/storage/hooks/use-screenshot-cleanup.hooks.js",
+      "default": "./dist/screens/storage/hooks/use-screenshot-cleanup.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/agents-inventory.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/agents-inventory.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/agents-inventory.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/agents-inventory.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/runtime-access.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/runtime-access.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/runtime-access.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/runtime-access.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/messages-change.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.js"
+    },
+    "./shell/lib/paint-admin-accent": {
+      "types": "./dist/shell/lib/paint-admin-accent.d.ts",
+      "import": "./dist/shell/lib/paint-admin-accent.js",
+      "default": "./dist/shell/lib/paint-admin-accent.js"
+    },
+    "./screens/email/EmailSegments": {
+      "types": "./dist/screens/email/EmailSegments.d.ts",
+      "import": "./dist/screens/email/EmailSegments.js",
+      "default": "./dist/screens/email/EmailSegments.js"
+    },
+    "./screens/email/EmailTemplateEditor": {
+      "types": "./dist/screens/email/EmailTemplateEditor.d.ts",
+      "import": "./dist/screens/email/EmailTemplateEditor.js",
+      "default": "./dist/screens/email/EmailTemplateEditor.js"
+    },
+    "./shell/components/AssistantDock/assistant-dock-props": {
+      "types": "./dist/shell/components/AssistantDock/assistant-dock-props.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-dock-props.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-dock-props.js"
     }
   },
   "files": [
@@ -5468,6 +5594,69 @@
       ],
       "react/settings/SettingsPageLayout": [
         "./dist/react/settings/SettingsPageLayout.d.ts"
+      ],
+      "shell/components/AssistantDock/DockCleanupHeader": [
+        "./dist/shell/components/AssistantDock/DockCleanupHeader.d.ts"
+      ],
+      "screens/menus/hooks/use-route-guarded-menu-editor.hooks": [
+        "./dist/screens/menus/hooks/use-route-guarded-menu-editor.hooks.d.ts"
+      ],
+      "screens/routines/Routines": [
+        "./dist/screens/routines/Routines.d.ts"
+      ],
+      "screens/routines/RoutineForm": [
+        "./dist/screens/routines/RoutineForm.d.ts"
+      ],
+      "screens/routines/Routines.hooks": [
+        "./dist/screens/routines/Routines.hooks.d.ts"
+      ],
+      "screens/routines/RoutinesMount": [
+        "./dist/screens/routines/RoutinesMount.d.ts"
+      ],
+      "screens/routines/project-routine-row": [
+        "./dist/screens/routines/project-routine-row.d.ts"
+      ],
+      "screens/routines/routines-api": [
+        "./dist/screens/routines/routines-api.d.ts"
+      ],
+      "shell/hooks/use-conversation-deep-link": [
+        "./dist/shell/hooks/use-conversation-deep-link.d.ts"
+      ],
+      "screens/storage/StorageScreen": [
+        "./dist/screens/storage/StorageScreen.d.ts"
+      ],
+      "screens/storage/api/storage-api": [
+        "./dist/screens/storage/api/storage-api.d.ts"
+      ],
+      "screens/storage/api/screenshot-cleanup-api": [
+        "./dist/screens/storage/api/screenshot-cleanup-api.d.ts"
+      ],
+      "screens/storage/hooks/use-storage.hooks": [
+        "./dist/screens/storage/hooks/use-storage.hooks.d.ts"
+      ],
+      "screens/storage/hooks/use-screenshot-cleanup.hooks": [
+        "./dist/screens/storage/hooks/use-screenshot-cleanup.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/agents-inventory.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/agents-inventory.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/runtime-access.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/runtime-access.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/messages-change.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.d.ts"
+      ],
+      "shell/lib/paint-admin-accent": [
+        "./dist/shell/lib/paint-admin-accent.d.ts"
+      ],
+      "screens/email/EmailSegments": [
+        "./dist/screens/email/EmailSegments.d.ts"
+      ],
+      "screens/email/EmailTemplateEditor": [
+        "./dist/screens/email/EmailTemplateEditor.d.ts"
+      ],
+      "shell/components/AssistantDock/assistant-dock-props": [
+        "./dist/shell/components/AssistantDock/assistant-dock-props.d.ts"
       ]
     }
   },

@@ -38,7 +38,7 @@ export interface MediaPort {
   listMedia(): Promise<{ media: AdminMedia[] }>;
   uploadMedia(
     input: { filename: string; contentType: string; dataBase64: string },
-    options?: { alt?: string; caption?: string; credit?: string }
+    options?: { alt?: string | undefined; caption?: string; credit?: string }
   ): Promise<MediaUploadResult<AdminMedia>>;
   updateMedia(
     target: { id: string },

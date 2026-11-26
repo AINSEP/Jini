@@ -13,6 +13,8 @@
     "kind": "kernel",
     "runtime": "universal",
     "entries": {
+      "./contracts/site/public-origin": "universal",
+      "./contracts/site/vault-context": "universal",
       "./tool-metadata/agent-pause": "universal",
       "./contracts/site/approval-i18n": "universal",
       ".": "universal",
@@ -294,7 +296,11 @@
       "./contracts/headless/plugin-install-source": "universal",
       "./contracts/site/source-control-credentials": "universal",
       "./contracts/site/vendor-credentials": "universal",
-      "./contracts/site/credential-project-half": "universal"
+      "./contracts/site/credential-project-half": "universal",
+      "./contracts/site/post-revision-lock": "universal",
+      "./tool-metadata/media-video-conversion": "universal",
+      "./tool-metadata/routines": "universal",
+      "./contracts/site/site-serving-gate": "universal"
     },
     "isolation": {
       "entries": {
@@ -305,7 +311,11 @@
         "./provider-registry": "providers",
         "./object-store": "providers",
         "./contracts/site/deployment-admin": "core",
-        "./contracts/site/content-editor-ports": "core"
+        "./contracts/site/content-editor-ports": "core",
+        "./contracts/site/post-revision-lock": "core",
+        "./tool-metadata/media-video-conversion": "core",
+        "./tool-metadata/routines": "core",
+        "./contracts/site/site-serving-gate": "core"
       },
       "domains": {
         "fetch": [
@@ -357,6 +367,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./contracts/site/public-origin": {
+      "types": "./dist/contracts/site/public-origin.d.ts",
+      "import": "./dist/contracts/site/public-origin.js",
+      "default": "./dist/contracts/site/public-origin.js"
+    },
+    "./contracts/site/vault-context": {
+      "types": "./dist/contracts/site/vault-context.d.ts",
+      "import": "./dist/contracts/site/vault-context.js",
+      "default": "./dist/contracts/site/vault-context.js"
+    },
     "./tool-metadata/agent-pause": {
       "types": "./dist/tool-metadata/agent-pause.d.ts",
       "import": "./dist/tool-metadata/agent-pause.js",
@@ -1766,6 +1786,26 @@
       "types": "./dist/contracts/site/credential-project-half.d.ts",
       "import": "./dist/contracts/site/credential-project-half.js",
       "default": "./dist/contracts/site/credential-project-half.js"
+    },
+    "./contracts/site/post-revision-lock": {
+      "types": "./dist/contracts/site/post-revision-lock.d.ts",
+      "import": "./dist/contracts/site/post-revision-lock.js",
+      "default": "./dist/contracts/site/post-revision-lock.js"
+    },
+    "./tool-metadata/media-video-conversion": {
+      "types": "./dist/tool-metadata/media-video-conversion.d.ts",
+      "import": "./dist/tool-metadata/media-video-conversion.js",
+      "default": "./dist/tool-metadata/media-video-conversion.js"
+    },
+    "./tool-metadata/routines": {
+      "types": "./dist/tool-metadata/routines.d.ts",
+      "import": "./dist/tool-metadata/routines.js",
+      "default": "./dist/tool-metadata/routines.js"
+    },
+    "./contracts/site/site-serving-gate": {
+      "types": "./dist/contracts/site/site-serving-gate.d.ts",
+      "import": "./dist/contracts/site/site-serving-gate.js",
+      "default": "./dist/contracts/site/site-serving-gate.js"
     }
   },
   "files": [

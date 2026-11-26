@@ -141,7 +141,36 @@
       "./source-control/react/rules": "universal",
       "./source-control/react/source-control-visuals": "browser",
       "./source-control/react/ProvidersTab": "browser",
-      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser"
+      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser",
+      "./deploy/site/static-publish/admin-publish-read": "universal",
+      "./deploy/react/download-dockerfile": "browser",
+      "./deploy/react/hooks/use-static-export.hooks": "browser",
+      "./deploy/site/deploy-ops/secret-confirm": "universal",
+      "./deploy/site/deploy-ops/run-ops": "node",
+      "./deploy/site/publish-credentials/compatibility-port": "universal",
+      "./deploy/site/deploy-targets/registry": "node",
+      "./deploy/site/deploy-ops/registry": "node",
+      "./deploy/site/deploy-ops/agent-tools": "universal",
+      "./deploy/site/publish-credentials/store": "universal",
+      "./deploy/site/publish-credentials/store-resolution": "universal",
+      "./deploy/site/static-publish/credentials": "universal",
+      "./deploy/site/static-publish/verify": "node",
+      "./deploy/site/static-publish/publish-history": "universal",
+      "./deploy/site/static-publish/adapter": "node",
+      "./deploy/site/static-publish/inspection": "node",
+      "./deploy/site/static-publish/publish-run": "node",
+      "./deploy/site/static-publish/domain-publish-tool": "node",
+      "./deploy/site/publish-tool-deps": "universal",
+      "./deploy/site/publish-agent-tools": "node",
+      "./deploy/site/tool-registrations": "node",
+      "./backup/site/share-retention": "universal",
+      "./static-export/site/site-exporter": "node",
+      "./source-control/site/store": "universal",
+      "./source-control/site/credential-setup": "universal",
+      "./source-control/site/tool-registrations": "universal",
+      "./backup/site/share-database/projection": "node",
+      "./backup/site/backup-service": "universal",
+      "./backup/site/tool-registrations": "universal"
     },
     "isolation": {
       "shared": [
@@ -805,6 +834,144 @@
       "types": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts",
       "import": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js",
       "default": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js"
+    },
+    "./deploy/site/static-publish/admin-publish-read": {
+      "types": "./dist/deploy/site/static-publish/admin-publish-read.d.ts",
+      "import": "./dist/deploy/site/static-publish/admin-publish-read.js",
+      "default": "./dist/deploy/site/static-publish/admin-publish-read.js"
+    },
+    "./deploy/react/download-dockerfile": {
+      "types": "./dist/deploy/react/download-dockerfile.d.ts",
+      "import": "./dist/deploy/react/download-dockerfile.js",
+      "default": "./dist/deploy/react/download-dockerfile.js"
+    },
+    "./deploy/react/hooks/use-static-export.hooks": {
+      "types": "./dist/deploy/react/hooks/use-static-export.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-static-export.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-static-export.hooks.js"
+    },
+    "./deploy/site/deploy-ops/secret-confirm": {
+      "types": "./dist/deploy/site/deploy-ops/secret-confirm.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/secret-confirm.js",
+      "default": "./dist/deploy/site/deploy-ops/secret-confirm.js"
+    },
+    "./deploy/site/deploy-ops/run-ops": {
+      "types": "./dist/deploy/site/deploy-ops/run-ops.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/run-ops.js",
+      "default": "./dist/deploy/site/deploy-ops/run-ops.js"
+    },
+    "./deploy/site/publish-credentials/compatibility-port": {
+      "types": "./dist/deploy/site/publish-credentials/compatibility-port.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/compatibility-port.js",
+      "default": "./dist/deploy/site/publish-credentials/compatibility-port.js"
+    },
+    "./deploy/site/deploy-targets/registry": {
+      "types": "./dist/deploy/site/deploy-targets/registry.d.ts",
+      "import": "./dist/deploy/site/deploy-targets/registry.js",
+      "default": "./dist/deploy/site/deploy-targets/registry.js"
+    },
+    "./deploy/site/deploy-ops/registry": {
+      "types": "./dist/deploy/site/deploy-ops/registry.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/registry.js",
+      "default": "./dist/deploy/site/deploy-ops/registry.js"
+    },
+    "./deploy/site/deploy-ops/agent-tools": {
+      "types": "./dist/deploy/site/deploy-ops/agent-tools.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/agent-tools.js",
+      "default": "./dist/deploy/site/deploy-ops/agent-tools.js"
+    },
+    "./deploy/site/publish-credentials/store": {
+      "types": "./dist/deploy/site/publish-credentials/store.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/store.js",
+      "default": "./dist/deploy/site/publish-credentials/store.js"
+    },
+    "./deploy/site/publish-credentials/store-resolution": {
+      "types": "./dist/deploy/site/publish-credentials/store-resolution.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/store-resolution.js",
+      "default": "./dist/deploy/site/publish-credentials/store-resolution.js"
+    },
+    "./deploy/site/static-publish/credentials": {
+      "types": "./dist/deploy/site/static-publish/credentials.d.ts",
+      "import": "./dist/deploy/site/static-publish/credentials.js",
+      "default": "./dist/deploy/site/static-publish/credentials.js"
+    },
+    "./deploy/site/static-publish/verify": {
+      "types": "./dist/deploy/site/static-publish/verify.d.ts",
+      "import": "./dist/deploy/site/static-publish/verify.js",
+      "default": "./dist/deploy/site/static-publish/verify.js"
+    },
+    "./deploy/site/static-publish/publish-history": {
+      "types": "./dist/deploy/site/static-publish/publish-history.d.ts",
+      "import": "./dist/deploy/site/static-publish/publish-history.js",
+      "default": "./dist/deploy/site/static-publish/publish-history.js"
+    },
+    "./deploy/site/static-publish/adapter": {
+      "types": "./dist/deploy/site/static-publish/adapter.d.ts",
+      "import": "./dist/deploy/site/static-publish/adapter.js",
+      "default": "./dist/deploy/site/static-publish/adapter.js"
+    },
+    "./deploy/site/static-publish/inspection": {
+      "types": "./dist/deploy/site/static-publish/inspection.d.ts",
+      "import": "./dist/deploy/site/static-publish/inspection.js",
+      "default": "./dist/deploy/site/static-publish/inspection.js"
+    },
+    "./deploy/site/static-publish/publish-run": {
+      "types": "./dist/deploy/site/static-publish/publish-run.d.ts",
+      "import": "./dist/deploy/site/static-publish/publish-run.js",
+      "default": "./dist/deploy/site/static-publish/publish-run.js"
+    },
+    "./deploy/site/static-publish/domain-publish-tool": {
+      "types": "./dist/deploy/site/static-publish/domain-publish-tool.d.ts",
+      "import": "./dist/deploy/site/static-publish/domain-publish-tool.js",
+      "default": "./dist/deploy/site/static-publish/domain-publish-tool.js"
+    },
+    "./deploy/site/publish-tool-deps": {
+      "types": "./dist/deploy/site/publish-tool-deps.d.ts",
+      "import": "./dist/deploy/site/publish-tool-deps.js",
+      "default": "./dist/deploy/site/publish-tool-deps.js"
+    },
+    "./deploy/site/publish-agent-tools": {
+      "types": "./dist/deploy/site/publish-agent-tools.d.ts",
+      "import": "./dist/deploy/site/publish-agent-tools.js",
+      "default": "./dist/deploy/site/publish-agent-tools.js"
+    },
+    "./deploy/site/tool-registrations": {
+      "types": "./dist/deploy/site/tool-registrations.d.ts",
+      "import": "./dist/deploy/site/tool-registrations.js",
+      "default": "./dist/deploy/site/tool-registrations.js"
+    },
+    "./backup/site/share-retention": {
+      "types": "./dist/backup/site/share-retention.d.ts",
+      "import": "./dist/backup/site/share-retention.js",
+      "default": "./dist/backup/site/share-retention.js"
+    },
+    "./static-export/site/site-exporter": {
+      "types": "./dist/static-export/site/site-exporter.d.ts",
+      "import": "./dist/static-export/site/site-exporter.js"
+    },
+    "./source-control/site/store": {
+      "types": "./dist/source-control/site/store.d.ts",
+      "import": "./dist/source-control/site/store.js"
+    },
+    "./source-control/site/credential-setup": {
+      "types": "./dist/source-control/site/credential-setup.d.ts",
+      "import": "./dist/source-control/site/credential-setup.js"
+    },
+    "./source-control/site/tool-registrations": {
+      "types": "./dist/source-control/site/tool-registrations.d.ts",
+      "import": "./dist/source-control/site/tool-registrations.js"
+    },
+    "./backup/site/share-database/projection": {
+      "types": "./dist/backup/site/share-database/projection.d.ts",
+      "import": "./dist/backup/site/share-database/projection.js"
+    },
+    "./backup/site/backup-service": {
+      "types": "./dist/backup/site/backup-service.d.ts",
+      "import": "./dist/backup/site/backup-service.js"
+    },
+    "./backup/site/tool-registrations": {
+      "types": "./dist/backup/site/tool-registrations.d.ts",
+      "import": "./dist/backup/site/tool-registrations.js"
     }
   },
   "typesVersions": {
@@ -841,6 +1008,15 @@
       ],
       "source-control/react/hooks/use-source-control-credentials.hooks": [
         "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts"
+      ],
+      "deploy/site/static-publish/admin-publish-read": [
+        "./dist/deploy/site/static-publish/admin-publish-read.d.ts"
+      ],
+      "deploy/react/download-dockerfile": [
+        "./dist/deploy/react/download-dockerfile.d.ts"
+      ],
+      "deploy/react/hooks/use-static-export.hooks": [
+        "./dist/deploy/react/hooks/use-static-export.hooks.d.ts"
       ]
     }
   },
@@ -877,7 +1053,9 @@
     "parse5": "7.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "undici": "^7.30.1"
+    "undici": "^7.30.1",
+    "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/db": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"

@@ -1,3 +1,6 @@
+import { createUserTrashAdapter } from "@jini-ai/user-management/identity/sql/user-trash-adapter";
+import { createRedirectTrashAdapter } from "../adapters/redirect.js";
+import { createMemberTrashAdapter as createSqlMemberAdapter } from "../adapters/member-credential-sql.js";
 import { expect, test, vi } from "vitest";
 import Database from "better-sqlite3";
 import { sql } from "kysely";
@@ -65,5 +68,58 @@ test("stale purge never reaches post cascade or media blob removal", async () =>
     expect(purgeAsset).not.toHaveBeenCalled();
     expect(await kernel.query(sql`SELECT * FROM post_revisions`)).toHaveLength(1);
     expect(await kernel.query(sql`SELECT * FROM posts`)).toHaveLength(1);
+  } finally { await kernel.close(); }
+});
+
+test("failed member credential revocation rolls back both marker and credential fence", async () => {
+  const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE members (id TEXT, workspace_id TEXT, status TEXT, credentials_revoked_at TEXT)`);
+    await kernel.execute(sql`INSERT INTO members VALUES ('member', 'site', 'active', NULL)`);
+    const adapter: TrashAdapter = { entityType: "member", hide: async () => { await kernel.execute(sql`UPDATE members SET status='disabled' WHERE id='member'`); return { ok: true, version: 2 }; }, unhide: vi.fn(), purge: vi.fn() };
+    const member = createSqlMemberAdapter({ adapter, db: kernel, tables: { members: "members", sessions: "missing_sessions", tokens: "member_magic_tokens" } });
+    await expect(member.hide(input)).rejects.toThrow();
+    expect(await kernel.query(sql`SELECT status, credentials_revoked_at FROM members`)).toEqual([{ status: "active", credentials_revoked_at: null }]);
+  } finally { await kernel.close(); }
+});
+
+
+test("a blocked user purge leaves the identity and sessions untouched", async () => {
+  const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE principals (id TEXT, workspace_id TEXT, status TEXT, display_name TEXT, disabled_at TEXT)`);
+    await kernel.execute(sql`CREATE TABLE sessions (principal_id TEXT, workspace_id TEXT)`);
+    await kernel.execute(sql`INSERT INTO principals VALUES ('member','site','disabled','Owner','old')`);
+    await kernel.execute(sql`INSERT INTO sessions VALUES ('member','site')`);
+    const purgeUser = vi.fn();
+    const adapter = createUserTrashAdapter({ store: {
+      underPrincipalLock: ({ run }) => kernel.transaction(async () => { await kernel.lockKey("trash:user:site:member"); return run(); }),
+      readPrincipal: async () => ({ status: "disabled", displayName: "Owner" }),
+      readDisplayUsername: vi.fn(), compareAndSetStatus: vi.fn(), revokeSessions: vi.fn(), appendEvent: vi.fn(),
+    }, policy: { entityType: "user", assertAccountAction: async () => { throw new Error("protected owner"); } },
+      purge: { purgeUser }, idGen: { next: () => "event" }, clock: { nowIso: () => "now" } });
+    await expect(adapter.purge(input)).rejects.toThrow("protected owner");
+    expect(purgeUser).not.toHaveBeenCalled();
+    expect(await kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "disabled", disabled_at: "old" }]);
+    expect(await kernel.query(sql`SELECT * FROM sessions`)).toHaveLength(1);
+  } finally { await kernel.close(); }
+});
+
+test("redirect marker flips preserve an independently disabled redirect and purge revisions before hits", async () => {
+  const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE redirects (id TEXT, workspace_id TEXT, status TEXT, version INTEGER, updated_at TEXT)`);
+    await kernel.execute(sql`CREATE TABLE redirect_revisions (redirect_id TEXT, workspace_id TEXT, tombstoned INTEGER)`);
+    await kernel.execute(sql`CREATE TABLE redirect_hits (redirect_id TEXT, workspace_id TEXT)`);
+    await kernel.execute(sql`INSERT INTO redirects VALUES ('member','site','active',1,'old'), ('disabled','site','disabled',4,'old')`);
+    await kernel.execute(sql`INSERT INTO redirect_revisions VALUES ('member','site',1), ('disabled','site',0)`);
+    await kernel.execute(sql`INSERT INTO redirect_hits VALUES ('member','site')`);
+    await kernel.execute(sql`CREATE TRIGGER refuse_hits_before_revisions BEFORE DELETE ON redirect_hits WHEN EXISTS(SELECT 1 FROM redirect_revisions WHERE redirect_id=OLD.redirect_id) BEGIN SELECT RAISE(ABORT,'revisions first'); END`);
+    const adapter = createRedirectTrashAdapter({ store: kernel, tables: { redirects: "redirects", revisions: "redirect_revisions", hits: "redirect_hits" } });
+    expect(await adapter.hide(input)).toMatchObject({ ok: true, version: 2 });
+    expect(await adapter.purge({ ...input, expectedVersion: 2 })).toBe("purged");
+    expect(await kernel.query(sql`SELECT id,status,version FROM redirects`)).toEqual([{ id: "disabled", status: "disabled", version: 4 }]);
+    expect(await kernel.query(sql`SELECT tombstoned FROM redirect_revisions`)).toEqual([{ tombstoned: 0 }]);
+    expect(await kernel.query(sql`SELECT * FROM redirect_hits`)).toEqual([]);
   } finally { await kernel.close(); }
 });

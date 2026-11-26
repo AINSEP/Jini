@@ -22,7 +22,7 @@ export interface RecoveryToolDeps {
   readonly refuseUnexpectedKeys: (input: Record<string, unknown>, allowed: readonly string[]) => void;
 }
 
-type RestorePreparation = { restorePointId: string; plan: { planId: string; planHash: string }; createdAt?: string };
+type RestorePreparation = { restorePointId: string; plan: { planId: string; planHash: string }; createdAt: string | undefined };
 
 export interface RecoveryToolHost<D extends RecoveryToolDeps> {
   catalog: readonly AgentToolDefinition[]; metadata: ToolMetadataById; catalogModule: string;
@@ -208,9 +208,7 @@ function createRecoveryRestoreRun<D extends RecoveryToolDeps>(routeDeps: D, host
           input: { principalId: confirmer.id, principalKind: confirmer.kind, planId: plan.planId, planHash: plan.planHash, disclosureAcknowledged: true },
         });
         if (!confirmed.ok) throw new Error(confirmed.error.message ?? confirmed.error.code);
-        const candidate = { value: confirmed.value };
-        if (!isRecord(candidate) || typeof candidate.value.confirmationToken !== "string") throw new Error("Restore confirmation has no confirmation token");
-        const { confirmationToken } = candidate.value;
+        const { confirmationToken } = confirmed.value as { confirmationToken: string };
 
         const executed = await executeRestore({
           deps: {
@@ -251,9 +249,7 @@ function createRecoveryRestoreHandler<D extends RecoveryToolDeps>(routeDeps: D, 
         const { plan } = await planRestoreWithDisclosure({ actorId: ctx.principal.id, restorePointId });
         const { items } = await listRestorePoints({ repo: routeDeps.restorePointsRepo });
         const createdAt = items.find((item) => item.id === restorePointId)?.createdAt;
-        const candidate = { value: plan };
-        if (!isRecord(candidate) || typeof candidate.value.planId !== "string" || typeof candidate.value.planHash !== "string") throw new Error("Restore plan has no plan id or hash");
-        return { restorePointId, plan: { planId: candidate.value.planId, planHash: candidate.value.planHash }, ...(createdAt === undefined ? {} : { createdAt }) };
+        return { restorePointId, plan: plan as { planId: string; planHash: string }, createdAt };
       },
       describe: host.describe,
       run: createRecoveryRestoreRun(routeDeps, host),

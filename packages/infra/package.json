@@ -11,7 +11,13 @@
   "jini": {
     "domain": "server",
     "kind": "persistence-adapter",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      "./events/outbox": "node",
+      "./events/memory-bus": "node",
+      "./events/domain-outbox": "node",
+      "./events/outbox-trace-parent": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -30,6 +36,11 @@
       "types": "./dist/events/domain-outbox.d.ts",
       "import": "./dist/events/domain-outbox.js",
       "default": "./dist/events/domain-outbox.js"
+    },
+    "./events/outbox-trace-parent": {
+      "types": "./dist/events/outbox-trace-parent.d.ts",
+      "import": "./dist/events/outbox-trace-parent.js",
+      "default": "./dist/events/outbox-trace-parent.js"
     }
   },
   "typesVersions": {
@@ -42,6 +53,9 @@
       ],
       "events/domain-outbox": [
         "./dist/events/domain-outbox.d.ts"
+      ],
+      "events/outbox-trace-parent": [
+        "./dist/events/outbox-trace-parent.d.ts"
       ]
     }
   },

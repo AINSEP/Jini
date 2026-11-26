@@ -14,6 +14,8 @@
  * never a mutation path.
  */
 import { createHash } from "node:crypto";
+import { MemberLoginError } from "../server/login-types.js";
+import type { MemberRepoPort } from "./ports.js";
 
 import type { MemberAccessResolver } from "./ports.js";
 import type { MemberSessionRepoPort, MemberSubscriptionRepoPort, MemberTierRepoPort } from "./ports.js";
@@ -234,4 +236,28 @@ export function createMemberAccessResolver(
     subscriptions: deps.memberSubscriptionRepo,
     tiers: deps.memberTierRepo,
   });
+}
+
+/** Resolve only the member cookie, including revocation; operator cookies cannot purchase. O(1) reads. */
+export async function activeMemberFromSession({ deps }: { deps: {
+  memberSessionRepo: MemberSessionRepoPort;
+  memberRepo: Pick<MemberRepoPort, 'findById'>;
+  workspaceId: string;
+  sessionToken: () => string | undefined;
+  nowIso: () => string;
+} }, _optional = {}): Promise<string | null> {
+  let sessionToken: string | undefined;
+  try { sessionToken = deps.sessionToken(); }
+  catch (error) {
+    if (error instanceof MemberLoginError) return null;
+    throw error;
+  }
+  const session = await resolveMemberSession({ sessions: deps.memberSessionRepo, workspaceId: deps.workspaceId,
+    sessionToken, nowIso: deps.nowIso() });
+  if (!session) return null;
+  const member = await deps.memberRepo.findById({ workspaceId: deps.workspaceId, id: session.memberId });
+  // Session resolution alone must not resurrect a suspended/trashed member.
+  if (!member || member.status !== "active") return null;
+  if (member.credentialsRevokedAt && session.createdAt < member.credentialsRevokedAt) return null;
+  return member.id;
 }

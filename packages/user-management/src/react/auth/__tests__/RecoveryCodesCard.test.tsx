@@ -106,6 +106,7 @@ describe('owner recovery card (SEC-3, ported from the host)', () => {
     fireEvent.click(await screen.findByText('I saved these codes'));
     expect(screen.queryByText('Download codes')).toBeNull();
     expect(document.body.textContent).not.toContain(CODES[0]);
+    expect(document.querySelector('[data-agent-private] pre')).toBeNull();
   });
   it('offers no reset form without desktopOwnerReset', async () => {
     mount(port(true, { desktopOwnerReset: false }));
