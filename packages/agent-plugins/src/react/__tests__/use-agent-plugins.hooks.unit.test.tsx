@@ -3,9 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { expect, it, vi } from "vitest";
 import { FetchQueryProvider, useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate } from "@jini-ai/ui/fetch-query";
-import type { AgentPluginListRow } from "@jini-ai/admin/agent-plugins/models";
 import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
-import { useAgentPlugins } from "../use-agent-plugins.hooks.js";
+import { useWiredAgentPlugins, type AgentPluginListRow } from "../use-agent-plugins.hooks.js";
 
 it("does not let a late list read revert a confirmed toggle", async () => {
   const plugin: AgentPluginListRow = { pluginId: "plugin", version: "1", description: null, keywords: [], skills: [], mcpServerIds: [], enabled: false };
@@ -17,7 +16,7 @@ it("does not let a late list read revert a confirmed toggle", async () => {
     getAgentPluginFiles: vi.fn(),
   };
   const wrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider>{children}</FetchQueryProvider>;
-  const { result } = renderHook(() => useAgentPlugins({ port, locale: "en", t: (key) => key,
+  const { result } = renderHook(() => useWiredAgentPlugins({ port, useAdminLocaleHook: () => "en",
     useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useContentRefreshSubscription: () => {},
     resource: "agent-plugins", translatePlugins: ({ key }) => key, describeApiError: ({ fallback }) => fallback,
     isApiError: (error): error is AdminHttpError => error instanceof Error && "status" in error,

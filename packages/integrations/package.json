@@ -72,6 +72,8 @@
       "./react/site-key/hooks/use-site-key.hooks": "browser",
       "./react/site-key/hooks/use-site-key-recovery.hooks": "browser",
       "./react/credentials/access-token-forms": "universal",
+      "./react/credentials/OtherCredentialsSection.hooks": "browser",
+      "./react/credentials/OtherCredentialsSection": "browser",
       "./react/credentials/other-credential-stores": "universal",
       "./media-providers/catalog-projection": "universal",
       "./webhooks/site/seal-aad-invariant.node": "node",
@@ -410,6 +412,16 @@
       "import": "./dist/react/credentials/access-token-forms.js",
       "default": "./dist/react/credentials/access-token-forms.js"
     },
+    "./react/credentials/OtherCredentialsSection.hooks": {
+      "types": "./dist/react/credentials/OtherCredentialsSection.hooks.d.ts",
+      "import": "./dist/react/credentials/OtherCredentialsSection.hooks.js",
+      "default": "./dist/react/credentials/OtherCredentialsSection.hooks.js"
+    },
+    "./react/credentials/OtherCredentialsSection": {
+      "types": "./dist/react/credentials/OtherCredentialsSection.d.ts",
+      "import": "./dist/react/credentials/OtherCredentialsSection.js",
+      "default": "./dist/react/credentials/OtherCredentialsSection.js"
+    },
     "./react/credentials/other-credential-stores": {
       "types": "./dist/react/credentials/other-credential-stores.d.ts",
       "import": "./dist/react/credentials/other-credential-stores.js",
@@ -579,6 +591,12 @@
       ],
       "react/credentials/access-token-forms": [
         "./dist/react/credentials/access-token-forms.d.ts"
+      ],
+      "react/credentials/OtherCredentialsSection.hooks": [
+        "./dist/react/credentials/OtherCredentialsSection.hooks.d.ts"
+      ],
+      "react/credentials/OtherCredentialsSection": [
+        "./dist/react/credentials/OtherCredentialsSection.d.ts"
       ],
       "react/credentials/other-credential-stores": [
         "./dist/react/credentials/other-credential-stores.d.ts"

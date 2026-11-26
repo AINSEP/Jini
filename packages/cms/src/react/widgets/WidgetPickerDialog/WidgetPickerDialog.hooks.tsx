@@ -64,7 +64,7 @@ type WidgetAddControlProps = { triggerLabel: string; onResolved: (id: string) =>
  * const { instances, error } = useExistingInstances({ widgetType: "text" });
  */
 export function useExistingInstances(
-  { widgetType, deps }: { widgetType: AdminWidgetType; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "locale" | "useFetchQuery" | "describeApiError" | "sharedComponentsT"> },
+  { widgetType, deps }: { widgetType: AdminWidgetType; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useFetchQuery" | "describeApiError" | "sharedComponentsT"> & { locale: string } },
   _optional = {},
 ) {
   const { port, locale, useFetchQuery, describeApiError, sharedComponentsT } = deps;
@@ -84,7 +84,7 @@ export function useExistingInstances(
 export function useWidgetPickerDraft({ props, instances, deps }: {
   props: WidgetPickerDialogProps;
   instances: AdminWidget[] | null;
-  deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "locale" | "defaultWidgetConfig" | "widgetTypeLabel" | "WIDGET_TYPE_OPTIONS" | "translateWidgets">;
+  deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "defaultWidgetConfig" | "widgetTypeLabel" | "WIDGET_TYPE_OPTIONS" | "translateWidgets"> & { locale: string };
 }, _optional = {}) {
   const { locale, defaultWidgetConfig, widgetTypeLabel, WIDGET_TYPE_OPTIONS, translateWidgets } = deps;
   const [selectedExistingId, setSelectedExistingId] = useState("");
@@ -144,7 +144,7 @@ export function useWidgetPickerDraft({ props, instances, deps }: {
  */
 export function useWidgetPickerDialog(
   { props, deps }: { props: WidgetPickerDialogProps; deps: {
-    port: WidgetPickerPort; locale: string; useFetchQuery: FetchQueryAdapter["useFetchQuery"];
+    port: WidgetPickerPort; useAdminLocaleHook: () => string; useFetchQuery: FetchQueryAdapter["useFetchQuery"];
     defaultWidgetConfig: (required: { widgetType: AdminWidgetType }) => Record<string, unknown>;
     WIDGET_TYPE_OPTIONS: readonly { value: AdminWidgetType; label: string }[];
     widgetTypeLabel: (required: { widgetType: AdminWidgetType; types: readonly { value: AdminWidgetType; label: string }[] }, optional: { t: Translate }) => string;
@@ -154,11 +154,12 @@ export function useWidgetPickerDialog(
   } },
   _optional = {},
 ) {
-  const { locale, sharedComponentsT } = deps;
+  const locale = deps.useAdminLocaleHook();
+  const { sharedComponentsT } = deps;
   const t: Translate = (key) => sharedComponentsT({ locale: locale, key: key });
-  const { instances, error: loadError } = useExistingInstances({ widgetType: props.widgetType, deps });
+  const { instances, error: loadError } = useExistingInstances({ widgetType: props.widgetType, deps: { ...deps, locale } });
   const { selectedExistingId, setSelectedExistingId, newTitle, setNewTitle, newConfig, setNewConfig, error, setError,
-    existingSelectId, newTitleInputId, newTitleInputRef, typeLabel, hasExisting } = useWidgetPickerDraft({ props, instances, deps });
+    existingSelectId, newTitleInputId, newTitleInputRef, typeLabel, hasExisting } = useWidgetPickerDraft({ props, instances, deps: { ...deps, locale } });
 
   function submitUseExisting(e: React.FormEvent) {
     e.preventDefault();
@@ -218,10 +219,11 @@ export function useWidgetPickerDialog(
  * const { pickerType, handleCreateNew } = useWidgetAddControl({ triggerLabel: "+ Add widget", onResolved });
  */
 export function useWidgetAddControl(
-  { props, deps }: { props: WidgetAddControlProps; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "locale" | "sharedComponentsT" | "describeApiError"> },
+  { props, deps }: { props: WidgetAddControlProps; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useAdminLocaleHook" | "sharedComponentsT" | "describeApiError"> },
   _optional = {},
 ) {
-  const { port, locale, sharedComponentsT, describeApiError } = deps;
+  const locale = deps.useAdminLocaleHook();
+  const { port, sharedComponentsT, describeApiError } = deps;
   const t: Translate = (key) => sharedComponentsT({ locale: locale, key: key });
   const [pickerType, setPickerTypeRaw] = useState<AdminWidgetType | null>(props.initialWidgetType ?? null);
   const [selectedType, setSelectedType] = useState<AdminWidgetType>(props.initialWidgetType ?? "text");
