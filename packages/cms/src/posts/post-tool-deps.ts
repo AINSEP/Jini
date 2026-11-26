@@ -11,6 +11,7 @@ import type { executeCommand } from "../core/commands/index.js";
 import type { isDeepStrictEqual } from "node:util";
 import type { PostToolViewDeps } from "./post-tool-views.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
+import type { PublicPostKind } from "@jini-ai/core/contracts/site/cms-core";
 import type { PostSearchPort } from "@jini-ai/cms/posts/search";
 import type { FeaturedImageDeps } from "@jini-ai/cms/posts/featured-image";
 import type { RuntimeMode } from "@jini-ai/core/contracts/site/core-runtime-mode";
@@ -58,7 +59,7 @@ export interface PostToolDeps {
   withPluginHookRefusals: (required: { handlers: Record<string, ToolHandler> }) => Record<string, ToolHandler>;
   postToolViewDeps: (required: { routeDeps: PostToolDeps }) => PostToolViewDeps;
   headerNavigationView: (required: { kind: PostKind }) => Record<string, unknown>;
-  readPostTemplateOptions: (required: { deps: PostToolDeps; kind: PostKind }) => Promise<string[]>;
+  readPostTemplateOptions: (required: { deps: PostToolDeps; kind: PublicPostKind }) => Promise<string[]>;
   findMediaByIdOrSlug: FeaturedImageDeps["findMediaByIdOrSlug"];
   featuredImageRefusals: Record<"missing" | "trashed" | "not-image", (required: { ref: string }, optional?: { contentType?: string | undefined }) => string>;
   authorize: AuthorizeFn;

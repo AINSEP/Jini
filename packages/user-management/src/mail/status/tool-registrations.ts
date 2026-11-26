@@ -36,7 +36,7 @@ interface MailTestSendDeps {
   mailSenderIdentity?: MailSenderIdentityPort | undefined;
   /** Host copy: the placeholder From for a non-delivering mailer, whose `name` also fills a configured
    *  sender's missing name. Absent: `no-reply@mail.local` named "Site". */
-  mailTestFallbackSender?: { email: string | undefined; name: string } | undefined;
+  mailTestFallbackSender?: { email: string; name: string } | undefined;
   /** Shared by the route and the tool (one per site, `deps.ts`); absent (hermetic roots), only the
    *  provider's own limits apply. */
   mailTestSendLimiter?: MailTestSendLimiter | undefined;

@@ -151,7 +151,7 @@ export interface PublishCredentialReadDeps {
     credentials: readonly T[]; provider: { id: string; vendorId: string; acceptsCustomToken: boolean }; id?: string }, optional?: Record<string, never>) => T | null;
   readonly credentialScopes: <D extends PublishCredentialReadDeps>(required: { deps: D; workspaceId: string }, optional?: Record<string, never>) => ScopedCredentialDeps<D>[];
   readonly credentialCreateTarget: <D extends PublishCredentialReadDeps>(required: { deps: D; input: { workspaceId: string; scope?: unknown }; invalid: (message: string) => Error }, optional?: Record<string, never>) => ScopedCredentialDeps<D>;
-  readonly parseStoreMeta: (required: { kind: "vendor"; meta: VaultSummary["meta"]; provider: string | null }) => { worksFor: string[] };
+  readonly parseStoreMeta: (required: { kind: "vendor"; meta: VaultSummary["meta"]; provider: string | null }) => Readonly<Record<string, unknown>>;
   repo: VendorCredentialSetRepoPort;
   sealer?: SecretSealerPort;
   loadDeployTargets({ workspaceId }: { workspaceId: string }, optional?: Record<string, never>): Promise<DeployTargetRegistry>;
