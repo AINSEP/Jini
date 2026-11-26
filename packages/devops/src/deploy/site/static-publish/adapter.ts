@@ -230,7 +230,7 @@ async function resolvePublishCredentialForSite(
  * regardless of provider once `StaticPublishOutcome` carries a real third branch for it (see that
  * type's own header). Applied uniformly here rather than special-cased per target: every target
  * already resolves its own `status` internally before returning (verified directly against
- * `VercelDeployTarget.publish()`'s own `waitForReachableDeploymentUrl` call), so this is the one
+ * a hosting target's own reachability wait inside `publish()`), so this is the one
  * place that turns an already-honest `status` into an equally-honest `StaticPublishOutcome`.
  */
 function buildPartialPublishOutcome({ targetId, result, basePath }: { targetId: StaticPublishTargetId; result: DeployPublishResult; basePath: string | undefined }, _options = {}): StaticPublishOutcome {
