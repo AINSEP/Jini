@@ -1,9 +1,6 @@
 import type { KitChatPaneProps } from "../../../react/kit.js";
 import type { DockChatPane } from "./DockChatPane.js";
-import { DockLeadingAccessory } from "./DockLeadingAccessory.js";
 import { composerFooterLeading, executionChatPaneProps, folderWindowOpenElsewhere, optionalChatPaneProps, voiceFooterAccessory } from "./assistant-dock-props.js";
-import { chatPaneDisplayProps, CHAT_TOOL_CALL_OPTIONS } from "./chat-display-preferences.js";
-import { REPLY_LENGTH_OPTIONS } from "./assistant-runtime-preferences.js";
 
 type PaneProps = Partial<KitChatPaneProps>;
 
@@ -76,13 +73,13 @@ export function chatPaneSessionProps({ dock, deps }: Parameters<typeof DockChatP
 export function chatPaneChromeProps({ dock, kit, hooks, deps }: Parameters<typeof DockChatPane>[0], _optional = {}) {
   const { DockCleanupHeader, ChatCleanupPanel, ConversationTitle } = kit;
   const { useDockChatCleanup, useWiredAssistantSubagentsSettings } = hooks;
-  const { translateAiAssistant, assistantTitleKey } = deps;
+  const { translateAiAssistant, assistantTitleKey, toolCallOptions, replyLengthOptions } = deps;
   const { agentBridge, webMcpEnabled, locale, t, chatI18n, conversationDelete, chatDisplay, agentPlugins, runtime, agentPermissions, executionConfig, localCliSelection, chats, runContext, activeTitle, emptyState } = dock;
   return {
         header: <DockCleanupHeader ChatCleanupPanel={ChatCleanupPanel} chats={chats} activeTitle={activeTitle} mode={executionConfig.mode} agentId={localCliSelection.agentId}
             locale={locale} t={t} chatI18n={chatI18n} conversationDelete={conversationDelete} chatDisplay={chatDisplay}
             agentPlugins={agentPlugins} runtime={runtime} onMoreSettings={agentPermissions.onMoreSettings} empty={emptyState.empty}
-            toolCallOptions={CHAT_TOOL_CALL_OPTIONS} replyLengthOptions={REPLY_LENGTH_OPTIONS}
+            toolCallOptions={toolCallOptions} replyLengthOptions={replyLengthOptions}
             translateAiAssistant={translateAiAssistant} useSubagentsSettingsHook={useWiredAssistantSubagentsSettings} ConversationTitle={ConversationTitle}
             useChatCleanup={useDockChatCleanup} />
         ,
@@ -159,7 +156,8 @@ function chatPaneComposerSlots({ dock, kit, deps }: Parameters<typeof DockChatPa
   };
 }
 
-function chatPaneLeadingAccessory({ dock, deps }: Parameters<typeof DockChatPane>[0], _optional = {}) {
+function chatPaneLeadingAccessory({ dock, kit, deps }: Parameters<typeof DockChatPane>[0], _optional = {}) {
+  const { DockLeadingAccessory } = kit;
   const { executionPolicy, selectedAgentAuth, folderDrop, folderPicker, selectedPluginChips, removePluginRef, selectedSkills, skillOnlySend } = dock;
         // Renders the pinned-plugin chip tray above the composer's textarea. NOT passed inside
         // `composerSlots` above — verified live (2026-08-21) that `ChatPane`'s own
@@ -184,7 +182,8 @@ function chatPaneLeadingAccessory({ dock, deps }: Parameters<typeof DockChatPane
 ;
 }
 
-function chatPaneComposerDisplayProps({ dock }: Parameters<typeof DockChatPane>[0], _optional = {}) {
+function chatPaneComposerDisplayProps({ dock, deps }: Parameters<typeof DockChatPane>[0], _optional = {}) {
+  const { chatPaneDisplayProps } = deps;
   const { voiceInput, chatDisplay, agentPlugins } = dock;
   return {
         // Populated by `ChatPane` itself on mount; `PushToTalkMicButton`'s transcript is written

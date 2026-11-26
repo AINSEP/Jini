@@ -4,20 +4,25 @@ import type { ConfirmDialog } from "../../../react/index.js";
 import type { SkillInstallConfirmation } from "../../../screens/skills/SkillInstallConfirmation.js";
 import type { DockCleanupHeaderProps, DockChatCleanup } from "./DockCleanupHeader.js";
 import type { AssistantDockState } from "./AssistantDock.state.hooks.js";
-import { FailureSurfaceContext } from "./AgentFailureCard.hooks.js";
-import { dockSettingsMenuSections } from "./dock-header-rules.js";
-import { CHAT_TOOL_CALL_OPTIONS } from "./chat-display-preferences.js";
-import { REPLY_LENGTH_OPTIONS } from "./assistant-runtime-preferences.js";
+import type { FailureSurfaceContext } from "./AgentFailureCard.hooks.js";
+import type { DockLeadingAccessory } from "./DockLeadingAccessory.js";
+import type { FolderPathButton } from "./FolderPathButton.js";
+import type { dockSettingsMenuSections } from "./dock-header-rules.js";
+import type { CHAT_TOOL_CALL_OPTIONS, chatPaneDisplayProps } from "./chat-display-preferences.js";
+import type { REPLY_LENGTH_OPTIONS } from "./assistant-runtime-preferences.js";
 import { chatPaneSessionProps, chatPaneChromeProps, chatPaneComposerProps } from "./dock-pane-props.js";
 
 type DockState = AssistantDockState;
 type PaneProps = {
   dock: DockState;
   kit: {
+    FailureSurfaceProvider: ComponentType<ComponentProps<typeof FailureSurfaceContext.Provider>>;
+    DockLeadingAccessory: ComponentType<ComponentProps<typeof DockLeadingAccessory>>;
+    FolderPathButton: ComponentType<ComponentProps<typeof FolderPathButton>>;
     JiniChatProvider: ComponentType<KitJiniChatProviderProps>;
     ChatSettingsDialog: ComponentType<KitChatSettingsDialogProps>;
     ConversationTitle: DockCleanupHeaderProps<DockChatCleanup>["ConversationTitle"];
-    DockCleanupHeader: ComponentType<DockCleanupHeaderProps<DockChatCleanup>>;
+    DockCleanupHeader: ComponentType<Omit<DockCleanupHeaderProps<DockChatCleanup>, "DockHeader">>;
     ChatCleanupPanel: DockCleanupHeaderProps<DockChatCleanup>["ChatCleanupPanel"];
     SkillInstallConfirmation: ComponentType<ComponentProps<typeof SkillInstallConfirmation>>;
     ConfirmDialog: ComponentType<ComponentProps<typeof ConfirmDialog>>;
@@ -26,6 +31,10 @@ type PaneProps = {
   };
   hooks: { useDockChatCleanup: DockCleanupHeaderProps<DockChatCleanup>["useChatCleanup"]; useWiredAssistantSubagentsSettings: DockCleanupHeaderProps<DockChatCleanup>["useSubagentsSettingsHook"] };
   deps: {
+    dockSettingsMenuSections: typeof dockSettingsMenuSections;
+    toolCallOptions: typeof CHAT_TOOL_CALL_OPTIONS;
+    replyLengthOptions: typeof REPLY_LENGTH_OPTIONS;
+    chatPaneDisplayProps: typeof chatPaneDisplayProps;
     typedAnswerPoster: NonNullable<KitChatPaneProps["deliverTypedAnswer"]>;
     midRunMessagePoster: NonNullable<KitChatPaneProps["deliverMidRunMessage"]>;
     onSecretRedacted: NonNullable<KitChatPaneProps["onSecretRedacted"]>;
@@ -73,12 +82,12 @@ export function bindDockChatPane({ kit, hooks, deps }: {
 
 /** The dock's view: providers, the failure/skill surfaces, the drop zone around the chat pane, and its dialogs. */
 export function DockChatPane({ dock, kit, hooks, deps }: PaneProps, _optional = {}) {
-  const { JiniChatProvider, SkillInstallConfirmation, ConfirmDialog, ChatSettingsDialog } = kit;
-  const { skillInstallConfirmationHost: SKILL_INSTALL_CONFIRMATION_HOST } = deps;
+  const { JiniChatProvider, FailureSurfaceProvider, SkillInstallConfirmation, ConfirmDialog, ChatSettingsDialog } = kit;
+  const { skillInstallConfirmationHost: SKILL_INSTALL_CONFIRMATION_HOST, dockSettingsMenuSections, toolCallOptions, replyLengthOptions } = deps;
   const { ChatPaneView, renderers, locale, t, chatI18n, conversationDelete, chatDisplay, agentPlugins, chatSettings, agentPermissions, executionPolicy, pageActivationError, chats, skillInstall, discoveryDraft, captureComposerClick, folderDrop, failureSurface } = dock;
   return (
     <JiniChatProvider transport={failureSurface.transport} i18n={chatI18n} extEventRendererRegistry={renderers.registry}>
-      <FailureSurfaceContext.Provider value={failureSurface.actions}>
+      <FailureSurfaceProvider value={failureSurface.actions}>
       <SkillInstallConfirmation install={skillInstall} locale={locale} {...SKILL_INSTALL_CONFIRMATION_HOST} />
       {pageActivationError && <div className="jini-chat-pane__notice" role="alert">{t({ key: pageActivationError })}</div>}
       {/* ChatPane takes `transport` directly as well as via the provider — the package's
@@ -95,9 +104,9 @@ export function DockChatPane({ dock, kit, hooks, deps }: PaneProps, _optional = 
       />
       <ConfirmDialog {...conversationDelete.dialog} />
       <ChatSettingsDialog open={chatSettings.open} onClose={chatSettings.close} t={(key) => t({ key })}
-        displaySections={dockSettingsMenuSections({ t: (key) => t({ key }), toolCallOptions: CHAT_TOOL_CALL_OPTIONS, replyLengthOptions: REPLY_LENGTH_OPTIONS }, { display: chatDisplay, agentPlugins })} permissions={agentPermissions} />
+        displaySections={dockSettingsMenuSections({ t: (key) => t({ key }), toolCallOptions, replyLengthOptions }, { display: chatDisplay, agentPlugins })} permissions={agentPermissions} />
       </div>
-      </FailureSurfaceContext.Provider>
+      </FailureSurfaceProvider>
     </JiniChatProvider>
   );
 }

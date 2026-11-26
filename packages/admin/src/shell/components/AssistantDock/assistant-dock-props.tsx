@@ -2,7 +2,7 @@ import type { ComponentProps, ComponentType, ReactNode } from "react";
 import type { KitChatPaneProps } from "../../../react/kit.js";
 
 import type { UseNativeFolderPicker } from "../../../screens/fs-files/use-native-folder-picker.hooks.js";
-import { FolderPathButton } from "./FolderPathButton.js";
+import type { FolderPathButton } from "./FolderPathButton.js";
 
 /**
  * @file Pure prop builders `AssistantDock.tsx` hands to `ChatPane` and its header. Each one is a
@@ -88,8 +88,8 @@ export function voiceFooterAccessory(input: { readonly enabled: boolean; readonl
  * @param input.voice `voiceFooterAccessory`'s result.
  * @complexity O(1).
  */
-export function composerFooterLeading(input: { readonly folderPicker: UseNativeFolderPicker; readonly voice: ReactNode | undefined; kit: { chat: { useT: ComponentProps<typeof FolderPathButton>["useTHook"] } } }, _optional = {}) {
-  const { useT } = input.kit.chat;
+export function composerFooterLeading(input: { readonly folderPicker: UseNativeFolderPicker; readonly voice: ReactNode | undefined; kit: { FolderPathButton: ComponentType<ComponentProps<typeof FolderPathButton>>; chat: { useT: ComponentProps<typeof FolderPathButton>["useTHook"] } } }, _optional = {}) {
+  const { FolderPathButton, chat: { useT } } = input.kit;
   if (!input.folderPicker.available) return input.voice;
   return (
     <>
