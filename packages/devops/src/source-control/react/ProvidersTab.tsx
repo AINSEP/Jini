@@ -231,7 +231,7 @@ function firstUnconnectedProviderId(rows: readonly SourceControlCredentialRowSta
  *
  * 2026-08-16 owner decision: when a not-yet-connected row's provider already has a matching
  * Deployment publish credential saved (checked directly against the database this session — e.g.
- * `publish_credential_sets` already has a `github-pages` row for a workspace whose
+ * `publish_credential_sets` already has a static-hosting provider row for a workspace whose
  * `source_control_credential_sets` is empty), this row should offer a one-click "reuse that
  * credential" path instead of asking the operator to paste the same token twice. NOT built here —
  * it needs a server-side read across both credential stores plus a decrypt-and-reseal from one
@@ -240,7 +240,7 @@ function firstUnconnectedProviderId(rows: readonly SourceControlCredentialRowSta
  *
  * The affordance's insertion point, once that data exists: directly below {@link
  * SourceControlRowSummary}, ABOVE {@link SourceControlCredentialFields} — same "settled fact first,
- * fields second" order the connected summary already establishes, so a reader sees "a GitHub Pages
+ * fields second" order the connected summary already establishes, so a reader sees "a hosting provider
  * credential already exists" before being asked to type a new token into the fields underneath. It
  * needs to read, per provider, from the controller: whether a matching publish credential exists,
  * and when it was saved (same shape `AdminSourceControlCredentialSummary.updatedAt` already carries
