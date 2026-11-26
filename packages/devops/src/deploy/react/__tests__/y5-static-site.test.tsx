@@ -1,6 +1,7 @@
 import { bindPublishCredentials } from "../hooks/use-publish-credentials.hooks.js";
 import { bindStaticPublish } from "../hooks/use-static-publish.hooks.js";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
+import { StaticSiteTab, type StaticSiteTabProps } from "../StaticSiteTab.js";
 import { afterEach, expect, test, vi } from "vitest";
 import { bindStaticExport } from "../hooks/use-static-export.hooks.js";
 import type { ExportRunSnapshot } from "@jini-ai/core/contracts/site/export-run";
@@ -145,4 +146,37 @@ test("credential edits survive save and verify, and a confirmed picker change su
   expect(result.current.rows?.[0]?.selectError).toBeNull();
   expect(result.current.rows?.[0]?.verification).toBeUndefined();
   expect(result.current.credentialsForProvider("host").map(row => [row.id, row.isDefault])).toEqual([["one", false], ["two", true]]);
+});
+
+test("static-site view renders export refusal and progress using its required collaborators", () => {
+  const trigger = vi.fn(async () => {});
+  const props: StaticSiteTabProps = {
+    kit: { Icon: () => null, CredentialHint: () => null, SecretInput: () => null, TabBar: () => null, ErrorNotice: () => null },
+    hooks: { useAdminLocale: () => "en",
+      useStaticExportHook: () => ({ run: running, t: key => key, clean: false, triggering: false,
+        isRunning: true, triggerError: "output directory is not empty", pollError: null, loadError: null, setClean: vi.fn(), trigger }),
+      useStaticPublishHook: () => ({ targets: [], targetsError: null, target: "", selectedTarget: undefined,
+        setTarget: vi.fn(), configValues: {}, setConfigField: vi.fn(), canPreview: false, canPublish: false,
+        projectNameCopy: null, projectName: "", setProjectName: vi.fn(), preview: undefined, previewLoading: false,
+        previewError: null, checkPreview: vi.fn(async () => {}), run: undefined, isPublishing: false, loadError: null,
+        pollError: null, publishError: null, publishing: false, publish: vi.fn(async () => {}), t: key => key }),
+      usePublishCredentialsHook: () => ({ rows: [], executionMode: "hosted-api-only", loadError: null,
+        credentialChangePending: false, setField: vi.fn(), save: vi.fn(async () => {}), credentialsForProvider: () => [],
+        selectCredential: vi.fn(async () => {}), verify: vi.fn(async () => {}), t: key => key }),
+      useWiredCopyToClipboard: () => ({ copied: false, copy: vi.fn(async () => true) }),
+    },
+    deps: { STATIC_SITE_CAPABILITIES: [], t: ({ key }) => key, createStaticSiteTabTranslator: () => key => key,
+      adminHref: ({ routePath }) => routePath, pluginsPath: "/plugins", accessTokensPath: "/tokens", navigate: vi.fn(),
+      VIEWER_TIME_ZONE: "UTC", asciiSlug: ({ text }) => text, PUBLISH_RUN_RESULT_CLASSES: { success: "success", error: "error" },
+      LINE_ICON: { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
+      copy: { exportDescription: "Host export description", exportCommand: "host export <dir>",
+        credentialSubtitle: "Connect {credential}", storedTokenNotice: "Stored encrypted", pickerTokenNotice: "Pick a token", productName: "Host" },
+    },
+  };
+  render(<StaticSiteTab {...props} />);
+  expect(screen.getByRole("alert").textContent).toBe("output directory is not empty");
+  expect(screen.getByRole("button", { name: "Exporting…" }).hasAttribute("disabled")).toBe(true);
+  expect(screen.getByText("Host export description")).toBeTruthy();
+  expect(screen.getByText("host export <dir>")).toBeTruthy();
+  expect(trigger).not.toHaveBeenCalled();
 });
