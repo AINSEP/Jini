@@ -38,11 +38,11 @@ export async function inspectStaticPublish({ deps, input }: { deps: StaticPublis
   const resolved = await resolveInspectionCredential({ deps, input });
   if (!resolved.ok) throw new ToolInputError({ message: `NO_CREDENTIALS_CONFIGURED: ${resolved.reason}` });
   const credential = toDeployTargetCredential(resolved);
-  const kit = deps.hostKit ?? deps.createDeployHostKit({ observability: deps.observability });
+  const kit = deps.hostKit ?? deps.createDeployHostKit(deps.observability === undefined ? {} : { observability: deps.observability });
   const forms = await previewFormDestination({ deps, input, kit });
   try {
     const hostInspection = await plan.target.module.preview({ credential, config: input.config, projectName: input.projectName, kit, ...forms.hostInput });
-    return { inspection: forms.addFormLine({ inspection: hostInspection }), credentialId: resolved.credentialId,
+    return { inspection: forms.addFormLine({ inspection: hostInspection }), ...(resolved.credentialId === undefined ? {} : { credentialId: resolved.credentialId }),
       credentialBinding: createHash('sha256').update(JSON.stringify(credential)).digest('hex') };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Provider inspection failed. Check the connection and preview again.';

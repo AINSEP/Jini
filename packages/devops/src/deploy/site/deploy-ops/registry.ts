@@ -78,7 +78,8 @@ export async function loadDeployOpsRegistry(required: {
   readTrustedPluginFile(input: { plugin: { pluginId: string; packageRoot: string }; filename: string }): Promise<string>;
   loadContributions(input: { workspaceId: string; definition: typeof opsContribution; onReadError(input: { plugin: { pluginId: string } }): string[]; importRefusalReason: string; importErrorReason: string }, options: {
     packageRefusal(input: { plugin: { pluginId: string; packageRoot: string } }): string | undefined;
-    onInactive(input: { plugin: { pluginId: string; packageRoot: string }; definition: typeof opsContribution; onReadError(input: { plugin: { pluginId: string } }): string[]; importRefusalReason: string; importErrorReason: string }): Promise<void>;
+    /** Only `plugin` is read; the loader may pass its full contribution input. */
+    onInactive(input: { plugin: { pluginId: string; packageRoot: string } }): Promise<void>;
   }): Promise<{ items: readonly LoadedDeployOps[]; refusals: readonly string[] }>;
   warn(error: unknown): void;
 }, _optional = {}): Promise<DeployOpsRegistry> {

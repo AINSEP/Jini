@@ -5,7 +5,6 @@ import { statfs, writeFile } from "node:fs/promises";
 
 import path from "node:path";
 
-import type { Kysely, RawBuilder } from "kysely";
 import type { StorageKernel, SqliteClient, ColumnInfo } from "@jini-ai/core/contracts/storage";
 type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
 interface PostSearchHostConfig { searchConfig: string; projectionVersionSettingId: string }
@@ -21,10 +20,55 @@ import { documentReferences, archiveMediaSources, rewriteMediaRows } from "./pro
 export { prepareSharePluginTables, refuseUnknownShareTables } from "./projection.tables.js";
 export type Row = Record<string, unknown>;
 type Tables = Record<string, Row>;
-export interface Kernel extends StorageKernel<Kysely<Tables>, Tables> {
+
+/** Raw SQL statement built by the host's injected {@link ShareSqlTag}; `R` is the row type it yields. */
+export interface RawStatement<R> { readonly isRawBuilder: true; readonly $rowType?: R }
+
+/** The host's tagged-template SQL builder (a Kysely-compatible `sql` tag), injected through the host. */
+export interface ShareSqlTag {
+  <R = unknown>(strings: TemplateStringsArray, ...values: unknown[]): RawStatement<R>;
+  /** Quotes an identifier (table or column name). */
+  id(name: string): unknown;
+}
+
+/** Filterable, executable read built by {@link ShareQueryHandle.selectFrom}. Rows are schema-agnostic. */
+export interface ShareSelectQuery {
+  select(columns: string | readonly string[]): ShareSelectQuery;
+  selectAll(): ShareSelectQuery;
+  where(column: string, operator: "=", value: unknown): ShareSelectQuery;
+  orderBy(column: string, direction: "asc" | "desc"): ShareSelectQuery;
+  execute(): Promise<Row[]>;
+}
+
+/** Filterable, executable write (update/delete). */
+export interface ShareMutationQuery {
+  where(column: string, operator: "=", value: unknown): ShareMutationQuery;
+  execute(): Promise<unknown>;
+}
+
+/** Upsert target for {@link ShareInsertQuery.onConflict}. */
+export interface ShareConflictBuilder {
+  columns(columns: readonly string[]): { doUpdateSet(values: Row): unknown };
+}
+
+/** Insert with optional upsert behaviour. */
+export interface ShareInsertQuery {
+  onConflict(build: (conflict: ShareConflictBuilder) => unknown): ShareInsertQuery;
+  execute(): Promise<unknown>;
+}
+
+/** The structural slice of the host's query-builder handle the share projection uses. */
+export interface ShareQueryHandle {
+  selectFrom(table: string): ShareSelectQuery;
+  insertInto(table: string): { values(row: Row): ShareInsertQuery };
+  updateTable(table: string): { set(values: Row): ShareMutationQuery };
+  deleteFrom(table: string): ShareMutationQuery;
+}
+
+export interface Kernel extends StorageKernel<ShareQueryHandle, Tables> {
   readonly transport: "better-sqlite3" | "pglite" | "node-postgres" | "pglite-socket";
-  query<R>(statement: RawBuilder<R>): Promise<R[]>;
-  execute(statement: RawBuilder<unknown>): Promise<void>;
+  query<R>(statement: RawStatement<R>): Promise<R[]>;
+  execute(statement: RawStatement<unknown>): Promise<void>;
 }
 /** Free-space probe for the private staging directory (`node:fs/promises` `statfs` by default). */
 export type StagingSpacePort = (path: string) => Promise<{ bavail: number; bsize: number }>;
@@ -58,8 +102,9 @@ export async function sanitizeShareDatabase(required: { host: {
     tempRoot: OwnedTempRootScope;
     openSqliteFileKernel: (required: { filePath: string }, optional?: { readOnly?: boolean }) => Kernel;
     openContentDb: (required: { filePath: string }) => SqliteConnectionSource;
-    schemaErasedKernel: (required: { store: SqliteConnectionSource }) => StorageKernel<Kysely<unknown>, unknown>;
-    backfillPostSearchIndex: (required: { kernel: StorageKernel<Kysely<unknown>, unknown>; config: PostSearchHostConfig }, optional?: { batchSize?: number }) => Promise<number>;
+    sql: ShareSqlTag;
+    schemaErasedKernel(required: { store: SqliteConnectionSource }): StorageKernel<unknown, unknown>;
+    backfillPostSearchIndex(required: { kernel: StorageKernel<unknown, unknown>; config: PostSearchHostConfig }, optional?: { batchSize?: number }): Promise<number>;
   };  snapshot: Buffer; omittedMediaIds?: readonly string[]; modules: readonly DataModuleDecl[]; searchHost: PostSearchHostConfig }, optional: { signal?: AbortSignal; statfs?: StagingSpacePort; tempRoot?: OwnedTempRootScope } = {}): Promise<ShareDatabaseProjection> {
   optional.signal?.throwIfAborted();
   if (required.snapshot.length > required.host.SHARE_LIMITS.maxExpandedBytes) throw new SiteShareRefusal({ code: "LIMIT_EXCEEDED", message: required.host.databaseCapMessage });
@@ -109,7 +154,7 @@ export async function rewriteArchiveMedia(required: { host: Parameters<typeof sa
       const file = path.join(staging, "content.db");
       await writeFile(file, required.bytes, { mode: 0o600, flag: "wx" });
       target = required.host.openSqliteFileKernel({ filePath: file });
-      await rewriteMediaRows({ target, copies: required.copies }, optional);
+      await rewriteMediaRows({ target, copies: required.copies, sql: required.host.sql }, optional);
       const connection = required.host.deps.sqliteConnectionOf({ kernel: target });
       if (!connection) throw new Error("Share database has no SQLite connection");
       const bytes = connection.serialize();

@@ -1,7 +1,6 @@
 import { warnCredentialContent, type CredentialWarning } from "../credential-warnings.js";
 
 import { scheduler } from "node:timers/promises";
-import { sql } from "kysely";
 import { validateValueAgainstSchema, type SettingValueSchema } from "@jini-ai/core/settings";
 import { createConsoleLogger, type Logger, type JsonValue } from "@jini-ai/core/primitives";
 
@@ -76,7 +75,7 @@ async function declarePortableTables(required: { host: Parameters<typeof sanitiz
 export async function refuseUnknownShareTables({ host, source, trusted }: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; trusted: ReadonlySet<string> }, _options = {}): Promise<void> {
   for (const table of await host.deps.listTables({ kernel: source })) {
     if (trusted.has(table) || host.SHARE_LEGACY_PRIVATE_TABLES.has(table) || host.CHAT_TABLE_NAMES.includes(table) || table.startsWith("_vault_backup_")) continue;
-    const rows = await source.query<{ found: number }>(sql`SELECT 1 AS found FROM ${sql.id(table)} LIMIT 1`);
+    const rows = await source.query<{ found: number }>(host.sql`SELECT 1 AS found FROM ${host.sql.id(table)} LIMIT 1`);
     if (rows.length) throw new SiteShareRefusal({ code: "UNSUPPORTED_DATA", message: `Cannot share unsupported nonempty table '${archiveRefusalName({ name: table })}'. Add an approved portable-data policy for this table first.` });
   }
 }
@@ -92,7 +91,7 @@ const ADDITIVE_COLUMN_DEFAULTS: ReadonlyMap<string, Row> = new Map<string, Row>(
  * column (unless a portable plugin table, whose extra fields are dropped) or a missing column with
  * no additive default. Pure; O(columns²) over two short column lists.
  * @throws SiteShareRefusal UNSUPPORTED_SCHEMA naming the table. */
-function requireTrustedColumns(required: { table: string; columns: string[]; sourceColumns: string[]; defaults: Row }, { portablePlugin = false }: { portablePlugin?: boolean } = {}): void {
+function requireTrustedColumns(required: { table: string; columns: string[]; sourceColumns: string[]; defaults: Row }, { portablePlugin = false }: { portablePlugin?: boolean | undefined } = {}): void {
   const extra = !portablePlugin && required.sourceColumns.some(column => !required.columns.includes(column));
   const missing = required.columns.some(column => !required.sourceColumns.includes(column) && !Object.hasOwn(required.defaults, column));
   if (extra || missing) throw new SiteShareRefusal({ code: "UNSUPPORTED_SCHEMA", message: `Cannot share '${required.table}': its columns differ from the trusted current schema. Update the site first.` });
@@ -103,7 +102,7 @@ function requireTrustedColumns(required: { table: string; columns: string[]; sou
  * O(rows × columns) projection/insertion; rows remain bounded by the snapshot cap.
  * @throws SiteShareRefusal for missing required columns or unapproved core columns.
  */
-async function copyTable({ host, source, target, table, credentialWarnings }: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; target: Kernel; table: string; credentialWarnings: CredentialWarning[] }, { signal, portablePlugin, omittedMediaIds = [] }: { signal?: AbortSignal; portablePlugin?: boolean; omittedMediaIds?: readonly string[] } = {}): Promise<void> {
+async function copyTable({ host, source, target, table, credentialWarnings }: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; target: Kernel; table: string; credentialWarnings: CredentialWarning[] }, { signal, portablePlugin, omittedMediaIds = [] }: { signal?: AbortSignal | undefined; portablePlugin?: boolean | undefined; omittedMediaIds?: readonly string[] | undefined } = {}): Promise<void> {
   const columns = (await host.deps.listColumns({ kernel: target, table })).map(row => row.name);
   const sourceColumns = (await host.deps.listColumns({ kernel: source, table })).map(row => row.name);
   const defaults = ADDITIVE_COLUMN_DEFAULTS.get(table) ?? {};
@@ -180,7 +179,7 @@ function portableValue(required: { row: Row; schema: SettingValueSchema }, _opti
 }
 
 /** Copy under one fresh-target transaction; private data and source search tables never enter it. */
-export async function copyPortableTables(required: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; target: Kernel; present: ReadonlySet<string>; plugins: { portable: ReadonlySet<string> }; credentialWarnings: CredentialWarning[]; omittedMediaIds?: readonly string[] }, optional: { signal?: AbortSignal } = {}): Promise<void> {
+export async function copyPortableTables(required: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; target: Kernel; present: ReadonlySet<string>; plugins: { portable: ReadonlySet<string> }; credentialWarnings: CredentialWarning[]; omittedMediaIds?: readonly string[] | undefined }, optional: { signal?: AbortSignal } = {}): Promise<void> {
   const { source, target, present, plugins, credentialWarnings, omittedMediaIds } = required;
   await target.transaction(async () => {
     for (const table of required.host.SHARE_TABLES) {

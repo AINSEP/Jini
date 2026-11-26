@@ -180,11 +180,11 @@ export function createEnvPublishCredentialSource(
 
   return {
     async resolve(input) {
-      const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, { credentialId: input.credentialId });
+      const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, input.credentialId === undefined ? {} : { credentialId: input.credentialId });
       return "token" in result ? { ok: true, token: result.token, ...result.fields } : { ok: false, reason: result.reason };
     },
     async isConfigured(input: Parameters<PublishCredentialSource["resolve"]>[0], _options = {}) {
-      const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, { credentialId: input.credentialId });
+      const result = await readCredential({ target: input.target, requestedWorkspaceId: input.workspaceId }, input.credentialId === undefined ? {} : { credentialId: input.credentialId });
       return "token" in result ? { configured: true } : { configured: false, reason: result.reason };
     },
   };
@@ -295,7 +295,7 @@ export function createDbPublishCredentialSource(deps: DbPublishCredentialSourceD
       return projected.ok ? { ...projected, credentialId: resolved.id } : projected;
     },
     async isConfigured(input: Parameters<PublishCredentialSource["resolve"]>[0], _options = {}) {
-      const configured = await deps.hasDefaultForPublish(deps, { workspaceId: input.workspaceId, providerId: input.target, id: input.credentialId });
+      const configured = await deps.hasDefaultForPublish(deps, { workspaceId: input.workspaceId, providerId: input.target, ...(input.credentialId === undefined ? {} : { id: input.credentialId }) });
       const reason = input.credentialId === undefined ? notConfiguredReason(input.target) : CHOSEN_CREDENTIAL_UNAVAILABLE_REASON;
       return configured ? { configured: true } : { configured: false, reason };
     },

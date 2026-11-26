@@ -20,7 +20,7 @@ function fixture() {
     extractListingMoreHrefs: () => [], extractListingPageHrefs: () => [], listingJsonNextPath: () => undefined,
   } as unknown as ExportSiteRouteDeps;
   runner.run.mockImplementation(async (args: ExportSiteArgs, options: ExportSiteOptions) => {
-    await args.writer.prepare({ outputDir: args.outputDir }, { clean: options.clean });
+    await args.writer.prepare({ outputDir: args.outputDir }, options.clean === undefined ? {} : { clean: options.clean });
     if (typeof args.assetUrls === "function") await args.assetUrls();
     args.security.transformHtml({ html: 'CONTACT<script src="https://other.example/script.js"></script>' });
     return { outputDir: args.outputDir, routes: { succeeded: [], failed: [] }, assets: { succeeded: [], failed: [] }, skippedManifestEntries: [], unreferencedThemeFiles: [], droppedReferences: [], basePath: options.basePath, basePathRewriteWarning: "Rewrite limit." };

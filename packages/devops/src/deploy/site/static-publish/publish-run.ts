@@ -179,7 +179,7 @@ async function recordHistoryIfPublished(
       ...entry,
       ...(credentialId !== undefined ? { credentialId } : {}),
       ...(target !== undefined ? { configFields: publicPublishConfigFields({ descriptor: target.descriptor, config: {
-        ...input.config, ...target.module.destinationConfig?.({ providerMetadata: outcome.providerMetadata }),
+        ...input.config, ...target.module.destinationConfig?.(outcome.providerMetadata === undefined ? {} : { providerMetadata: outcome.providerMetadata }),
       } }) } : {}),
     } });
   } catch (error) {
@@ -211,7 +211,7 @@ function publishEvent(required: { deps: StaticPublishDeps; input: StaticPublishI
  * No export bytes, credentials or raw provider error objects enter a snapshot.
  * @complexity O(1) by ID; O(20) for the site's latest retained job.
  */
-export function getPublishJobSnapshot({ deps, workspaceId, jobId, requestId }: { deps: Pick<StaticPublishDeps, "publishJobs">; workspaceId: string; jobId?: string; requestId?: string }, _options = {}): PublishJobSnapshot<StaticPublishOutcome> | undefined {
+export function getPublishJobSnapshot({ deps, workspaceId, jobId, requestId }: { deps: Pick<StaticPublishDeps, "publishJobs">; workspaceId: string; jobId?: string | undefined; requestId?: string | undefined }, _options = {}): PublishJobSnapshot<StaticPublishOutcome> | undefined {
   return deps.publishJobs.get({ scopeId: workspaceId, ...(jobId !== undefined ? { jobId } : {}), ...(requestId !== undefined ? { requestId } : {}) });
 }
 

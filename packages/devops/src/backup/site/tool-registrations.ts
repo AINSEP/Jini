@@ -97,7 +97,7 @@ export function buildSiteBackupRegistrations(deps: SiteBackupToolDeps, _surfaces
     site_share_list: (ctx) => handleShare({ deps, ctx, action: "list" }),
     site_share_revoke: (ctx) => handleShare({ deps, ctx, action: "revoke" }),
   };
-  return buildDomainRegistrations({ metadata: deps.toolMetadata,
+  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }),
     domain: DOMAIN,
     catalogModule: "features/site-backup/tool-registrations.ts",
     catalog: deps.catalog,

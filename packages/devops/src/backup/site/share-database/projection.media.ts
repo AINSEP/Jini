@@ -1,11 +1,10 @@
 
 import type { ArchiveMediaCopy, ArchiveMediaSource } from "../archive-media.js";
 
-import { sql } from "kysely";
 
 import { SiteShareRefusal, archiveRefusalName } from "../share-refusal.js";
 
-import type { Row, Kernel, ShareDatabaseProjection, sanitizeShareDatabase } from "./projection.js";
+import type { Row, Kernel, ShareDatabaseProjection, ShareSqlTag, sanitizeShareDatabase } from "./projection.js";
 
 /** Omitted media loses its rows, sidecars and application-owned links in the fresh projection.
  * Sidecars use the retained-owner index below; posts retain their content with no featured image.
@@ -137,12 +136,12 @@ export async function archiveMediaSources({ target }: { target: Kernel }): Promi
     return { id: String(row.id), workspaceId: String(row.workspace_id), slug: String(row.slug ?? row.id), kind: String(row.kind),
       originalFilename: row.original_filename === null ? null : String(row.original_filename), storageKey: String(blob.storage_key), sha256: String(blob.sha256), documentOwned: Boolean(blob.document_owned),
       ...(definition ? { public: { version: Number(definition.version), params: JSON.parse(String(definition.params_json)),
-        ...(rendition ? { storageKey: String(rendition.storage_key), sha256: renditionHash({ key: String(rendition.storage_key), blob: byKey.get(String(rendition.storage_key)) }) } : {}) } } : {}) };
+        ...(rendition ? publicRendition({ rendition, byKey }) : {}) } } : {}) };
   });
 }
 
-export async function rewriteMediaRows(required: { target: Kernel; copies: readonly ArchiveMediaCopy[] }, optional: { signal?: AbortSignal }): Promise<void> {
-  const { target } = required;
+export async function rewriteMediaRows(required: { target: Kernel; copies: readonly ArchiveMediaCopy[]; sql: ShareSqlTag }, optional: { signal?: AbortSignal }): Promise<void> {
+  const { target, sql } = required;
   const media = await target.run(db => db.selectFrom("media").selectAll().execute());
   const byId = new Map(media.map(row => [ownerKey({ workspace: row.workspace_id, identity: row.id }), row]));
   const blobs = await target.run(db => db.selectFrom("asset_blobs").selectAll().execute());
@@ -166,12 +165,19 @@ export async function rewriteMediaRows(required: { target: Kernel; copies: reado
 }
 
 /** Preserve unchanged blob metadata and sticky document privacy while replacing its path/hash. */
-function archiveBlobRow(required: { copy: ArchiveMediaCopy; media: Row; existing?: Row }): Row {
+function archiveBlobRow(required: { copy: ArchiveMediaCopy; media: Row; existing?: Row | undefined }): Row {
   const { copy, media } = required;
   const original: Row = required.existing ?? { id: copy.workspaceId + ":" + copy.sha256, created_by_principal: "share", created_at: media.created_at, status: "active", tombstoned_at: null };
   const documentOwned = Boolean(copy.documentOwned || media.kind === "document" || original.document_owned);
   const contentType = copy.contentType === "application/octet-stream" ? original.content_type ?? copy.contentType : copy.contentType;
   return { ...original, workspace_id: copy.workspaceId, sha256: copy.sha256, storage_key: copy.storageKey, content_type: contentType, document_owned: documentOwned ? 1 : 0 };
+}
+
+/** The archive's public rendition reference: its key, plus its hash when one is known. O(1). */
+function publicRendition(required: { rendition: Row; byKey: ReadonlyMap<string, Row> }): { storageKey: string; sha256?: string } {
+  const storageKey = String(required.rendition.storage_key);
+  const sha256 = renditionHash({ key: storageKey, blob: required.byKey.get(storageKey) });
+  return { storageKey, ...(sha256 === undefined ? {} : { sha256 }) };
 }
 
 function renditionHash(required: { key: string; blob: Row | undefined }): string | undefined {

@@ -1,7 +1,8 @@
 import { TokenExpiredError, TokenAlreadyRedeemedError } from "@jini-ai/core/gated-mutations";
+import { optionalPublishPorts } from "../publish-tool-deps.js";
 import { ToolInputError, type ToolHandler } from "@jini-ai/core";
 import { nowIso } from "@jini-ai/core/primitives";
-import { adaptLegacyAuthorize } from "@jini-ai/core/tool-permissions";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import { PlanStaleError, ForbiddenError, type GatewayDeps } from "@jini-ai/core/gated-mutations";
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
@@ -92,7 +93,7 @@ function makeHooks(required: {
     domain: 'deployment.static-publish-domain', scopeId: deps.workspaceId, readPermission: 'deployments.read', mutatePermission: 'deployments.publish',
     resolveActorClassIdentity: deps.resolveActorClassIdentity,
     computePlan: async () => {
-      const inspected = await inspectStaticPublish({ deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, tracker: deps.tracker, observability: deps.observability, hostKit: deps.hostKit, formDestination: deps.formDestination },
+      const inspected = await inspectStaticPublish({ deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, ...optionalPublishPorts({ deps }) },
         input: { workspaceId: deps.workspaceId, config, projectName, ...(required.credentialId ? { credentialId: required.credentialId } : {}) } });
       if (inspected.inspection?.domains?.inventoryStatus !== 'complete') throw new ToolInputError({ message: `DOMAIN_INVENTORY_UNKNOWN: ${inspected.inspection?.domains?.message ?? 'Complete authenticated domain inspection is required. Preview again.'}` });
       const details = { ...inspected, workspaceId: deps.workspaceId, actorId, config, projectName };
@@ -104,7 +105,7 @@ function makeHooks(required: {
       const domainPlan = details.inspection?.domains;
       if (!domainPlan) throw new Error('Domain publish plan has no domain inspection');
       if (!details.credentialBinding) throw new Error('Domain publish plan has no credential binding');
-      return startPublishRun({ deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, tracker: deps.tracker, observability: deps.observability, hostKit: deps.hostKit, formDestination: deps.formDestination, publicPageSecurityHeaders: deps.publicPageSecurityHeaders, pluginExportHosts: deps.pluginExportHosts }, input: {
+      return startPublishRun({ deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, ...optionalPublishPorts({ deps }) }, input: {
         requestId: required.requestId, productEvent: { userId: actorId, source: "assistant" }, workspaceId: deps.workspaceId, publishOutputRootDir: deps.publishOutputRootDir, idGen: deps.idGen, exportSiteBound: deps.exportSiteBound,
         config, projectName, ...(details.credentialId ? { credentialId: details.credentialId } : {}),
         domainApproval: { plan: domainPlan, credentialBinding: details.credentialBinding, authorize: async ({ fingerprint }) => {

@@ -66,13 +66,16 @@ export interface ExportSiteOptions {
 
 
 /** Site-relative listing hrefs as discovered export routes of `kind`; protocol-relative/absolute ones are dropped. */
+/** The given options with each one also accepting an explicit `undefined` (destructured values). */
+type MaybeOptions<T> = { [K in keyof T]?: T[K] | undefined };
+
 function listingRoutes({ hrefs, kind }: { hrefs: readonly string[]; kind: string }, _optional: Record<string, never> = {}) {
   return hrefs.filter((href) => href.startsWith("/") && !href.startsWith("//")).map((href) => ({ path: href, kind, label: href }));
 }
 
 /** Keep precedence visible to result consumers and the CLI through the existing warning field:
  * a public URL owns the output prefix, so an explicit base path beside it is reported as ignored. */
-function ignoredBasePathNotice({ publicUrl, basePath, warning }: Pick<ExportSiteOptions, "publicUrl" | "basePath"> & { warning: string | undefined }) {
+function ignoredBasePathNotice({ publicUrl, basePath, warning }: MaybeOptions<Pick<ExportSiteOptions, "publicUrl" | "basePath">> & { warning: string | undefined }) {
   if (publicUrl === undefined || basePath === undefined) return {};
   return { basePathRewriteWarning: ["The base path was ignored because the public URL sets the path.", warning].filter(Boolean).join(" ") };
 }
@@ -81,7 +84,7 @@ function ignoredBasePathNotice({ publicUrl, basePath, warning }: Pick<ExportSite
  * No registration or mutation of the live site's origin. A destination overrides its old public URL.
  * @complexity One bounded registry read plus O(URL bytes); invalid destinations throw before export.
  */
-async function resolveExportIdentity({ routeDeps, publicUrl }: Pick<ExportSiteOptions, "routeDeps" | "publicUrl">, _options = {}) {
+async function resolveExportIdentity({ routeDeps, publicUrl }: Pick<ExportSiteOptions, "routeDeps"> & MaybeOptions<Pick<ExportSiteOptions, "publicUrl">>, _options = {}) {
   // The configured-origin owner refuses non-HTTPS, loopback, userinfo, query and fragment URLs.
   const destination = publicUrl === undefined ? undefined : resolveConfiguredOrigin({ env: { destination: publicUrl }, envVarName: "destination", clock: routeDeps.clock, warn: () => {} });
   if (publicUrl !== undefined && !destination) throw new Error("The public URL must be a public HTTPS address.");
@@ -152,9 +155,9 @@ export async function exportHostSite({ routeDeps, outputDir, clean, basePath, in
 /** The site's manifest for its active theme, or for one chosen theme rendered as if active (then without previews). */
 function exportManifestForTheme(
   { routeDeps }: Pick<ExportSiteOptions, "routeDeps">,
-  { themeId, includeThemePreviews }: Pick<ExportSiteOptions, "themeId" | "includeThemePreviews"> = {},
+  { themeId, includeThemePreviews }: MaybeOptions<Pick<ExportSiteOptions, "themeId" | "includeThemePreviews">> = {},
 ) {
-  return routeDeps.buildPreviewExportManifest({ routeDeps: themeId === undefined ? routeDeps : { ...routeDeps, resolveActiveThemeId: async () => themeId } }, { includeThemePreviews: themeId === undefined ? includeThemePreviews : false });
+  return routeDeps.buildPreviewExportManifest({ routeDeps: themeId === undefined ? routeDeps : { ...routeDeps, resolveActiveThemeId: async () => themeId } }, themeId !== undefined ? { includeThemePreviews: false } : includeThemePreviews === undefined ? {} : { includeThemePreviews });
 }
 
 /** Return publication diagnostics after the exporter has closed its fresh app session. */

@@ -4,7 +4,7 @@ import type { DeployTargetRegistry } from "@jini-ai/devops/deploy/site/deploy-ta
 /** The two optional host values the invalidation has always read. Read at call time, never at bind time. */
 export interface PublishCompatibilitySource {
   readonly loadDeployTargets?: (required: { workspaceId: string }, optional?: Record<string, never>) => Promise<DeployTargetRegistry>;
-  readonly publishCredentialVerificationCache?: { delete(input: { workspaceId: string; target: string }): void };
+  readonly publishCredentialVerificationCache?: { delete(input: { workspaceId: string; target: string }): void } | undefined;
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { AgentToolDefinition, ToolHandler, ToolRegistration, ToolExecutionContext, ToolExecutionOptions, HumanConfirmer } from '@jini-ai/core';
-import type { requireToolPermission } from '@jini-ai/core/tool-permissions';
+import type { requireToolPermission } from '@jini-ai/core';
 import type { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
 import type { GatedMutationHooks, plan, confirm, execute } from '@jini-ai/core/gated-mutations';
 import type { HumanConfirmSpec } from '@jini-ai/core/contracts/site/human-confirm';
@@ -137,4 +137,21 @@ export interface StaticPublishToolDeps extends OperatorLocaleDeps {
   /** `RouteDeps.observability`, forwarded so a confirmed publish's deploy egress is traced. */
   readonly observability?: ObservabilityPort;
   readonly tracker?: import("@jini-ai/core/contracts/site/diagnostics-observability").Tracker;
+}
+
+type OptionalPublishPorts = Pick<StaticPublishDeps, "tracker" | "observability" | "hostKit" | "formDestination" | "publicPageSecurityHeaders" | "pluginExportHosts" | "buildTarget">;
+
+/** The tool deps' optional static-publish ports, each present only when the host supplied it
+ * (exact optional properties forbid passing an explicit `undefined`). O(1). */
+export function optionalPublishPorts(required: { deps: Pick<StaticPublishToolDeps, keyof OptionalPublishPorts> }, _optional: Record<string, never> = {}): OptionalPublishPorts {
+  const { tracker, observability, hostKit, formDestination, publicPageSecurityHeaders, pluginExportHosts, buildTarget } = required.deps;
+  return {
+    ...(tracker === undefined ? {} : { tracker }),
+    ...(observability === undefined ? {} : { observability }),
+    ...(hostKit === undefined ? {} : { hostKit }),
+    ...(formDestination === undefined ? {} : { formDestination }),
+    ...(publicPageSecurityHeaders === undefined ? {} : { publicPageSecurityHeaders }),
+    ...(pluginExportHosts === undefined ? {} : { pluginExportHosts }),
+    ...(buildTarget === undefined ? {} : { buildTarget }),
+  };
 }

@@ -35,7 +35,7 @@ async function loadBackupProviders(deps: SiteBackupToolDeps): Promise<{ ok: true
     load: deps.loadSourceControlProviders,
     workspaceId: deps.workspaceId,
     httpClient: deps.siteBackupHttpClient ?? deps.customCredentialsHttpClient,
-    observability: deps.observability,
+    ...(deps.observability === undefined ? {} : { observability: deps.observability }),
     ...(deps.siteBackupSleep ? { sleep: deps.siteBackupSleep } : {}),
   });
   for (const refusal of built.refusals) failureLog(deps)(`[site-backup] ${refusal}`);
@@ -163,7 +163,7 @@ export async function resolveBackupCredential({ deps, requested }: { deps: SiteB
     throw err;
   }
   if (!resolved) return { ok: false, code: "CREDENTIAL_NOT_FOUND", message: `the credential '${picked.label}' was deleted while the backup was being prepared` };
-  const provider = pickSourceControlProviderForApi({ providers: providers.providers, baseUrl: resolved.baseUrl }, { noProviderMessage: providers.noProviderMessage });
+  const provider = pickSourceControlProviderForApi({ providers: providers.providers, baseUrl: resolved.baseUrl, noProviderMessage: providers.noProviderMessage });
   if (!provider.ok) return { ok: false, code: "NO_PROVIDER", message: provider.message };
   return { ok: true, label: picked.label, baseUrl: resolved.baseUrl, connection: resolved.connection, provider: provider.provider };
 }

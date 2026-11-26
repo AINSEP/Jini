@@ -1,6 +1,6 @@
 import { deployTargetsLoader } from './publish-tool-execution.js';
 import { requireNoInput, type ToolHandler } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
 import type { StaticPublishToolDeps } from './publish-tool-deps.js';
 import type { InstalledDeployTarget, DeployTargetDescriptor, DeployTargetRegistry, LoadedDeployTarget } from './deploy-targets/types.js';
 import { listPublishCredentials, type PublishCredentialReadDeps } from './publish-credentials/store.js';

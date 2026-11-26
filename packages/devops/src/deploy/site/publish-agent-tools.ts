@@ -3,7 +3,7 @@ import { deployTargetsLoader, requireStaticPublishTarget, mapPublishOutcomeToToo
 import { getStaticPublishCapabilities } from './publish-tool-capabilities.js';
 import { readCredentialHints } from './publish-tool-credential.js';
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolContributor } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
 import type { StaticPublishToolDeps } from './publish-tool-deps.js';
 import type { AssistantSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
 import { toolMetadata } from '@jini-ai/core/tool-metadata/deployments';

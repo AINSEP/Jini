@@ -161,7 +161,7 @@ interface VerificationContext {
 function verificationKit(deps: { readonly createDeployHostKit: VerifyPublishCredentialDeps["createDeployHostKit"]; readonly fetchFn?: typeof fetch; readonly hostKit?: DeployHostKit; readonly observability?: ObservabilityPort }): DeployHostKit {
   return deps.hostKit ?? deps.createDeployHostKit({
     ...(deps.fetchFn !== undefined ? { fetchFn: deps.fetchFn } : {}),
-    observability: deps.observability,
+    ...(deps.observability !== undefined ? { observability: deps.observability } : {}),
     timeouts: { ...DEPLOY_FETCH_TIMEOUTS, QUICK: VERIFY_TIMEOUT_MS },
   });
 }

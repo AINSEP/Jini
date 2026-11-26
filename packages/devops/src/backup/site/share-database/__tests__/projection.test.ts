@@ -2,6 +2,7 @@ import { listTables, listColumns } from "@jini-ai/db/kernel";
 import { declareDataModule } from "@jini-ai/db/data-modules";
 import { expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
+import { sql } from "kysely";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -21,7 +22,7 @@ it("refuses an unknown populated source table before portable projection or sear
     tempRoot: async ({ work }: { work: (required: { root: string }) => Promise<unknown> }) => { const root = await mkdtemp(path.join(tmpdir(), "wmz-projection-")); try { return await work({ root }); } finally { await rm(root, { recursive: true, force: true }); } },
     openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly }) }),
     openContentDb: () => { fresh = new Database(":memory:"); fresh.exec("CREATE TABLE portable (id TEXT)"); return fresh; },
-    backfillPostSearchIndex,
+    sql, backfillPostSearchIndex,
   } as unknown as Parameters<typeof sanitizeShareDatabase>[0]["host"];
   await expect(sanitizeShareDatabase({ snapshot, modules: [], searchHost: {} as never, host })).rejects.toMatchObject({ code: "UNSUPPORTED_DATA", message: "Cannot share unsupported nonempty table 'unexpected'. Add an approved portable-data policy for this table first." });
   expect(backfillPostSearchIndex).not.toHaveBeenCalled(); expect(fresh?.open).toBe(false);

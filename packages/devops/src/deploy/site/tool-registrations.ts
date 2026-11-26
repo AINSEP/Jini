@@ -1,9 +1,9 @@
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/deployments';
 import { type Clock } from "@jini-ai/core/primitives";
-import { adaptLegacyAuthorize } from "@jini-ai/core/tool-permissions";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalString, requireInputRecord, requireNoInput, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
-import type { requireToolPermission } from "@jini-ai/core/tool-permissions";
+import type { requireToolPermission } from "@jini-ai/core";
 // `ToolInputError` specifically — see `features/post/tool-registrations.ts`'s identical import for
 // why: the marker `@jini-ai/daemon`'s `ToolExecutor` reads to classify a rejection 400 rather than
 // redacting it into a message-stripped 500.
@@ -96,7 +96,7 @@ export const deploymentsDerivedRisk: DerivedRiskByToolId = new Map<string, Agent
  * `export-run.ts` always pass a boolean `clean`, but `ExportEngine` declares it optional.
  * @complexity O(1).
  */
-export function pickExportSiteOptions({ outputDir, clean, basePath }: { outputDir: string; clean?: boolean; basePath?: string }): { outputDir: string; clean?: boolean; basePath?: string } {
+export function pickExportSiteOptions({ outputDir, clean, basePath }: { outputDir: string; clean?: boolean | undefined; basePath?: string | undefined }): { outputDir: string; clean?: boolean; basePath?: string } {
   return { outputDir, ...(clean !== undefined ? { clean } : {}), ...(basePath !== undefined ? { basePath } : {}) };
 }
 
@@ -115,7 +115,7 @@ async function triggerExportTool(required: { routeDeps: DeploymentsToolDeps; eng
 
   const clean = optionalBoolean({ input: input, key: "clean" }) ?? false;
   const basePath = optionalString({ input: input, key: "basePath" });
-  return routeDeps.startExportRun({ routeDeps, runExportSite: engine, clean }, { basePath, ...(routeDeps.tracker && routeDeps.idGen ? { productEvent: { tracker: routeDeps.tracker, userId: ctx.principal.id, operationId: routeDeps.idGen.newId(), source: "assistant" as const } } : {}) });
+  return routeDeps.startExportRun({ routeDeps, runExportSite: engine, clean }, { ...(basePath === undefined ? {} : { basePath }), ...(routeDeps.tracker && routeDeps.idGen ? { productEvent: { tracker: routeDeps.tracker, userId: ctx.principal.id, operationId: routeDeps.idGen.newId(), source: "assistant" as const } } : {}) });
 }
 
 export function buildDeploymentsRegistrations(routeDeps: DeploymentsToolDeps): ToolRegistration[] {

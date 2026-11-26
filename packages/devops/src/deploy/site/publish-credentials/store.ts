@@ -58,6 +58,12 @@ function moduleAcceptsCredential({ credential, registry, targetId }: {
   return accepts({ worksFor });
 }
 
+/** The vault's `hintToken` for a connection: its token field's value, omitted when the field is absent. O(1). */
+function hintTokenOf(required: { fields: Readonly<Record<string, string | undefined>>; tokenField: string }, _optional: Record<string, never> = {}): { hintToken?: string } {
+  const hintToken = required.fields[required.tokenField];
+  return hintToken === undefined ? {} : { hintToken };
+}
+
 /** An explicit id is found in either store. Otherwise the first store (in `inventory` order: this
  * site's, then the project's) holding any compatible row decides alone (owner 2026-10-25: a site row
  * overrides), so an ambiguous site stays ambiguous instead of silently using a project key.
@@ -65,7 +71,7 @@ function moduleAcceptsCredential({ credential, registry, targetId }: {
  */
 export function selectPublishCredential({ deps, registry, credentials, provider, id }: {
   deps: Pick<PublishCredentialReadDeps, "selectCredentialForProvider">; registry: DeployTargetRegistry; credentials: readonly VaultSummary[];
-  provider: NonNullable<ReturnType<typeof providerContract>>; id?: string;
+  provider: NonNullable<ReturnType<typeof providerContract>>; id?: string | undefined;
 }, _options = {}): VaultSummary | null {
   const eligible = credentials.filter(credential => moduleAcceptsCredential({ credential, registry, targetId: provider.id }));
   if (id !== undefined) return deps.selectCredentialForProvider({ credentials: eligible, provider, id });
@@ -327,7 +333,7 @@ export async function createPublishCredential(deps: PublishCredentialWriteDeps, 
   const summary = await saveConnection({ target, providerId, input: {
     ...bound(target.deps).scope({ workspaceId: target.workspaceId, kind: "vendor" }), id: deps.idGen.newId(), expectedRevision: null,
     provider: validated.spec.vendorId, label, meta: { credentialType: "vendor", worksFor: validatedWorksFor({ deps, value: input.worksFor === undefined ? registry.get(providerId)?.module.defaultCredentialWorksFor ?? [validated.spec.vendorId] : input.worksFor }), accountLabel: null }, payload: { vendorId: validated.spec.vendorId, ...fields },
-    hintToken: fields[validated.spec.tokenField], ...(isDefault === undefined ? {} : { isDefault }),
+    ...hintTokenOf({ fields, tokenField: validated.spec.tokenField }), ...(isDefault === undefined ? {} : { isDefault }),
   } });
   // The project read view deliberately hides this new row until it is attached; use put's result.
   const publishHosts = publishHostsForCredential({ deps, credential: summary, registry });
@@ -424,7 +430,7 @@ async function connectionChanges({ deps, input, existing, registry, host, row }:
     const validated = await updatedConnection({ deps, input, existing, registry, host });
     const { providerId, ...fields } = validated.connection;
     return { providerId, provider: validated.spec.vendorId, accountLabel: null,
-      payload: { vendorId: validated.spec.vendorId, ...fields }, hintToken: fields[validated.spec.tokenField] };
+      payload: { vendorId: validated.spec.vendorId, ...fields }, ...hintTokenOf({ fields, tokenField: validated.spec.tokenField }) };
   }
   // Payload omission preserves ciphertext/hints; the vault atomically promotes/selects defaults.
   const providerId = move?.providerId ?? host;

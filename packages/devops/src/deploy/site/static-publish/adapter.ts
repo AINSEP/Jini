@@ -288,7 +288,7 @@ async function publishAndMapOutcome(
     basePath: string | undefined;
   },
   { formDestination, readHeaders }: {
-    formDestination?: FormDestinationPublishInput;
+    formDestination?: FormDestinationPublishInput | undefined;
     readHeaders: () => import("@jini-ai/core/contracts/server/security-headers").SecurityHeaderSet;
   },
 ): Promise<StaticPublishOutcome> {
@@ -413,7 +413,7 @@ async function prepareFormDestination({ deps, input }: { deps: StaticPublishDeps
   if (!deps.formDestination) return { ok: true };
   try {
     const plan = await deps.formDestination.prepare({ workspaceId: input.workspaceId, hostingTargetId: input.config.target, projectName: input.projectName,
-      kit: deps.hostKit ?? deps.createDeployHostKit({ observability: deps.observability }) });
+      kit: deps.hostKit ?? deps.createDeployHostKit(deps.observability === undefined ? {} : { observability: deps.observability }) });
     return { ok: true, ...plan };
   } catch (err) {
     return { ok: false, outcome: { ok: false, code: "EXPORT_FAILED", message: `form submissions could not be prepared: ${err instanceof Error ? err.message : String(err)}. Check the site's forms, then publish again.` } };
@@ -421,13 +421,13 @@ async function prepareFormDestination({ deps, input }: { deps: StaticPublishDeps
 }
 
 /** An external receiver: exported pages post to its address instead of the site's own path. @complexity O(HTML bytes). */
-function filesForReceiver({ deps, files, submitUrl }: { deps: StaticPublishDeps; files: DeployFile[]; submitUrl?: string }, _options = {}): DeployFile[] {
+function filesForReceiver({ deps, files, submitUrl }: { deps: StaticPublishDeps; files: DeployFile[]; submitUrl?: string | undefined }, _options = {}): DeployFile[] {
   return submitUrl ? deps.rewriteFormActions({ files, submitUrl }) : files;
 }
 
 /** Saves the receiver key (new, or moved after a rename) once the host has it. A failed save is logged, not fatal: the
  *  next publish creates and installs a fresh key, and rows still waiting at the host stay pullable. */
-async function saveReceiverKey({ deps, outcome, save }: { deps: StaticPublishDeps; outcome: StaticPublishOutcome; save?: (required: { readonly url: string }) => Promise<void> }, _options = {}): Promise<void> {
+async function saveReceiverKey({ deps, outcome, save }: { deps: StaticPublishDeps; outcome: StaticPublishOutcome; save?: ((required: { readonly url: string }) => Promise<void>) | undefined }, _options = {}): Promise<void> {
   if (!save || outcome.ok === false) return;
   try { await save({ url: outcome.url }); }
   catch (error) { deps.warn("[static-publish] the form receiver key could not be saved; the next publish will replace it", describeErrorForLog({ err: error })); }
@@ -482,7 +482,7 @@ function constructTargetForPublish(
 ): { ok: true; target: DeployTarget } | { ok: false; outcome: StaticPublishOutcome } {
   try {
     if (deps.buildTarget !== undefined) return { ok: true, target: deps.buildTarget(config, credential) };
-    const kit = deps.hostKit ?? deps.createDeployHostKit({ observability: deps.observability });
+    const kit = deps.hostKit ?? deps.createDeployHostKit(deps.observability === undefined ? {} : { observability: deps.observability });
     return { ok: true, target: adaptInstalledTarget(pluginTarget.module.create({ credential, config: config as unknown as UnknownRecord, kit })) };
   } catch {
     // Adapter exceptions may include a credential field; the card needs only the target identifier.

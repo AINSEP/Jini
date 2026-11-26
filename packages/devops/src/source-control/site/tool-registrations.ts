@@ -94,7 +94,7 @@ function providerLoader(deps: SourceControlToolDeps): LoadSourceControlProviders
 /** The injected adapter, or the plugin provider's for `providerId`; a caller-safe refusal otherwise. */
 async function resolveCommitAdapter({ deps, providerId }: { deps: SourceControlToolDeps; providerId: string }, _optional = {}): Promise<{ ok: true; adapter: SourceControlCommitAdapter } | { ok: false; message: string }> {
   if (deps.gitAdapter) return { ok: true, adapter: deps.gitAdapter };
-  const built = await deps.buildSourceControlProvider({ load: deps.loadSourceControlProviders, observability: deps.observability, workspaceId: deps.workspaceId, providerId });
+  const built = await deps.buildSourceControlProvider({ load: deps.loadSourceControlProviders, ...(deps.observability === undefined ? {} : { observability: deps.observability }), workspaceId: deps.workspaceId, providerId });
   return built.ok ? { ok: true, adapter: { commit: built.provider.commitSite } } : { ok: false, message: built.message };
 }
 
@@ -270,7 +270,7 @@ function parseCommitCommand(raw: Record<string, unknown>): ParsedCommitCommand {
  */
 function requireValidTarget({ command, validateTarget }: { command: ParsedCommitCommand; validateTarget: RepositoryTargetValidator | undefined }, _optional = {}): void {
   const { owner, repo, branch, commitMessage } = command;
-  const configError = validateCommitTarget({ owner, repo, ...(branch !== undefined ? { branch } : {}), commitMessage }, { validateTarget });
+  const configError = validateCommitTarget({ owner, repo, ...(branch !== undefined ? { branch } : {}), commitMessage }, validateTarget === undefined ? {} : { validateTarget });
   if (configError !== null) {
     throw new ToolInputError({ message: `source_control_execute_commit: ${configError}` });
   }
@@ -365,7 +365,7 @@ async function previewSourceControlCommit({ deps, command, host }: { deps: Sourc
   // below both rely on — never decrypts. No dialog: a dry run only previews what a real
   // commit would export, so it never opens the confirmation surface or touches `emitSurface`.
   const existing = await findConfiguredCredential({ deps, providerId: command.provider });
-  const preview = await deps.previewCommitExport(commitInput({ deps, command }), { providerId: command.provider, validateTarget: host.validateTarget });
+  const preview = await deps.previewCommitExport(commitInput({ deps, command }), { providerId: command.provider, ...(host.validateTarget === undefined ? {} : { validateTarget: host.validateTarget }) });
   if (!preview.ok) {
     return {
       dryRun: true,

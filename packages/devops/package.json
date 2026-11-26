@@ -1044,6 +1044,9 @@
   },
   "devDependencies": {
     "@jini-ai/core": "workspace:^",
+    "@types/better-sqlite3": "7.6.13",
+    "better-sqlite3": "13.0.3",
+    "kysely": "0.29.6",
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/platform": "workspace:^",
     "@types/react": "^19.2.0",

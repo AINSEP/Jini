@@ -1,10 +1,11 @@
 import { EXECUTE_STATIC_PUBLISH_SCHEMA } from './publish-agent-tools.js';
+import { optionalPublishPorts } from "./publish-tool-deps.js";
 import { ToolInputError, requireInputRecord, requireString, type ToolHandler, type SurfaceEmission } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
 import { nowIso as clockNowIso } from '@jini-ai/core/primitives';
 import type { StaticPublishToolDeps } from './publish-tool-deps.js';
 import type { AssistantSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
-import type { SurfaceExchange } from '@jini-ai/core/surface-exchanges';
+import type { SurfaceExchange } from '@jini-ai/core';
 import type { UIResource, UIResourceUri } from '@jini-ai/core/contracts/site/protocol-mcp-ui';
 import type { DeployTargetDescriptor, DeployTargetRegistry, LoadedDeployTarget } from './deploy-targets/types.js';
 import { toolMetadata } from '@jini-ai/core/tool-metadata/deployments';
@@ -138,7 +139,7 @@ function buildPublishOutcomeResource(spec: {
     state,
     message,
     ...(url !== undefined ? { openLinkUrl: url, openLinkLabel: state === "partial" ? "Open when ready" : "Open site" } : {}),
-    app: deps.publishOutcomeApp,
+    ...(deps.publishOutcomeApp === undefined ? {} : { app: deps.publishOutcomeApp }),
     preferredFrameSize: ["100%", "360px"],
   });
 }
@@ -277,7 +278,7 @@ export async function previewStaticPublish({ deps, credentialSource, ctx }: { de
       const credential = await credentialSource.isConfigured({ workspaceId: deps.workspaceId, target, ...toolCredentialChoice({ raw }) });
 
       const inspected = plan.ok && credential.configured ? await inspectStaticPublish({
-        deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, tracker: deps.tracker, observability: deps.observability, hostKit: deps.hostKit, formDestination: deps.formDestination },
+        deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deps.loadDeployTargets, ...optionalPublishPorts({ deps }) },
         input: { workspaceId: deps.workspaceId, config, projectName: typeof raw.projectName === "string" ? raw.projectName : "",
           ...toolCredentialChoice({ raw }) },
       }) : {};
@@ -304,7 +305,7 @@ async function startApprovedStaticPublish({ deps, approvedCtx, target, credentia
             return { published: false, cancelled: false, code: "ALREADY_RUNNING", jobId: getPublishJobSnapshot({ deps: deps.staticPublishPorts, workspaceId: deps.workspaceId, jobId: active.jobId })?.jobId, message: "A publish is already running. Call deployment_get_static_publish_status with this jobId (or {} for the latest job on this site). Do not start another publish." };
           }
           const job = startPublishRun({
-            deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deployTargetsLoader(deps), buildTarget: deps.buildTarget, tracker: deps.tracker, observability: deps.observability, hostKit: deps.hostKit, formDestination: deps.formDestination, publicPageSecurityHeaders: deps.publicPageSecurityHeaders, pluginExportHosts: deps.pluginExportHosts },
+            deps: { ...deps.staticPublishPorts, credentialSource, loadDeployTargets: deployTargetsLoader(deps), ...optionalPublishPorts({ deps }) },
             input: { requestId: approvedCtx.executionId, productEvent: { userId: approvedCtx.principal.id, source: "assistant" }, workspaceId: deps.workspaceId, publishOutputRootDir: deps.publishOutputRootDir, idGen: deps.idGen, exportSiteBound: deps.exportSiteBound, config, projectName,
               ...toolCredentialChoice({ raw }) },
             clock: { nowIso: () => clockNowIso({ clock: deps.clock }) },

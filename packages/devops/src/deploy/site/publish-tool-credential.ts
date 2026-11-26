@@ -1,6 +1,6 @@
 import { deployTargetsLoader, requireStaticPublishTarget } from './publish-tool-execution.js';
 import { ToolInputError, requireInputRecord, type ToolHandler, type ToolRegistration } from '@jini-ai/core';
-import { adaptLegacyAuthorize } from '@jini-ai/core/tool-permissions';
+import { adaptLegacyAuthorize } from '@jini-ai/core';
 import { nowIso as clockNowIso } from '@jini-ai/core/primitives';
 import type { StaticPublishToolDeps } from './publish-tool-deps.js';
 import type { AssistantSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
@@ -81,7 +81,7 @@ function buildProposeCredentialForm(required: {
       }
       return [{ ...base, ...(prefill[field.name] !== undefined ? { value: prefill[field.name] } : {}) }];
     }),
-    app: deps.credentialFormApp,
+    ...(deps.credentialFormApp === undefined ? {} : { app: deps.credentialFormApp }),
     preferredFrameSize: ["100%", "560px"],
   };
 }
@@ -165,7 +165,8 @@ async function checkPublishReplacement({ deps, targetId, credential, connection 
   const registry = await deployTargetsLoader(deps)({ workspaceId: deps.workspaceId });
   if (!registry.get(targetId)?.module.verifyCredential) return;
   const verification = await verifySubmittedPublishCredential({
-    deps: { ...deps.verificationPorts, loadDeployTargets: async () => registry, clock: { nowIso: () => clockNowIso({ clock: deps.clock }) }, fetchFn: deps.fetchFn, observability: deps.observability },
+    deps: { ...deps.verificationPorts, loadDeployTargets: async () => registry, clock: { nowIso: () => clockNowIso({ clock: deps.clock }) },
+      ...(deps.fetchFn === undefined ? {} : { fetchFn: deps.fetchFn }), ...(deps.observability === undefined ? {} : { observability: deps.observability }) },
     workspaceId: deps.workspaceId, target: targetId, spec: credential,
     connection: connection as Parameters<typeof verifySubmittedPublishCredential>[0]['connection'],
   });
@@ -196,7 +197,8 @@ async function saveProposeCredential(required: {
       const verification = await verifyPublishCredentialById({
         ...deps.verificationPorts, ...deps.credentialSourceStorePorts, repo: deps.vendorCredentialSetRepo, sealer: deps.siteAssistantSecretSealer,
         cache: deps.publishCredentialVerificationCache, clock: { nowIso: () => clockNowIso({ clock: deps.clock }) },
-        loadDeployTargets: deployTargetsLoader(deps), observability: deps.observability, fetchFn: deps.fetchFn,
+        loadDeployTargets: deployTargetsLoader(deps),
+        ...(deps.observability === undefined ? {} : { observability: deps.observability }), ...(deps.fetchFn === undefined ? {} : { fetchFn: deps.fetchFn }),
       }, { workspaceId: deps.workspaceId, id: saveResult.credentialId });
       connection = credentialConnectionStatus({ verification, deps });
     }
@@ -265,7 +267,7 @@ export function buildPublishHostCredentialHandler({ deps, surfaces }: { deps: St
         toolId: deps.credentialSaveToolId,
         prepare: async () => ({ descriptor, credential, prefill, updating, locale }),
         // New project keys need explicit attachment; an update changes the saved row where it lives.
-        form: ({ prep }) => deps.applyPluginCredentialCard({ card: pluginCard, form: buildProposeCredentialForm({ ...prep, deps }) }),
+        form: ({ prep }) => deps.applyPluginCredentialCard({ ...(pluginCard === undefined ? {} : { card: pluginCard }), form: buildProposeCredentialForm({ ...prep, deps }) }),
         save: ({ values, prep, signal }) => saveProposeCredential({ deps, targetId: prep.descriptor.id, credential: prep.credential, values, signal, locale: prep.locale }),
         result: ({ prep, run }) => {
           if (run.status === 'saved') return run.saved;

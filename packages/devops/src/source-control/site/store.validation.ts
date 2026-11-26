@@ -51,7 +51,7 @@ function connectionObject({ raw }: { raw: unknown }, _options = {}): Record<stri
 
 /** Forms and vault payloads use `token`; accept a declared form name at the store boundary too.
  * An explicitly supplied canonical value takes precedence, including blank/invalid values. */
-function canonicalConnection({ value, descriptor }: { value: Record<string, unknown>; descriptor?: SourceControlProviderDescriptor }, _options = {}): Record<string, unknown> {
+function canonicalConnection({ value, descriptor }: { value: Record<string, unknown>; descriptor?: SourceControlProviderDescriptor | undefined }, _options = {}): Record<string, unknown> {
   if (value.token !== undefined) return value;
   const tokenField = descriptor?.credential?.tokenField ?? 'token';
   return { ...value, token: value[tokenField] };

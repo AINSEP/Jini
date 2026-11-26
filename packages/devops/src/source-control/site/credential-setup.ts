@@ -77,7 +77,7 @@ function sourceControlCredentialForm({ deps, pluginCard }: { deps: SourceControl
       const descriptor = prep.descriptor;
       if (!descriptor?.credential) throw new ToolInputError({ message: 'Source control credential form has no provider configuration.' });
       const credential = descriptor.credential;
-      return deps.applyPluginCredentialCard({ card: pluginCard, form: {
+      return deps.applyPluginCredentialCard({ ...(pluginCard === undefined ? {} : { card: pluginCard }), form: {
         title: `Connect ${descriptor.label}`,
         description: `${credential.help ?? 'Type the secret here. The assistant never sees it.'} ${deps.backupRepositoryRules}`,
         submitLabel: 'Save credential',
@@ -126,7 +126,8 @@ function sourceControlCredentialResult(deps: SourceControlCredentialSetupDeps, _
       }
       const credential = run.saved;
       const connection = credential.connection ?? 'saved';
-      return { saved: true, credentialId: credential.id, provider: prep.provider, label: credential.label, tokenHint: credential.tokenHint, connection,
+      return { saved: true, credentialId: credential.id, provider: prep.provider, label: credential.label,
+        ...(credential.tokenHint === undefined ? {} : { tokenHint: credential.tokenHint }), connection,
         message: savedMessage({ credential, locale: prep.locale, deps }) };
     };
 }
