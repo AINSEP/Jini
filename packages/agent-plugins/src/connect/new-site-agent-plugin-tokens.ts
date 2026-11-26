@@ -1,13 +1,15 @@
 import type { Dirent } from "node:fs";
 import path from "node:path";
 
-import { parsePluginTokenMap, type TokenCheckOutcome, type TokenMapLimits, type TokenSignInPlugin, type ResolvedAgentPluginForConnect } from "@jini-ai/agent-plugins/connect";
+import { parsePluginTokenMap, type TokenMapLimits } from "./token-map.js";
+import type { TokenCheckOutcome, TokenSignInPlugin } from "./token-sign-in.js";
+import type { ResolvedAgentPluginForConnect } from "./installed-plugin.js";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 
 
 import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
 import { titleCaseFromPluginId } from "./connect-tool.js";
-import type { InstalledAgentPluginServers } from "@jini-ai/agent-plugins/connect";
+import type { InstalledAgentPluginServers } from "./import-access-token.js";
 import { listTokenSignInPlugins } from "./token-sign-in.js";
 
 /**
