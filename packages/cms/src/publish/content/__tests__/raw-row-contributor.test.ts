@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import { MissingMutationActorError } from "../../../core/mutation-actor.js";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
 import { createRawRowContributor, rawRowId } from "../raw-row-contributor.js";
 import type { RawRowContributorConfig } from "../raw-row-contributor.js";
@@ -26,7 +28,8 @@ function memoryRows(initial: Record<string, string>) {
   return { port, store, snap };
 }
 
-function setup(config: RawRowContributorConfig, initial: Record<string, string>, selection: string[]) {
+// The apply port merges the run's trusted actor into the handler deps; `null` drives a handler outside a run.
+function setup(config: RawRowContributorConfig, initial: Record<string, string>, selection: string[], mutationActor: MutationActor | null = { id: "u", kind: "user" }) {
   const rows = memoryRows(initial);
   const bound = createRawRowContributor<Record<string, never>>(config);
   const deps: PublishContentDeps<Record<string, never>> = {
@@ -34,6 +37,7 @@ function setup(config: RawRowContributorConfig, initial: Record<string, string>,
     changeSets: new InMemoryChangeSetRepo(), outbox: { enqueue: async () => {} } as never, authorize: async () => ({ allowed: true, reason: "test" }),
     backstop: { rows: rows.port, inverses: [], coveredTables: ["covered"], coveredRoots: [],
       selection: { rows: selection.map((id) => ({ table: "widgets", pk: { id } })) } },
+    ...(mutationActor ? { mutationActor } : {}),
   };
   const handler = bound.contributeRawRowPublish().build(deps);
   const pack = async () => { const out: PackedEntity[] = []; for await (const e of handler.pack()) out.push(e); return out; };
@@ -82,6 +86,27 @@ describe("createRawRowContributor", () => {
     expect(f.rows.store.get("a")).toBe("old");
     f.rows.store.set("a", "edited-after");
     expect(await f.bound.undoRawRow({ deps: f.deps, entity, before: inverse.before, afterHash: inverse.afterHash })).toContain("changed on live after this send");
+  });
+
+  it("records the apply run's trusted actor on the change set (FIX 19 / H2)", async () => {
+    const f = setup(allow, { a: "old" }, ["a"], { id: "u", kind: "agent" });
+    const [packed] = await f.pack();
+    const incoming = { ...packed!, state: { ...packed!.state, values: { id: "a", title: "new" } } };
+    const entity = { ...incoming, contentHash: (await import("../content-hash.js")).contentHash({ entityType: "raw-row", state: incoming.state }) };
+    await f.handler.apply({ entity, principalId: "u", idempotencyKey: "k", expectedVersion: (await f.handler.inspect({ id: entity.id }))!.version } as never);
+    const [changeSet] = await (f.deps.changeSets as InMemoryChangeSetRepo).listByWorkspace({ workspaceId: "ws" });
+    expect(changeSet?.actor).toEqual({ id: "u", kind: "agent" });
+  });
+
+  it("refuses a send with no trusted actor before the row is written (FIX 19 / H2)", async () => {
+    const f = setup(allow, { a: "old" }, ["a"], null);
+    const [packed] = await f.pack();
+    const incoming = { ...packed!, state: { ...packed!.state, values: { id: "a", title: "new" } } };
+    const entity = { ...incoming, contentHash: (await import("../content-hash.js")).contentHash({ entityType: "raw-row", state: incoming.state }) };
+    const apply = f.handler.apply({ entity, principalId: "u", idempotencyKey: "k", expectedVersion: (await f.handler.inspect({ id: entity.id }))!.version } as never);
+    await expect(apply).rejects.toBeInstanceOf(MissingMutationActorError);
+    expect(f.rows.store.get("a")).toBe("old");
+    expect(await (f.deps.changeSets as InMemoryChangeSetRepo).listByWorkspace({ workspaceId: "ws" })).toEqual([]);
   });
 
   it("refuses covered tables on the destination without consulting the host table policy", async () => {

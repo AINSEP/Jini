@@ -180,7 +180,7 @@ function TrashItemsView(props: { controller: TrashController }) {
   const { t } = controller;
 
   if (!controller.items) return controller.error ? null : <div className="jini-notice">{t({ locale: locale, key: "Loading the Trash…" })}</div>;
-  if (controller.items.length === 0) {
+  if (controller.items.length === 0 && controller.nextCursor === null) {
     return (
       <div className="jini-card">
         <div className="jini-empty-state">
