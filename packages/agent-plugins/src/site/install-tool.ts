@@ -18,14 +18,14 @@ import type { prepareCustomizedAgentPluginArchive } from './customize-tool.js';
  * Customization prepares a new package and enters this same install flow, without replacement.
  * No opt-in for this family: only bundled digests may run code. Preview verifies the full archive,
  * install verifies the pinned bytes again, and every fresh/replacement install remains disabled. */
-export type AgentPluginsInstallToolDeps = {
+export type AgentPluginsInstallToolDeps<Layout extends AgentPluginLayout = AgentPluginLayout> = {
   readonly pluginInstallSource: PluginInstallSourcePort;
   readonly snapshotAgentPluginSettings?: UpdateAgentPluginRequired["snapshotSettings"];
   readonly pluginHost?: import("@jini-ai/core/contracts/headless/plugin-host").PluginHostPort;
   readonly workspaceId: string;
   readonly authorize: AuthorizeFn;
   readonly readInstallAttachment?: InstallAttachmentReader;
-  readonly agentPluginLayout: AgentPluginLayout;
+  readonly agentPluginLayout: Layout;
   readonly bundledAgentPluginsSourceRoot: string;
   readonly catalog: readonly AgentToolDefinition[];
   readonly catalogModule: string;
@@ -34,7 +34,7 @@ export type AgentPluginsInstallToolDeps = {
   readonly zipLocalFolder: typeof zipLocalFolder;
   readonly maxAgentPluginInstallArchiveBytes: () => number;
   readonly listInstalledPlugins: ReturnType<typeof createAgentPluginLifecycle>['listInstalledPlugins'];
-  readonly seedBundledAgentPlugins: ReturnType<typeof createAgentPluginLifecycle>['seedBundledAgentPlugins'];
+  readonly seedBundledAgentPlugins: (input: Omit<Parameters<ReturnType<typeof createAgentPluginLifecycle>['seedBundledAgentPlugins']>[0], 'layout'> & { layout: Layout }) => ReturnType<ReturnType<typeof createAgentPluginLifecycle>['seedBundledAgentPlugins']>;
   readonly listBundledAgentPluginServers: (input: { bundledSourceRoot: string }) => ReturnType<typeof listBundledAgentPluginServers>;
   readonly agentPluginActivations: Pick<InstallUploadedAgentPluginOptional['lifecycle'], 'resolveAgentPluginActivation' | 'isAgentPluginRecordedAsBundled'>;
   readonly uploadOptions: InstallUploadedAgentPluginOptional;
@@ -48,7 +48,7 @@ export const AGENT_PLUGINS_INSTALL_TOOL_ID = "agent_plugins_install";
 export const derivedRisk: DerivedRiskByToolId = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
 
 /** Gate all three entry points before any source read or package publication. */
-async function runInstallTool({ deps, ctx, operation }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext; operation: "install" | "update" | 'customize' }, _optional = {}) {
+async function runInstallTool<Layout extends AgentPluginLayout>({ deps, ctx, operation }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); ctx: ToolExecutionContext; operation: "install" | "update" | 'customize' }, _optional = {}) {
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: deps.installPermission }, { entityType: "plugin" });
   const input = requireInputRecord({ input: ctx.input });
   if (operation === 'customize') return installArchivePlugin({ deps, ctx }, { archive: await deps.prepareCustomizedAgentPluginArchive({ deps, ctx }) });
@@ -70,7 +70,7 @@ function readUpdateTarget({ input }: { input: Record<string, unknown> }, _option
 }
 
 /** The candidate's bytes from a folder, a local zip or a chat attachment, size-capped before reading. */
-async function readToolArchive({ deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext }, _optional = {}) {
+async function readToolArchive<Layout extends AgentPluginLayout>({ deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); ctx: ToolExecutionContext }, _optional = {}) {
   const request = deps.pluginInstallSource.readRequest({ input: ctx.input });
   let archive;
   if (request.kind === "folder") {
@@ -90,8 +90,8 @@ function toToolInputError({ error }: { error: unknown }, _optional: Record<strin
 }
 
 /** The same transaction as the admin Update button (`installUploadedAgentPlugin({ update })`). */
-async function updateArchivePlugin(
-  { deps, ctx, update }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext; update: { pluginId: string; expectedOldDigest: string } },
+async function updateArchivePlugin<Layout extends AgentPluginLayout>(
+  { deps, ctx, update }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); ctx: ToolExecutionContext; update: { pluginId: string; expectedOldDigest: string } },
   _optional: Record<string, never> = {},
 ) {
   try {
@@ -119,8 +119,8 @@ async function updateArchivePlugin(
  * @throws Model-facing input errors for named install/upload/folder refusals.
  * @complexity O(b) bounded archive bytes; the existing installer owns extraction and locking.
  */
-async function installArchivePlugin(
-  { deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext },
+async function installArchivePlugin<Layout extends AgentPluginLayout>(
+  { deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); ctx: ToolExecutionContext },
   prepared: { archive?: Uint8Array } = {},
 ) {
   try {
@@ -160,8 +160,8 @@ function uploadedInstallResult(
  * activation stay the seeder's. An operator-installed namesake is never given bundled trust.
  * @throws {ToolInputError} Unknown id, a namesake from another source, or a failed seed.
  */
-async function installBundledPlugin(
-  { input, deps }: { input: Record<string, unknown>; deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]) },
+async function installBundledPlugin<Layout extends AgentPluginLayout>(
+  { input, deps }: { input: Record<string, unknown>; deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]) },
   _optional: Record<string, never> = {},
 ) {
   const id = readBundledPluginId({ input });
@@ -184,7 +184,7 @@ async function installBundledPlugin(
   };
 }
 
-export function bindAgentPluginsInstallTools(required: Pick<AgentPluginsInstallToolDeps,
+export function bindAgentPluginsInstallTools<Layout extends AgentPluginLayout>(required: Pick<AgentPluginsInstallToolDeps<Layout>,
   'catalog' | 'catalogModule' | 'toolMetadata' | 'installPermission' | 'zipLocalFolder' | 'maxAgentPluginInstallArchiveBytes' |
   'listInstalledPlugins' | 'seedBundledAgentPlugins' | 'listBundledAgentPluginServers' | 'agentPluginActivations'
 > & {
@@ -194,7 +194,7 @@ export function bindAgentPluginsInstallTools(required: Pick<AgentPluginsInstallT
   updateMcpEffects(input: { deps: Pick<UpdateMcpDeps, 'workspaceId' | 'agentPluginLayout'> & Partial<UpdateMcpDeps>; actor: string }): ReturnType<typeof createAgentPluginUpdateEffects>;
   prepareCustomizedAgentPluginArchive(input: { deps: Pick<AgentPluginsInstallToolDeps, 'workspaceId' | 'agentPluginLayout'>; ctx: ToolExecutionContext }): ReturnType<typeof prepareCustomizedAgentPluginArchive>;
 }, _optional = {}) {
-  const buildRegistrations = (input: Omit<AgentPluginsInstallToolDeps, keyof typeof required | 'uploadOptions' | 'resolveServers' | 'provisionServers'>, _optional = {}): ToolRegistration[] => {
+  const buildRegistrations = (input: Omit<AgentPluginsInstallToolDeps<Layout>, keyof typeof required | 'uploadOptions' | 'resolveServers' | 'provisionServers'>, _optional = {}): ToolRegistration[] => {
     const deps = { ...input, ...required };
     return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: deps.catalogModule, catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
       handlers: {
@@ -242,8 +242,8 @@ function readBundledPluginId({ input }: { input: Record<string, unknown> }, _opt
   return id;
 }
 
-async function seedMissingBundledPlugin(
-  { deps, sourceRoot, id }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); sourceRoot: string; id: string },
+async function seedMissingBundledPlugin<Layout extends AgentPluginLayout>(
+  { deps, sourceRoot, id }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); sourceRoot: string; id: string },
   _optional: Record<string, never> = {},
 ) {
   const outcome = (await deps.seedBundledAgentPlugins({ layout: deps.agentPluginLayout, workspaceId: deps.workspaceId, sourceRoot })).outcomes.find(plugin => plugin.pluginId === id);

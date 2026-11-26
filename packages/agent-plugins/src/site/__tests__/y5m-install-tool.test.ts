@@ -1,5 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { bindAgentPluginsInstallTools } from '../install-tool.js';
+import { createAgentPluginLayout } from '../../lifecycle/layout.js';
+import type { AgentPluginLayout } from '@jini-ai/core/contracts/headless/plugin-host';
 
 it('authorizes before source access and previews then publishes using the preview digest', async () => {
   const order: string[] = [];
@@ -20,4 +22,30 @@ it('authorizes before source access and previews then publishes using the previe
   await registration.handler({ input: {}, principal: { id: 'owner' }, run: { id: 'run' } } as Parameters<typeof registration.handler>[0]);
   expect(order).toEqual(['authorize', 'read', 'preview', 'install']);
   expect(installUploadedAgentPlugin).toHaveBeenCalledTimes(1);
+});
+
+it('passes workspacesDir to the unchanged host bundled seed function', async () => {
+  const layout = { ...createAgentPluginLayout({ root: '/plugins' }), workspacesDir: '/plugins/ws' };
+  const seedBundledAgentPlugins = vi.fn(async (input: { layout: AgentPluginLayout; workspaceId: string; sourceRoot: string }) => {
+    expect(input.layout.workspacesDir).toBe('/plugins/ws');
+    return { sourceRoot: input.sourceRoot, retirements: [], outcomes: [{ pluginId: 'sample', status: 'seeded' as const, archiveDigest: 'digest', activationRecorded: true }] };
+  });
+  const bound = bindAgentPluginsInstallTools({
+    ...({
+      catalog: ['agent_plugins_install', 'agent_plugins_update', 'agent_plugins_customize'].map(name => ({ name, description: 'Install', sideEffects: 'mutates-durable-state', authorization: { permission: 'plugins.install' }, inputSchema: { type: 'object' } })), catalogModule: 'host/catalog',
+      installPermission: 'plugins.install', toolMetadata: {},
+      listBundledAgentPluginServers: async () => [{ pluginId: 'sample' }],
+      listInstalledPlugins: async () => [],
+      agentPluginActivations: { resolveAgentPluginActivation: async () => ({ verdict: 'active' }) },
+    } as unknown as Omit<Parameters<typeof bindAgentPluginsInstallTools>[0], 'seedBundledAgentPlugins'>),
+    seedBundledAgentPlugins,
+  });
+  const registrations = bound.buildRegistrations({
+    workspaceId: 'ws', authorize: async () => ({ allowed: true }),
+    agentPluginLayout: layout, bundledAgentPluginsSourceRoot: '/bundled',
+  } as unknown as Parameters<typeof bound.buildRegistrations>[0]);
+  const registration = registrations.find(entry => entry.descriptor.id === 'agent_plugins_install')!;
+  const result = await registration.handler({ input: { source: { kind: 'bundled', bundledId: 'sample' } }, principal: { id: 'owner' }, run: { id: 'run' } } as Parameters<typeof registration.handler>[0]);
+  expect(seedBundledAgentPlugins).toHaveBeenCalledWith({ layout, workspaceId: 'ws', sourceRoot: '/bundled' });
+  expect(result).toMatchObject({ installed: true, alreadyInstalled: false, enabled: true, plugin: { id: 'sample' } });
 });
