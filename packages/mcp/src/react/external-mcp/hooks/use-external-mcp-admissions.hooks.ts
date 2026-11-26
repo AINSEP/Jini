@@ -345,3 +345,23 @@ export function useExternalMcpAdmissions<Copy, Connection extends AdmissionDrift
   };
 }
 
+
+export function bindExternalMcpAdmissions<Copy, Connection extends AdmissionDriftConnection>({ hooks, deps }: {
+  hooks: Pick<Parameters<typeof useExternalMcpAdmissions<Copy, Connection>>[0], "useFetchQuery" | "useFetchMutation"> & {
+    useCopyHook: () => Translate;
+  };
+  deps: Omit<Parameters<typeof useExternalMcpAdmissions<Copy, Connection>>[0], "savedAllowedToolNamesById" | "t" | "useFetchQuery" | "useFetchMutation">;
+}, _optional = {}) {
+  return {
+    isAssistantStartingError: ({ error }: { error: unknown }, _optional = {}) => isAssistantStartingError({ error, ...deps }),
+    useExternalMcpAdmissions: ({ port, savedAllowedToolNamesById, t = (key) => key }: {
+      port: ExternalMcpAdmissionsPort;
+      savedAllowedToolNamesById: Readonly<Record<string, SavedConnectionIntent>>;
+      t?: Translate;
+    }, _optional = {}) => useExternalMcpAdmissions({ ...deps, ...hooks, port, savedAllowedToolNamesById, t }),
+    useWiredExternalMcpAdmissions: (savedAllowedToolNamesById: Readonly<Record<string, SavedConnectionIntent>>, _optional = {}) => {
+      const t = hooks.useCopyHook();
+      return useExternalMcpAdmissions({ ...deps, ...hooks, savedAllowedToolNamesById, t });
+    },
+  };
+}

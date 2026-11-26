@@ -26,3 +26,16 @@ export function subscribeExecutionConfigRefresh(
     unsubscribe();
   };
 }
+
+export function subscribeStoredKeyRefresh(
+  { revalidate, deps: { subscribeToSettingsRefresh, EXECUTION_NAMESPACE } }: {
+    revalidate: () => void;
+    deps: Pick<Parameters<typeof subscribeExecutionConfigRefresh>[0]["deps"], "subscribeToSettingsRefresh" | "EXECUTION_NAMESPACE">;
+  },
+  _optional = {},
+): () => void {
+  return subscribeToSettingsRefresh((scope) => {
+    if (scope && !scope.includes(EXECUTION_NAMESPACE)) return;
+    revalidate();
+  });
+}

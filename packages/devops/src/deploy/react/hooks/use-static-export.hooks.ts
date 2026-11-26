@@ -262,3 +262,16 @@ function useStaticExportState(
   };
 }
 
+
+export function bindStaticExport({ hooks, deps }: {
+  hooks: Pick<Parameters<typeof useStaticExport>[0], "useFetchQuery" | "useContentRefreshSubscription"> & { useLocaleHook: () => string };
+  deps: Omit<Parameters<typeof useStaticExport>[0], "t" | "locale" | "useFetchQuery" | "useContentRefreshSubscription"> & {
+    translate: (required: { locale: string; key: string }) => string;
+  };
+}, _optional = {}) {
+  return function useBoundStaticExport(_required: Record<string, never>, _optional = {}): StaticExportController {
+    const locale = hooks.useLocaleHook();
+    const t = (key: string): string => deps.translate({ locale: locale, key: key });
+    return useStaticExport({ ...deps, ...hooks, t, locale });
+  };
+}

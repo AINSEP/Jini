@@ -25,7 +25,7 @@ export interface MediaWritesDeps {
   useFetchMutation: FetchQueryAdapter["useFetchMutation"];
 }
 
-type UploadInput = { filename: string; contentType: string; dataBase64: string; alt?: string };
+type UploadInput = { filename: string; contentType: string; dataBase64: string; alt?: string | undefined };
 
 /** Everything the screen reads from its writes: the four mutations (their `error`s feed the screen's
  *  banner and the upload dialog), the restore fallback copy, and the row actions. */

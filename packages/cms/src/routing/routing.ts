@@ -19,6 +19,7 @@
  * wiring live here (that is out of scope for this v0 build) — this file is
  * pure resolution logic over injected ports and in-module registries.
  */
+import { postPublicPath } from "./public-path.js";
 import type { RouteResolverDeps, RoutingContentRecord, RoutingPorts } from './ports.js';
 import type { EntryRefTarget, RouteRefTarget, RouteResolveContext, RouteResolvePhaseHandler, RouteResolvePhaseName, RouteResolvePhaseOutcome, RouteResolveResult, RouteTarget, RouteUrl, SlugChangeCapture, TermRefTarget, UrlTarget } from './types.js';
 
@@ -199,24 +200,6 @@ function normalizePath(rawPath: string): string {
   return withLeadingSlash;
 }
 
-function createPostPublicPath() {
-  /**
-   * Builds a post/page's own public path from its `slug` — the one point every call site that turns a
-   * `PostRecord.slug` into a route string goes through, so the content-owned-homepage `"/"` root-slug
-   * exception (`post.ts`'s `ROOT_SLUG`) has exactly one implementation instead of N independently
-   * re-deriving it. `/${slug}` is correct for every ordinary slug; the one deliberate exception is the
-   * literal `"/"` slug itself, which a naive `/${slug}` template would double up into `"//"` — a Page
-   * that has claimed the site's own homepage (`post.ts`'s `ROOT_SLUG` doc has the write-time gate that
-   * makes `"/"` the only slug this can ever matter for).
-   *
-   * @complexity O(1).
-   */
-  function postPublicPath({ slug }: { slug: string }, _optional: EmptyOptions = {}): string {
-    return slug === "/" ? "/" : `/${slug}`;
-  }
-
-  return postPublicPath;
-}
 
 /**
  * Compose the `canonicalUrl` a resolved `path` implies.
@@ -647,7 +630,6 @@ function createSlugChangeCapture() {
  */
 export function createRouting(required: CreateRoutingRequired, optional: CreateRoutingOptional = {}): Routing {
   const { registerNamedRoute, getNamedRoute, resetNamedRoutes } = createNamedRoutes(optional);
-  const postPublicPath = createPostPublicPath();
   const { entryPublicPath, urlFor, isActive } = createInverseResolvers(required, getNamedRoute, postPublicPath);
   const phaseRegistry: PhaseRegistry = { pre_content: [], post_content: [] };
   const { registerResolvePhase, unregisterResolvePhaseOwner } = createPhaseRegistrations(phaseRegistry);

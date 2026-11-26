@@ -115,7 +115,7 @@ function pageSummary({ shown }: { shown: MediaGridPage | undefined }, _optional:
  * refresh) belongs to a view nobody is looking at and is dropped, never appended.
  * @complexity O(n) in loaded rows per render; one request per page.
  */
-export function useGridPages(required: GridPagesDeps, optional: { itemId?: string | null } = {}): GridPages {
+export function useGridPages(required: GridPagesDeps, optional: { itemId?: string | null | undefined } = {}): GridPages {
   const { port, tab, orderBy, useFetchQuery, listKey } = required;
   const itemId = optional.itemId ?? null;
   const first = useFetchQuery({ key: [...listKey, "grid", tab, orderBy], fetch: () => port.listMediaGrid({ tab, orderBy }, { limit: GRID_PAGE_SIZE }) });

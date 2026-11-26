@@ -864,7 +864,12 @@
       "./public-http/routes/site/pages/static-tier": "universal",
       "./public-http/routes/site/pages/template-render": "universal",
       "./public-http/routes/site/pages/handlers/virtual-page": "universal",
-      "./admin-http/routes/posts/template-preview-render": "universal"
+      "./admin-http/routes/posts/template-preview-render": "universal",
+      "./react/publish-content/PublishContentDialog": "browser",
+      "./react/widgets/WidgetConfigFields/MediaContentEditor": "browser",
+      "./routing/public-path": "universal",
+      "./react/posts/post-editor-input.rules": "universal",
+      "./react/publish-content/hooks/publish-content-confirm.rules": "universal"
     },
     "isolation": {
       "domains": {
@@ -1073,6 +1078,39 @@
           "express",
           "kysely",
           "parse5"
+        ],
+        "./react/publish-content/PublishContentDialog": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/widgets/WidgetConfigFields/MediaContentEditor": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./routing/public-path": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5",
+          "react"
+        ],
+        "./react/posts/post-editor-input.rules": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5",
+          "react"
+        ],
+        "./react/publish-content/hooks/publish-content-confirm.rules": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5",
+          "react"
         ]
       },
       "shared": [
@@ -1363,7 +1401,12 @@
         "./public-http/routes/site/pages/static-tier": "presentation",
         "./public-http/routes/site/pages/template-render": "presentation",
         "./public-http/routes/site/pages/handlers/virtual-page": "presentation",
-        "./admin-http/routes/posts/template-preview-render": "presentation"
+        "./admin-http/routes/posts/template-preview-render": "presentation",
+        "./react/publish-content/PublishContentDialog": "publish",
+        "./react/widgets/WidgetConfigFields/MediaContentEditor": "widgets",
+        "./routing/public-path": "routing",
+        "./react/posts/post-editor-input.rules": "posts",
+        "./react/publish-content/hooks/publish-content-confirm.rules": "publish"
       }
     },
     "optionalPeers": {
@@ -5621,6 +5664,31 @@
       "types": "./dist/admin-http/routes/posts/template-preview-render.d.ts",
       "import": "./dist/admin-http/routes/posts/template-preview-render.js",
       "default": "./dist/admin-http/routes/posts/template-preview-render.js"
+    },
+    "./react/publish-content/PublishContentDialog": {
+      "types": "./dist/react/publish-content/PublishContentDialog.d.ts",
+      "import": "./dist/react/publish-content/PublishContentDialog.js",
+      "default": "./dist/react/publish-content/PublishContentDialog.js"
+    },
+    "./react/widgets/WidgetConfigFields/MediaContentEditor": {
+      "types": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.js"
+    },
+    "./routing/public-path": {
+      "types": "./dist/routing/public-path.d.ts",
+      "import": "./dist/routing/public-path.js",
+      "default": "./dist/routing/public-path.js"
+    },
+    "./react/posts/post-editor-input.rules": {
+      "types": "./dist/react/posts/post-editor-input.rules.d.ts",
+      "import": "./dist/react/posts/post-editor-input.rules.js",
+      "default": "./dist/react/posts/post-editor-input.rules.js"
+    },
+    "./react/publish-content/hooks/publish-content-confirm.rules": {
+      "types": "./dist/react/publish-content/hooks/publish-content-confirm.rules.d.ts",
+      "import": "./dist/react/publish-content/hooks/publish-content-confirm.rules.js",
+      "default": "./dist/react/publish-content/hooks/publish-content-confirm.rules.js"
     }
   },
   "files": [

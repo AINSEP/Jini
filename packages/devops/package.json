@@ -171,7 +171,9 @@
       "./source-control/site/tool-registrations": "universal",
       "./backup/site/share-database/projection": "node",
       "./backup/site/backup-service": "universal",
-      "./backup/site/tool-registrations": "universal"
+      "./backup/site/tool-registrations": "universal",
+      "./deploy/react/hooks/use-publish-credentials.hooks": "browser",
+      "./deploy/react/hooks/use-static-publish.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -978,6 +980,16 @@
     "./backup/site/tool-registrations": {
       "types": "./dist/backup/site/tool-registrations.d.ts",
       "import": "./dist/backup/site/tool-registrations.js"
+    },
+    "./deploy/react/hooks/use-publish-credentials.hooks": {
+      "types": "./dist/deploy/react/hooks/use-publish-credentials.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-publish-credentials.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-publish-credentials.hooks.js"
+    },
+    "./deploy/react/hooks/use-static-publish.hooks": {
+      "types": "./dist/deploy/react/hooks/use-static-publish.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-static-publish.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-static-publish.hooks.js"
     }
   },
   "typesVersions": {

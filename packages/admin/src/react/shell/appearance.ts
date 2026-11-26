@@ -70,3 +70,35 @@ export function useSettingsAppearance({ accentColor, ready, store, root, useThem
     }
   }, [accentColor, ready, root, themeId]);
 }
+
+export function bindAdminAppearance({ hooks, deps }: {
+  hooks: Pick<Parameters<typeof useAdminAppearance<import("../../core/settings-tabs.js").AppearanceConfig>>[0], "useThemeStateHook" | "useAppearanceSnapshotHook" | "useInvalidateHook">;
+  deps: Pick<Parameters<typeof useAdminAppearance<import("../../core/settings-tabs.js").AppearanceConfig>>[0], "paintAccent" | "resolveAccent"> & {
+    namespace: string;
+    loadAppearance: () => Promise<import("../../core/settings-tabs.js").AppearanceConfig>;
+    subscribeToSettingsRefresh: (listener: (scope: readonly string[] | null) => void) => () => void;
+    advancePreview: Parameters<typeof useSettingsAppearance>[0]["advancePreview"];
+    getRoot: () => HTMLElement;
+  };
+}, _optional = {}) {
+  const previewAccents = createAppearanceDraftStore({}, {});
+  const defaultPort = {
+    loadAppearance: deps.loadAppearance,
+    subscribeToSettingsRefresh: ({ listener }: { listener: () => void }) => deps.subscribeToSettingsRefresh((scope) => {
+      if (scope === null || scope.includes(deps.namespace)) listener();
+    }),
+  };
+  return {
+    useAdminAppearance: (_required: object, { port = defaultPort, root = deps.getRoot() } = {}) => useAdminAppearance({
+      store: previewAccents, root, port,
+      ...hooks,
+      paintAccent: deps.paintAccent, resolveAccent: deps.resolveAccent,
+      queryPrefix: ["settings", deps.namespace],
+    }, {}),
+    useSettingsAppearance: ({ accentColor, ready }: { accentColor: string | undefined; ready: boolean }, { root = deps.getRoot() } = {}) => useSettingsAppearance({
+      accentColor, ready, store: previewAccents, root,
+      useThemeStateHook: hooks.useThemeStateHook,
+      advancePreview: deps.advancePreview, paintAccent: deps.paintAccent,
+    }, {}),
+  };
+}
