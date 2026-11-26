@@ -16,7 +16,7 @@ function ExternalMcpBody(props: ProvidersProps & { p: ReturnType<ProvidersProps[
           // (`Jini packages/mcp/src/federation/trust.ts` R5). Telling an operator their change is saved, while the
           // running assistant still cannot see the server, would be true and useless. D-33
           // (2026-10-06): show it only after an actual configuration save — the standing "Changes
-          // apply when Tovu restarts" pill read as a pending change on a fresh site.
+          // apply when the host restarts" pill read as a pending change on a fresh site.
           <ExternalMcpSettingsPanel
             dependencies={p.externalMcp.dependencies}
             showTitle={false}

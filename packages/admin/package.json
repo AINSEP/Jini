@@ -826,7 +826,9 @@
       "./security/host/hooks/use-access-tokens.hooks": "browser",
       "./shell/components/AssistantDock/AssistantDock": "browser",
       "./shell/components/AssistantDock/AssistantDock.state.hooks": "browser",
-      "./shell/components/AssistantDock/DockChatPane": "browser"
+      "./shell/components/AssistantDock/DockChatPane": "browser",
+      "./screens/plugins/AgentPlugins": "browser",
+      "./screens/plugins/Plugins": "browser"
     },
     "isolation": {
       "shared": [
@@ -5168,6 +5170,16 @@
       "types": "./src/shell/components/AssistantDock/DockChatPane.tsx",
       "import": "./src/shell/components/AssistantDock/DockChatPane.tsx",
       "default": "./src/shell/components/AssistantDock/DockChatPane.tsx"
+    },
+    "./screens/plugins/AgentPlugins": {
+      "types": "./src/screens/plugins/AgentPlugins.tsx",
+      "import": "./src/screens/plugins/AgentPlugins.tsx",
+      "default": "./src/screens/plugins/AgentPlugins.tsx"
+    },
+    "./screens/plugins/Plugins": {
+      "types": "./src/screens/plugins/Plugins.tsx",
+      "import": "./src/screens/plugins/Plugins.tsx",
+      "default": "./src/screens/plugins/Plugins.tsx"
     }
   },
   "files": [
