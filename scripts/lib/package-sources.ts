@@ -17,6 +17,31 @@ export interface PackageManifest {
 }
 export interface SourcePackage { directory: string; manifest: PackageManifest }
 
+export function duplicateManifestExportKeys({ file, source }: { file: string; source: string }, _optional: Record<string, never> = {}): string[] {
+  const root = ts.parseJsonText(file, source).statements[0];
+  if (!root || !ts.isExpressionStatement(root) || !ts.isObjectLiteralExpression(root.expression)) return [];
+  const maps = root.expression.properties.filter(ts.isPropertyAssignment).flatMap(property => {
+    if (!ts.isStringLiteral(property.name) || !ts.isObjectLiteralExpression(property.initializer)) return [];
+    if (property.name.text === 'exports') return [{ name: 'exports', value: property.initializer }];
+    if (property.name.text !== 'jini') return [];
+    return property.initializer.properties.filter(ts.isPropertyAssignment).flatMap(entry => {
+      if (!ts.isStringLiteral(entry.name) || entry.name.text !== 'entries' || !ts.isObjectLiteralExpression(entry.initializer)) return [];
+      return [{ name: 'jini.entries', value: entry.initializer }];
+    });
+  });
+  const diagnostics: string[] = [];
+  for (const map of maps) {
+    const seen = new Set<string>();
+    for (const property of map.value.properties.filter(ts.isPropertyAssignment)) {
+      if (!ts.isStringLiteral(property.name)) continue;
+      const key = property.name.text;
+      if (seen.has(key)) diagnostics.push(`${file}: duplicate ${map.name} key ${JSON.stringify(key)}`);
+      seen.add(key);
+    }
+  }
+  return diagnostics;
+}
+
 function readSourcePackage(required: { manifest: string; directory: string }): SourcePackage | undefined {
   if (!existsSync(required.manifest)) return undefined;
   const manifest: PackageManifest = JSON.parse(readFileSync(required.manifest, 'utf8'));
