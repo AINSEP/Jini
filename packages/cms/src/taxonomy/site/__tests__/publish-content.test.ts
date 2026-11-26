@@ -3,6 +3,7 @@ import type { Term } from "../../index.js";
 import type { TaxonomyPublishPorts } from "../../publish-ports.js";
 import type { PackedEntity } from "../../../publish/transfer/packed-entity.js";
 import { contributeTermPublish } from "../publish-content.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 
 it("packs child-first input parent-first and applies the parent before its child", async () => {
   const rows: Term[] = [{ id: "child", taxonomyId: "taxonomy", parentId: "parent", name: "Child", status: "active", updatedAt: "now", version: 1 },
@@ -16,7 +17,7 @@ it("packs child-first input parent-first and applies the parent before its child
       insert: async (term: Term) => { writes.push(term.id); destination.set(term.id, term); } },
     revisions: { insert: async () => {} }, stampWatermark: () => {} } as unknown as TaxonomyPublishPorts;
   const handler = contributeTermPublish().build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "event" }, ports: { term: ports },
-    authorize: async () => ({ allowed: true, reason: "grant" }), outbox: { enqueue: async () => {} }, mutationActor: { id: "owner", kind: "user" } });
+    authorize: async () => ({ allowed: true, reason: "grant" }), outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort, mutationActor: { id: "owner", kind: "user" } });
   const packed: PackedEntity[] = [];
   for await (const entity of handler.pack()) packed.push(entity);
   expect(packed.map(entity => entity.id)).toEqual(["parent", "child"]);

@@ -72,7 +72,7 @@ export function normalizeShowPostAuthor(required: { showAuthor: unknown }, _opti
 /** The schedule/featured-image keys a record carries — present only when set, so a row that has
  *  neither keeps the exact record shape it had before these fields existed (the same "absent, not
  *  empty" convention `ext` follows). @complexity O(1). */
-export function presentScheduleFields(fields: { publishAt?: string | null; featuredMediaId?: string | null }, _optional: Record<string, never> = {}): Pick<PostRecord, "publishAt" | "featuredMediaId"> {
+export function presentScheduleFields(fields: { publishAt?: string | null | undefined; featuredMediaId?: string | null | undefined }, _optional: Record<string, never> = {}): Pick<PostRecord, "publishAt" | "featuredMediaId"> {
   return {
     ...(fields.publishAt ? { publishAt: fields.publishAt } : {}),
     ...(fields.featuredMediaId ? { featuredMediaId: fields.featuredMediaId } : {}),

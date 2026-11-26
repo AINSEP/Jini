@@ -41,7 +41,7 @@ export function parseImportUrl({ raw }: { raw: string }): URL {
 
 // Bound/sanitize path punctuation, controls, and traversal-like names. This labels an upload, not
 // its filesystem location: content-addressed storage must not derive a path from this display name.
-export function buildImportFilename({ url, contentType }: { url: URL; contentType: string }, { override }: { override?: string } = {}): string {
+export function buildImportFilename({ url, contentType }: { url: URL; contentType: string }, { override }: { override?: string | undefined } = {}): string {
   const extension = mediaFileExtension({ contentType });
   const rawName = override ?? decodeLastPathSegment(url);
   const slug = trimChars({

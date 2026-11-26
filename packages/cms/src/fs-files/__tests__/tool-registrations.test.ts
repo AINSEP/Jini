@@ -11,7 +11,7 @@ import { getFsFilesAgentToolCatalog } from '../agent-tools.js';
 function toolDeps(siteDir: string): FsFilesToolDeps {
   return { workspaceId: 'ws', siteBinding: { dir: siteDir }, authorize: async () => ({ allowed: true, reason: 'fixture' }),
     rootIds: ['site', 'custom'], readPermission: 'content.read',
-    catalog: getFsFilesAgentToolCatalog({ FS_ROOT_IDS: ['site', 'custom'], FS_ROOT_DESCRIPTORS: [{ id: 'site', description: 'Site' }, { id: 'custom', description: 'Picked folder' }], MAX_FS_FILE_BYTES: 1000000, FS_FILES_READ_PERMISSION: 'content.read' }),
+    catalog: getFsFilesAgentToolCatalog({ rootIds: ['site', 'custom'], rootDescriptors: [{ id: 'site', description: 'Site' }, { id: 'custom', description: 'Picked folder' }], maxFileBytes: 1000000 }),
     resolveFsRoots: () => ({ site: siteDir, custom: undefined }),
     resolveFsFilePath: ({ rootPath, relativePath }) => resolve(rootPath, relativePath),
     resolveSiteFileRequest: ({ relativePath }) => ({ rootPath: siteDir, relativePath: relativePath ?? '.' }),

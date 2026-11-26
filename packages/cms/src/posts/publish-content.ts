@@ -289,13 +289,19 @@ function postReferences(state: Readonly<Record<string, unknown>>): readonly Publ
 type PostRow = PostRecord & { readonly termIds?: readonly string[] };
 
 /** The post port plus the taxonomy ports `termIds` needs. */
-export type PostPorts = PostBag["post"] & { readonly term?: TaxonomyPublishPorts };
+export type PostPorts = PostBag["post"] & { readonly term?: TaxonomyPublishPorts | undefined };
 
 /** Attaches sorted `termIds`, non-enumerable (this file's header), without changing stored fields.
  * @returns A copy suitable for the gateway's compensation row as well as the transport.
  * @throws Taxonomy repository failures propagate before a publish write.
  * @complexity One indexed term read plus O(t log t) time/O(t) space for t assigned terms.
  */
+/** Drops the SQL `null`/`false` byline defaults so they never reach the wire or the content hash. @complexity O(1). */
+function omitBylineDefaults({ row }: { row: PostRecord }, _optional: Record<string, never> = {}): PostRecord {
+  const { author, showAuthor, ...rest } = row;
+  return { ...rest, ...(author == null ? {} : { author }), ...(showAuthor ? { showAuthor } : {}) };
+}
+
 async function withTerms({ termPorts, row }: { termPorts: TaxonomyPublishPorts | undefined; row: PostRecord }, _optional: Record<string, never> = {}): Promise<PostRow> {
   const termIds = await readTermIds({ ports: termPorts, contentType: row.kind, contentId: row.id });
   // The gateway captures this row as its inverse: preserve the stored byline defaults too.
@@ -406,7 +412,7 @@ function contributePostKind(kind: PostKind): PublishContentContributor<PostBag> 
       const rows = (await p.repo.list({ workspaceId })).filter((row) => row.kind === kind && !isTrashed(row));
       // SQL supplies null/false defaults for older rows. Omit those defaults from the wire/hash;
       // import still clears a destination's old byline when the source leaves these fields absent.
-      return Promise.all(rows.map((row) => withTerms({ termPorts: p.term, row: { ...row, author: row.author ?? undefined, showAuthor: row.showAuthor || undefined } })));
+      return Promise.all(rows.map((row) => withTerms({ termPorts: p.term, row: omitBylineDefaults({ row }) })));
     },
     find: async ({ ports: p, workspaceId, id }, _optional = {}) => {
       const row = await p.repo.findById({ workspaceId, id });

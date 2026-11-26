@@ -3,7 +3,7 @@ import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import type { Translate } from "@jini-ai/core/text";
 
-interface MediaPickerPort {
+export interface MediaPickerPort {
   listMedia(): Promise<{ media: AdminMedia[] }>;
   mediaOriginalUrl(required: { id: string }, optional?: Record<string, never>): string;
 }

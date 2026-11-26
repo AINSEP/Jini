@@ -1,7 +1,5 @@
 import { derivePostSlugBase, isAutomaticPostSlug } from "../../posts/slug.js";
-import type { AdminPost } from "@jini-ai/admin/posts/api/posts-api.types";
 import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
-import type { SaveConflict } from "@jini-ai/admin/shell/lib/version-conflict";
 import type { StandingDraftAutosaveInput, StandingDraftStaleBasis } from "@jini-ai/ui/panel-kit";
 
 
@@ -36,7 +34,23 @@ export const POST_VERSION_CONFLICT_CODE = VERSION_CONFLICT_CODE;
 
 /** A rejected save whose basis version had already been superseded — {@link readVersionConflict}'s
  *  output, and the editor's own conflict state. */
-export type PostSaveConflict = SaveConflict;
+export interface PostSaveConflict {
+  /** The version the editor believed it was editing. `null` only if the server omitted it. */
+  expectedVersion: number | null;
+  /** The version actually stored now. `null` only if the server omitted it. */
+  currentVersion: number | null;
+  /** The status the rejected save was attempting, so an explicit retry re-runs the same intent. */
+  attemptedStatus: "draft" | "published" | undefined;
+}
+
+/** The admin post-row fields slug-following reads (structural, so this module needs no host types). */
+export interface PostSlugState {
+  kind: "post" | "page";
+  status: "draft" | "published";
+  title: string;
+  slug: string;
+  everPublished?: boolean;
+}
 
 /**
  * The conflict banner's own message is not run through `t()`; like the former feature-local
@@ -158,7 +172,7 @@ export function isScheduledPost({ input, nowMs }: { input: { status: "draft" | "
 
 /** A persisted manual slug or any publication history freezes title following. */
 export function postSlugFollowsTitle(
-  { post, manuallyEdited = false }: { post: Pick<AdminPost, "kind" | "status" | "title" | "slug" | "everPublished">; manuallyEdited?: boolean },
+  { post, manuallyEdited = false }: { post: PostSlugState; manuallyEdited?: boolean },
   _optional: Record<string, never> = {},
 ): boolean {
   const neverPublished = post.status !== "published" && !post.everPublished;

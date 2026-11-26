@@ -120,7 +120,7 @@ export interface SiteCapabilitiesDeps {
 
 export interface BuildSiteCapabilitiesOptions {
   /** Which sections to collect. Omitted/empty means all of {@link SITE_CAPABILITIES_SECTION_NAMES}. */
-  sections?: readonly SiteCapabilitiesSectionName[];
+  sections?: readonly SiteCapabilitiesSectionName[] | undefined;
   /** Per-section wall clock before the section is marked `unavailable`/`timed-out`. */
   sectionTimeoutMs?: number;
 }

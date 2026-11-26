@@ -1,3 +1,4 @@
+import { withoutUndefined } from "@jini-ai/core/records";
 import { type UUID, type JsonObject, type Clock as ClockPort, nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { PostStatus } from "@jini-ai/cms/core";
 import { type PostRepoPort, type PostRecord, PostValidationError, type PublicPostRecord, isPublicPost, PostNotFoundError, SYSTEM_ACTOR_ID } from "@jini-ai/cms/posts/post";
@@ -67,7 +68,7 @@ export interface UpdatePostInput {
   /** Same optional-with-fallback contract as {@link CreatePostInput.actorId}. */
   actorId?: UUID;
   /** See {@link CreatePostInput.actor}. */
-  actor?: MutationActor | undefined;
+  actor?: MutationActor;
   /** Same optional-with-null-default contract as {@link CreatePostInput.delegatedByWorkspaceId}. */
   delegatedByWorkspaceId?: UUID | null;
   /** See {@link CreatePostInput.delegatedByWorkspaceId}. */
@@ -177,7 +178,7 @@ function buildUpdatedPost(
       featuredMediaId: input.featuredMediaId === undefined ? existing.featuredMediaId : normalizeFeaturedMediaId({ value: input.featuredMediaId }),
     }),
     ...(input.author !== undefined ? { author: normalizePostAuthor({ author: input.author }) } : {}),
-    ...(input.showAuthor !== undefined ? { showAuthor: normalizeShowPostAuthor({ showAuthor: input.showAuthor }) } : {}),
+    ...withoutUndefined({ source: { showAuthor: normalizeShowPostAuthor({ showAuthor: input.showAuthor }) } }),
     title: fields.title,
     slug: fields.slug,
     // SPEC-047/ADR-056 CIC-3 — forced explicitly rather than left to `...carriedOver`, for the same

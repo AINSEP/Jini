@@ -18,7 +18,7 @@ import type { PostToolDeps } from "./post-tool-deps.js";
  */
 export async function loadDeletablePost(
   { routeDeps, id }: { routeDeps: PostToolDeps; id: string },
-  { kind }: { kind?: PublicPostKind } = {},
+  { kind }: { kind?: PublicPostKind | undefined } = {},
 ): Promise<PublicPostRecord> {
   const existing = await routeDeps.postRepo.findById({ workspaceId: routeDeps.workspaceId, id });
   if (!isPublicPost(existing) || isTrashed(existing) || (kind === "page" && existing.kind !== "page")) {

@@ -1,5 +1,7 @@
 import type { CanvasStyling } from "@jini-ai/ui/html-editor";
-import type { PageEditorView } from "@jini-ai/admin/pages/page-editor-rules";
+
+/** The page editor's main-pane view toggle (structurally the host editor's own `PageEditorView`). */
+export type PageEditorView = "preview" | "html" | "interactive";
 
 /**
  * Which surface the editor's main pane shows, as a discriminated value rather than a chain of

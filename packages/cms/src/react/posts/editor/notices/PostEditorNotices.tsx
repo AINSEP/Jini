@@ -1,12 +1,20 @@
 import type { StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "@jini-ai/ui/panel-kit";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { PageExternalChangeBanner as PageExternalChangeBannerType } from "../../../pages/PageExternalChangeBanner.js";
-import type { PostAutosaveRecoveryBanner as PostAutosaveRecoveryBannerType } from "@jini-ai/admin/posts/editor/notices/PostAutosaveRecoveryBanner";
-import type { PostAutosaveStaleBanner as PostAutosaveStaleBannerType } from "@jini-ai/admin/posts/editor/notices/PostAutosaveStaleBanner";
-import type { PostVersionConflictBanner as PostVersionConflictBannerType } from "@jini-ai/admin/posts/editor/notices/PostVersionConflictBanner";
 import type { standingDraftRecoveryMessage as standingDraftRecoveryMessageType } from "@jini-ai/ui/panel-kit";
 import { type PostSaveConflict, postAutosaveStaleBasisMessage, postVersionConflictMessage } from "../../post-editor-rules.js";
 import { type Translate } from "@jini-ai/core/text";
+
+/** The host's injected notice components, typed by the props this composer passes them. */
+type PostAutosaveRecoveryBannerComponent = (props: {
+  recoverableDraft: StandingDraftAutosaveSnapshot; serverUpdatedAt: string; onRestore: () => void; onDiscard: () => void;
+  t: Translate; standingDraftRecoveryMessage: typeof standingDraftRecoveryMessageType;
+}) => ReactNode;
+type PostAutosaveStaleBannerComponent = (props: { staleBasis: StandingDraftStaleBasis; staleBasisMessage: (staleBasis: StandingDraftStaleBasis) => string }) => ReactNode;
+type PostVersionConflictBannerComponent = (props: {
+  saveConflict: PostSaveConflict; versionConflictMessage: (conflict: PostSaveConflict) => string;
+  onSaveAnyway: () => void; onLoadLatest: () => void; onDismiss: () => void; t: Translate;
+}) => ReactNode;
 
 /**
  * The four "something happened to your work" notices, grouped into one component so their four
@@ -44,9 +52,9 @@ export function PostEditorNotices({
   dismissExternalChange,
   t, PostAutosaveRecoveryBanner, PostAutosaveStaleBanner, PostVersionConflictBanner, PageExternalChangeBanner, standingDraftRecoveryMessage, pageExternalChangeBindings,
 }: {
-  PostAutosaveRecoveryBanner: typeof PostAutosaveRecoveryBannerType;
-  PostAutosaveStaleBanner: typeof PostAutosaveStaleBannerType;
-  PostVersionConflictBanner: typeof PostVersionConflictBannerType;
+  PostAutosaveRecoveryBanner: PostAutosaveRecoveryBannerComponent;
+  PostAutosaveStaleBanner: PostAutosaveStaleBannerComponent;
+  PostVersionConflictBanner: PostVersionConflictBannerComponent;
   PageExternalChangeBanner: typeof PageExternalChangeBannerType;
   standingDraftRecoveryMessage: typeof standingDraftRecoveryMessageType;
   pageExternalChangeBindings: Pick<ComponentProps<typeof PageExternalChangeBannerType>, "agentHandle" | "copy">;

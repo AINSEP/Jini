@@ -47,8 +47,13 @@ export function externalMcpErrorStatus({ error, deps }: { error: unknown; deps: 
     // operator whose site key has rotated nothing about the one thing they can act on.
     return { status: 503, body: { error: error.message, code: 'SECRET_STORE_UNCONFIGURED' } };
   }
-  if (error instanceof deps.oauth) return externalMcpProviderRefusal({ error: { code: error.code, message: error.message, retryable: error.retryable, operatorAction: error.operatorAction,
+  if (error instanceof deps.oauth) return externalMcpReplyBody(externalMcpProviderRefusal({ error: { code: error.code, message: error.message, retryable: error.retryable, operatorAction: error.operatorAction,
     ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
-  } });
+  } }));
   return undefined;
+}
+
+/** The `{status, body}` pair this classifier answers with; the provider refusal always carries a body. */
+function externalMcpReplyBody(reply: { readonly status: number; readonly body?: unknown }): { status: number; body: unknown } {
+  return { status: reply.status, body: reply.body };
 }

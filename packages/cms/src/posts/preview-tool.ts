@@ -1,5 +1,5 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/post';
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition } from "@jini-ai/core";
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type DerivedRiskByToolId, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
 import { type JsonObject } from "@jini-ai/core/primitives";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
@@ -16,7 +16,7 @@ declare const shapePageBody: (required: { body: string }, optional?: PageBodyOpt
 /** Renderer injected at the server composition root; the feature has no server/assistant value edge. */
 export interface PostPreviewToolDeps {
   workspaceId: string; authorize: AuthorizeFn; postRepo: PostRepoPort;
-  catalog: Parameters<typeof indexCatalogById>[0]["catalog"];
+  catalog: readonly AgentToolDefinition[];
   readPermission: string;
   readPostTemplateOptions: (required: { deps: PostPreviewToolDeps; kind: PostRecord["kind"] }) => Promise<string[]>;
   readPageBodyOptions: typeof readPageBodyOptions;

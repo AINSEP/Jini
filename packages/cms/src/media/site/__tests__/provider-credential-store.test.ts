@@ -77,5 +77,5 @@ it("the singleton adapter delegates ownership validation to the vault service", 
   const stored = { ...row("canonical"), ownerKey: "foreign" };
   vi.mocked(s.vault.list).mockResolvedValue([stored]);
   const vault = mediaProviderVault({ vault: s.vault, providerId: "canonical", policy: vaultPolicy });
-  expect(await vault.findOne!({ workspaceId: "w", kind: "media-provider", ownerKey: "test", principalId: null, binding: null })).toBe(stored);
+  expect(await vault.findOne!({ workspaceId: "w", kind: "media-provider", ownerKey: "test", principalId: null })).toBe(stored);
 });

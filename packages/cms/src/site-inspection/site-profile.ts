@@ -306,9 +306,9 @@ export interface SiteProfileDeps {
 
 export interface BuildSiteProfileOptions {
   /** Which sections to collect. Omitted/empty means all of {@link SITE_PROFILE_SECTION_NAMES}. */
-  sections?: readonly SiteProfileSectionName[];
+  sections?: readonly SiteProfileSectionName[] | undefined;
   /** Page rows to include, capped at {@link MAX_PAGE_ITEMS}. Defaults to {@link DEFAULT_PAGE_ITEMS}. */
-  pageLimit?: number;
+  pageLimit?: number | undefined;
   /** Per-section wall clock before the section is marked `unavailable`/`timed-out`. */
   sectionTimeoutMs?: number;
 }

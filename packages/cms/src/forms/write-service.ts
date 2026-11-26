@@ -359,9 +359,9 @@ export async function setFormDefinitionStatus(
 
 export interface FormWriteOptional {
   idempotencyKey?: string;
-  outbox?: import("@jini-ai/core/contracts/events").OutboxPort;
+  outbox?: import("@jini-ai/core/contracts/events").OutboxPort | undefined;
 }
-export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; authoring?: FormAuthoringPort; }
+export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig | undefined; authoring?: FormAuthoringPort; }
 export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; expectedVersion?: number; }
 
 /** Authoring pre-reads are authorized once; the audited gateway replays that decision.

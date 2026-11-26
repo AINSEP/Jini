@@ -28,7 +28,7 @@ export interface ImportPostEntityDeps {
   repo: PostRepoPort;
   outbox: OutboxPort;
   /** Same optional "absent ⇒ zero-plugin path unchanged" contract as {@link UpdatePostDeps.beforeSaveHook}. */
-  beforeSaveHook?: BeforeSaveHookPort;
+  beforeSaveHook?: BeforeSaveHookPort | undefined;
 }
 
 export interface ImportPostEntityInput {
@@ -45,7 +45,7 @@ export interface ImportPostEntityInput {
    * `undefined` means the caller believes no row exists here (a create), a number means it read
    * that version and expects to still be writing over it.
    */
-  expectedVersion?: number;
+  expectedVersion?: number | undefined;
   /** Attribution for the revision this write appends — the IMPORTING OPERATOR, never the source's
    *  own author (which travels in `record.createdByPrincipalId` and is a different fact). */
   actorId?: UUID;

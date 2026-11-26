@@ -48,7 +48,7 @@ export interface CreatePostInput {
   actorId?: UUID;
   /** The trusted actor this write's channel vouched for (`user` for the admin, `agent` for the assistant),
    *  stamped on its outbox events; its `id` must be `actorId`. Omitted, the events record no kind. */
-  actor?: MutationActor | undefined;
+  actor?: MutationActor;
   /** Who is creating the row, recorded once as `posts.created_by_kind` (H4, 2026-11-24). Omitted
    *  means `"person"` — the owner/admin routes pass nothing; every agent-tool call site passes
    *  `"agent"`, since an agent acts under the real human's `actorId` and the kind cannot be
@@ -70,7 +70,7 @@ export interface PostAuthorAccountPort {
 export interface CreatePostDeps {
   reservedSegments: ReadonlySet<string>;
   /** Existing identity account store, injected only to resolve the initial display credit. */
-  authorAccounts?: PostAuthorAccountPort;
+  authorAccounts?: PostAuthorAccountPort | undefined;
   clock: ClockPort;
   repo: PostRepoPort;
   /**

@@ -413,7 +413,8 @@ async function selectPullPeer({ deps, supplied }: { deps: PublishContentToolDeps
 function pullHooks({ deps, bundleId, actorId }: { deps: PublishContentToolDeps; bundleId: string; actorId: string }, { forcedEntityKeys }: { forcedEntityKeys?: ReadonlySet<string> } = {}) {
   const contentDeps = deps.makePublishContentDeps?.() ?? {
     workspaceId: deps.workspaceId, clock: deps.clock, idGen: deps.idGen,
-    ports: { ...(deps.publishContentPorts ?? {}), hooks: { beforeSave: deps.pluginBeforeSaveHook } }, outbox: deps.outbox,
+    ports: { ...(deps.publishContentPorts ?? {}), hooks: { beforeSave: deps.pluginBeforeSaveHook } },
+    ...(deps.outbox === undefined ? {} : { outbox: deps.outbox }),
   };
   return buildPublishContentImportHooks({
     workspaceId: deps.workspaceId, bundleId, actorId,
@@ -423,7 +424,8 @@ function pullHooks({ deps, bundleId, actorId }: { deps: PublishContentToolDeps; 
     publishContentDeps: { ...contentDeps, authorize: deps.authorize }, bundleRepo: deps.publishContentBundleRepo,
     baselineRepo: deps.publishContentBaselineRepo, blobStore: deps.blobStore, dbOps: deps.dbOps,
     restorePointsRepo: deps.restorePointsRepo, applyPort: deps.publishContentApplyPort,
-    getSeedHash: deps.publishContentSeedHash, forcedEntityKeys,
+    ...(deps.publishContentSeedHash === undefined ? {} : { getSeedHash: deps.publishContentSeedHash }),
+    ...(forcedEntityKeys === undefined ? {} : { forcedEntityKeys }),
   });
 }
 

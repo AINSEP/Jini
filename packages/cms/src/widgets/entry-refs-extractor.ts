@@ -352,7 +352,7 @@ export function extractHtmlEntryRefs(input: {
   readonly workspaceId: UUID;
   readonly sourceEntryId: UUID;
   readonly html: string;
-}, optional: { report?: EntryRefsReport } = {}): readonly EntryRefRow[] {
+}, optional: { report?: EntryRefsReport | undefined } = {}): readonly EntryRefRow[] {
   const { markers, rejected } = scanEmbedMarkers({ html: input.html });
   warnRejectedMarkers(rejected, input.sourceEntryId, optional.report);
 

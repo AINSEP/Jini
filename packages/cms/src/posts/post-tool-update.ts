@@ -10,14 +10,14 @@ import type { PostToolDeps } from "./post-tool-deps.js";
 
 /** content_post_update's validated caller fields; `undefined` means "not sent". */
 interface PostUpdatePatch {
-  title?: string;
-  slug?: string;
-  bodyJson?: JsonObject;
-  status?: PostStatus;
-  author?: string | null;
-  showAuthor?: boolean;
-  templateChoice?: string | null;
-  publishAt?: string | null;
+  title?: string | undefined;
+  slug?: string | undefined;
+  bodyJson?: JsonObject | undefined;
+  status?: PostStatus | undefined;
+  author?: string | null | undefined;
+  showAuthor?: boolean | undefined;
+  templateChoice?: string | null | undefined;
+  publishAt?: string | null | undefined;
 }
 
 /**

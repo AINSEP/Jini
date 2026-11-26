@@ -25,7 +25,7 @@ export interface FeaturedImageDeps {
   findMediaByIdOrSlug: typeof findMediaByIdOrSlug;
   /** Optional: content types are sniffed into this store lazily, so an asset may have none yet. An
    *  unknown type is accepted (it cannot be told apart from an image); a known non-image is not. */
-  mediaContentTypeStore?: Pick<MediaContentTypeStorePort, "getMany">;
+  mediaContentTypeStore?: Pick<MediaContentTypeStorePort, "getMany"> | undefined;
 }
 
 export type FeaturedImageResolution =

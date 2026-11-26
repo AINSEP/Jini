@@ -146,7 +146,7 @@ export function uploadBusyReply(_required: Record<string, never> = {}, _optional
  *
  * @complexity O(1) besides copying the view.
  */
-export function ownerSetupBody<T extends { readonly hasEncryptedKeys?: boolean }>({ imported }: { imported: T }, _optional = {}): T & { readonly ownerSetup: Readonly<Record<string, unknown>> } {
+export function ownerSetupBody<T extends { readonly hasEncryptedKeys?: boolean | undefined }>({ imported }: { imported: T }, _optional = {}): T & { readonly ownerSetup: Readonly<Record<string, unknown>> } {
   return { ...imported, ownerSetup: { method: "POST", field: "adminPassword", username: "admin", sessionRequired: true, ...(imported.hasEncryptedKeys ? { savedKeysPasswordField: "savedKeysPassword" } : {}) } };
 }
 

@@ -9,7 +9,7 @@ it('does no media or MIME reads without media references', async () => {
   const findMediaByIdOrSlug = vi.fn(async () => null);
   const getMany = vi.fn(async () => new Map<string, string>());
   const result = await resolveMediaAssetMetadataForRender({ deps: {
-    workspaceId: 'w', mediaRepo: new InMemoryMediaRepo(), mediaContentTypeStore: { getMany },
+    workspaceId: 'w', mediaRepo: new InMemoryMediaRepo({}), mediaContentTypeStore: { getMany },
     collectCoverMediaRefs, findMediaByIdOrSlug, resolveMediaCaptionsTrack: async () => null,
   }, post: undefined });
   expect([...result]).toEqual([]);
@@ -27,7 +27,7 @@ it('keeps authored keys and batches MIME once after filtering missing and trashe
   const order: string[] = [];
   const getMany = vi.fn(async () => { order.push('mime'); return new Map([['hash', 'video/mp4']]); });
   const result = await resolveMediaAssetMetadataForRender({ deps: {
-    workspaceId: 'w', mediaRepo: new InMemoryMediaRepo(), mediaContentTypeStore: { getMany }, collectCoverMediaRefs,
+    workspaceId: 'w', mediaRepo: new InMemoryMediaRepo({}), mediaContentTypeStore: { getMany }, collectCoverMediaRefs,
     findMediaByIdOrSlug: async ({ input }) => { order.push(input.idOrSlug); return input.idOrSlug === 'gone' ? null : input.idOrSlug === 'trashed' ? { ...record, status: 'trashed' } : record; },
     resolveMediaCaptionsTrack: async () => null,
   }, post });

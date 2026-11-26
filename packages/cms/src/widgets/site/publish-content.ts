@@ -257,7 +257,7 @@ async function validateWidgetPublish({ entity, policy }: Pick<Parameters<NonNull
 async function writePublishedWidget(ctx: Parameters<NonNullable<Parameters<typeof createRepoPublishHandler<WidgetRow, WidgetPublishPorts, WidgetBag>>[0]["write"]>>[0], policy: Parameters<typeof contributeWidgetPublish>[0]): ReturnType<NonNullable<Parameters<typeof createRepoPublishHandler<WidgetRow, WidgetPublishPorts, WidgetBag>>[0]["write"]>> {
       const { id, state, expectedVersion, principalId, workspaceId, ports } = ctx;
       const widgetType = state.widgetType as WidgetTypeKey;
-      const config = await swapFormRef({ widgetType, config: state.config as Record<string, unknown>, swap: async (slug) => (await ports.forms.findBySlug({ workspaceId, slug }))?.id });
+      const config = await swapFormRef({ policy, widgetType, config: state.config as Record<string, unknown>, swap: async (slug) => (await ports.forms.findBySlug({ workspaceId, slug }))?.id });
       const { instance } = await importWidgetInstance({
         deps: serviceDeps({ ctx, entityType: "widget", policy }),
         input: {

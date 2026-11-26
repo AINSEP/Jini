@@ -1,3 +1,4 @@
+import { withoutUndefined } from "@jini-ai/core/records";
 import { updatePost } from "./post-update.js";
 import { restorePostForward } from "./post-trash.js";
 
@@ -49,12 +50,7 @@ function executePostToolUpdate({ routeDeps, ctx, id, merged, publishAt, featured
       slug: merged.slug,
       bodyJson: merged.bodyJson,
       status: merged.status,
-      publishAt,
-      featuredMediaId,
-      author,
-      showAuthor,
-      expectedVersion: basisVersion,
-      templateChoice,
+      ...withoutUndefined({ source: { publishAt, featuredMediaId, author, showAuthor, expectedVersion: basisVersion, templateChoice } }),
       ...assistantPostAttribution({ principalId: ctx.principal.id }),
       analyticsSource: "assistant",
       // See content_post_create's identical delegatedBy* comment just above.

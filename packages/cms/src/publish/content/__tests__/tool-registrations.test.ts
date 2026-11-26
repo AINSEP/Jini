@@ -9,7 +9,11 @@ const gateway = vi.hoisted(() => ({ plan: vi.fn(), confirm: vi.fn(), execute: vi
 vi.mock("@jini-ai/core/gated-mutations", async importOriginal => ({ ...await importOriginal<object>(), ...gateway }));
 vi.mock("../gated-hooks.js", async importOriginal => ({ ...await importOriginal<object>(), buildPublishContentImportHooks: vi.fn(() => ({})) }));
 
-const ctx = (input: unknown): ToolExecutionContext => ({ input, principal: { id: "agent", kind: "agent" }, signal: new AbortController().signal } as ToolExecutionContext);
+const ctx = (input: unknown): ToolExecutionContext => {
+  // `kind` rides along at runtime as hosts send it; core's `Principal` does not declare it.
+  const principal = { id: "agent", kind: "agent" };
+  return { executionId: "exec", principal, run: { id: "run" }, input, signal: new AbortController().signal };
+};
 
 function fixture() {
   const effects: string[] = [];

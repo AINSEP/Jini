@@ -64,7 +64,7 @@ export function optionalPostListFields({ input }: { input: Record<string, unknow
  * @returns Whether the record satisfies both supplied criteria.
  * @complexity O(t + s) time and space in title/slug lengths when query is present; no I/O.
  */
-export function matchesPostListFilters(post: PostRecord, filters: { query?: string; status?: PostStatus }): boolean {
+export function matchesPostListFilters(post: PostRecord, filters: { query?: string | undefined; status?: PostStatus | undefined }): boolean {
   if (filters.status !== undefined && post.status !== filters.status) return false;
   if (filters.query === undefined) return true;
   return post.title.toLowerCase().includes(filters.query) || post.slug.toLowerCase().includes(filters.query);

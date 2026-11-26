@@ -72,8 +72,8 @@ export const contributeFormPublish = (required: {
       // Recipients stay local even when an older bundle includes a notify value.
       const notify = existing?.notify;
       const { definition } = existing
-        ? await updateFormDefinition({ deps: writeDeps, input: { workspaceId, actor, formId: existing.id, patch: { name, fields, notify, ...authoring } } })
-        : await createFormDefinition({ deps: writeDeps, input: { workspaceId, actor, name, slug: id, fields, notify, ...authoring } });
+        ? await updateFormDefinition({ deps: writeDeps, input: { workspaceId, actor, formId: existing.id, patch: { name, fields, ...(notify === undefined ? {} : { notify }), ...authoring } } })
+        : await createFormDefinition({ deps: writeDeps, input: { workspaceId, actor, name, slug: id, fields, ...(notify === undefined ? {} : { notify }), ...authoring } });
       const status = state.status as FormDefinitionStatus;
       if (definition.status !== status) {
         await setFormDefinitionStatus({ deps: writeDeps, input: { workspaceId, actor, formId: definition.id, status } });

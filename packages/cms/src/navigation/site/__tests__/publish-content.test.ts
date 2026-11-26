@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
 import { InMemoryMenuRepo, type NavMenuEntry } from "../../index.js";
 import { contributeMenusPublish } from "../publish-content.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 
 it("retries one nested repoint conflict, records the final change set, and leaves an unrelated menu untouched", async () => {
   const nested: NavMenuEntry = { id: "nested", workspaceId: "w", slug: "nested", title: "Nested", status: "published", locations: [], updatedAt: "now", version: 1,
@@ -17,7 +18,7 @@ it("retries one nested repoint conflict, records the final change set, and leave
   };
   const authorize = vi.fn(async () => ({ allowed: true, reason: "grant" }));
   const handler = contributeMenusPublish().build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
-    ports: { menu: { repo, bindingRepo: {} as never } }, authorize, outbox: { enqueue: async () => {} }, changeSets: new InMemoryChangeSetRepo(), mutationActor: { id: "owner", kind: "user" } });
+    ports: { menu: { repo, bindingRepo: {} as never } }, authorize, outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort, changeSets: new InMemoryChangeSetRepo(), mutationActor: { id: "owner", kind: "user" } });
   expect(await handler.repointReferences!({ replacements: [{ entityType: "post", oldId: "old", newId: "new" }], skipIds: new Set(), principalId: "owner", runId: "run" })).toEqual({
     changeSetIds: ["change"], linksUpdated: 1, notUpdated: [],
   });

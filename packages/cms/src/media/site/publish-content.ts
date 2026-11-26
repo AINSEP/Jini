@@ -142,7 +142,7 @@ function sourceReplacementRefusal({ ports, existing, sha256 }: { ports: MediaPor
 }
 
 /** A Library document by either signal: the packed discriminant or the destination row it would replace. */
-function isLibraryDocument({ kind, existing }: { kind: unknown; existing?: MediaRecord | null }, _options = {}): boolean {
+function isLibraryDocument({ kind, existing }: { kind: unknown; existing?: MediaRecord | null | undefined }, _options = {}): boolean {
   return (kind !== undefined && kind !== "media") || existing?.kind === "document";
 }
 
@@ -226,7 +226,7 @@ const writePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRecor
       const saved = await mediaRepo.findById({ workspaceId, id });
       // `blobWritten`: true when this import created the `asset_blobs` row, false when the bytes were
       // already there (a normal dedup, not a conflict). Passed through on `apply()`'s result.
-      return { blobWritten: outcome.blobWritten, version: saved?.version };
+      return { blobWritten: outcome.blobWritten, ...(saved?.version === undefined ? {} : { version: saved.version }) };
     };
 const validatePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRecord, MediaBag["media"], MediaBag>>[0]['validate'] = async ({ ports, workspaceId, entity, existing }) => {
       if (isLibraryDocument({ kind: entity.state.kind, existing })) return LIBRARY_DOCUMENT_REFUSAL;

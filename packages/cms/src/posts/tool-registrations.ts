@@ -1,3 +1,4 @@
+import { withoutUndefined } from "@jini-ai/core/records";
 
 import { restorePostForward, deletePost } from "./post-trash.js";
 import { listAdminPosts } from "@jini-ai/cms/posts/post-read";
@@ -71,13 +72,7 @@ function executePostToolCreate({ routeDeps, ctx, kind, title, slug, bodyJson, st
       id: postId,
       title,
       kind,
-      slug,
-      bodyJson,
-      status,
-      publishAt,
-      featuredMediaId,
-      author,
-      showAuthor,
+      ...withoutUndefined({ source: { slug, bodyJson, status, publishAt, featuredMediaId, author, showAuthor } }),
       ...assistantPostAttribution({ principalId: ctx.principal.id }),
       analyticsSource: "assistant",
       // Recorded at write time so the agent-pause hold can tell this post from an owner-made one.

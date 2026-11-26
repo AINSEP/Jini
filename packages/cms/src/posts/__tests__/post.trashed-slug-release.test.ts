@@ -5,6 +5,7 @@ import { updatePost } from "../post-update.js";
 import { retirePostForReplacement } from "../post-retire.js";
 import { deletePost, restorePostForward } from "../post-trash.js";
 import type { PostRecord, PostRepoPort, PostRevisionInput } from "../post.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 
 function fixture() {
   const rows = new Map<string, PostRecord>();
@@ -17,7 +18,7 @@ function fixture() {
     listRevisions: async ({ postId }: { postId: string }) => revisions.filter(row => row.postId === postId),
     transaction: async ({ fn }: { fn: () => Promise<unknown> }) => fn(),
   } as unknown as PostRepoPort;
-  const outbox = { enqueue: vi.fn() };
+  const outbox = { enqueue: vi.fn(async () => {}), claimPending: vi.fn(async () => []), markDelivered: vi.fn(async () => {}), markFailed: vi.fn(async () => {}) } satisfies OutboxPort;
   const clock = { nowMs: () => Date.parse("2026-11-25T00:00:00Z") };
   const deps = { repo, outbox, clock, reservedSegments: new Set<string>(), postPublicPath: ({ slug }: { slug: string }) => `/${slug}`, isDeepStrictEqual };
   return { rows, revisions, repo, deps, outbox };

@@ -120,7 +120,7 @@ export const contributeMenusPublish = (): PublishContentContributor<MenuBag> =>
       }
       const record = menuRecordFromState({ id, workspaceId, state, now: clockNowIso({ clock: deps.clock }) });
       const importDeps = { clock: deps.clock, idGen: deps.idGen, repo: ports.repo, bindingRepo: ports.bindingRepo, outbox: deps.outbox };
-      await importMenuEntity({ deps: importDeps, input: { workspaceId, record, expectedVersion } });
+      await importMenuEntity({ deps: importDeps, input: { workspaceId, record, ...(expectedVersion === undefined ? {} : { expectedVersion }) } });
     },
     errors: { blocked: [MenuValidationError], conflict: [MenuConflictError, MenuNotFoundError] },
     extend: ({ deps }) => menuReferenceMethods(deps),

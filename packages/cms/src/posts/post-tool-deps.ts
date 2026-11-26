@@ -60,7 +60,7 @@ export interface PostToolDeps {
   headerNavigationView: (required: { kind: PostKind }) => Record<string, unknown>;
   readPostTemplateOptions: (required: { deps: PostToolDeps; kind: PostKind }) => Promise<string[]>;
   findMediaByIdOrSlug: FeaturedImageDeps["findMediaByIdOrSlug"];
-  featuredImageRefusals: Record<"missing" | "trashed" | "not-image", (required: { ref: string }, optional?: { contentType?: string }) => string>;
+  featuredImageRefusals: Record<"missing" | "trashed" | "not-image", (required: { ref: string }, optional?: { contentType?: string | undefined }) => string>;
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;

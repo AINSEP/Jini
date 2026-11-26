@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from "react";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
-import { acceptedMediaItems } from "@jini-ai/cms/react/media/MediaPickerDialog/MediaPickerDialog.hooks";
-import type { MediaPickerPort } from "@jini-ai/admin/shell/components/MediaPickerDialog/media-picker-port.hooks";
+import { acceptedMediaItems, type MediaPickerPort } from "../../media/MediaPickerDialog/MediaPickerDialog.hooks.js";
 import {
   appendMediaSlugs,
   inactiveTabWillBeDropped,
@@ -29,7 +28,7 @@ import {
   type MediaKind,
   type MediaLayout,
   type MediaSlugProblem,
-} from "@jini-ai/admin/shell/components/WidgetConfigFields/media-content-rules";
+} from "./media-content-rules.js";
 
 /**
  * @file State and handlers for `MediaContentEditor.tsx` (the two-tab Media / Raw HTML editor), so

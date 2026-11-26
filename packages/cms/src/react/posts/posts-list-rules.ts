@@ -1,5 +1,18 @@
-import type { RowMenuItem } from "@jini-ai/admin/react";
-import type { AdminPost } from "@jini-ai/admin/posts/api/posts-api.types";
+
+/** One row-menu entry (structurally the host `RowMenu` component's own item type). */
+export interface PostRowMenuItem {
+  key: string;
+  label: string;
+  onSelect: () => void;
+  tone?: "default" | "warning" | "danger";
+  destructive?: boolean;
+}
+
+/** The admin post-row fields the row menu reads. */
+export interface PostRowMenuPost {
+  id: string;
+  status: "draft" | "published";
+}
 import { buildAgentListHandles } from "@jini-ai/core/agent-handles";
 
 
@@ -28,10 +41,10 @@ export const POSTS_RESOURCE = "posts";
 
 /** The callbacks a row menu needs. Passed in rather than imported so this module stays free of
  *  state and navigation, and so a test can assert exactly which one a given row wires up. */
-export interface PostRowMenuHandlers {
-  onEdit: (required: { post: AdminPost }, optional?: Record<string, never>) => void;
-  onTogglePublish: (post: AdminPost) => void;
-  onDelete: (post: AdminPost) => void;
+export interface PostRowMenuHandlers<P extends PostRowMenuPost = PostRowMenuPost> {
+  onEdit: (required: { post: P }, optional?: Record<string, never>) => void;
+  onTogglePublish: (post: P) => void;
+  onDelete: (post: P) => void;
 }
 
 /**
@@ -57,9 +70,9 @@ export interface PostRowMenuHandlers {
  *
  * @complexity Time/space: O(1) — exactly three entries, no iteration.
  */
-export function postRowMenuItems({ post, handlers, locale, translate }: { post: AdminPost; handlers: PostRowMenuHandlers; locale: string; translate: (required: { locale: string; key: string }) => string }, _options: Record<string, never> = {}): RowMenuItem[] {
+export function postRowMenuItems<P extends PostRowMenuPost>({ post, handlers, locale, translate }: { post: P; handlers: PostRowMenuHandlers<P>; locale: string; translate: (required: { locale: string; key: string }) => string }, _options: Record<string, never> = {}): PostRowMenuItem[] {
   const t = ({ key }: { key: string }, _options: Record<string, never> = {}): string => translate({ locale, key });
-  const items: RowMenuItem[] = [{ key: "edit", label: t({ key: "Edit" }), onSelect: () => handlers.onEdit({ post }) }];
+  const items: PostRowMenuItem[] = [{ key: "edit", label: t({ key: "Edit" }), onSelect: () => handlers.onEdit({ post }) }];
   items.push(
     post.status === "published"
       ? { key: "unpublish", label: t({ key: "Unpublish" }), onSelect: () => handlers.onTogglePublish(post) }
@@ -79,7 +92,7 @@ export function postRowMenuItems({ post, handlers, locale, translate }: { post: 
  *
  * @complexity Time/space: O(n) in post count.
  */
-export function buildPostRowMenuHandleMap({ posts }: { posts: AdminPost[] | null }, _options: Record<string, never> = {}): Map<string, string> {
+export function buildPostRowMenuHandleMap({ posts }: { posts: readonly Pick<PostRowMenuPost, "id">[] | null }, _options: Record<string, never> = {}): Map<string, string> {
   if (!posts) return new Map();
   const handles = buildAgentListHandles({ prefix: "posts-row", ids: posts.map((post) => post.id) }
   );
