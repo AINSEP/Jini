@@ -30,7 +30,7 @@ export interface PageSavePlan {
 export function applySavedPage<Row extends { slug: string; status: "draft" | "published"; version: number }>(
   { updated, form, canSaveHtml, setters, t, locale, pageUnchangedSaveMessage, pageSaveSuccessMessage }: {
     updated: Row;
-    form: { templateChoice: string | null; html: string; nextStatus?: "draft" | "published"; basisVersion: number };
+    form: { templateChoice: string | null; html: string; nextStatus?: "draft" | "published" | undefined; basisVersion: number };
     canSaveHtml: boolean;
     pageUnchangedSaveMessage: (required: { t: (required: { locale: string; key: string }) => string; locale: string; version: number }) => string;
     pageSaveSuccessMessage: (required: { t: (required: { locale: string; key: string }) => string; locale: string; canSaveHtml: boolean }) => string;

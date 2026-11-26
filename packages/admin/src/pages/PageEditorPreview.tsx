@@ -114,7 +114,7 @@ export function PagePreview({
   t,
 }: PreviewEmbeds & {
   html: string;
-  bodyJson?: Record<string, unknown>;
+  bodyJson?: Record<string, unknown> | undefined;
   width: number;
   slug: string;
   /** Cache-busts the live-site branch's `src` — see `PagePreviewFrame`'s own doc. */

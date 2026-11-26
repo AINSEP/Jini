@@ -76,3 +76,140 @@ test("metadata conflict prevents the body write and partial HTML failure preserv
   await expect(pending).rejects.toMatchObject({ savedRow, reason: bodyFailure });
   expect(events).toEqual(["metadata", "body"]);
 });
+
+import { useMemo } from "react";
+import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
+import { bindPageEditorHooks, type PageEditorDependencies, type PageEditorController } from "../hooks/use-page-editor.hooks.js";
+import { bindPageEditor, type PageEditorProps } from "../PageEditor.js";
+import { applySavedPage, applySaveFailure } from "@jini-ai/cms/react/pages/hooks/page-editor-save";
+import { pageEditorSurface } from "@jini-ai/cms/react/pages/page-editor-rules";
+import { useDirtyGuard, useSettlementGeneration } from "@jini-ai/ui/panel-kit";
+import { useInteractiveEditorFlush } from "../hooks/use-interactive-flush.hooks.js";
+import { useEditorHtmlJump } from "../hooks/use-editor-html-jump.hooks.js";
+import { useExternalEntryRefresh } from "../../shell/hooks/use-external-entry-refresh.hooks.js";
+import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { AdminPost } from "../../posts/api/posts-api.types.js";
+
+const editorPage: AdminPost = {
+  id: "page-id", workspaceId: "workspace", kind: "page", title: "Page", slug: "page", status: "draft",
+  bodyFormat: "html", bodyHtml: "<p>saved</p>", bodyJson: {}, updatedAt: "2026-11-25T00:00:00Z", version: 3,
+};
+
+function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
+  let saved = page;
+  let refresh: () => void = () => {};
+  const port: PageEditorDependencies["port"] = {
+    getPage: vi.fn(async () => ({ post: saved })),
+    getPresentation: async () => ({ activeThemeTemplates: [], activeThemeId: "theme", activeThemeApiVersion: undefined, activeThemeTier: null }),
+    updatePost: vi.fn(async ({ patch }) => ({ post: saved = { ...saved, ...patch, version: saved.version + 1 } })),
+    updatePageHtml: vi.fn(async ({ html }) => ({ post: saved = { ...saved, bodyHtml: html, bodyFormat: "html", version: saved.version + 1 } })),
+    deletePage: async () => ({ post: saved }), templatePreviewUrl: ({ id }) => `/preview/${id}`,
+    putAutosave: async () => ({ applied: true }), getAutosave: async () => ({ autosave: null }), discardAutosave: async () => ({ ok: true }),
+  };
+  const hooks: PageEditorDependencies["hooks"] = {
+    useCachedLoader: ({ fetch }) => useMemo(() => ({ load: (options?: { fetch: typeof fetch }) => (options?.fetch ?? fetch)() }), [fetch]),
+    useInvalidate: () => () => {}, useFetchMutation: ({ run }) => ({ mutate: run }),
+    useLocaleHook: () => "en", useDevicePreviewDevice: () => ({ device: "desktop", setDevice: () => {} }),
+    usePreviewPaneWidth: () => ({ frameRef: () => {}, paneWidth: 900 }), useDirtyGuard, useSettlementGeneration,
+    useAgentScreenEntry: () => {}, useExternalEntryRefresh,
+    useContentRefreshSubscription: ({ onRefresh }) => { refresh = onRefresh; },
+    useStandingDraftAutosave: () => ({ recoverableDraft: null, staleBasis: null, dismissRecoverable: () => {}, scheduleAutosave: () => {},
+      clearStandingDraft: async () => ({ discarded: true }), supersedeBasis: () => {}, preserveFailedSave: () => {} }),
+    useWiredInteractiveEditorFlush: ({ setHtml }) => useInteractiveEditorFlush({ setHtml, isEditorSourceError: () => false,
+      normalizeEmbedMarkerQuoting: ({ html }) => html, logger: { warn: () => {} } }),
+    useWiredEditorHtmlJump: (required, optional) => useEditorHtmlJump({ ...required, findEditorBlockOpening: () => undefined }, optional),
+    useThemeCanvasStyling: () => ({ status: "ready", styling: {} }),
+  };
+  const deps = {
+    port, themeCanvasPort: { fetchThemeTokens: async () => ({}), fetchTemplateMarkup: async () => "", warmStylesheet: async () => {} },
+    navigate: vi.fn(), t: ({ key }: { key: string }) => key, HOME_PAGE_HANDLE: "home", PAGES_RESOURCE: "pages",
+    pageAdminPath: ({ slug }: { slug: string }) => `/pages/${slug}`, resolveCanvasTemplateChoice: ({ templateChoice }: { templateChoice: string | null }) => templateChoice,
+    parseEmbedMarkerConfig: () => ({ problem: "none" }), embedMarkerTarget: () => undefined,
+    writePage, applySavedPage, applySaveFailure, PageBodyWriteError, readVersionConflict: () => null,
+    isUnexpectedServerFailure: () => false, setTimeout, clearTimeout, document, window,
+  } satisfies Omit<PageEditorDependencies, "locale" | "hooks">;
+  const binding = bindPageEditorHooks({ hooks, deps });
+  return { ...binding, port, refresh: () => refresh(), external: (next: AdminPost) => { saved = next; } };
+}
+
+test("controller keeps authored documents untouched and validates metadata before writing pending HTML", async () => {
+  const doc = { ...editorPage, bodyFormat: "doc" as const, bodyJson: { type: "doc", content: [{ type: "paragraph" }] }, bodyHtml: null };
+  const binding = editorBinding({ page: doc });
+  const mounted = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(mounted.result.current.page?.id).toBe(doc.id));
+  await act(async () => { await mounted.result.current.save(); });
+  expect(binding.port.updatePost).toHaveBeenCalledWith({ target: { id: doc.id }, patch: expect.objectContaining({ bodyJson: doc.bodyJson, expectedVersion: 3 }) });
+  expect(binding.port.updatePageHtml).not.toHaveBeenCalled();
+  mounted.unmount();
+  const html = editorBinding();
+  const refused = new Error("conflict");
+  vi.mocked(html.port.updatePost).mockRejectedValue(refused);
+  const editor = renderHook(() => html.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(editor.result.current.page?.id).toBe(editorPage.id));
+  act(() => editor.result.current.setHtml("<p>pending</p>"));
+  await act(async () => { await editor.result.current.save(); });
+  expect(html.port.updatePageHtml).not.toHaveBeenCalled();
+  expect(editor.result.current.html).toBe("<p>pending</p>");
+  vi.mocked(html.port.updatePost).mockResolvedValue({ post: { ...editorPage, version: 4 } });
+  vi.mocked(html.port.updatePageHtml).mockRejectedValue(new Error("body failed"));
+  await act(async () => { await editor.result.current.save(); });
+  expect(editor.result.current.page?.version).toBe(4);
+  expect(editor.result.current.html).toBe("<p>pending</p>");
+  expect(editor.result.current.dirty).toBe(true);
+  expect(editor.result.current.error).toContain("body failed");
+});
+
+test("pending canvas edits flush before save and external updates leave a dirty working copy intact", async () => {
+  const binding = editorBinding();
+  const editor = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(editor.result.current.page?.id).toBe(editorPage.id));
+  const flush = vi.fn(async () => "<p>pending canvas edit</p>");
+  editor.result.current.interactiveEditorRef.current = { flush };
+  await act(async () => { await editor.result.current.save(); });
+  expect(flush).toHaveBeenCalledTimes(1);
+  expect(binding.port.updatePageHtml).toHaveBeenCalledWith({ id: editorPage.id, html: "<p>pending canvas edit</p>", expectedVersion: 4 });
+  act(() => editor.result.current.setHtml("<p>unsaved local</p>"));
+  binding.external({ ...editorPage, version: 9, bodyHtml: "<p>remote</p>" });
+  await act(async () => { binding.refresh(); });
+  await waitFor(() => expect(editor.result.current.pendingExternalVersion).toBe(9));
+  expect(editor.result.current.html).toBe("<p>unsaved local</p>");
+});
+
+test("HTML pane edits preserve exact source in both the displayed draft and the working copy", async () => {
+  const binding = editorBinding();
+  const current: { value: PageEditorController | null } = { value: null };
+  const view: Omit<PageEditorProps, "slug"> = {
+    hooks: {
+      usePageEditorHook: required => {
+        const editor = binding.useWiredPageEditor(required);
+        current.value = editor;
+        return { ...editor, view: "html" };
+      },
+      useTabBarKeyboardHook: () => ({ onKeyDown: () => {} }),
+      useThemePreviewFrameHook: required => ({ ...required, revision: 0 }),
+      usePreviewEmbedIds: () => [], useWiredTermPicker: vi.fn(), useTermListReveal: vi.fn(),
+    },
+    kit: {
+      Icon: () => null, ConfirmDialog: () => null, InteractiveHtmlEditor: () => null,
+      DevicePreviewFrame: ({ children }) => <div>{children}</div>, DevicePreviewToggle: () => null,
+      ViewTemplateButton: () => null, WiredThemePreviewReloadButton: () => null, TermPicker: () => null,
+      SuggestInput: () => null, TemplateSourceModal: () => null, PageExternalChangeBanner: () => null,
+    },
+    deps: {
+      siteUrl: ({ path }) => path, pagePublicPath: ({ slug }) => `/${slug}`,
+      pagePickerValue: ({ templateChoice }) => templateChoice ?? "__theme-default__",
+      resolveTabBarTabIndex: ({ activeId, tab }) => activeId === tab.id ? 0 : -1,
+      standingDraftRecoveryMessage: () => "recover",
+      pageExternalChangeBindings: { agentHandle, copy: { messageKey: "changed", regionAgentLabel: "changed", loadLatestAgentLabel: "load", keepEditsAgentLabel: "keep" } },
+      pageEditorSurface, videoLink: ({ id }) => `https://www.youtube.com/watch?v=${id}`,
+    },
+  };
+  const Editor = bindPageEditor(view);
+  render(<Editor slug="page" />);
+  await screen.findByLabelText("Page HTML");
+  const source = "<section> authored\n<strong>text</strong> </section>";
+  fireEvent.change(screen.getByLabelText("Page HTML"), { target: { value: source } });
+  expect(current.value?.draftHtml).toBe(source);
+  expect(current.value?.html).toBe(source);
+  expect(screen.getByLabelText<HTMLTextAreaElement>("Page HTML").value).toBe(source);
+});

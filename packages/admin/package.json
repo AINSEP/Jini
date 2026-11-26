@@ -817,7 +817,9 @@
       "./pages/PageEditorPreview": "browser",
       "./posts/hooks/use-posts.hooks": "browser",
       "./screens/storage/storage-screen-bindings": "browser",
-      "./security/host/AccessTokensTab.hooks": "browser"
+      "./security/host/AccessTokensTab.hooks": "browser",
+      "./pages/PageEditor": "browser",
+      "./pages/hooks/use-page-editor.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -5114,6 +5116,16 @@
       "types": "./src/security/host/AccessTokensTab.hooks.ts",
       "import": "./src/security/host/AccessTokensTab.hooks.ts",
       "default": "./src/security/host/AccessTokensTab.hooks.ts"
+    },
+    "./pages/PageEditor": {
+      "types": "./src/pages/PageEditor.tsx",
+      "import": "./src/pages/PageEditor.tsx",
+      "default": "./src/pages/PageEditor.tsx"
+    },
+    "./pages/hooks/use-page-editor.hooks": {
+      "types": "./src/pages/hooks/use-page-editor.hooks.ts",
+      "import": "./src/pages/hooks/use-page-editor.hooks.ts",
+      "default": "./src/pages/hooks/use-page-editor.hooks.ts"
     }
   },
   "files": [
