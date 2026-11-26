@@ -27,7 +27,7 @@ const EMPTY_ASSIGNED_TERMS: readonly AssignedTermView[] = [];
  *  {@link renderSite}'s own complexity, no change to the accepted call shape (an inline object type
  *  and a structurally-identical named interface are the same type to every existing caller). */
 export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
-  renderAssets?: (required: { scripts: readonly DeclaredScript[]; static?: true }) => Promise<DocumentAssets>;
+  renderAssets?: ((required: { scripts: readonly DeclaredScript[]; static?: true }) => Promise<DocumentAssets>) | undefined;
   transformBody?: (required: { html: string }) => Promise<string>;
   scripts?: readonly DeclaredScript[];
   /**
@@ -80,7 +80,7 @@ export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
    * embeds (including a `"doc"` post, which has no use for this at all) — see that field's own doc
    * for the safe-degrade behavior when it is missing.
    */
-  pageHtmlEmbeds?: ResolveHtmlPageEmbedsResult;
+  pageHtmlEmbeds?: ResolveHtmlPageEmbedsResult | undefined;
   /**
    * ADR-027 §4 — the latest registered version of each transform NAME this render's image refs may
    * use, threaded straight into `SiteRenderContext.mediaTransformVersions` (see that field's own
@@ -120,7 +120,7 @@ export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
    * — `render.ts` stays a pure "resolved data -> HTML" renderer and never reads the settings ledger
    * itself, the same convention `widgets`/`posts`/`post` above already follow.
    */
-  siteAssistantEnabled?: (boolean | 'react' | 'vanilla');
+  siteAssistantEnabled?: (boolean | 'react' | 'vanilla') | undefined;
   /**
    * Menu-location wiring (2026-08-10) — the `header`/`footer` location menus pre-resolved by the
    * route layer (`pages.ts`'s `resolveStaticMenusForRender`, over `navigation`'s `resolveForLocation`

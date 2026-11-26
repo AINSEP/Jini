@@ -30,7 +30,7 @@ type DockProps = {
   props: Omit<AssistantDockProps, "kit" | "useAssistantDockStateHook">;
   kit: { ChatPane: ComponentType<KitChatPaneProps> };
   hooks: {
-    useDockRendererRegistry: (required: { agUiApprovals: { answersExchange: (required: { exchangeId: string }) => boolean; answer: (required: { exchangeId: string; allow: boolean }) => Promise<boolean> } }, optional: Record<string, never>) => { registry: ExtEventRendererRegistry; mcpUiToolCaller: (call: KitMcpUiToolCall) => Promise<unknown> };
+    useDockRendererRegistry: (required: { agUiApprovals: { answersExchange: (required: { exchangeId: string }) => boolean; answer: (required: { exchangeId: string; allow: boolean }) => Promise<boolean> } }, optional: Record<string, never>) => { registry: ExtEventRendererRegistry; mcpUiToolCaller: (call: KitMcpUiToolCall) => Promise<unknown> | unknown };
     useAdminBrowserAgentSettings: (required: Record<string, never>) => { enabled: boolean };
     useChrome: (required: { useAdminLocaleOverride: AssistantDockProps["useAdminLocale"] }) => { locale: string; t: DockTranslate; chatI18n: I18nAdapter };
     useConfirmRequest: typeof useConfirmRequest;

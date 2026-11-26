@@ -44,6 +44,20 @@ test("dock entry calls the supplied state hook once and mounts its pane", () => 
   expect(useAssistantDockStateHook).toHaveBeenCalledWith({ query: null, principalId: "owner", useConversationDeepLink });
 });
 
+test("the dock preserves a synchronous MCP tool caller's result", () => {
+  const receipt = { delivered: true };
+  const mcpUiToolCaller = vi.fn(() => receipt);
+  const { result } = renderHook(() => useAssistantDockState({ ...input, hooks: {
+    ...input.hooks,
+    useDockRendererRegistry: (required, optional) => ({
+      ...input.hooks.useDockRendererRegistry(required, optional), mcpUiToolCaller,
+    }),
+  } }));
+  const call = { name: "answer", arguments: { choice: "yes" } };
+  expect(result.current.mcpUiToolCaller(call)).toBe(receipt);
+  expect(mcpUiToolCaller).toHaveBeenCalledExactlyOnceWith(call);
+});
+
 const order: string[] = [];
 const config: ExecutionConfig = { mode: "byok", byok: { protocol: "openai", providerId: null, apiKey: "", baseUrl: "", model: "" }, localCli: { agentId: null } };
 const chats = {

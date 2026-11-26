@@ -2,6 +2,38 @@ import { expect, it, vi } from 'vitest';
 import type { PublicPostRecord } from '../../../../../../posts/post.js';
 import { renderTemplateBranchIfEligible, renderBarePostPage, renderGenericPostPage } from '../post.js';
 
+it('forwards absent HTML embeds and document assets through bare and generic post renders', async () => {
+  const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Post', slug: 'post', bodyJson: {}, kind: 'post', bodyFormat: 'doc', bodyHtml: null, status: 'published', updatedAt: 'now', version: 1 };
+  const deps = {
+    resolveSiteTitleForRender: async () => 'Site',
+    resolveWidgetsForRender: async () => ({ regions: {}, inlineResolved: new Map() }),
+    resolveHtmlEmbedsForRender: async () => undefined,
+    resolveMediaTransformVersionsForRender: async () => new Map(),
+    resolveMediaAssetMetadataForRender: async () => new Map(),
+    buildExtraHead: async () => '', documentAssets: undefined,
+  };
+  expect(await renderBarePostPage({ post, deps: { ...deps, renderBareEntryDocument: required => {
+    expect(Object.hasOwn(required, 'pageHtmlEmbeds')).toBe(true);
+    expect(required.pageHtmlEmbeds).toBeUndefined();
+    expect(Object.hasOwn(required, 'documentAssets')).toBe(true);
+    expect(required.documentAssets).toBeUndefined();
+    return 'bare';
+  } } })).toBe('bare');
+  expect(await renderGenericPostPage({ post, posts: [], siteAssistantEnabled: undefined, deps: {
+    ...deps, resolveAssignedTermsForRender: async () => [], resolveSiteTimeZoneForRender: async () => 'UTC',
+    renderCommentsMarkers: async ({ html }) => html,
+    renderSite: async required => {
+      expect(Object.hasOwn(required, 'pageHtmlEmbeds')).toBe(true);
+      expect(required.pageHtmlEmbeds).toBeUndefined();
+      expect(Object.hasOwn(required, 'renderAssets')).toBe(true);
+      expect(required.renderAssets).toBeUndefined();
+      expect(Object.hasOwn(required, 'siteAssistantEnabled')).toBe(true);
+      expect(required.siteAssistantEnabled).toBeUndefined();
+      return 'generic';
+    },
+  } })).toBe('generic');
+});
+
 it('renders a bare page before checking whether a theme is active', async () => {
   const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Page', slug: 'page', bodyJson: {}, kind: 'page', bodyFormat: 'html', bodyHtml: 'bare', status: 'published', templateChoice: '', updatedAt: 'now', version: 1 };
   const branch = vi.fn(() => ({ kind: 'ineligible' as const }));
