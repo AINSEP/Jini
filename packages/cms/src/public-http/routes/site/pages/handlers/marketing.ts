@@ -35,9 +35,9 @@ export async function resolveMarketingPageOrOverride({ theme, slug, isStandalone
   readPost: () => Promise<{ post: PostRecord }>;
   finishStaticTierDocument: (required: { pageId: string; html: string; currentPath: string }) => Promise<string | undefined>;
   postPublicPath: (required: { slug: string }) => string;
-  resolveSiteTitleForRender: () => Promise<string | undefined>;
+  resolveSiteTitleForRender: () => Promise<string>;
   resolveAuthoredSiteTitleForRender: (required: { preserveAuthoredFallback: true }) => Promise<string | undefined>;
-  buildExtraHead: (required: { siteTitle: string | undefined }, optional: { canonicalFallbackPath: string }) => Promise<string>;
+  buildExtraHead: (required: { siteTitle: string }, optional: { canonicalFallbackPath: string }) => Promise<string>;
   injectSiteAssistantIntoStaticPage: (required: { html: string }) => string;
 }, _optional = {}): Promise<MarketingPageResolution> {
   // A marketing page IS a theme file (`theme.pages[slug]`). With no theme there is no file, so this

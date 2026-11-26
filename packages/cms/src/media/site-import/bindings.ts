@@ -1,6 +1,5 @@
 import type { ToolContributor } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
-import type { HttpClientPort } from "@jini-ai/core/primitives";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import type { ImageCodecPort, MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
 import type { MediaImportRefusalPorts, MediaImportSourcePorts, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
@@ -14,12 +13,16 @@ import { buildMediaImportAgentToolCatalog } from "./agent-tools.js";
 import { buildMediaImportRegistrations, mediaImportDerivedRisk, isImportShapeRejection, persistImportedMedia, withCallerSafeEgressRefusal } from "./tool-registrations.js";
 import { bindMediaImportDeps } from "./bindings.deps.js";
 
+/** The host's guarded media-import client. cms never sends through it: it only forwards the handle to
+ * the host-injected `fetchImage`, so the host keeps its own `send` calling convention. */
+export interface MediaImportHttpClient { send: (...args: never[]) => Promise<unknown> }
+
 export interface MediaImportToolDeps extends Omit<UploadMediaDeps, "blobRepo" | "renditionRepo" | "mediaRepo">, MediaPublicUrlDeps {
   workspaceId: string; authorize: AuthorizeFn; tracker?: Tracker; imageCodec?: ImageCodecPort;
   siteBinding: { readonly dir: string }; resolveRoots?: () => Record<string, string | undefined>;
   mediaRepo: Parameters<typeof replaceMediaFile>[0]["deps"]["mediaRepo"];
   assetBlobRepo: UploadMediaDeps["blobRepo"]; assetRenditionRepo: UploadMediaDeps["renditionRepo"];
-  mediaContentTypeStore: MediaContentTypeStorePort; mediaImportHttpClient: HttpClientPort;
+  mediaContentTypeStore: MediaContentTypeStorePort; mediaImportHttpClient: MediaImportHttpClient;
   outboundTestOrigins?: readonly string[]; mediaImportEgressRefusalLog?: (line: string) => void; mediaImportLocalMaxBytes?: number;
 }
 
@@ -29,7 +32,7 @@ export function bindMediaImportTools<TVideo extends Pick<VideoImportOptions, "po
   openFsFileForRead: MediaImportSourcePorts["readLocal"];
   uploadLimitForFile(required: { name: string; type: string }): number;
   uploadCaps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
-  fetchImage(required: { deps: { httpClient: HttpClientPort; plainHttpTestOrigins?: readonly string[] | undefined }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
+  fetchImage(required: { deps: { httpClient: MediaImportHttpClient; plainHttpTestOrigins?: readonly string[] | undefined }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
   validateImageBytes: MediaImportSourcePorts["validateBytes"];
   createConvertingUploader(input: { uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number }; mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: { video?: TVideo | undefined }): (input: MediaToolUploadInput) => Promise<{ media: MediaRecord }>; replaceMediaFile: typeof replaceMediaFile;
   EgressRefusedError: new (required: { message: string }, optional: { callerSafeMessage: string }) => Error & { readonly callerSafeMessage: string };
