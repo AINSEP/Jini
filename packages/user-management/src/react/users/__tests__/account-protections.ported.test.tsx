@@ -89,7 +89,7 @@ it("supplies only the Roles title for the responsive card label", async () => {
   expect(header.getAttribute("data-label")).toBe("Roles");
   fireEvent.focus(trigger);
   expect(header.getAttribute("data-label")).toBe("Roles");
-  expect(document.querySelector(".info-tip-bubble")).toHaveTextContent("Owner — full control");
+  expect(document.querySelector(".jini-ui-info-tip-bubble")).toHaveTextContent("Owner — full control");
 });
 
 it.each(["hover", "focus"] as const)("Roles header explains all four built-in roles on %s", async interaction => {
@@ -102,7 +102,7 @@ it.each(["hover", "focus"] as const)("Roles header explains all four built-in ro
   if (interaction === "hover") fireEvent.mouseEnter(trigger);
   else fireEvent.focus(trigger);
   expect(trigger).toHaveAttribute("aria-expanded", "true");
-  const bubble = document.querySelector(".info-tip-bubble")!;
+  const bubble = document.querySelector(".jini-ui-info-tip-bubble")!;
   expect(bubble).toHaveStyle({ whiteSpace: "pre-line" });
   expect(bubble.textContent?.split("\n")).toEqual([
     "• Owner — full control, including users and site keys.",
@@ -118,7 +118,7 @@ it.each(["hover", "focus"] as const)("Roles header explains all four built-in ro
   if (interaction === "hover") fireEvent.mouseLeave(trigger);
   else fireEvent.blur(trigger);
   expect(trigger).toHaveAttribute("aria-expanded", "false");
-  expect(document.querySelector(".info-tip-bubble")).toBeNull();
+  expect(document.querySelector(".jini-ui-info-tip-bubble")).toBeNull();
 });
 it("rendered admin sees only Manage on an owner target", async () => {
   const port = createFakeUsersPort({}, { users: [owner], roles: [role], meId: "another-admin" });
