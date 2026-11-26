@@ -186,7 +186,7 @@ export async function renderPostPreview({ deps, input }: { deps: ContentRouteDep
 export async function renderBarePostPreview({ deps, post }: { deps: {
   resolveSiteTitle(): Promise<string>;
   resolveWidgetsForRender(required: { theme: null }, optional: { post: PostRecord }): Promise<{ inlineResolved: NonNullable<RenderBareEntryDocumentRequired["widgetInlineResolved"]> }>;
-  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<NonNullable<RenderBareEntryDocumentRequired["pageHtmlEmbeds"]>>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<RenderBareEntryDocumentRequired["pageHtmlEmbeds"]>;
   resolveMediaTransformVersionsForRender(): Promise<NonNullable<RenderBareEntryDocumentRequired["mediaTransformVersions"]>>;
   resolveMediaAssetMetadataForRender(required: { post: PostRecord }): Promise<NonNullable<RenderBareEntryDocumentRequired["mediaAssetMetadata"]>>;
   renderBareEntryDocument(required: Pick<RenderBareEntryDocumentRequired, "post" | "siteTitle" | "pageHtmlEmbeds" | "widgetInlineResolved" | "mediaTransformVersions" | "mediaAssetMetadata">): string;

@@ -8,11 +8,12 @@ import type { Express, Request, Response } from 'express';
 import type { OperationAttributes } from '@jini-ai/core/contracts/observability';
 import { httpFallbackCopy, type RouteErrorPorts, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import { runOperation, UNAVAILABLE_ERROR_ID, type DescribedFailure, type ErrorReporter, type OperationVerdict } from '@jini-ai/core/errors/reporter';
-import { allowRouteBody, allowRouteOrigin, applyAdmittedResponseHeaders, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
+import { allowRouteOrigin, routeAuthorize, sendRouteException } from './adapter.js';
+import { allowRouteBody, applyAdmittedResponseHeaders, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeRequestInput } from './adapter-request.js';
 import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
 import { sendApiError } from './response.js';
-import type { JsonRoutePorts, RawRouteSpec, RouteMountOptions } from './types.js';
+import type { JsonRoutePorts, RawRouteSpec, RouteMountOptions, RouteDepsSource } from './types.js';
 
 /** The optional fields of a raw spec, settable in `defineRawRoute`'s second argument. */
 type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'admittedResponseHeaders' | 'bufferedReply';
@@ -37,7 +38,10 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
  * @throws At mount, when the spec opts into `requestFacts` without the host's resolver port.
  * @complexity O(1) setup; per request, the gates, the host ports, `handle` and the body copy.
  */
-export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions<Deps> = {}): void {
+export function mountRawRoute<Deps, Context = undefined>(required: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly adapter?: RouteHostContext } & RouteDepsSource<Deps>, optional: RouteMountOptions<Deps> = {}): void {
+  const { app, spec, adapter } = required;
+  const mountedDeps = required.deps;
+  const resolveDeps = required.depsForRequest ?? ((facts: { req: Request; res: Response }) => requestScopedDeps<Deps>({ ...facts, deps: mountedDeps! }, optional));
   assertRequestFactsPort({ spec });
   // The mode is chosen once, at mount: with `errors`, every request of this route uses the same
   // mounted reporter for its execution, its exception and its write failures.
@@ -49,7 +53,7 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
     const abortController = new AbortController();
     const onResponseClose = () => abortController.abort();
     res.on('close', onResponseClose);
-    const call: RawCall<Deps, Context> = { req, res, spec, deps, mountOptions: optional, adapter, signal: abortController.signal };
+    const call: RawCall<Deps, Context> = { req, res, spec, resolveDeps, mountOptions: optional, adapter, signal: abortController.signal };
     try {
       await (errors ? reporterRawRoute(call, { errors }) : legacyRawRoute(call));
     } finally {
@@ -62,7 +66,7 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
  *  mounted ones; `executeRawRoute` binds them to the request through `mountOptions.requestDeps`. */
 interface RawCall<Deps, Context> {
   readonly req: Request; readonly res: Response; readonly spec: RawRouteSpec<Deps, Context>;
-  readonly deps: Deps; readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps' | 'preserveHostErrorRouting'>;
+  readonly resolveDeps: (facts: { req: Request; res: Response }) => Deps; readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps' | 'preserveHostErrorRouting'>;
   readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
 }
 
@@ -84,10 +88,10 @@ async function legacyRawRoute<Deps, Context>(call: RawCall<Deps, Context>): Prom
  * with `undefined` (the gate helpers own that refusal's write, as in `mountJsonRoute`). The write-back
  * itself is the caller's, after the operation ends (`writeTracedResponse`): this hands it back unwritten.
  */
-async function executeRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps, mountOptions, adapter, signal }: RawCall<Deps, Context>): Promise<globalThis.Response | undefined> {
+async function executeRawRoute<Deps, Context>({ req, res, spec, resolveDeps, adapter, signal }: RawCall<Deps, Context>): Promise<globalThis.Response | undefined> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });
   // Once per request, before every gate: the ports and `handle` see this request's bound deps.
-  const deps = requestScopedDeps({ req, res, deps: mountedDeps }, mountOptions);
+  const deps = resolveDeps({ req, res });
   // `readBody` reads nothing until `handle` calls it, after every gate below (`deferred-body.ts`).
   const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
   if (!allowRouteBody({ req, res, spec })) return undefined;

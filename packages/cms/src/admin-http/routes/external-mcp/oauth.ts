@@ -1,6 +1,6 @@
 import { runWithExternalMcpRateLimit, externalMcpErrorStatus } from "./route-helpers.js";
 import type { ExternalMcpOAuthService } from '@jini-ai/core/contracts/site/api-connections-hosted-mcp';
-import { defineJsonRoute, ok, routeReply, type RouteReply, type RouteInputContext, type JsonRouteAuthorize } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, ok, routeReply, type RouteReply, type RouteInputContext, type JsonRouteAuthorize, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
 import { authorizeExternalMcp, externalMcpActorId, type ExternalMcpRoutePrincipal } from './shared.js';
 
 const BASE = '/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId/oauth';
@@ -133,11 +133,11 @@ export function createExternalMcpBrowserSignInRoute({ path }: { path: string }, 
 }
 
 export function registerExternalMcpOAuthConnectRoutes(required: {
-  mountJson(required: {
-    spec: typeof externalMcpOAuthConnectRoute | typeof externalMcpOAuthPollRoute | typeof externalMcpSharedListRoute | typeof externalMcpSharedLocalRoute | typeof externalMcpSharedSelectRoute;
+  mountJson<Input, Output, Deps>(required: {
+    spec: JsonRouteSpec<Input, Output, Deps, ExternalMcpRoutePrincipal>;
     authorization: "direct";
     before?: (facts: { rate: Parameters<typeof runWithExternalMcpRateLimit>[0]["deps"] }, next: () => Promise<void>) => Promise<void>;
-    requestDeps: (facts: { callbackUrl: (required: { serverId: string }) => string; requireSharedSession: (required: { message: string; permission: string }) => void }) => Parameters<typeof externalMcpOAuthConnectRoute.handle>[0]["deps"] | Parameters<typeof externalMcpOAuthPollRoute.handle>[0]["deps"] | Parameters<typeof externalMcpSharedListRoute.handle>[0]["deps"] | Parameters<typeof externalMcpSharedLocalRoute.handle>[0]["deps"] | Parameters<typeof externalMcpSharedSelectRoute.handle>[0]["deps"];
+    requestDeps: (facts: { callbackUrl: (required: { serverId: string }) => string; requireSharedSession: (required: { message: string; permission: string }) => void }) => Deps;
     failure: (facts: { error: unknown; json: (body: unknown, status: number) => void; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
   }): void;
   mountRaw(required: {

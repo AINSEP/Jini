@@ -71,7 +71,7 @@ type Entry = { turnId: string; controller: ReturnType<typeof createAutomaticAgen
 
   type OfferLiveness = Parameters<ReturnType<typeof createAutomaticAgentPluginUse>['offer']>[0]['isAttemptLive'];
   const attemptKey = (scope: AgentPluginGuidanceAttempt) => JSON.stringify([scope.runId, scope.attempt, scope.principalId]);
-function createPluginChoiceAsk({ deps, surfaces, askAgentPluginChoice, context, abort }: Parameters<typeof createAutomaticPluginRuns>[0] & { context: AutomaticPluginRun; abort: AbortController }, { getEntry, approve }: { getEntry: () => Entry; approve: (revisionSeq: number) => void }): AutomaticAgentPluginPorts['ask'] {
+function createPluginChoiceAsk({ deps, surfaces, askAgentPluginChoice, context, abort }: Parameters<typeof createScopedAutomaticPluginRuns>[0] & { context: AutomaticPluginRun; abort: AbortController }, { getEntry, approve }: { getEntry: () => Entry; approve: (revisionSeq: number) => void }): AutomaticAgentPluginPorts['ask'] {
   return async ({ matches }) => {
         const entry = getEntry();
         entry.pending = true;
@@ -110,8 +110,8 @@ function createPluginChoiceAsk({ deps, surfaces, askAgentPluginChoice, context, 
  * so a plugin switched off after ranking is never inlined. Read-only setup guidance is not activation,
  * authorization or delivery. O(1) plus one resolver read.
  */
-export function bindAutomaticGuidanceResolver(
-  { workspaceLayout, resolveGuidance }: { workspaceLayout: Pick<AgentPluginWorkspaceLayout, 'packages' | 'root'>; resolveGuidance: (required: { pluginRefIds: readonly string[]; workspaceLayout: Pick<AgentPluginWorkspaceLayout, 'packages' | 'root'> }, optional: Omit<Parameters<AutomaticAgentPluginPorts['resolve']>[0], 'pluginId'> & { deliveryMode: 'inject'; allowInactiveGuidance: boolean }) => ReturnType<AutomaticAgentPluginPorts['resolve']> },
+export function bindAutomaticGuidanceResolver<Layout extends Pick<AgentPluginWorkspaceLayout, 'packages' | 'root'>>(
+  { workspaceLayout, resolveGuidance }: { workspaceLayout: Layout; resolveGuidance: (required: { pluginRefIds: readonly string[]; workspaceLayout: Layout }, optional: Omit<Parameters<AutomaticAgentPluginPorts['resolve']>[0], 'pluginId'> & { deliveryMode: 'inject'; allowInactiveGuidance: boolean }) => ReturnType<AutomaticAgentPluginPorts['resolve']> },
   _optional = {},
 ): AutomaticAgentPluginPorts['resolve'] {
   return ({ pluginId, ...request }, { allowInactiveGuidance = false } = {}) => resolveGuidance(
@@ -121,7 +121,7 @@ export function bindAutomaticGuidanceResolver(
 }
 
   /** One logical turn's controller wired to the existing catalog, resolver, consent card and settings ports. */
-  function createEntry({ mode, context, turnId, runId }: { mode: ChatAgentPlugins; context: AutomaticPluginRun; turnId: string; runId: string }, { deps, surfaces, askAgentPluginChoice, lateAnswers }: Parameters<typeof createAutomaticPluginRuns>[0] & { lateAnswers: Map<string, ChatAgentPluginState> }): Entry {
+  function createEntry({ mode, context, turnId, runId }: { mode: ChatAgentPlugins; context: AutomaticPluginRun; turnId: string; runId: string }, { deps, surfaces, askAgentPluginChoice, lateAnswers }: Parameters<typeof createScopedAutomaticPluginRuns>[0] & { lateAnswers: Map<string, ChatAgentPluginState> }): Entry {
     const abort = new AbortController();
     const maturities = new Map<string, PluginMaturity | undefined>();
     let approvedPreferenceRevisionSeq: number | undefined;
@@ -135,7 +135,7 @@ export function bindAutomaticGuidanceResolver(
         return candidates;
       },
       rank: (input) => deps.rank({ query: input.query.slice(0, 16000), candidates: input.candidates, limit: input.limit }, { automatic: true }),
-      resolve: deps.resolve,
+      resolve: deps.resolveForEntry({ workspaceId: deps.workspaceId }),
       ask: createPluginChoiceAsk({ deps, surfaces, askAgentPluginChoice, context, abort }, { getEntry: () => entry, approve: revisionSeq => { approvedPreferenceRevisionSeq = revisionSeq; } }),
       saveAuto: () => deps.preferences.saveAuto({ workspaceId: deps.workspaceId, principalId: context.principal.id, expectedRevisionSeq: approvedPreferenceRevisionSeq }),
       publish: async value => {
@@ -151,7 +151,7 @@ export function bindAutomaticGuidanceResolver(
   // This small id loader uses the SAME trusted pinned-ref resolver as the capability backstop.
   
 
-function buildPluginGuidanceRegistration({ runs, turns, deps }: { runs: Map<string, Entry>; turns: Map<string, Entry>; deps: AutomaticPluginDeps }, _optional = {}) {
+function buildPluginGuidanceRegistration({ runs, turns, deps }: { runs: Map<string, Entry>; turns: Map<string, Entry>; deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps'] }, _optional = {}) {
   return buildDomainRegistrations({
     domain: 'agent-plugin-guidance', catalogModule: deps.catalogModule,
     catalog: indexCatalogById({ catalog: deps.catalog }),
@@ -163,7 +163,7 @@ function buildPluginGuidanceRegistration({ runs, turns, deps }: { runs: Map<stri
 
 
 
-async function loadPluginGuidance({ input: raw, run, principal, signal }: Parameters<ToolHandler>[0], { runs, turns, deps }: { runs: Map<string, Entry>; turns: Map<string, Entry>; deps: AutomaticPluginDeps }) {
+async function loadPluginGuidance({ input: raw, run, principal, signal }: Parameters<ToolHandler>[0], { runs, turns, deps }: { runs: Map<string, Entry>; turns: Map<string, Entry>; deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps'] }) {
       const input = requireInputRecord({ input: raw });
       const pluginId = requireString({ input, key: 'pluginId' });
       if (Object.keys(input).some(key => !['pluginId', 'skill', 'file'].includes(key))) throw new ToolInputError({ message: 'Only pluginId, skill and file are accepted' });
@@ -181,7 +181,7 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
    * throw before using consent. Settings/catalog effects stay in their existing ports.
    * @complexity O(1) ownership lookup plus the automatic-use owner's catalog work.
    */
-  async function bind({ runId, messageId, context }: { runId: string; messageId?: string | undefined; context: AutomaticPluginRun }, state: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<Entry | undefined> {
+  async function bind({ runId, messageId, context }: { runId: string; messageId?: string | undefined; context: AutomaticPluginRun }, state: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<Entry | undefined> {
     const { deps, surfaces, askAgentPluginChoice, runs, turns, lateAnswers } = state;
     // core.interface definitions are in this existing boot chain, after the UI-tab definitions.
     await deps.siteTitleReady;
@@ -205,7 +205,7 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
     return entry;
   }
 
-  async function start({ runId, messageId, context }: { runId: string; messageId?: string; context: AutomaticPluginRun }, state: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<string> {
+  async function start({ runId, messageId, context }: { runId: string; messageId?: string; context: AutomaticPluginRun }, state: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<string> {
     const { turns } = state;
     const entry = await bind({ runId, messageId, context }, state);
     if (!entry) return '';
@@ -218,7 +218,7 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
    * The first successful offer id is cached per attempt, so a repeated offer cannot re-key a receipt;
    * a replacement attempt has another key and never inherits it. @complexity O(1) plus the owner's draft.
    */
-  async function offer({ runId, messageId, context, scope, offerId, isAttemptLive }: { runId: string; messageId?: string | undefined; context: AutomaticPluginRun; scope: AgentPluginGuidanceAttempt; offerId: string; isAttemptLive: OfferLiveness }, state: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<AgentPluginGuidanceOffer> {
+  async function offer({ runId, messageId, context, scope, offerId, isAttemptLive }: { runId: string; messageId?: string | undefined; context: AutomaticPluginRun; scope: AgentPluginGuidanceAttempt; offerId: string; isAttemptLive: OfferLiveness }, state: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<AgentPluginGuidanceOffer> {
     const { turns } = state;
     if (scope.runId !== runId || scope.principalId !== context.principal.id) throw new Error('Agent Plugin run is unavailable');
     const entry = await bind({ runId, messageId, context }, state);
@@ -233,14 +233,14 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
 
   /** Record the delivered ids of this attempt's offer. Only a live alias of the same principal may
    * commit; Jini refuses a retired, replaced or older attempt and replays a same-choice receipt. */
-  async function commit({ scope, offerId, deliveredIds }: { scope: AgentPluginGuidanceAttempt; offerId: string; deliveredIds: readonly string[] }, { signal }: { signal?: AbortSignal | undefined } = {}, { runs, turns }: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<{ readonly guidanceIds: readonly string[] }> {
+  async function commit({ scope, offerId, deliveredIds }: { scope: AgentPluginGuidanceAttempt; offerId: string; deliveredIds: readonly string[] }, { signal }: { signal?: AbortSignal | undefined } = {}, { runs, turns }: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<{ readonly guidanceIds: readonly string[] }> {
     const entry = runs.get(scope.runId);
     if (!entry || entry.context.principal.id !== scope.principalId) throw new Error('Agent Plugin run is unavailable');
     try { return await entry.controller.commit({ scope, offerId, deliveredIds }, signal ? { signal } : {}); }
     finally { releaseDetached(entry, turns); }
   }
 
-  async function prepareGuidance({ run, tool, signal }: Parameters<PrepareToolGuidance>[0], { runs, turns, deps }: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<string> {
+  async function prepareGuidance({ run, tool, signal }: Parameters<PrepareToolGuidance>[0], { runs, turns, deps }: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): Promise<string> {
     const entry = runs.get(run.id);
     if (!entry) return '';
     try { return await entry.controller.prepare({ ...(tool.metadata?.guidanceCapabilities ? { capabilities: tool.metadata.guidanceCapabilities } : {}), signal }); }
@@ -251,7 +251,7 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
   /** Dispose an attempt alias. Durable attempt replacement retains a pending exchange until its
    * answer/normal exchange expiry; explicit disposal aborts it. O(1), no persistent writes.
    */
-  function forget({ runId }: { runId: string }, { preservePending = false } = {}, { runs, turns }: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): void {
+  function forget({ runId }: { runId: string }, { preservePending = false } = {}, { runs, turns }: { deps: Parameters<typeof createScopedAutomaticPluginRuns>[0]['deps']; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice; runs: Map<string, Entry>; turns: Map<string, Entry>; lateAnswers: Map<string, ChatAgentPluginState> }): void {
     const entry = runs.get(runId);
     if (!entry) return;
     runs.delete(runId);
@@ -264,7 +264,7 @@ async function loadPluginGuidance({ input: raw, run, principal, signal }: Parame
  * @returns start/forget, the read-only guidance loader and the tool preparation hook.
  * @complexity O(1) identity lookup; one controller per live turn, one late answer per chat.
  */
-export function createAutomaticPluginRuns({ deps, surfaces, askAgentPluginChoice }: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice }, _options = {}) {
+export function createScopedAutomaticPluginRuns({ deps, surfaces, askAgentPluginChoice }: { deps: Omit<AutomaticPluginDeps, 'resolve'> & { resolveForEntry(required: { workspaceId: string }): AutomaticPluginDeps['resolve'] }; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice }, _options = {}) {
   const turns = new Map<string, Entry>();
   const runs = new Map<string, Entry>();
   // A terminal attempt cannot publish its late answer. Hand it to the next turn in this chat.
@@ -281,4 +281,8 @@ export function createAutomaticPluginRuns({ deps, surfaces, askAgentPluginChoice
     forget: (input: Parameters<typeof forget>[0], optional: Parameters<typeof forget>[1] = {}) => forget(input, optional, state),
     guidanceIds: ({ runId }: { runId: string }, _optional = {}) => runs.get(runId)?.controller.guidanceIds({}) ?? [],
   };
+}
+
+export function createAutomaticPluginRuns({ deps, surfaces, askAgentPluginChoice }: { deps: AutomaticPluginDeps; surfaces: ChatDeleteSurfaceDeps; askAgentPluginChoice: AskAgentPluginChoice }, _options = {}) {
+  return createScopedAutomaticPluginRuns({ deps: { ...deps, resolveForEntry: () => deps.resolve }, surfaces, askAgentPluginChoice });
 }

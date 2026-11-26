@@ -15,3 +15,56 @@ describe("owner passkey mount admission", () => {
     expect(passkeyDeps).not.toHaveBeenCalled();
   });
 });
+
+it('reads the credential store once before MFA and uses only the trusted site origin', async () => {
+  const { resolveOwnerPasskeyRouteDeps } = await import('../passkey-routes.js');
+  const order: string[] = [];
+  const credentials = {} as Awaited<ReturnType<typeof resolveOwnerPasskeyRouteDeps>>['credentials'];
+  const store = vi.fn(() => { order.push('store'); return credentials; });
+  const resolved = await resolveOwnerPasskeyRouteDeps({ store,
+    mfa: async () => { order.push('mfa'); return {} as Awaited<ReturnType<typeof resolveOwnerPasskeyRouteDeps>>['mfa']; },
+    webauthn: () => { order.push('webauthn'); return {} as Awaited<ReturnType<typeof resolveOwnerPasskeyRouteDeps>>['webauthn']; },
+    get site() { order.push('site'); return { deps: { derivedPublicOrigin: 'http://localhost:1234' }, localPort: 7890, name: 'Site', copy: { unavailable: 'missing', insecure: 'insecure' } }; },
+    unavailableMessage: 'unavailable',
+  });
+  expect(store).toHaveBeenCalledTimes(1);
+  expect(order).toEqual(['store', 'mfa', 'webauthn', 'site']);
+  expect(resolved.credentials).toBe(credentials);
+  expect(resolved.site).toEqual({ origin: 'http://localhost:7890', rpId: 'localhost', name: 'Site' });
+});
+
+it('binds request admission without store reads for nonowners and delegates sign-in', async () => {
+  const { bindOwnerPasskeyRoutes } = await import('../passkey-routes.js');
+  const routes: { method: string; path: string; handle(req: object, res: object): Promise<void> }[] = [];
+  const store = vi.fn(() => ({})); const signedIn = vi.fn(); const noStore = vi.fn(); const json = vi.fn();
+  const result = { sessionToken: 'signed-in' };
+  const bind = bindOwnerPasskeyRoutes({ root: '/passkeys', mount: input => { routes.push(input); },
+    workspaceId: () => 'ws', store, mfa: async () => ({ seededOwnerPrincipalId: 'owner' }), webauthn: () => ({}),
+    site: () => ({ deps: { passkeyOrigin: 'https://trusted.test' }, name: 'Site', copy: { unavailable: 'missing', insecure: 'insecure' } }),
+    unavailableMessage: 'missing', authenticate: async () => ({ kind: 'tool', principal: { id: 'other' } }), ownerPrincipalId: async () => 'owner',
+    isJson: () => true, header: ({ name }) => name === 'origin' ? 'https://trusted.test' : undefined,
+    body: () => ({}), byteCount: () => 2, rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident: vi.fn(), signedIn,
+    services: { completeOwnerPasskeyLogin: async () => result }, copy: {}, operation: 'passkey', incidentOptions: {},
+  } as unknown as Parameters<typeof bindOwnerPasskeyRoutes<object, object, object>>[0]);
+  bind({}); expect(store).not.toHaveBeenCalled();
+  await routes[5]!.handle({}, {});
+  expect(store).not.toHaveBeenCalled(); expect(noStore).toHaveBeenCalledTimes(1);
+  expect(json).toHaveBeenCalledWith(expect.objectContaining({ value: { isOwner: false, credentials: [] } }));
+  const req = {}; const res = {};
+  await routes[3]!.handle(req, res);
+  expect(store).toHaveBeenCalledTimes(1);
+  expect(signedIn).toHaveBeenCalledWith({ host: {}, req, res, result });
+});
+
+it('sets no-store before writing an origin refusal', async () => {
+  const { ownerPasskeyActionRoute } = await import('../passkey-routes.js');
+  const order: string[] = [];
+  const json = vi.fn(() => { order.push('refuse'); });
+  await ownerPasskeyActionRoute({ action: 'confirm', admission: {
+    noStore: () => { order.push('no-store'); },
+    passkeyDeps: async () => ({ site: { origin: 'https://trusted.test' } }),
+    isJson: () => false, json, copy: { origin: 'Use the browser' }, failure: vi.fn(),
+  } as unknown as Parameters<typeof ownerPasskeyActionRoute>[0]['admission'] });
+  expect(order).toEqual(['no-store', 'refuse']);
+  expect(json).toHaveBeenCalledWith({ error: 'Use the browser', code: 'PASSKEY_ORIGIN_REFUSED' }, 403);
+});

@@ -1,4 +1,4 @@
-import { defineJsonRoute, ok, routeReply, type RouteInputContext, type JsonRouteAuthorize, type RouteReply } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, ok, routeReply, type RouteInputContext, type JsonRouteAuthorize, type RouteReply, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
 import type { PluginInstallInput, PluginInstallPreview, PluginInstallerPort } from '@jini-ai/core/contracts/site/host-node';
 
 const conflicts: ReadonlySet<string> = new Set(['PLUGIN_SHADOWS_BUILT_IN', 'PLUGIN_ID_CONFLICT', 'PLUGIN_IN_TRASH', 'PLUGIN_ENABLED', 'PLUGIN_VERSION_EXISTS', 'PLUGIN_DOWNGRADE', 'PLUGIN_CHANGED_SINCE_PREVIEW', 'PLUGIN_INSTALL_BUSY']);
@@ -136,16 +136,16 @@ export function respondInstallFailure({ error, deps }: { error: unknown; deps: {
 }
 
 /** Local sources are explicitly opt-in, even for admins. ZIP parsing follows authorization. */
-export function registerPluginInstallRoutes(required: {
-  mountJson(required: {
-    spec: typeof folderPluginInstallPreviewRoute | typeof folderPluginInstallRoute;
-    deps: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"];
+export function registerPluginInstallRoutes<Parser>(required: {
+  mountJson<Input, Output, Deps>(required: {
+    spec: JsonRouteSpec<Input, Output, Deps, { id: string }>;
+    deps: Deps;
     failure: (facts: { error: unknown; principalId: () => string; json: (body: unknown, status: number) => void; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
   }): void;
-  mountRaw(required: {
-    spec: typeof zipPluginInstallPreviewRoute | typeof zipPluginInstallRoute;
-    parser: { type: "application/zip"; limit: number; inflate: false };
-    requestDeps: (facts: Omit<Parameters<typeof readZipUpload>[0]["deps"], "uploadLimitText">) => Parameters<typeof zipPluginInstallRoute.handle>[0]["deps"];
+  parserFactory(required: { type: "application/zip"; limit: number; inflate: false }): Parser;
+  mountRaw<Deps>(required: {
+    spec: { method: 'post'; path: string; handle(required: { raw: RouteInputContext; deps: Deps; context?: { id: string } | undefined; authorize?: JsonRouteAuthorize | undefined }, _optional?: Record<string, never>): Promise<Response> };
+    requestDeps: (facts: Omit<Parameters<typeof readZipUpload>[0]["deps"], "uploadLimitText" | "parseZip"> & { parseZip(parser: Parser): Promise<unknown> }) => Deps;
     failure: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"];
   }): void;
   installer: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"]["installer"];
@@ -154,6 +154,7 @@ export function registerPluginInstallRoutes(required: {
   installError: Parameters<typeof respondInstallFailure>[0]["deps"]["installError"];
   operation: string; maxArchiveBytes: number; uploadLimitText: string;
 }, _optional = {}): void {
+  const parser = required.parserFactory({ type: "application/zip", limit: required.maxArchiveBytes, inflate: false });
   const matrix = [[folderPluginInstallPreviewRoute, false, true], [folderPluginInstallRoute, false, false], [zipPluginInstallPreviewRoute, true, true], [zipPluginInstallRoute, true, false]] as const;
   for (const [spec, zip, preview] of matrix) {
     const failureWriter: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"] = facts => {
@@ -161,8 +162,8 @@ export function registerPluginInstallRoutes(required: {
       respondInstallFailure({ error: facts.error, deps: { installError: required.installError, json: facts.json, failure: error => facts.incident(error, { operation: required.operation, code: "INTERNAL_ERROR" }) } });
     };
     if (zip) {
-      required.mountRaw({ spec, parser: { type: "application/zip", limit: required.maxArchiveBytes, inflate: false },
-        requestDeps: facts => ({ installer: required.installer, onInstalled: required.onInstalled, readZipUpload: () => readZipUpload({ deps: { ...facts, uploadLimitText: required.uploadLimitText } }) }),
+      required.mountRaw<Parameters<typeof zipPluginInstallRoute.handle>[0]["deps"]>({ spec,
+        requestDeps: facts => ({ installer: required.installer, onInstalled: required.onInstalled, readZipUpload: () => readZipUpload({ deps: { ...facts, parseZip: () => facts.parseZip(parser), uploadLimitText: required.uploadLimitText } }) }),
         failure: failureWriter,
       });
     } else {

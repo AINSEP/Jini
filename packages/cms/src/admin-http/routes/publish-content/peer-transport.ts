@@ -5,7 +5,7 @@ import { mappedErrorResponse, type MappedErrorClass, type RouteRefusal } from '.
 import type { PeerCallDeps } from "../../../publish/content/peer-transport.js";
 import type { PublishScope } from "../../../publish/content/ui/contract.js";
 import { readOverwriteEntityKeys } from "./import.js";
-import { defineJsonRoute, ok, routeReply } from "@jini-ai/core/contracts/server";
+import { defineJsonRoute, ok, routeReply, type JsonRouteSpec } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizePublishContent, routeParam, bodyRecord, type PublishRoutePrincipal } from "./transport-shared.js";
@@ -295,11 +295,11 @@ export function createPeerCallResolver(required: {
 
 /** The three push routes, in their registered order; the pull spec follows them. */
 export function registerPublishContentPeerPushRoutes(required: {
-  mount(required: {
-    spec: typeof peerPushPlanRoute | typeof peerPushConfirmRoute | typeof peerPushExecuteRoute;
+  mount<Input, Output, Deps>(required: {
+    spec: JsonRouteSpec<Input, Output, Deps, PublishRoutePrincipal>;
     preflight: { readHeaders: readonly []; check: () => RouteRefusal | undefined };
-    requestDeps: (facts: { requireOverwriteSession: () => void }) => Parameters<typeof peerPushPlanRoute.handle>[0]["deps"] | Parameters<typeof peerPushConfirmRoute.handle>[0]["deps"] | Parameters<typeof peerPushExecuteRoute.handle>[0]["deps"];
-    failure: (facts: Pick<Parameters<typeof respondWithPeerActionError>[0], "err" | "json" | "incident" | "discloseDetails">) => void;
+    requestDeps: (facts: Pick<Deps, Extract<keyof Deps, 'requireOverwriteSession'>>) => Deps;
+    failure: (facts: Pick<Parameters<typeof respondWithPeerActionError>[0], "err" | "json" | "incident" | "discloseDetails" | "method" | "route">) => void;
   }): void;
   openPeer: Parameters<typeof peerPushPlanRoute.handle>[0]["deps"]["openPeer"];
   plan: Parameters<typeof peerPushPlanRoute.handle>[0]["deps"]["plan"];
@@ -310,14 +310,14 @@ export function registerPublishContentPeerPushRoutes(required: {
   const preflight = { readHeaders: [] as const, check: () => required.canPublishToLive() ? undefined : required.liveSiteRefusal };
   required.mount({ spec: peerPushPlanRoute, preflight,
     requestDeps: facts => ({ openPeer: required.openPeer, plan: required.plan, requireOverwriteSession: facts.requireOverwriteSession }),
-    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushPlanRoute.path }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation }),
   });
   required.mount({ spec: peerPushConfirmRoute, preflight,
     requestDeps: () => ({ openPeer: required.openPeer, confirm: required.confirm }),
-    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushConfirmRoute.path }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation }),
   });
   required.mount({ spec: peerPushExecuteRoute, preflight,
     requestDeps: facts => ({ openPeer: required.openPeer, execute: required.execute, requireOverwriteSession: facts.requireOverwriteSession }),
-    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushExecuteRoute.path }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation }),
   });
 }

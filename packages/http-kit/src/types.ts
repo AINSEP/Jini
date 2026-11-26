@@ -42,6 +42,10 @@ export interface JsonRoutePorts<Deps, Context = undefined> {
   readonly payloadTooLarge?: (requiredArgs: { readonly res: Response; readonly maxBytes: number }) => void;
 }
 
+export type RouteDepsSource<D> =
+  | { readonly deps: D; readonly depsForRequest?: never }
+  | { readonly deps?: never; readonly depsForRequest: (required: { readonly req: Request; readonly res: Response }, _optional?: Record<string, never>) => D };
+
 /** Optional mount settings shared by `mountJsonRoute` and `mountRawRoute`. */
 export interface RouteMountOptions<Deps = never> {
   /**

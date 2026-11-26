@@ -10,8 +10,8 @@ export interface PublishDestinationsDeps<TRegistry, TPeer, TOutput> {
   listDestinations(required: { registry: TRegistry; peers: readonly TPeer[] }): Promise<TOutput>;
 }
 
-export function createPublishDestinationsRoute<TRegistry, TPeer, TOutput>(
-  _required: { deps: PublishDestinationsDeps<TRegistry, TPeer, TOutput> }, _optional = {},
+export function createPublishDestinationsRouteSpec<TRegistry, TPeer, TOutput>(
+  _required: Record<string, never>, _optional = {},
 ): JsonRouteSpec<undefined, TOutput, PublishDestinationsDeps<TRegistry, TPeer, TOutput>, PublishSitePrincipal> {
   return defineJsonRoute({
     method: 'get', path: PUBLISH_DESTINATIONS_PATH,
@@ -28,34 +28,35 @@ export function createPublishDestinationsRoute<TRegistry, TPeer, TOutput>(
   });
 }
 
-export function registerPublishDestinationsRoute(required: {
+export function createPublishDestinationsRoute<TRegistry, TPeer, TOutput>(_required: { deps: PublishDestinationsDeps<TRegistry, TPeer, TOutput> }, _optional = {}) {
+  return createPublishDestinationsRouteSpec<TRegistry, TPeer, TOutput>({});
+}
+
+export function registerPublishDestinationsRoute<TRegistry, TPeer, TOutput, TTrust>(required: {
   mount(required: {
-    method: "get"; path: string;
-    request: (facts: { trustContext: () => unknown }) => { spec: ReturnType<typeof createPublishDestinationsRoute>; deps: PublishDestinationsDeps<unknown, unknown, unknown> };
+    spec: JsonRouteSpec<undefined, TOutput, PublishDestinationsDeps<TRegistry, TPeer, TOutput>, PublishSitePrincipal>;
+    requestDeps: (facts: { trustContext: () => TTrust | undefined }) => PublishDestinationsDeps<TRegistry, TPeer, TOutput>;
     failure: (facts: { error: unknown; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
   }): void;
   workspaceId: string;
-  loadRegistry: PublishDestinationsDeps<unknown, unknown, unknown>["loadRegistry"];
-  listPeers: PublishDestinationsDeps<unknown, unknown, unknown>["listPeers"];
-  listDestinations: PublishDestinationsDeps<unknown, unknown, unknown>["listDestinations"];
+  loadRegistry: PublishDestinationsDeps<TRegistry, TPeer, TOutput>["loadRegistry"];
+  listPeers: PublishDestinationsDeps<TRegistry, TPeer, TOutput>["listPeers"];
+  listDestinations: PublishDestinationsDeps<TRegistry, TPeer, TOutput>["listDestinations"];
   authorize: import("@jini-ai/core/contracts/events").AuthorizeFn;
-  authorizeForTrust(trust: unknown): import("@jini-ai/core/contracts/events").AuthorizeFn;
+  authorizeForTrust(trust: TTrust): import("@jini-ai/core/contracts/events").AuthorizeFn;
   operation: string;
 }, _optional = {}): void {
-  required.mount({ method: "get", path: PUBLISH_DESTINATIONS_PATH,
-    request: facts => {
-      const deps: PublishDestinationsDeps<unknown, unknown, unknown> = {
-        loadRegistry: required.loadRegistry,
-        mayReadPeers: async ({ principalId }) => {
-          const trust = facts.trustContext();
-          const peerAuthorization = await (trust ? required.authorizeForTrust(trust) : required.authorize)({ principalId, permission: "publish_content.read", workspaceId: required.workspaceId });
-          return peerAuthorization.allowed;
-        },
-        listPeers: required.listPeers,
-        listDestinations: required.listDestinations,
-      };
-      return { spec: createPublishDestinationsRoute({ deps }), deps };
-    },
+  required.mount({ spec: createPublishDestinationsRouteSpec<TRegistry, TPeer, TOutput>({}),
+    requestDeps: facts => ({
+      loadRegistry: required.loadRegistry,
+      mayReadPeers: async ({ principalId }) => {
+        const trust = facts.trustContext();
+        const peerAuthorization = await (trust ? required.authorizeForTrust(trust) : required.authorize)({ principalId, permission: "publish_content.read", workspaceId: required.workspaceId });
+        return peerAuthorization.allowed;
+      },
+      listPeers: required.listPeers,
+      listDestinations: required.listDestinations,
+    }),
     failure: facts => facts.incident(facts.error, { operation: required.operation, code: "INTERNAL_ERROR" }),
   });
 }

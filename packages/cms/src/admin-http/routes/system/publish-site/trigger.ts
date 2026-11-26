@@ -115,24 +115,24 @@ async function checkPublishPreconditions<TConfig, TSnapshot extends { status: st
   return { ok: true, parsed, config: read.config };
 }
 
-export function registerPublishTriggerRoute(required: {
+export function registerPublishTriggerRoute<TConfig extends { target: string; customDomain?: string | undefined }, TRegistry, TSnapshot extends { status: string }>(required: {
   mount(required: {
-    spec: ReturnType<typeof createPublishTriggerRoute<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }>>;
-    deps: PublishTriggerDeps<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }>;
+    spec: ReturnType<typeof createPublishTriggerRoute<{ config: TConfig; registry: TRegistry }, TSnapshot>>;
+    deps: PublishTriggerDeps<{ config: TConfig; registry: TRegistry }, TSnapshot>;
     refusal: (facts: { response: { status: number; body: unknown }; json: (body: unknown, status: number) => void; principalId: () => string }) => void;
     failure: (facts: { error: unknown; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
   }): void;
-  readConfig(required: { targetId: string; raw: Record<string, unknown>; blankAsAbsent: boolean }): Promise<{ ok: true; config: { target: string; customDomain?: string | undefined }; registry: unknown } | { ok: false; error: string }>;
-  plan(required: { registry: unknown; config: { target: string; customDomain?: string | undefined } }): { ok: true } | { ok: false; message: string };
-  start(required: { principal: { id: string }; parsed: { projectName: string; credentialId?: unknown }; config: { target: string; customDomain?: string | undefined } }): { status: string };
-  snapshot: () => { status: string };
+  readConfig(required: { targetId: string; raw: Record<string, unknown>; blankAsAbsent: boolean }): Promise<{ ok: true; config: TConfig; registry: TRegistry } | { ok: false; error: string }>;
+  plan(required: { registry: TRegistry; config: TConfig }): { ok: true } | { ok: false; message: string };
+  start(required: { principal: { id: string }; parsed: { projectName: string; credentialId?: unknown }; config: TConfig }): TSnapshot;
+  snapshot: () => TSnapshot;
   siteConsent: { deploymentCheck(required: { principalId: string; permission: string }): Promise<Record<string, unknown> | null | undefined> } | undefined;
   consentUnavailable: () => Record<string, unknown>;
   domainConfirmationText: string;
   onBlocked: (required: { principalId: string; reasonClass: "config" | "consent" | "busy" | "auth" }) => void;
   operation: string;
 }, _optional = {}): void {
-  const deps: PublishTriggerDeps<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }> = {
+  const deps: PublishTriggerDeps<{ config: TConfig; registry: TRegistry }, TSnapshot> = {
     readConfig: async ({ targetId, raw }) => {
       const read = await required.readConfig({ targetId, raw, blankAsAbsent: false });
       return read.ok ? { ok: true, config: { config: read.config, registry: read.registry } } : read;

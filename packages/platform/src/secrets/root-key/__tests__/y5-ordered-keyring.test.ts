@@ -38,3 +38,12 @@ describe("live ordered keyring", () => {
     expect(status).toEqual({ active: false, source: "file", invalid: true, reason: "not-hex", keyFilePath: "/bad" });
   });
 });
+
+it('keeps active-key lookup free of source reads', async () => {
+  let reads = 0;
+  const keyring = createOrderedSiteKeyring({ sources: [{ kind: 'env' }], keyId: 'id', hkdfSalt: 'salt', env: () => ({}),
+    readSourceMaterial: () => { reads++; return { raw: 'invalid' }; }, describeSource: source => source.kind,
+    unusableSiteKeyError: () => new Error('invalid'),
+  });
+  expect(await keyring.activeKey()).toEqual({ keyId: 'id' }); expect(reads).toBe(0);
+});

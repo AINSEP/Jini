@@ -36,3 +36,16 @@ test('a new upload records OFF before publishing the package', async () => {
   await installUploadedAgentPlugin(f.required, f.optional);
   assert.deepEqual(f.order, ['off', 'publish']);
 });
+
+test('bound update refuses a missing settings snapshot before constructing lifecycle', async () => {
+  const { bindAgentPluginUpload } = await import('../install-upload.js');
+  const f = fixture();
+  let constructions = 0;
+  const { layout, archiveReader, ...effects } = f.optional;
+  delete effects.snapshotSettings;
+  const bound = bindAgentPluginUpload({ ...effects, path: { join: (...parts: string[]) => parts.join('/'), relative: () => '' }, archiveReader: () => archiveReader,
+    createLifecycle: () => { constructions++; return f.optional.createLifecycle({ layout }, {}); },
+  });
+  await assert.rejects(bound.installUploadedAgentPlugin({ ...f.required, update: { pluginId: 'demo', expectedOldDigest: 'old' } }, { layout }), /settings snapshot owner/);
+  assert.equal(constructions, 0);
+});

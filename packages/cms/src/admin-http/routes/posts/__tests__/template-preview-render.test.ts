@@ -34,3 +34,25 @@ it('keeps pending empty HTML ahead of the saved draft and changes only the rende
   expect(post.bodyHtml).toBe('saved');
   expect(post.templateChoice).toBeNull();
 });
+
+it.each(['doc', 'html'] as const)('forwards %s embeds unchanged with the original widget context', async bodyFormat => {
+  const { createPostPreviewRenderer } = await import('../template-preview-render.js');
+  const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Page', slug: 'page', bodyJson: {}, kind: 'page', bodyFormat, bodyHtml: 'saved', status: 'draft', templateChoice: '', updatedAt: 'now', version: 1 };
+  const embeds = bodyFormat === 'doc' ? undefined : new Map();
+  const inlineResolved = new Map();
+  const widgets = vi.fn(async () => ({ inlineResolved }));
+  const renderBareEntryDocument = vi.fn((required: Parameters<Parameters<typeof createPostPreviewRenderer>[0]['renderBareEntryDocument']>[0]) => {
+    expect(Object.hasOwn(required, 'pageHtmlEmbeds')).toBe(true);
+    expect(required.pageHtmlEmbeds).toBe(embeds);
+    expect(required.widgetInlineResolved).toBe(inlineResolved);
+    expect(Object.hasOwn(required, 'extraHead')).toBe(false);
+    return '<main>preview</main>';
+  });
+  const renderer = createPostPreviewRenderer({
+    isBarePageChoice: () => true, resolveSiteTitle: async () => 'Site', resolveWidgetsForRender: widgets,
+    resolveHtmlEmbedsForRender: async () => embeds, resolveMediaTransformVersionsForRender: async () => new Map(),
+    resolveMediaAssetMetadataForRender: async () => new Map(), renderBareEntryDocument,
+  } as unknown as Parameters<typeof createPostPreviewRenderer>[0]);
+  expect(await renderer({ input: { post } })).toEqual({ html: '<main>preview</main>', templateChoice: '' });
+  expect(widgets).toHaveBeenCalledWith({ theme: null }, { post });
+});

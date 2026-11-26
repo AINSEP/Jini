@@ -8,7 +8,7 @@ import type { ToolContributor } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { InstallAttachmentReader, PluginInstallSourcePort } from "@jini-ai/core/contracts/headless/plugin-install-source";
 import { AgentPluginInstallError, type createAgentPluginLifecycle } from "../lifecycle/index.js";
-import { AgentPluginUploadError, UPLOADED_AGENT_PLUGIN_TRUST_WARNING, previewUploadedAgentPlugin, installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional } from "./install-upload.js";
+import { AgentPluginUploadError, UPLOADED_AGENT_PLUGIN_TRUST_WARNING, createAgentPluginUpload, installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional, type InstallUploadedAgentPluginRequired, type InstalledUploadedAgentPlugin, type UpdatedUploadedAgentPlugin, type bindAgentPluginUpload } from "./install-upload.js";
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 import type { listBundledAgentPluginServers } from "../connect/new-site-agent-plugin-tokens.js";
 const CUSTOMIZE_AGENT_PLUGIN_TOOL = 'agent_plugins_customize';
@@ -47,18 +47,8 @@ export const AGENT_PLUGINS_UPDATE_TOOL_ID = "agent_plugins_update";
 export const AGENT_PLUGINS_INSTALL_TOOL_ID = "agent_plugins_install";
 export const derivedRisk: DerivedRiskByToolId = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
 
-export function buildRegistrations(deps: AgentPluginsInstallToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
-  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: deps.catalogModule, catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
-    handlers: {
-      [AGENT_PLUGINS_INSTALL_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "install" }),
-      [AGENT_PLUGINS_UPDATE_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "update" }),
-      [CUSTOMIZE_AGENT_PLUGIN_TOOL]: ctx => runInstallTool({ deps, ctx, operation: 'customize' }),
-    },
-  });
-}
-
 /** Gate all three entry points before any source read or package publication. */
-async function runInstallTool({ deps, ctx, operation }: { deps: AgentPluginsInstallToolDeps; ctx: ToolExecutionContext; operation: "install" | "update" | 'customize' }, _optional = {}) {
+async function runInstallTool({ deps, ctx, operation }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext; operation: "install" | "update" | 'customize' }, _optional = {}) {
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: deps.installPermission }, { entityType: "plugin" });
   const input = requireInputRecord({ input: ctx.input });
   if (operation === 'customize') return installArchivePlugin({ deps, ctx }, { archive: await deps.prepareCustomizedAgentPluginArchive({ deps, ctx }) });
@@ -79,14 +69,8 @@ function readUpdateTarget({ input }: { input: Record<string, unknown> }, _option
   return { pluginId, expectedOldDigest };
 }
 
-/** The MCP effects an update re-provisions through. Missing deps are a host wiring fault, so this
- *  throws a plain error (redacted to the model), not a caller-input error. @complexity O(1). */
-function updateMcpEffects({ deps, actor }: { deps: AgentPluginsInstallToolDeps; actor: string }, _optional = {}) {
-  return createAgentPluginUpdateEffects({ actor, deps: requireUpdateMcpDeps({ deps }), resolveServers: deps.resolveServers, provisionServers: deps.provisionServers });
-}
-
 /** The candidate's bytes from a folder, a local zip or a chat attachment, size-capped before reading. */
-async function readToolArchive({ deps, ctx }: { deps: AgentPluginsInstallToolDeps; ctx: ToolExecutionContext }, _optional = {}) {
+async function readToolArchive({ deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext }, _optional = {}) {
   const request = deps.pluginInstallSource.readRequest({ input: ctx.input });
   let archive;
   if (request.kind === "folder") {
@@ -95,7 +79,7 @@ async function readToolArchive({ deps, ctx }: { deps: AgentPluginsInstallToolDep
   } else {
     archive = await deps.pluginInstallSource.readArchive({ request, ownerId: ctx.principal.id, runId: ctx.run.id, maxBytes: deps.maxAgentPluginInstallArchiveBytes() }, { ...(deps.readInstallAttachment ? { readAttachment: deps.readInstallAttachment } : {}) });
   }
-  return { request, archive, expectedSha256: deps.uploadOptions.sha256(archive) };
+  return { request, archive, expectedSha256: deps.sha256(archive) };
 }
 
 /** Every named lifecycle refusal is a result the model can act on; anything else stays redacted. */
@@ -107,15 +91,15 @@ function toToolInputError({ error }: { error: unknown }, _optional: Record<strin
 
 /** The same transaction as the admin Update button (`installUploadedAgentPlugin({ update })`). */
 async function updateArchivePlugin(
-  { deps, ctx, update }: { deps: AgentPluginsInstallToolDeps; ctx: ToolExecutionContext; update: { pluginId: string; expectedOldDigest: string } },
+  { deps, ctx, update }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext; update: { pluginId: string; expectedOldDigest: string } },
   _optional: Record<string, never> = {},
 ) {
   try {
     const { archive, expectedSha256 } = await readToolArchive({ deps, ctx });
-    const result = await installUploadedAgentPlugin({ archive, expectedSha256, workspaceId: deps.workspaceId, actor: ctx.principal.id, update }, {
-      ...deps.uploadOptions, layout: deps.agentPluginLayout, ...(deps.pluginHost ? { pluginHost: deps.pluginHost } : {}),
+    const result = await deps.installUploadedAgentPlugin({ archive, expectedSha256, workspaceId: deps.workspaceId, actor: ctx.principal.id, update }, {
+      layout: deps.agentPluginLayout, ...(deps.pluginHost ? { pluginHost: deps.pluginHost } : {}),
       ...(deps.snapshotAgentPluginSettings ? { snapshotSettings: deps.snapshotAgentPluginSettings } : {}),
-      mcpProvisioning: updateMcpEffects({ deps, actor: ctx.principal.id }),
+      mcpProvisioning: deps.updateMcpEffects({ deps, actor: ctx.principal.id }),
     });
     // No preview here: its replace checks refuse an enabled plugin, which an update keeps enabled.
     // The trust warning is the same static text install's preview carries, minus "stays OFF".
@@ -136,18 +120,18 @@ async function updateArchivePlugin(
  * @complexity O(b) bounded archive bytes; the existing installer owns extraction and locking.
  */
 async function installArchivePlugin(
-  { deps, ctx }: { deps: AgentPluginsInstallToolDeps; ctx: ToolExecutionContext },
+  { deps, ctx }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); ctx: ToolExecutionContext },
   prepared: { archive?: Uint8Array } = {},
 ) {
   try {
     // Customized copies enter the SAME preview/install/state-reporting sequence as folder uploads.
     const { request, archive, expectedSha256 } = prepared.archive
-      ? { request: { replace: false }, archive: prepared.archive, expectedSha256: deps.uploadOptions.sha256(prepared.archive) }
+      ? { request: { replace: false }, archive: prepared.archive, expectedSha256: deps.sha256(prepared.archive) }
       : await readToolArchive({ deps, ctx });
     const required = { archive, expectedSha256, workspaceId: deps.workspaceId, actor: ctx.principal.id, replace: request.replace };
-    const optional = { ...deps.uploadOptions, layout: deps.agentPluginLayout, ...(deps.pluginHost ? { pluginHost: deps.pluginHost } : {}) };
-    const preview = await previewUploadedAgentPlugin(required, optional);
-    const result = await installUploadedAgentPlugin({ ...required, expectedSha256: preview.digest }, optional);
+    const optional = { layout: deps.agentPluginLayout, ...(deps.pluginHost ? { pluginHost: deps.pluginHost } : {}) };
+    const preview = await deps.previewUploadedAgentPlugin(required, optional);
+    const result = await deps.installUploadedAgentPlugin({ ...required, expectedSha256: preview.digest }, optional);
     // Identical bytes are a no-op, including activation. Do not falsely report OFF for a
     // package the operator already enabled; malformed activation remains explicitly unknown.
     const verdict = result.alreadyInstalled
@@ -160,7 +144,7 @@ async function installArchivePlugin(
 }
 
 function uploadedInstallResult(
-  { result, verdict, warning }: { result: Awaited<ReturnType<typeof installUploadedAgentPlugin>>; verdict: Awaited<ReturnType<AgentPluginsInstallToolDeps["agentPluginActivations"]["resolveAgentPluginActivation"]>>["verdict"]; warning: string },
+  { result, verdict, warning }: { result: Awaited<ReturnType<typeof installUploadedAgentPlugin>>; verdict: Awaited<ReturnType<(Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0])["agentPluginActivations"]["resolveAgentPluginActivation"]>>["verdict"]; warning: string },
   _optional: Record<string, never> = {},
 ) {
   return { installed: true, enabled: verdict === "undetermined" ? null : verdict === "active", alreadyInstalled: result.alreadyInstalled,
@@ -177,7 +161,7 @@ function uploadedInstallResult(
  * @throws {ToolInputError} Unknown id, a namesake from another source, or a failed seed.
  */
 async function installBundledPlugin(
-  { input, deps }: { input: Record<string, unknown>; deps: AgentPluginsInstallToolDeps },
+  { input, deps }: { input: Record<string, unknown>; deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]) },
   _optional: Record<string, never> = {},
 ) {
   const id = readBundledPluginId({ input });
@@ -200,11 +184,52 @@ async function installBundledPlugin(
   };
 }
 
-export function contributeAgentPluginsInstallTools(
-  required: Pick<AgentPluginsInstallToolDeps, "readInstallAttachment" | "pluginInstallSource">,
-  _optional: Record<string, never> = {},
-): ToolContributor<Omit<AgentPluginsInstallToolDeps, "pluginInstallSource">, unknown> {
-  return { domain: "agent-plugins-install", build: deps => buildRegistrations({ ...deps, ...required }), risk: derivedRisk };
+export function bindAgentPluginsInstallTools(required: Pick<AgentPluginsInstallToolDeps,
+  'catalog' | 'catalogModule' | 'toolMetadata' | 'installPermission' | 'zipLocalFolder' | 'maxAgentPluginInstallArchiveBytes' |
+  'listInstalledPlugins' | 'seedBundledAgentPlugins' | 'listBundledAgentPluginServers' | 'agentPluginActivations'
+> & {
+  sha256: InstallUploadedAgentPluginOptional['sha256'];
+  installUploadedAgentPlugin: ReturnType<typeof bindAgentPluginUpload>['installUploadedAgentPlugin'];
+  previewUploadedAgentPlugin: ReturnType<typeof bindAgentPluginUpload>['previewUploadedAgentPlugin'];
+  updateMcpEffects(input: { deps: Pick<UpdateMcpDeps, 'workspaceId' | 'agentPluginLayout'> & Partial<UpdateMcpDeps>; actor: string }): ReturnType<typeof createAgentPluginUpdateEffects>;
+  prepareCustomizedAgentPluginArchive(input: { deps: Pick<AgentPluginsInstallToolDeps, 'workspaceId' | 'agentPluginLayout'>; ctx: ToolExecutionContext }): ReturnType<typeof prepareCustomizedAgentPluginArchive>;
+}, _optional = {}) {
+  const buildRegistrations = (input: Omit<AgentPluginsInstallToolDeps, keyof typeof required | 'uploadOptions' | 'resolveServers' | 'provisionServers'>, _optional = {}): ToolRegistration[] => {
+    const deps = { ...input, ...required };
+    return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: deps.catalogModule, catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
+      handlers: {
+        [AGENT_PLUGINS_INSTALL_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "install" }),
+        [AGENT_PLUGINS_UPDATE_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "update" }),
+        [CUSTOMIZE_AGENT_PLUGIN_TOOL]: ctx => runInstallTool({ deps, ctx, operation: 'customize' }),
+      },
+    });
+  };
+  return {
+    buildRegistrations,
+    contributeAgentPluginsInstallTools: (input: Pick<AgentPluginsInstallToolDeps, 'readInstallAttachment' | 'pluginInstallSource'>, _optional = {}): ToolContributor<Omit<Parameters<typeof buildRegistrations>[0], 'pluginInstallSource'>, unknown> => ({
+      domain: 'agent-plugins-install', build: deps => buildRegistrations({ ...deps, ...input }), risk: derivedRisk,
+    }),
+  };
+}
+
+export function buildRegistrations(deps: AgentPluginsInstallToolDeps, _optional = {}): ToolRegistration[] {
+  function installUploadedAgentPlugin(input: InstallUploadedAgentPluginRequired & { update: NonNullable<InstallUploadedAgentPluginRequired['update']> }, optional: Parameters<ReturnType<typeof bindAgentPluginUpload>['installUploadedAgentPlugin']>[1]): Promise<UpdatedUploadedAgentPlugin>;
+  function installUploadedAgentPlugin(input: InstallUploadedAgentPluginRequired, optional: Parameters<ReturnType<typeof bindAgentPluginUpload>['installUploadedAgentPlugin']>[1]): Promise<InstalledUploadedAgentPlugin>;
+  function installUploadedAgentPlugin(input: InstallUploadedAgentPluginRequired, optional: Parameters<ReturnType<typeof bindAgentPluginUpload>['installUploadedAgentPlugin']>[1]) {
+    return createAgentPluginUpload({ ...deps.uploadOptions, ...optional }).installUploadedAgentPlugin(input, optional);
+  }
+  return bindAgentPluginsInstallTools({ ...deps, sha256: archive => deps.uploadOptions.sha256(archive),
+    installUploadedAgentPlugin,
+    previewUploadedAgentPlugin: (input, optional) => createAgentPluginUpload({ ...deps.uploadOptions, ...optional }).previewUploadedAgentPlugin(input, optional),
+    prepareCustomizedAgentPluginArchive: ({ deps: execution, ctx }) => deps.prepareCustomizedAgentPluginArchive({ deps: { ...deps, ...execution }, ctx }),
+    /** The MCP effects an update re-provisions through. Missing deps are a host wiring fault, so this
+     *  throws a plain error (redacted to the model), not a caller-input error. @complexity O(1). */
+    updateMcpEffects: ({ deps: execution, actor }) => createAgentPluginUpdateEffects({ actor, deps: requireUpdateMcpDeps({ deps: execution }), resolveServers: deps.resolveServers, provisionServers: deps.provisionServers }),
+  }).buildRegistrations(deps);
+}
+
+export function contributeAgentPluginsInstallTools(required: Pick<AgentPluginsInstallToolDeps, 'readInstallAttachment' | 'pluginInstallSource'>, _optional = {}): ToolContributor<Omit<Parameters<typeof buildRegistrations>[0], 'pluginInstallSource'>, unknown> {
+  return { domain: 'agent-plugins-install', build: deps => buildRegistrations({ ...deps, ...required }), risk: derivedRisk };
 }
 
 function readBundledPluginId({ input }: { input: Record<string, unknown> }, _optional: Record<string, never> = {}): string {
@@ -218,7 +243,7 @@ function readBundledPluginId({ input }: { input: Record<string, unknown> }, _opt
 }
 
 async function seedMissingBundledPlugin(
-  { deps, sourceRoot, id }: { deps: AgentPluginsInstallToolDeps; sourceRoot: string; id: string },
+  { deps, sourceRoot, id }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools>[0]); sourceRoot: string; id: string },
   _optional: Record<string, never> = {},
 ) {
   const outcome = (await deps.seedBundledAgentPlugins({ layout: deps.agentPluginLayout, workspaceId: deps.workspaceId, sourceRoot })).outcomes.find(plugin => plugin.pluginId === id);

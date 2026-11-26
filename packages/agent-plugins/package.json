@@ -186,6 +186,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./site/plugin-memory": {
+      "types": "./dist/site/plugin-memory.d.ts",
+      "import": "./dist/site/plugin-memory.js",
+      "default": "./dist/site/plugin-memory.js"
+    },
     "./connect/new-site-agent-plugin-tokens": {
       "types": "./dist/connect/new-site-agent-plugin-tokens.d.ts",
       "import": "./dist/connect/new-site-agent-plugin-tokens.js",

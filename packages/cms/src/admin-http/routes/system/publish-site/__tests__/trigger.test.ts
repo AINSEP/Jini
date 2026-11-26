@@ -21,3 +21,29 @@ it("permission, config, domain and consent block before the one synchronous star
   expect(start).toHaveBeenCalledWith({ config: { domain: false }, projectName: " project ", principalId: "owner", credentialId: " chosen " });
   expect(onBlocked.mock.calls.map(([call]) => call.reasonClass)).toEqual(["config", "config", "consent"]);
 });
+
+it('preserves typed snapshots, distinguishes missing consent and writes refusal before telemetry', async () => {
+  const { registerPublishTriggerRoute } = await import('../trigger.js');
+  const order: string[] = [];
+  const snapshot = { status: 'idle', runId: 'run', revision: 7 };
+  const registry = { targetIds: ['target'] };
+  const start = vi.fn(() => ({ ...snapshot, status: 'running' }));
+  let run!: () => Promise<unknown>;
+  let refuse!: () => void;
+  const mount: Parameters<typeof registerPublishTriggerRoute<{ target: string; customDomain?: string; region: string }, typeof registry, typeof snapshot>>[0]['mount'] = input => {
+    run = () => input.spec.handle({ input: { body: { target: 'target', projectName: 'project' } }, deps: input.deps, context: { id: 'owner' }, authorize: async () => {} });
+    refuse = () => input.refusal({ response: { status: 403, body: { error: 'denied' } }, json: () => { order.push('write'); }, principalId: () => 'owner' });
+  };
+  const required = { mount, readConfig: async () => ({ ok: true as const, config: { target: 'target', region: 'region' }, registry }),
+    plan: ({ registry: actual }: { registry: typeof registry }) => { expect(actual).toBe(registry); return { ok: true as const }; }, start,
+    snapshot: () => snapshot, consentUnavailable: () => ({ code: 'CONSENT_UNAVAILABLE' }), domainConfirmationText: 'confirm',
+    onBlocked: () => { order.push('blocked'); }, operation: 'publish',
+  };
+  registerPublishTriggerRoute({ ...required, siteConsent: undefined });
+  expect(await run()).toMatchObject({ ok: true, value: { status: 409, body: { code: 'CONSENT_UNAVAILABLE' } } });
+  expect(start).not.toHaveBeenCalled();
+  registerPublishTriggerRoute({ ...required, siteConsent: { deploymentCheck: async () => null } });
+  expect(await run()).toEqual({ ok: true, value: { ...snapshot, status: 'running' } });
+  expect(start).toHaveBeenCalledWith({ principal: { id: 'owner' }, parsed: { projectName: 'project' }, config: { target: 'target', region: 'region' } });
+  order.length = 0; refuse(); expect(order).toEqual(['write', 'blocked']);
+});

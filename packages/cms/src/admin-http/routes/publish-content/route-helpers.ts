@@ -21,10 +21,14 @@ export function knownMappedErrorResponse({ err, table }: { err: unknown; table: 
  */
 export function mappedErrorResponse({ err, table, incident, operation, method, route, discloseDetails }: {
   err: unknown; table: readonly MappedErrorClass[];
-  incident: (error: unknown, options: { operation: string; method: string; route: string; discloseDetails: boolean; message?: string | undefined }) => RouteRefusal;
-  operation: string; method: string; route: string; discloseDetails: boolean;
+  incident: (error: unknown, options: { operation: string; method?: string | undefined; route?: string | undefined; discloseDetails?: boolean | undefined; message?: string | undefined }) => RouteRefusal;
+  operation: string; method?: string | undefined; route?: string | undefined; discloseDetails?: boolean | undefined;
 }, { message }: { message?: string } = {}): RouteRefusal {
   const known = knownMappedErrorResponse({ err, table });
   if (known) return known;
   return incident(err, { operation, message, method, route, discloseDetails });
+}
+
+export function createMappedErrorResponse(required: Pick<Parameters<typeof mappedErrorResponse>[0], 'incident' | 'operation'>, _optional = {}) {
+  return (input: Omit<Parameters<typeof mappedErrorResponse>[0], 'incident' | 'operation'>, optional: Parameters<typeof mappedErrorResponse>[1] = {}): RouteRefusal => mappedErrorResponse({ ...input, ...required }, optional);
 }

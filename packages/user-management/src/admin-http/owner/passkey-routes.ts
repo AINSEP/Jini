@@ -1,3 +1,4 @@
+import { createOwnerPasskeyAdmission } from './passkey-admission.js';
 import { IdentityValidationError, OwnerRequiredError } from '../../core/types.js';
 import type { beginOwnerPasskeyEnrollment, confirmOwnerPasskeyEnrollment, beginOwnerPasskeyLogin, completeOwnerPasskeyLogin, removeOwnerPasskey } from '../../server/mfa/passkey-service.js';
 import type { OwnerPasskeyDeps } from '../../server/mfa/passkey-ports.js';
@@ -113,8 +114,9 @@ export async function resolveOwnerPasskeyRouteDeps(required: {
   site: Parameters<typeof ownerPasskeySite>[0];
   unavailableMessage: string;
 }, _optional = {}): Promise<OwnerPasskeyDeps> {
-  if (!required.store()) throw new IdentityValidationError({ message: required.unavailableMessage });
-  return { mfa: await required.mfa(), credentials: required.store()!, webauthn: required.webauthn(), site: ownerPasskeySite(required.site) };
+  const credentials = required.store();
+  if (!credentials) throw new IdentityValidationError({ message: required.unavailableMessage });
+  return { mfa: await required.mfa(), credentials, webauthn: required.webauthn(), site: ownerPasskeySite(required.site) };
 }
 
 /** Admission failures reveal no credentials; protocol proofs are never logged. O(1). */
@@ -143,4 +145,36 @@ export function registerOwnerPasskeyRoutes(required: {
   required.mount({ method: "get", path: required.root, handle: async admission => {
     await ownerPasskeyStatusRoute({ admission });
   } });
+}
+
+export function bindOwnerPasskeyRoutes<Request, Response, Host>(required: {
+  root: string;
+  mount(required: { host: Host; method: 'post' | 'get'; path: string; handle(req: Request, res: Response): Promise<void> }): void;
+  workspaceId(required: { host: Host }): string;
+  store(required: { host: Host }): OwnerPasskeyDeps['credentials'] | undefined;
+  mfa(required: { host: Host }): Promise<OwnerPasskeyDeps['mfa']>;
+  webauthn(): OwnerPasskeyDeps['webauthn'];
+  site(required: { host: Host; req: Request }): Parameters<typeof ownerPasskeySite>[0];
+  unavailableMessage: string;
+  authenticate(required: { host: Host; req: Request }): ReturnType<Admission['authenticate']>;
+  ownerPrincipalId(required: { host: Host }): Promise<string>;
+  isJson(required: { req: Request }): boolean;
+  header(required: { req: Request; name: string }): string | undefined;
+  body(required: { req: Request }): Record<string, unknown>;
+  byteCount(required: { req: Request }): number;
+  rate(required: { host: Host; req: Request }): ReturnType<Admission['rate']>;
+  noStore(required: { res: Response }): void;
+  retryAfter(required: { res: Response; value: string }): void;
+  json(required: { res: Response; value: unknown; status?: number }): void;
+  empty(required: { res: Response }): void;
+  incident(required: { res: Response; error: unknown; options: Parameters<typeof answerOwnerPasskeyFailure>[0]['incidentOptions'] }): void;
+  signedIn(required: { host: Host; req: Request; res: Response; result: Awaited<ReturnType<typeof completeOwnerPasskeyLogin>> }): Promise<void>;
+  services: Admission['services']; copy: Admission['copy']; operation: string;
+  incidentOptions: Parameters<typeof answerOwnerPasskeyFailure>[0]['incidentOptions'];
+}, _optional = {}) {
+  return (host: Host, _optional = {}): void => registerOwnerPasskeyRoutes({ root: required.root,
+    mount: route => required.mount({ host, method: route.method, path: route.path,
+      handle: (req, res) => route.handle(createOwnerPasskeyAdmission({ required, host, req, res })),
+    }),
+  });
 }

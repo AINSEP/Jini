@@ -1,3 +1,5 @@
+import { toObjectArgArchiveReader, toZeroArgArchiveReader } from './archive-reader-abi.js';
+export { toObjectArgArchiveReader, toZeroArgArchiveReader } from './archive-reader-abi.js';
 import { planAgentPluginUpdate, AgentPluginUpdateError, type AgentPluginMcpProvisioningPort } from "@jini-ai/agent-plugins/lifecycle";
 import type { readInstalledAgentPluginIdentity } from "@jini-ai/agent-plugins/lifecycle/host-tools";
 import type { PluginHostPort, AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
@@ -69,7 +71,7 @@ function withinPrefix({ reader, prefix }: { reader: AgentPluginArchiveReaderPort
         const name = entry.entryPath.replaceAll("\\", "/");
         if (name.startsWith(prefix)) {
           const inner = name.slice(prefix.length);
-          if (inner) yield { ...entry, entryPath: inner } as AgentPluginArchiveEntry;
+          if (inner) yield entry.kind === "file" ? { ...entry, entryPath: inner, openReadStream: required => entry.openReadStream(required) } : { ...entry, entryPath: inner };
         }
       }
     },
@@ -141,6 +143,7 @@ export interface InstallUploadedAgentPluginOptional {
   readonly lstat: typeof lstat;
   readonly warnCleanup: (input: { pluginId: string; error: unknown }) => void;
   readonly layout: AgentPluginLayout;
+  readonly path?: Pick<typeof path, "join" | "relative">;
 }
 
 export interface InstalledUploadedAgentPlugin {
@@ -329,10 +332,10 @@ async function indexPackageManifest(
 }
 
 async function removeFailedPublication(
-  { packagesDir, digest, staged, lstat, removeFrozenPackageTree }: { packagesDir: string; digest: string; staged: readonly StagedTree[]; lstat: InstallUploadedAgentPluginOptional["lstat"]; removeFrozenPackageTree: InstallUploadedAgentPluginOptional["lifecycle"]["removeFrozenPackageTree"] },
+  { packagesDir, digest, staged, lstat, removeFrozenPackageTree, path: paths }: { path: Pick<typeof path, "join">; packagesDir: string; digest: string; staged: readonly StagedTree[]; lstat: InstallUploadedAgentPluginOptional["lstat"]; removeFrozenPackageTree: InstallUploadedAgentPluginOptional["lifecycle"]["removeFrozenPackageTree"] },
   _optional: Record<string, never> = {},
 ) {
-  const destination = path.join(packagesDir, digest);
+  const destination = paths.join(packagesDir, digest);
   // publish can fail while freezing its new tree. Remove that tree before restoring the old
   // one, so a failed upgrade never leaves two resolvable versions under the same id.
   if (staged.length > 0) {
@@ -371,7 +374,7 @@ async function publishUploadedAgentPlugin({ workspaceLayout, pluginId, digest, r
         setUpgradeFrom(existing.flatMap(entry => entry.version ? [entry.version] : []));
         const staged: StagedTree[] = [];
         const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
-        await assertOwnedPluginPath({ contain: containAgentPluginStatePath, workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+        await assertOwnedPluginPath({ contain: containAgentPluginStatePath, workspaceRoot: workspaceLayout.root, entryPath: (optional.path ?? path).relative(workspaceLayout.root, packagesDir) });
         let installed: InstalledAgentPlugin;
         try {
           for (const previous of existing) staged.push(await stageForRemoval({ packagesDir, packageRoot: previous.packageRoot }));
@@ -380,7 +383,7 @@ async function publishUploadedAgentPlugin({ workspaceLayout, pluginId, digest, r
           if (existing.length === 0) await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId, enabled: false, actor }, { origin: "operator-installed" });
           installed = await publish();
         } catch (error) {
-          await removeFailedPublication({ packagesDir, digest, staged, lstat: optional.lstat, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree });
+          await removeFailedPublication({ packagesDir, digest, staged, lstat: optional.lstat, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree, path: optional.path ?? path });
           throw await restoreStagedTrees({ staged, cause: error });
         }
         await retireReplacedPackages({ staged, pluginId, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree, warnCleanup: optional.warnCleanup });
@@ -388,8 +391,45 @@ async function publishUploadedAgentPlugin({ workspaceLayout, pluginId, digest, r
       }
 
 export function createAgentPluginUpload(required: InstallUploadedAgentPluginOptional, _optional = {}) {
+  function install(input: InstallUploadedAgentPluginRequired & { update: NonNullable<InstallUploadedAgentPluginRequired['update']> }, optional?: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'>): Promise<UpdatedUploadedAgentPlugin>;
+  function install(input: InstallUploadedAgentPluginRequired, optional?: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'>): Promise<InstalledUploadedAgentPlugin>;
+  function install(input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'> = {}) { return installUploadedAgentPlugin(input, { ...required, ...optional }); }
   return {
-    installUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'> = {}) => installUploadedAgentPlugin(input, { ...required, ...optional }),
+    installUploadedAgentPlugin: install,
     previewUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'> = {}) => previewUploadedAgentPlugin(input, { ...required, ...optional }),
+  };
+}
+
+export function bindAgentPluginUpload(required: Omit<InstallUploadedAgentPluginOptional, 'layout' | 'archiveReader' | 'path' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning' | 'lifecycle' | 'createLifecycle'> & {
+  lifecycle: Omit<InstallUploadedAgentPluginOptional['lifecycle'], 'installAgentPlugin'> & {
+    installAgentPlugin(input: Omit<Parameters<InstallUploadedAgentPluginOptional['lifecycle']['installAgentPlugin']>[0], 'archiveReader'> & { archiveReader: ReturnType<typeof toZeroArgArchiveReader> }, optional?: Parameters<InstallUploadedAgentPluginOptional['lifecycle']['installAgentPlugin']>[1]): ReturnType<InstallUploadedAgentPluginOptional['lifecycle']['installAgentPlugin']>;
+  };
+  createLifecycle(input: Parameters<InstallUploadedAgentPluginOptional['createLifecycle']>[0], optional: Parameters<InstallUploadedAgentPluginOptional['createLifecycle']>[1]): {
+    updateAgentPlugin(input: Omit<Parameters<ReturnType<InstallUploadedAgentPluginOptional['createLifecycle']>['updateAgentPlugin']>[0], 'archiveReader'> & { archiveReader: ReturnType<typeof toZeroArgArchiveReader> }): ReturnType<ReturnType<InstallUploadedAgentPluginOptional['createLifecycle']>['updateAgentPlugin']>;
+  };
+  path: Pick<typeof path, 'join' | 'relative'>;
+  archiveReader(): AgentPluginArchiveReaderPort;
+}, _optional = {}) {
+  function install(
+    input: InstallUploadedAgentPluginRequired & { update: NonNullable<InstallUploadedAgentPluginRequired['update']> },
+    optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] },
+  ): Promise<UpdatedUploadedAgentPlugin>;
+  function install(input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] }): Promise<InstalledUploadedAgentPlugin>;
+  function install(input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] }) {
+    return installUploadedAgentPlugin(input, {
+      ...required, ...optional, archiveReader: optional.archiveReader ? toObjectArgArchiveReader({ reader: optional.archiveReader }) : required.archiveReader(),
+      lifecycle: { ...required.lifecycle, installAgentPlugin: (input, optional) => required.lifecycle.installAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }, optional) },
+      createLifecycle: (input, optional) => {
+        const lifecycle = required.createLifecycle(input, optional);
+        return { updateAgentPlugin: input => lifecycle.updateAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }) };
+      },
+    });
+  }
+  return {
+    installUploadedAgentPlugin: install,
+    previewUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] }) => previewUploadedAgentPlugin(input, {
+      ...required, ...optional, archiveReader: optional.archiveReader ? toObjectArgArchiveReader({ reader: optional.archiveReader }) : required.archiveReader(),
+      lifecycle: { ...required.lifecycle, installAgentPlugin: (input, optional) => required.lifecycle.installAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }, optional) },
+    }),
   };
 }

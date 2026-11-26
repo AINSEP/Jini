@@ -15,7 +15,7 @@ function fixture() {
     workspaceId: "workspace", siteTitleReady: Promise.resolve(), preferences: { mode: async () => preference.mode, snapshot: async () => ({ ...preference }), saveAuto },
     list, rank: ({ candidates }) => candidates.map(candidate => ({ ...candidate, score: 4 })), resolve: async () => ({ ok: true, promptPrefix: "Guidance" }),
     formatPluginToolPointer: () => "read guidance", warn: vi.fn(),
-    catalog: [{ name: "load_agent_plugin", description: "Read guidance", sideEffects: "none", inputSchema: { type: "object" } }],
+    catalog: [{ name: "load_agent_plugin", description: "Read guidance", sideEffects: "none", authorization: { permission: "agent_plugins.read" }, inputSchema: { type: "object" } }],
     metadata: { load_agent_plugin: { approval: { class: "read", confirmation: "direct" } } }, catalogModule: "host/catalog", derivedRisk: new Map([["load_agent_plugin", "none"]]),
     copy: { preferenceBeforeAnswer: "preference changed before answer", preferenceAfterAnswer: "preference changed after answer", loadNotes: () => ({}) },
   };
@@ -87,4 +87,38 @@ describe("automatic plugin run ownership", () => {
     f.runs.forget({ runId: "run" });
     await expect(f.runs.commit({ scope: { runId: "run", principalId: "owner", attempt: 1 }, offerId: "offer", deliveredIds: ["synthetic"] })).rejects.toThrow("run is unavailable");
   });
+});
+
+it('reads changing layouts once per logical turn and never at construction or rejoin', async () => {
+  const { createScopedAutomaticPluginRuns, bindAutomaticGuidanceResolver } = await import('../automatic-agent-plugins.js');
+  const f = fixture();
+  let root = '/first';
+  const reads: string[] = [];
+  const resolve = vi.fn(async ({ workspaceLayout }: { workspaceLayout: { root: string; packages: string; revision: string } }) => ({ ok: true as const, promptPrefix: workspaceLayout.revision }));
+  const runs = createScopedAutomaticPluginRuns({ deps: { ...f.deps, preferences: { ...f.deps.preferences, mode: async () => 'auto' },
+    resolveForEntry: () => {
+      reads.push(root);
+      return bindAutomaticGuidanceResolver({ workspaceLayout: { root, packages: root + '/packages', revision: root }, resolveGuidance: resolve });
+    },
+  }, surfaces: {} as Parameters<typeof createScopedAutomaticPluginRuns>[0]['surfaces'], askAgentPluginChoice: f.askAgentPluginChoice });
+  expect(reads).toEqual([]);
+  await runs.start({ runId: 'first', messageId: 'turn', context: f.context });
+  root = '/second';
+  await runs.start({ runId: 'retry', messageId: 'turn', context: f.context });
+  expect(reads).toEqual(['/first']);
+  await runs.start({ runId: 'next', messageId: 'next-turn', context: f.context });
+  expect(reads).toEqual(['/first', '/second']);
+  expect(resolve.mock.calls.map(([input]) => input.workspaceLayout.revision)).toEqual(['/first', '/second']);
+});
+
+it('allows inactive guidance only for explicit loading', async () => {
+  const { bindAutomaticGuidanceResolver } = await import('../automatic-agent-plugins.js');
+  const resolveGuidance = vi.fn(async () => ({ ok: true as const, promptPrefix: 'Guidance' }));
+  const resolve = bindAutomaticGuidanceResolver({ workspaceLayout: { root: '/root', packages: '/packages' }, resolveGuidance });
+  await resolve({ pluginId: 'sample' });
+  await resolve({ pluginId: 'sample' }, { allowInactiveGuidance: true });
+  expect(resolveGuidance.mock.calls).toEqual([
+    [{ pluginRefIds: ['sample'], workspaceLayout: { root: '/root', packages: '/packages' } }, { deliveryMode: 'inject', allowInactiveGuidance: false }],
+    [{ pluginRefIds: ['sample'], workspaceLayout: { root: '/root', packages: '/packages' } }, { deliveryMode: 'inject', allowInactiveGuidance: true }],
+  ]);
 });
