@@ -2,6 +2,8 @@ import { lstatSync, mkdirSync, realpathSync, renameSync, rmSync, statSync, write
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
 
+import { FS_WRITE_LIMITS } from "./agent-tools.js";
+
 /**
  * @file Batched writes into the owner-picked folder (owner 2026-10-27) — the agent's only write path
  * there; `fs_write_files` puts each batch on one approval card. `agent-tools.ts`'s "why read-only"
@@ -10,8 +12,9 @@ import { dirname, isAbsolute, join, sep } from "node:path";
  * the frozen batch the card showed.
  */
 
-/** Batch bounds: enough for a small site's pages and assets, small enough for one card and memory. */
-export const FS_WRITE_LIMITS = { maxFiles: 50, maxFileBytes: 2 * 1024 * 1024, maxTotalBytes: 10 * 1024 * 1024 } as const;
+// Batch bounds (enough for a small site's pages and assets, small enough for one card and memory)
+// live in the universal catalog so the published schema and this writer share one bound.
+export { FS_WRITE_LIMITS };
 
 /** A refused folder or batch; nothing was written. The message says which file and why. */
 export class FsWriteInputError extends Error {

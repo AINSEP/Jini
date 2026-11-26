@@ -23,6 +23,16 @@ The host injects its guarded path resolver (the read tools' denylist + containme
 `resolveFsFilePath` field on `inspectWriteTarget`, `prepareFileWrites` and `writePreparedFiles`. The host
 binds its own guarded `resolveFsFilePath` at each call site (its fs-files tool registrations and its
 asset-transfer destinations and sources).
+
+`agent-tools.ts` — the `fs_list_files` / `fs_read_file` / `fs_write_files` catalog
+(`@jini-ai/cms/fs-files/agent-tools`, universal), the canonical `FS_FILES_READ_PERMISSION`, and
+`FS_WRITE_LIMITS`, the batch bounds `write-files.ts` enforces and the write schema publishes.
+
+### Wiring (agent-tools)
+
+`getFsFilesAgentToolCatalog({ rootIds, rootDescriptors, maxFileBytes }, _optional = {})`: the host
+passes its root IDs, each root's model-facing description, and its read ceiling. The root enum and its
+description are built per call from those, so the package carries no root list of its own.
 # fs-files (cms)
 
 Server-side pieces of the folder-files feature: the operator-set `custom` filesystem root's
