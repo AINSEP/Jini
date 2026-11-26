@@ -13,7 +13,6 @@
     "kind": "kernel",
     "runtime": "universal",
     "entries": {
-      "./contracts/standing-draft": "universal",
       "./contracts/site/public-origin": "universal",
       "./contracts/site/vault-context": "universal",
       "./tool-metadata/agent-pause": "universal",

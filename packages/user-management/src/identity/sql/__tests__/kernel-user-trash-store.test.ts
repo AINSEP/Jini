@@ -16,11 +16,11 @@ async function fixture() {
   await kernel.execute(sql`INSERT INTO sessions VALUES ('site','member')`);
   const assertAccountAction = vi.fn(async () => {});
   const purgeUser = vi.fn();
-  const eventValues = vi.fn((event: { name: string; payload: unknown }) => ({ type: event.name, payload: JSON.stringify(event.payload) }));
+  const eventValues = (event: { name: string; payload: unknown }) => ({ type: event.name, payload: JSON.stringify(event.payload) });
   const createUserTrashAdapter = bindKernelUserTrashAdapter({ entityType: "user", kernelFor: () => () => kernel });
   const adapter = createUserTrashAdapter({ db: kernel, assertAccountAction, purge: { purgeUser }, eventValues,
     idGen: { next: () => "event" }, clock: { nowIso: () => "now" } });
-  return { kernel, adapter, assertAccountAction, purgeUser, eventValues };
+  return { kernel, adapter, assertAccountAction, purgeUser };
 }
 
 test("a status change after the initial read refuses a stale hide without sessions or event writes", async () => {
@@ -37,7 +37,7 @@ test("a status change after the initial read refuses a stale hide without sessio
 test("an outbox failure rolls back both the disabled marker and session revocation", async () => {
   const f = await fixture();
   try {
-    f.eventValues.mockImplementation(() => { throw new Error("outbox failed"); });
+    await f.kernel.execute(sql`CREATE TRIGGER reject_outbox BEFORE INSERT ON outbox_events BEGIN SELECT RAISE(ABORT, 'outbox failed'); END`);
     await expect(f.adapter.hide(input)).rejects.toThrow("outbox failed");
     expect(await f.kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "active", disabled_at: null }]);
     expect(await f.kernel.query(sql`SELECT * FROM sessions`)).toHaveLength(1);
@@ -47,19 +47,28 @@ test("an outbox failure rolls back both the disabled marker and session revocati
 test("hide disables and revokes sessions; restore revives no session and uses status CAS", async () => {
   const f = await fixture();
   try {
+    await f.kernel.execute(sql`INSERT INTO sessions VALUES ('site','other-member'), ('other-site','member')`);
+    const readSessions = sql`SELECT workspace_id, principal_id FROM sessions ORDER BY workspace_id, principal_id`;
+    const remainingSessions = [{ workspace_id: "other-site", principal_id: "member" }, { workspace_id: "site", principal_id: "other-member" }];
     expect(await f.adapter.hide(input)).toEqual({ ok: true, version: null, priorMarker: "active" });
     expect(await f.kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "disabled", disabled_at: "now" }]);
-    expect(await f.kernel.query(sql`SELECT * FROM sessions`)).toEqual([]);
+    expect(await f.kernel.query(readSessions)).toEqual(remainingSessions);
     const run = f.kernel.run.bind(f.kernel);
     let reads = 0;
-    vi.spyOn(f.kernel, "run").mockImplementation(async fn => {
+    const runSpy = vi.spyOn(f.kernel, "run").mockImplementation(async fn => {
       const result = await run(fn);
       if (++reads === 1) await f.kernel.execute(sql`UPDATE principals SET status = 'suspended'`);
       return result;
     });
-    expect(await f.adapter.unhide(input, { priorMarker: "active" })).toEqual({ ok: false, reason: "version-changed" });
+    try {
+      expect(await f.adapter.unhide(input, { priorMarker: "active" })).toEqual({ ok: false, reason: "version-changed" });
+    } finally { runSpy.mockRestore(); }
     expect(await f.kernel.query(sql`SELECT status FROM principals`)).toEqual([{ status: "suspended" }]);
-    expect(await f.kernel.query(sql`SELECT * FROM sessions`)).toEqual([]);
+    expect(await f.kernel.query(readSessions)).toEqual(remainingSessions);
+    await f.kernel.execute(sql`UPDATE principals SET status = 'disabled'`);
+    expect(await f.adapter.unhide(input, { priorMarker: "active" })).toEqual({ ok: true, version: null });
+    expect(await f.kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "active", disabled_at: null }]);
+    expect(await f.kernel.query(readSessions)).toEqual(remainingSessions);
   } finally { await f.kernel.close(); }
 });
 

@@ -95,7 +95,7 @@ describe("backend expiry", () => {
       captureStaticSite: unused, buildShareZip: async () => Buffer.from("zip"), buildStaticSiteZip: unused, acknowledgeSiteShare: unused, revokeSiteShare: unused,
       createSiteShare: async (_required, optional) => { created.push(optional.expiresAt); return { shareId: "share-new", token: "T", site: "a", file: "f", bytes: 1, sha256: "x", url: null, status: "active", createdAt: "c", revokedAt: null, ...(optional.expiresAt ? { expiresAt: optional.expiresAt } : {}) }; },
       isOwnShareFolder: ({ storage }) => storage.provider === "local-fs" && storage.binding === "/srv", ownFolderProvider: "local-fs", expiry: EXPIRY };
-    return createSiteShareBackend({ registry: { get: async () => undefined, list: async () => [] }, site: "a", zip: {}, delivery, ownerPrincipalId: "owner",
+    return createSiteShareBackend({ registry: { get: async () => null, list: async () => [] }, site: "a", zip: {}, delivery, ownerPrincipalId: "owner",
       prepare: async () => ({ files: [], bufferedFiles: [], scopeNotes: {}, totalBytes: 0, site: { folderName: "a" } }), host }, { now: () => NOW });
   }
   it("offers the host's day choices only while new exports land in the own folder", async () => {

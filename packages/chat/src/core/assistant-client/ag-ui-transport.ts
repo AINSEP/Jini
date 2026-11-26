@@ -327,7 +327,7 @@ function subscribeRun(
       },
       complete: () => {
         // An empty stream has no first notification to settle the start promise.
-        finish(turn.agent.abortController.signal.aborted || turn.durable?.accepted ? undefined : new Error("The agent run stream ended before a terminal verdict; send the message again."));
+        finish(turn.agent.abortController.signal.aborted || turn.durable?.accepted ? undefined : new Error("The assistant stopped before replying. Send your message again."));
       },
     });
   });
