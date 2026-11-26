@@ -50,7 +50,7 @@ test("providers localize labels, fall back to External MCP, and keep Soon bodies
     ComingSoonPanel: ({ children, label, note }) => <section><p>{label}</p><p>{note}</p><div inert>{children}</div></section>,
   };
   const Bound = bindProviders({ kit, hooks: {
-    useProvidersHook: () => ({ externalMcp: { dependencies: { port: { fetchSources: async () => [], addSource: async () => ({ ok: true }), removeSource: async () => true } }, restartRequired: true } }),
+    useExternalMcp: () => ({ dependencies: { port: { fetchSources: async () => [], addSource: async () => ({ ok: true }), removeSource: async () => true } }, restartRequired: true }),
     useAdminLocale: () => "fr", useAdminThemeBoundary: () => ({ "data-theme": "light" }), useIntegrationsHook,
   }, deps: {
     dictionaries: {}, t: ({ locale, key }) => `${locale}:${key}`, tIntegrations: ({ locale, key }) => `${locale}:${key}`,

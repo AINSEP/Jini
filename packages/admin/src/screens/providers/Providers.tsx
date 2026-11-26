@@ -5,6 +5,7 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
 import { resolveActiveTabId } from "@jini-ai/core/text";
 import { providersTabs } from "./ProvidersTabs.js";
 import { ProvidersTabBody } from "./ProvidersTabBody.js";
+import { useProviders } from "./hooks/use-providers.hooks.js";
 
 /**
  * @file The Integrations page (`/admin/addons/integrations`) — every outside connection this install has,
@@ -141,14 +142,22 @@ export function Providers({ hooks, ...props }: ProvidersProps, _optional = {}) {
   return <ProvidersView {...props} hooks={hooks} p={p} locale={locale} themeBoundary={themeBoundary} />;
 }
 
-export function bindProviders({ hooks, kit, deps }: Pick<ProvidersProps, "hooks" | "kit" | "deps">, _optional = {}) {
+export function bindProviders({ hooks, kit, deps }: Pick<ProvidersProps, "kit" | "deps"> & {
+  hooks: Omit<ProvidersProps["hooks"], "useProvidersHook"> & {
+    useExternalMcp: () => ReturnType<ProvidersProps["hooks"]["useProvidersHook"]>["externalMcp"];
+  };
+}, _optional = {}) {
+  const { useExternalMcp } = hooks;
+  function useWiredProviders(): ReturnType<ProvidersProps["hooks"]["useProvidersHook"]> {
+    return useProviders({ useExternalMcp });
+  }
   return function BoundProviders({ hooks: overrides, useProvidersHook, useIntegrationsHook, ...props }: {
     tabId?: string | null; hooks?: Partial<ProvidersProps["hooks"]>;
     useProvidersHook?: ProvidersProps["hooks"]["useProvidersHook"];
     useIntegrationsHook?: ProvidersProps["hooks"]["useIntegrationsHook"];
   }, _optional = {}) {
     return <Providers {...props} kit={kit} deps={deps} hooks={{ ...hooks, ...overrides,
-      useProvidersHook: useProvidersHook ?? hooks.useProvidersHook,
+      useProvidersHook: useProvidersHook ?? useWiredProviders,
       useIntegrationsHook: useIntegrationsHook ?? hooks.useIntegrationsHook }} />;
   };
 }
