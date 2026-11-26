@@ -54,7 +54,10 @@
       "./server/chat-cleanup-routes": "node",
       "./react/components/RoutedA2uiSurfaceCard": "browser",
       "./react/admin-execution/ai-agent-presentation": "universal",
-      "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": "browser"
+      "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": "browser",
+      "./transports/ag-ui/approval-relay": "universal",
+      "./react/chat-cleanup/ChatCleanupPanel": "browser",
+      "./react/chat-cleanup/chat-cleanup.hooks": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -286,6 +289,21 @@
       "types": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts",
       "import": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js",
       "default": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js"
+    },
+    "./transports/ag-ui/approval-relay": {
+      "types": "./dist/core/assistant-client/ag-ui-approval-relay.d.ts",
+      "import": "./dist/core/assistant-client/ag-ui-approval-relay.js",
+      "default": "./dist/core/assistant-client/ag-ui-approval-relay.js"
+    },
+    "./react/chat-cleanup/ChatCleanupPanel": {
+      "types": "./dist/react/chat-cleanup/ChatCleanupPanel.d.ts",
+      "import": "./dist/react/chat-cleanup/ChatCleanupPanel.js",
+      "default": "./dist/react/chat-cleanup/ChatCleanupPanel.js"
+    },
+    "./react/chat-cleanup/chat-cleanup.hooks": {
+      "types": "./dist/react/chat-cleanup/chat-cleanup.hooks.d.ts",
+      "import": "./dist/react/chat-cleanup/chat-cleanup.hooks.js",
+      "default": "./dist/react/chat-cleanup/chat-cleanup.hooks.js"
     }
   },
   "files": [
@@ -474,6 +492,15 @@
       ],
       "react/admin-execution/hooks/use-ai-agent-presentation.hooks": [
         "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts"
+      ],
+      "transports/ag-ui/approval-relay": [
+        "./dist/core/assistant-client/ag-ui-approval-relay.d.ts"
+      ],
+      "react/chat-cleanup/ChatCleanupPanel": [
+        "./dist/react/chat-cleanup/ChatCleanupPanel.d.ts"
+      ],
+      "react/chat-cleanup/chat-cleanup.hooks": [
+        "./dist/react/chat-cleanup/chat-cleanup.hooks.d.ts"
       ]
     }
   },

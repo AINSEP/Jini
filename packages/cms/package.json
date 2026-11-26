@@ -785,7 +785,19 @@
       "./react/posts/hooks/post-editor-messages": "universal",
       "./react/posts/hooks/post-editor-state.rules": "universal",
       "./react/posts/hooks/post-editor-save.rules": "universal",
-      "./react/posts/hooks/use-post-url-dialog.hooks": "browser"
+      "./react/posts/hooks/use-post-url-dialog.hooks": "browser",
+      "./react/media/ExternalProvidersPanel": "browser",
+      "./react/media/MediaLoadMore": "browser",
+      "./react/media/chrome-playback-note": "browser",
+      "./react/media/media-icons": "browser",
+      "./react/media/use-media-provider-catalog.hooks": "browser",
+      "./react/media/hooks/use-grid-pages.hooks": "browser",
+      "./react/pages/hooks/use-preview-embed-ids.hooks": "browser",
+      "./react/posts/posts-list-rules": "universal",
+      "./react/posts/post-editor-rules": "universal",
+      "./react/posts/editor/notices/PostEditorNotices": "browser",
+      "./react/widgets/WidgetConfigFields/MediaContentEditor.hooks": "browser",
+      "./react/pages/page-editor-rules": "universal"
     },
     "isolation": {
       "domains": {
@@ -5133,6 +5145,66 @@
       "types": "./dist/react/posts/hooks/use-post-url-dialog.hooks.d.ts",
       "import": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js",
       "default": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js"
+    },
+    "./react/media/ExternalProvidersPanel": {
+      "types": "./dist/react/media/ExternalProvidersPanel.d.ts",
+      "import": "./dist/react/media/ExternalProvidersPanel.js",
+      "default": "./dist/react/media/ExternalProvidersPanel.js"
+    },
+    "./react/media/MediaLoadMore": {
+      "types": "./dist/react/media/MediaLoadMore.d.ts",
+      "import": "./dist/react/media/MediaLoadMore.js",
+      "default": "./dist/react/media/MediaLoadMore.js"
+    },
+    "./react/media/chrome-playback-note": {
+      "types": "./dist/react/media/chrome-playback-note.d.ts",
+      "import": "./dist/react/media/chrome-playback-note.js",
+      "default": "./dist/react/media/chrome-playback-note.js"
+    },
+    "./react/media/media-icons": {
+      "types": "./dist/react/media/media-icons.d.ts",
+      "import": "./dist/react/media/media-icons.js",
+      "default": "./dist/react/media/media-icons.js"
+    },
+    "./react/media/use-media-provider-catalog.hooks": {
+      "types": "./dist/react/media/use-media-provider-catalog.hooks.d.ts",
+      "import": "./dist/react/media/use-media-provider-catalog.hooks.js",
+      "default": "./dist/react/media/use-media-provider-catalog.hooks.js"
+    },
+    "./react/media/hooks/use-grid-pages.hooks": {
+      "types": "./dist/react/media/hooks/use-grid-pages.hooks.d.ts",
+      "import": "./dist/react/media/hooks/use-grid-pages.hooks.js",
+      "default": "./dist/react/media/hooks/use-grid-pages.hooks.js"
+    },
+    "./react/pages/hooks/use-preview-embed-ids.hooks": {
+      "types": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.d.ts",
+      "import": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.js",
+      "default": "./dist/react/pages/hooks/use-preview-embed-ids.hooks.js"
+    },
+    "./react/posts/posts-list-rules": {
+      "types": "./dist/react/posts/posts-list-rules.d.ts",
+      "import": "./dist/react/posts/posts-list-rules.js",
+      "default": "./dist/react/posts/posts-list-rules.js"
+    },
+    "./react/posts/post-editor-rules": {
+      "types": "./dist/react/posts/post-editor-rules.d.ts",
+      "import": "./dist/react/posts/post-editor-rules.js",
+      "default": "./dist/react/posts/post-editor-rules.js"
+    },
+    "./react/posts/editor/notices/PostEditorNotices": {
+      "types": "./dist/react/posts/editor/notices/PostEditorNotices.d.ts",
+      "import": "./dist/react/posts/editor/notices/PostEditorNotices.js",
+      "default": "./dist/react/posts/editor/notices/PostEditorNotices.js"
+    },
+    "./react/widgets/WidgetConfigFields/MediaContentEditor.hooks": {
+      "types": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/MediaContentEditor.hooks.js"
+    },
+    "./react/pages/page-editor-rules": {
+      "types": "./dist/react/pages/page-editor-rules.d.ts",
+      "import": "./dist/react/pages/page-editor-rules.js",
+      "default": "./dist/react/pages/page-editor-rules.js"
     }
   },
   "files": [

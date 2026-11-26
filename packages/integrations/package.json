@@ -68,7 +68,9 @@
       "./react/site-key/SiteKeyTab": "browser",
       "./react/site-key/SiteKeyRecoveryCard": "browser",
       "./react/site-key/hooks/use-site-key.hooks": "browser",
-      "./react/site-key/hooks/use-site-key-recovery.hooks": "browser"
+      "./react/site-key/hooks/use-site-key-recovery.hooks": "browser",
+      "./react/credentials/access-token-forms": "universal",
+      "./react/credentials/other-credential-stores": "universal"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -387,6 +389,16 @@
       "types": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.d.ts",
       "import": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.js",
       "default": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.js"
+    },
+    "./react/credentials/access-token-forms": {
+      "types": "./dist/react/credentials/access-token-forms.d.ts",
+      "import": "./dist/react/credentials/access-token-forms.js",
+      "default": "./dist/react/credentials/access-token-forms.js"
+    },
+    "./react/credentials/other-credential-stores": {
+      "types": "./dist/react/credentials/other-credential-stores.d.ts",
+      "import": "./dist/react/credentials/other-credential-stores.js",
+      "default": "./dist/react/credentials/other-credential-stores.js"
     }
   },
   "typesVersions": {
@@ -534,6 +546,12 @@
       ],
       "react/site-key/hooks/use-site-key-recovery.hooks": [
         "./dist/react/site-key/hooks/use-site-key-recovery.hooks.d.ts"
+      ],
+      "react/credentials/access-token-forms": [
+        "./dist/react/credentials/access-token-forms.d.ts"
+      ],
+      "react/credentials/other-credential-stores": [
+        "./dist/react/credentials/other-credential-stores.d.ts"
       ]
     }
   },

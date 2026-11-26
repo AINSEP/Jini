@@ -141,7 +141,9 @@
       "./source-control/react/rules": "universal",
       "./source-control/react/source-control-visuals": "browser",
       "./source-control/react/ProvidersTab": "browser",
-      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser"
+      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser",
+      "./deploy/react/download-dockerfile": "browser",
+      "./deploy/react/hooks/use-static-export.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -805,6 +807,16 @@
       "types": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts",
       "import": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js",
       "default": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js"
+    },
+    "./deploy/react/download-dockerfile": {
+      "types": "./dist/deploy/react/download-dockerfile.d.ts",
+      "import": "./dist/deploy/react/download-dockerfile.js",
+      "default": "./dist/deploy/react/download-dockerfile.js"
+    },
+    "./deploy/react/hooks/use-static-export.hooks": {
+      "types": "./dist/deploy/react/hooks/use-static-export.hooks.d.ts",
+      "import": "./dist/deploy/react/hooks/use-static-export.hooks.js",
+      "default": "./dist/deploy/react/hooks/use-static-export.hooks.js"
     }
   },
   "typesVersions": {
@@ -841,6 +853,12 @@
       ],
       "source-control/react/hooks/use-source-control-credentials.hooks": [
         "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts"
+      ],
+      "deploy/react/download-dockerfile": [
+        "./dist/deploy/react/download-dockerfile.d.ts"
+      ],
+      "deploy/react/hooks/use-static-export.hooks": [
+        "./dist/deploy/react/hooks/use-static-export.hooks.d.ts"
       ]
     }
   },
