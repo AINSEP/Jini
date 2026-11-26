@@ -175,7 +175,7 @@ export type { ResolveMediaRenditionRequired } from "./rendition-service.js";
 export type { RegisterTransformRequired, GetLatestTransformDefinitionRequired, IsLatestTransformVersionRequired } from "./transform-registry.js";
 export type { BlobReferenceProbes, IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
 
-export { rollbackUploadedMedia } from "./media-service.js";
+export { rollbackUploadedMedia, uploadStagedVideo } from "./media-service.js";
 export type { MediaCleanupJournalInput, MediaRowCleanupDeps } from "./media-service.js";
 export { classifyJournalEntry, planRenditionJournal } from "./blob-gc-journal.js";
 export type { JournalEntryVerdict, JournalKeepReason, RenditionJournalPlan } from "./blob-gc-journal.js";
@@ -191,11 +191,11 @@ export {
 // Web-safe video conversion: port, import rule and use-case (no codec here), plus its agent tool.
 export {
   VIDEO_TRANSCODE_THRESHOLD_BYTES, VIDEO_TRANSCODE_MAX_INPUT_BYTES, VIDEO_CONVERSION_MESSAGES, VideoConversionError,
-  shouldTranscodeOnImport, convertMediaVideo,
+  shouldTranscodeOnImport, convertMediaVideo, convertStagedMediaVideo,
   type DerivedMediaLinkPort, type VideoConversionFailureReason, type ConvertMediaVideoDeps, type ConvertMediaVideoRequired, type ConvertMediaVideoOptional,
 } from './video-transcode.js';
 export type {
-  VideoTranscodeTarget, VideoTranscodeFailureReason, VideoTranscodeResult, MediaTranscoderPort,
+  VideoTranscodeTarget, VideoTranscodeFailureReason, VideoTranscodeResult, MediaTranscoderPort, StagedMediaFile, StagedMediaTranscoderPort,
   VideoCodec, VideoCodecProbePort,
 } from '@jini-ai/core/contracts/site/cms-media';
 export {

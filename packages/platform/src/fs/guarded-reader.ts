@@ -38,6 +38,10 @@ export interface GuardedListingResult {
 /** Adds optional paging without changing existing guarded-reader implementations. */
 export interface PagedGuardedFileReader extends GuardedFileReader {
     list(required: Record<string, never>, optional?: GuardedListingOptions): GuardedListingResult;
+    withGuardedBinaryStream<T>(required: {
+        relativePath: string; maxBytes: number;
+        consume: (input: { length: number; chunks: AsyncIterable<Uint8Array> }) => Promise<T>;
+    }, optional?: { signal?: AbortSignal }): Promise<T>;
 }
 /** Native filesystem adapter; callers can replace individual operations for a virtual filesystem. */
 export function createNodeGuardedReaderFilesystem(_required: Record<string, never>): GuardedReaderFilesystem { return nodeFs; }
@@ -71,6 +75,30 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         resolve: ({ relativePath }) => resolveFsFilePath({ rootPath, relativePath }, context),
         read: ({ relativePath }) => readFsFile({ rootPath, relativePath }, context),
         readBytes: ({ relativePath, maxBytes }) => openFsFileForRead({ rootPath, relativePath, maxBytes }, context),
+        async withGuardedBinaryStream({ relativePath, maxBytes, consume }, { signal } = {}) {
+            if (descriptorFlags === undefined) throw new TypeError("withGuardedBinaryStream requires descriptorRead");
+            if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new FsFilePathError({ message: "maxBytes must be a positive safe integer" });
+            signal?.throwIfAborted();
+            const target = resolveFsFilePath({ rootPath, relativePath }, context);
+            const { fd, length } = openValidatedDescriptor({ target, relativePath, maxBytes }, context);
+            const chunks = (async function* () {
+                let count = 0;
+                while (true) {
+                    signal?.throwIfAborted();
+                    const buffer = Buffer.alloc(Math.min(64 * 1024, length - count + 1));
+                    const read = fs.readSync(fd, buffer, 0, buffer.length, null);
+                    count += read;
+                    if (count > length || count > maxBytes) throw new FsFilePathError({ message: `file '${relativePath}' grew beyond its ${length}-byte descriptor length` });
+                    if (read === 0) {
+                        if (count !== length) throw new FsFilePathError({ message: `file '${relativePath}' ended before its ${length}-byte descriptor length` });
+                        return;
+                    }
+                    yield buffer.subarray(0, read);
+                }
+            })();
+            try { return await consume({ length, chunks }); }
+            finally { await chunks.return(undefined); fs.closeSync(fd); }
+        },
         list: (_required, optional = {}) => listFsFiles({ rootPath, ...optional }, context),
         isDeniedFileName: ({ fileName }) => isDeniedFsFileName(fileName, context),
         isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName, context),
@@ -388,13 +416,13 @@ function readBoundedSync(target: string, relativePath: string, context: GuardedR
 /** Owns the descriptor until validated; every refusal closes it before propagating. */
 function openValidatedDescriptor({ target, relativePath, maxBytes }: {
     target: string; relativePath: string; maxBytes: number;
-}, context: GuardedReaderContext): { fd: number; maxBytes: number } {
+}, context: GuardedReaderContext): { fd: number; maxBytes: number; length: number } {
     const { fs, descriptorRead } = context;
     const fd = openNoFollow({ target, relativePath }, context);
     try {
         const stat = fs.fstatSync!(fd);
         assertDescriptorStat({ stat, relativePath, maxBytes }, descriptorRead);
-        return { fd, maxBytes: descriptorRead?.rejectGrowth ? Math.min(maxBytes, stat.size) : maxBytes };
+        return { fd, maxBytes: descriptorRead?.rejectGrowth ? Math.min(maxBytes, stat.size) : maxBytes, length: stat.size };
     } catch (error) {
         try { fs.closeSync(fd); } catch { /* Preserve the validation error. */ }
         throw error;

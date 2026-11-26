@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
 import type { ToolExecutionContext } from "@jini-ai/core";
+import { createHash } from "node:crypto";
+import * as filesystem from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createStagedFileAdapter } from "@jini-ai/platform/fs";
 import { buildMediaImportAgentToolCatalog } from "../agent-tools.js";
 import { buildMediaImportRegistrations, type MediaImportToolDeps } from "../tool-registrations.js";
 
@@ -16,10 +21,15 @@ function fixture() {
     workspaceId: "workspace", authorize: vi.fn(async () => ({ allowed: true, reason: "granted" })),
     refuseUnexpectedKeys: vi.fn(),
     storage: {
+      canUploadStagedVideo: vi.fn(async () => false),
+      uploadStagedVideo: vi.fn<MediaImportToolDeps["storage"]["uploadStagedVideo"]>(async () => ({ media })),
       upload: vi.fn(async () => ({ media })), recordContentType: vi.fn(async () => {}),
       resolvePublicUrls: vi.fn(async () => new Map([[media.id, "https://public.example/picture"]])),
     },
     source: {
+      ordinaryMaxBytes: 50_000_000,
+      withLocalStream: vi.fn<MediaImportToolDeps["source"]["withLocalStream"]>() as ReturnType<typeof vi.fn<MediaImportToolDeps["source"]["withLocalStream"]>> & MediaImportToolDeps["source"]["withLocalStream"],
+      withStagedFile: vi.fn<MediaImportToolDeps["source"]["withStagedFile"]>() as ReturnType<typeof vi.fn<MediaImportToolDeps["source"]["withStagedFile"]>> & MediaImportToolDeps["source"]["withStagedFile"],
       fetchRemote: vi.fn(async () => ({ bytes, contentType: "image/jpeg", url: new URL("https://cdn.example/final.png") })),
       resolveLocal: vi.fn(() => ({ rootPath: "/site", relativePath: "image.png" })),
       readLocal: vi.fn(async () => bytes), localReadLimit: vi.fn(() => 50_000_000), validateBytes: vi.fn(() => "image/png"),
@@ -97,6 +107,59 @@ describe("media import execution", () => {
     expect(deps.storage.upload).toHaveBeenCalledOnce();
     expect(deps.storage.resolvePublicUrls).not.toHaveBeenCalled();
   });
+});
+
+it("A large local video writes before pulling the next chunk.", async () => {
+  const root = await filesystem.mkdtemp(join(tmpdir(), "media-stream-test-"));
+  try {
+    const { deps, ctx, handler } = fixture();
+    const first = Buffer.alloc(64 * 1024); first.write("ftypqt  ", 4);
+    const second = Buffer.from("video remainder");
+    const expected = Buffer.concat([first, second]);
+    let acknowledged = false;
+    const staging = createStagedFileAdapter({
+      filesystem: { ...filesystem, open: async (...args: Parameters<typeof filesystem.open>) => {
+        const file = await filesystem.open(...args);
+        if (args[1] === "wx") {
+          const write = file.writeFile.bind(file);
+          vi.spyOn(file, "writeFile").mockImplementation(async data => { await write(data); acknowledged = true; });
+        }
+        return file;
+      } },
+      withTempRoot: async ({ work }) => { try { return await work({ root }); } finally { await filesystem.rm(root, { recursive: true, force: true }); } },
+      sniffContentType: () => "video/quicktime",
+    });
+    deps.storage.canUploadStagedVideo.mockResolvedValue(true);
+    deps.source.ordinaryMaxBytes = 16;
+    deps.source.resolveLocal.mockReturnValue({ rootPath: "/site", relativePath: "clips/clip.mov" });
+    deps.source.validateBytes.mockReturnValue("video/quicktime");
+    deps.source.readLocal.mockImplementation(async () => { throw new Error("whole-file read"); });
+    deps.storage.upload.mockImplementation(async () => { throw new Error("byte upload"); });
+    deps.source.withStagedFile.mockImplementation(staging.withStagedFile);
+    deps.source.withLocalStream.mockImplementation(async ({ consume }) => consume({ length: expected.length, chunks: (async function* () {
+      yield first;
+      expect(acknowledged).toBe(true);
+      yield second;
+    })() }));
+    deps.storage.uploadStagedVideo.mockImplementation(async ({ input }) => {
+      const chunks = [];
+      for await (const chunk of input.staged.openChunks({})) chunks.push(chunk);
+      expect(Buffer.concat(chunks)).toEqual(expected);
+      expect(input.staged.sha256).toBe(createHash("sha256").update(expected).digest("hex"));
+      expect(input.staged.byteLength).toBe(expected.length);
+      expect(input.provenance).toEqual({ kind: "upload", path: "clips/clip.mov" });
+      expect(input.createdByPrincipal).toBe("agent");
+      return { media };
+    });
+    expect(await handler("media_import_local_file")(ctx({ root: "site", path: "clips/clip.mov" })))
+      .toMatchObject({ media: { id: "asset", sourceUrl: "", publicUrl: "https://public.example/picture" } });
+    expect(deps.source.readLocal).not.toHaveBeenCalled();
+    expect(deps.storage.upload).not.toHaveBeenCalled();
+    deps.source.validateBytes.mockReturnValue("image/png");
+    deps.source.withStagedFile.mockClear();
+    await expect(handler("media_import_local_file")(ctx({ root: "site", path: "large.png" }))).rejects.toThrow();
+    expect(deps.source.withStagedFile).not.toHaveBeenCalled();
+  } finally { await filesystem.rm(root, { recursive: true, force: true }); }
 });
 
 it("refuses mutually exclusive replacement sources before reading either", async () => {

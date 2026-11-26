@@ -2,12 +2,19 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import filesystem from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, test } from "vitest";
+import { afterEach, test, vi } from "vitest";
+import { createStagedFileAdapter } from "@jini-ai/platform/fs";
 import { sniffContentType as sniffRealContentType, VIDEO_CONVERSION_MESSAGES, VIDEO_TRANSCODE_MAX_INPUT_BYTES } from "@jini-ai/cms/media";
 import { createVideoExtractionLock, findVideoBinaries, runLowPriorityVideoProcess } from "@jini-ai/cms/media/node";
 import { buildVideoTranscodeArgs, createFfmpegMediaTranscoder, type VideoBinaryFinder, type VideoProcessRunner } from "../adapter.js";
+
+vi.mock("node:fs/promises", async importOriginal => {
+  const original = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...original, readFile: vi.fn(original.readFile) };
+});
 
 const BINARIES = { nice: "/usr/bin/nice", ffmpeg: "/usr/bin/ffmpeg", ffprobe: "/usr/bin/ffprobe" };
 const MESSAGES = {
@@ -36,10 +43,66 @@ const lockOf = (free = true) => ({ tryAcquire: () => (free ? () => undefined : u
 function deps(overrides: Partial<Parameters<typeof createFfmpegMediaTranscoder>[0]> = {}): Parameters<typeof createFfmpegMediaTranscoder>[0] {
   return {
     findBinaries: async () => BINARIES, runProcess: noRun, lock: lockOf(), sniffContentType,
-    maxInputBytes: 1024, messages: MESSAGES, env: { PATH: "/usr/bin" }, ...overrides,
+    maxInputBytes: 1024, messages: MESSAGES, env: { PATH: "/usr/bin" },
+    sealStagedFile: createStagedFileAdapter({ filesystem, sniffContentType, withTempRoot: async () => { throw new Error("unused"); } }).sealStagedFile,
+    ...overrides,
   };
 }
 const request = { input: mp4(), target: "mp4-h264-aac-faststart" } as const;
+
+test("Staged conversion passes paths and never reads a whole video.", async () => {
+  for (const outcome of ["success", "oversize", "non-MP4", "abort"] as const) {
+    const root = await tempDir();
+    const input = join(root, "input");
+    const bytes = Buffer.alloc(128 * 1024); bytes.set(mp4());
+    await writeFile(input, bytes, { mode: 0o600 });
+    const controller = new AbortController();
+    const { counts, lock } = countingLock();
+    const allocations: number[] = [];
+    const staging = createStagedFileAdapter({ sniffContentType,
+      withTempRoot: async ({ work }) => work({ root }),
+      filesystem: { ...filesystem, open: async (...args: Parameters<typeof filesystem.open>) => {
+        const file = await filesystem.open(...args);
+        const read = file.read.bind(file);
+        vi.spyOn(file, "read").mockImplementation((async (buffer: Uint8Array, offset: number, length: number, position: number | null) => {
+          allocations.push(buffer.byteLength);
+          return read(buffer, offset, length, position);
+        }) as typeof file.read);
+        return file;
+      } },
+    });
+    const wholeRead = vi.mocked(readFile).mockClear().mockRejectedValue(new Error("whole-file read"));
+    let published = 0;
+    try {
+      const transcoder = createFfmpegMediaTranscoder({ ...deps({ lock, maxInputBytes: bytes.length }), sealStagedFile: staging.sealStagedFile,
+        runProcess: async ({ args }, { signal }) => {
+          assert.equal(args[args.indexOf("-i") + 1], input);
+          assert.equal(args.at(-1), join(root, "output.mp4"));
+          assert.equal(signal, controller.signal);
+          assert.ok(args.includes("-n"));
+          await writeFile(args.at(-1)!, outcome === "non-MP4" ? Buffer.alloc(bytes.length) : bytes);
+          if (outcome === "abort") controller.abort();
+          return new Uint8Array();
+        },
+      });
+      const result = await transcoder.transcodeStaged({ input: { path: input, root, byteLength: bytes.length, sha256: "input-hash", contentType: "video/quicktime",
+        openChunks: () => { throw new Error("input hydrated"); },
+      }, target: request.target, consume: async output => {
+        published += 1;
+        assert.equal(output.byteLength, bytes.length);
+        const chunks = [];
+        for await (const chunk of output.openChunks({})) chunks.push(chunk);
+        assert.deepEqual(Buffer.concat(chunks), bytes);
+      } }, { signal: controller.signal, maxOutputBytes: outcome === "oversize" ? 64 * 1024 : bytes.length });
+      assert.equal(result.ok, outcome === "success");
+      assert.equal(published, outcome === "success" ? 1 : 0);
+      assert.deepEqual(counts, { acquired: 1, released: 1 });
+      assert.equal(wholeRead.mock.calls.length, 0);
+      assert.ok(allocations.every(size => size <= 64 * 1024));
+      if (outcome === "success") assert.ok(allocations.length > 1);
+    } finally { wholeRead.mockImplementation(filesystem.readFile); }
+  }
+});
 
 test("buildVideoTranscodeArgs produces the exact web-safe H.264/AAC faststart argument list", () => {
   assert.deepEqual(buildVideoTranscodeArgs({ input: "/w/input", output: "/w/output.mp4", maxOutputBytes: 1000 }), [
@@ -215,6 +278,7 @@ test.skipIf(!hasFfmpeg)("a real ffmpeg turns a QuickTime clip into a faststart M
     findBinaries: findVideoBinaries, runProcess: runLowPriorityVideoProcess, lock: createVideoExtractionLock({}),
     sniffContentType: sniffRealContentType, maxInputBytes: VIDEO_TRANSCODE_MAX_INPUT_BYTES,
     messages: VIDEO_CONVERSION_MESSAGES, env: process.env,
+    sealStagedFile: createStagedFileAdapter({ filesystem, sniffContentType, withTempRoot: async () => { throw new Error("unused"); } }).sealStagedFile,
   }, { tempDir: await tempDir(), timeoutMs: 60_000 });
   const result = await transcoder.transcode({ input: await readFile(source), target: "mp4-h264-aac-faststart" });
   assert.ok(result.ok, !result.ok ? result.message : "");

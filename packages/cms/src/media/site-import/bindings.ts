@@ -2,7 +2,7 @@ import type { ToolContributor } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import type { ImageCodecPort, MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
-import type { MediaImportRefusalPorts, MediaImportSourcePorts, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
+import type { MediaImportRefusalPorts, MediaImportSourcePorts, MediaStagedUploadInput, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
 import type { UploadMediaDeps } from "../media-service.js";
 import type { VideoImportOptions } from "../site/import-video-conversion.js";
 import type { replaceMediaFile } from "../replace-media-file.js";
@@ -30,11 +30,14 @@ export function bindMediaImportTools<TVideo extends Pick<VideoImportOptions, "po
   fsRootIds: readonly string[]; recoveryText: string; mediaAssetReadToolId: string;
   resolveSiteFileRequest(required: { routeDeps: Pick<MediaImportToolDeps, "siteBinding" | "workspaceId" | "resolveRoots">; root: string; relativePath: string }, optional: Record<string, never>): { rootPath: string; relativePath: string };
   openFsFileForRead: MediaImportSourcePorts["readLocal"];
+  withLocalStream: MediaImportSourcePorts["withLocalStream"];
+  withStagedFile: MediaImportSourcePorts["withStagedFile"];
   uploadLimitForFile(required: { name: string; type: string }): number;
   uploadCaps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
   fetchImage(required: { deps: { httpClient: MediaImportHttpClient; plainHttpTestOrigins?: readonly string[] | undefined }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
   validateImageBytes: MediaImportSourcePorts["validateBytes"];
   createConvertingUploader(input: { uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number }; mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: { video?: TVideo | undefined }): (input: MediaToolUploadInput) => Promise<{ media: MediaRecord }>; replaceMediaFile: typeof replaceMediaFile;
+  createConvertingStagedUploader(input: { uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number }; mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: { video?: TVideo | undefined }): (input: MediaStagedUploadInput, optional?: { signal?: AbortSignal }) => Promise<{ media: MediaRecord }>;
   EgressRefusedError: new (required: { message: string }, optional: { callerSafeMessage: string }) => Error & { readonly callerSafeMessage: string };
   isPathRefusal: MediaImportRefusalPorts["isPathRefusal"]; logEgressRefusal: (line: string) => void;
 }, _optional: Record<string, never> = {}) {

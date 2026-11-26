@@ -28,6 +28,55 @@ const SHA = createHash("sha256").update("fixture").digest("hex");
 const KEY = `ws/ws-1/blobs/${SHA.slice(0, 2)}/${SHA}`;
 const BYTES = new TextEncoder().encode("hello from S3ObjectStore");
 
+test("A staged PUT signs the known digest and sends one bounded body.", async () => {
+  for (const outcome of ["success", "failure", "abort"]) {
+    const controller = new AbortController();
+    const chunks = [BYTES.subarray(0, 5), BYTES.subarray(5)];
+    const digest = createHash("sha256").update(BYTES).digest("hex");
+    let signs = 0, sends = 0, opens = 0, pulls = 0;
+    const created = provider.create({ settings: { bucket: "media", keyPrefix: "private/" },
+      credential: { fields: { accessKeyId: "key", region: "us-east-1" }, secret: "secret" },
+      host: {
+        createSigV4Client: () => ({
+          fetch: () => { assert.fail("retrying byte transport called"); },
+          sign: async (url, init) => {
+            signs += 1;
+            assert.equal(init.body, undefined);
+            assert.equal(new Headers(init.headers).get("content-length"), String(BYTES.length));
+            assert.equal(new Headers(init.headers).get("x-amz-content-sha256"), digest);
+            assert.equal(url, `https://s3.us-east-1.amazonaws.com/media/private/${KEY}`);
+            return new Request(url, { ...init, headers: { ...init.headers, authorization: "signed" } });
+          },
+        }),
+        sendStaged: async (url, init) => {
+          sends += 1;
+          assert.equal(new Headers(init.headers).get("authorization"), "signed");
+          assert.equal(init.redirect, "error");
+          assert.equal(init.signal, controller.signal);
+          assert.equal(pulls, 0);
+          const received = [];
+          for await (const chunk of init.body) {
+            received.push(chunk);
+            assert.ok(chunk.length <= 64 * 1024);
+            if (outcome === "abort") { controller.abort(); throw controller.signal.reason; }
+          }
+          assert.deepEqual(Buffer.concat(received), Buffer.from(BYTES));
+          return new Response(null, { status: outcome === "failure" ? 503 : 200 });
+        },
+      },
+    });
+    assert.equal(created.status, "ok");
+    const writer = await created.value.resolveStagedWriter({});
+    assert.ok(writer);
+    const pending = writer({ key: KEY, byteLength: BYTES.length, sha256: digest,
+      openChunks: () => { opens += 1; return (async function* () { for (const chunk of chunks) { pulls += 1; yield chunk; } })(); },
+    }, { signal: controller.signal });
+    if (outcome === "success") await pending;
+    else await assert.rejects(() => pending);
+    assert.deepEqual([signs, sends, opens], [1, 1, 1]);
+  }
+});
+
 /**
  * An in-memory S3-compatible endpoint behind a fake signing client.
  * @param {{ bucket?: string }} [optional]

@@ -42,7 +42,7 @@ const HEAD_TIMEOUT_MS = 30_000;
 /**
  * @typedef {{ readonly bucket: string, readonly region: string, readonly endpoint?: string, readonly keyPrefix?: string }} S3ObjectStoreConfig
  * @typedef {(url: string, init: RequestInit) => Promise<Response>} SendFn
- * @typedef {{ createSigV4Client(input: { accessKeyId: string, secretAccessKey: string, service: string, region: string }): { fetch: SendFn }, wrapFetch?: (fetchFn: SendFn) => SendFn }} S3ObjectStoreHost
+ * @typedef {{ createSigV4Client(input: { accessKeyId: string, secretAccessKey: string, service: string, region: string }): { fetch: SendFn, sign?: (url: string, init: RequestInit) => Promise<Request> }, wrapFetch?: (fetchFn: SendFn) => SendFn, sendStaged?: SendFn }} S3ObjectStoreHost
  */
 
 /**
@@ -174,11 +174,26 @@ function createSignedObjectRequester({ config, send, host }) {
  * @complexity O(1) to build; each call is one signed HTTP request.
  */
 function createS3ObjectStore(required) {
-  const { config, send } = required;
+  const { config, send, client, sendStaged } = required;
   const host = resolveHost(config);
   const request = createSignedObjectRequester({ config, send, host });
 
   return {
+    async resolveStagedWriter(_required, _optional = {}) {
+      if (!client.sign || !sendStaged) return undefined;
+      return async ({ key, byteLength, sha256, openChunks }, { signal } = {}) => {
+        signal?.throwIfAborted();
+        const url = objectUrl({ host, config, key });
+        const signed = await client.sign(url, { method: "PUT", headers: {
+          "content-length": String(byteLength), "x-amz-content-sha256": sha256,
+        }, ...(signal ? { signal } : {}) });
+        signal?.throwIfAborted();
+        const response = await sendStaged(signed.url, { method: "PUT", headers: signed.headers,
+          body: openChunks({}, signal ? { signal } : {}), duplex: "half", redirect: "error", ...(signal ? { signal } : {}),
+        });
+        if (!response.ok) throw new Error(`S3ObjectStore.put: failed to write '${key}' — HTTP ${response.status}`);
+      };
+    },
     /**
      * `ifAbsent` sends `If-None-Match: *`, making this a conditional PUT: the object store itself
      * refuses the write (HTTP 412) when the key is already occupied, so there is no separate `head()`
@@ -277,7 +292,7 @@ export default {
       ...(endpoint === undefined ? {} : { endpoint }),
       ...(settings.keyPrefix === undefined ? {} : { keyPrefix: settings.keyPrefix }),
     };
-    return { status: "ok", value: createS3ObjectStore({ config, send }) };
+    return { status: "ok", value: createS3ObjectStore({ config, send, client, sendStaged: host.sendStaged }) };
   },
 
   /**

@@ -357,3 +357,21 @@ export interface MediaTranscoderPort {
     optional?: { signal?: AbortSignal | undefined; maxOutputBytes?: number | undefined },
   ): Promise<VideoTranscodeResult>;
 }
+
+export interface StagedMediaFile {
+  readonly path: string;
+  readonly root: string;
+  readonly byteLength: number;
+  readonly sha256: string;
+  readonly contentType: string;
+  openChunks(required: Record<string, never>, optional?: { signal?: AbortSignal }): AsyncIterable<Uint8Array>;
+}
+
+export interface StagedMediaTranscoderPort {
+  transcodeStaged<T>(required: {
+    input: StagedMediaFile; target: VideoTranscodeTarget;
+    consume: (output: StagedMediaFile) => Promise<T>;
+  }, optional?: { signal?: AbortSignal | undefined; maxOutputBytes?: number | undefined }): Promise<
+    { readonly ok: true; readonly value: T } | Extract<VideoTranscodeResult, { ok: false }>
+  >;
+}
