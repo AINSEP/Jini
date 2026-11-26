@@ -1,13 +1,14 @@
 import type { VaultRepoPort } from "@jini-ai/core/contracts/vault";
+import type { IdGenerator } from "@jini-ai/core/primitives";
 import { MediaProviderCredentialVaultRepo, type MediaCredentialVaultPolicy } from "./provider-credential-vault.js";
 
 /** Jini stages/publishes batches once, so failed planners cannot expose a half-replaced map. */
 export class InMemoryMediaProviderCredentialRepo extends MediaProviderCredentialVaultRepo {
   private readonly providerWrites: { acquire(kind: "exclusive"): Promise<void>; release(kind: "exclusive"): void };
-  constructor({ vault, policy, providerWrites }: {
-    vault: VaultRepoPort; policy: MediaCredentialVaultPolicy;
+  constructor({ vault, policy, providerWrites, idGen }: {
+    vault: VaultRepoPort; policy: MediaCredentialVaultPolicy; idGen: IdGenerator;
     providerWrites: { acquire(kind: "exclusive"): Promise<void>; release(kind: "exclusive"): void };
-  }, _optional = {}) { super({ vault, policy }); this.providerWrites = providerWrites; }
+  }, _optional = {}) { super({ vault, policy, idGen }); this.providerWrites = providerWrites; }
 
   /** Serialize the host's read/plan/batch with primitive writes, as the SQL writer lock does.
    * Without this, a new provider inserted after the snapshot could evade whole-map tombstones.

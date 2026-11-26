@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { mediaGetProvidersRoute, mediaProvidersReply } from "../get-providers.js";
 import { mediaPutProvidersRoute, type MediaPutProvidersRouteDeps } from "../put-providers.js";
 import { raw, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { createHash } from "node:crypto";
+import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
+import { MediaProviderCredentialVaultRepo, type MediaCredentialVaultPolicy } from "../../../../media/site/provider-credential-vault.js";
+import { getMediaProviderCredentialsModel, saveMediaProviderCredentials, patchMediaProvider, removeMediaProvider, MediaProviderCredentialStaleError, type MediaProviderCredentialRowDeps, type MediaProviderCredentialInput } from "../../../../media/site/provider-credential-store.js";
+import { mediaPatchProviderRoute } from "../patch-provider.js";
+import { mediaDeleteProviderRoute } from "../delete-provider.js";
 
 class HostValidationError extends Error {}
 class HostUnconfiguredError extends Error {}
@@ -16,6 +23,49 @@ const READ_MODEL = { providers: MAP, revision: "rev-1" };
 /** The answer every provider route gives: the bare markers map as the body, the revision as a strong ETag. */
 const REPLY = { status: 200, body: MAP, headers: { etag: '"rev-1"' } };
 const STALE = { status: 409, body: { error: "Your provider list changed in another window. Reload and try again.", code: "MEDIA_PROVIDERS_STALE" } };
+
+it.each(["changed", "identical"])("a pre-delete ETag cannot overwrite a same-tick recreated provider (%s safe metadata)", async (metadata) => {
+  const vault = new InMemoryVaultRepo({});
+  const policy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: {}, parseMeta: ({ meta }) => ({ baseUrl: null, model: null, ...meta as { model: string | null } }) };
+  let nextId = 0;
+  const idGen = { newId: () => `fresh-${++nextId}` };
+  const repo = new MediaProviderCredentialVaultRepo({ vault, policy, idGen });
+  const keyring = { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(32).fill(7), deriveSigningSecret: async () => new Uint8Array(32) };
+  const sealer = new AesGcmSecretSealer({ keyring });
+  const clock = { nowMs: () => Date.parse("2026-11-26T00:00:00.000Z") };
+  const deps: MediaProviderCredentialRowDeps = { repo, vaultPolicy: policy, keyring, sealer, clock, idGen,
+    sha256Hex: ({ text }) => createHash("sha256").update(text).digest("hex"), builtInProviderIds: new Set(["openai"]),
+    credentialPolicy: { assertCredentialFreeField: () => {}, normalizeCredentialToken: ({ value }) => String(value) },
+    credentialInputMessage: () => undefined, storageMessage: "storage",
+    createVault: ({ repo: target }) => new SecretsVaultService({ repo: target.vault!, keyring, sealer, metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => new Date(clock.nowMs()).toISOString(), newId: idGen.newId }) };
+  const { authorize } = recordingAuthorize();
+  const rowErrors = { saveErrorMappings: [], outwardErrorMessage: ({ error }: { error: Error }) => error.message };
+  const patchDeps = { workspaceId: WORKSPACE_ID, ...rowErrors, patchProvider: (input: { workspaceId: string; providerId: string; fields: { apiKey?: string; model?: string } }) => patchMediaProvider({ deps, ...input }) };
+  const input = { providerId: "openai", body: { apiKey: "fixture-token-123456", model: "first" } };
+  await mediaPatchProviderRoute.handle({ input, deps: patchDeps, authorize });
+  const read = () => mediaGetProvidersRoute.handle({ input: {}, deps: { workspaceId: WORKSPACE_ID, getProviders: ({ workspaceId }) => getMediaProviderCredentialsModel({ deps, workspaceId }) }, authorize });
+  const before = await read();
+  expect(before.ok).toBe(true);
+  if (!before.ok) throw new Error("expected GET reply");
+  const firstTag = before.value.headers!.etag!;
+  await mediaDeleteProviderRoute.handle({ input: { providerId: "openai" }, deps: { workspaceId: WORKSPACE_ID, ...rowErrors, removeProvider: (input) => removeMediaProvider({ deps, ...input }) }, authorize });
+  await mediaPatchProviderRoute.handle({ input: { ...input, body: { ...input.body, model: metadata === "changed" ? "second" : "first" } }, deps: patchDeps, authorize });
+  const recreated = await repo.listByWorkspaceId({ workspaceId: WORKSPACE_ID });
+  expect(recreated[0]?.vaultRecord?.id).toBe("fresh-2");
+  const after = await read();
+  expect(after.ok && after.value.headers!.etag).not.toBe(firstTag);
+  const parsed = mediaPutProvidersRoute.parse({ ...raw({}, { openai: { model: "stale overwrite" } }), headers: { "if-match": firstTag } });
+  if (!parsed.ok) throw new Error("expected parsed PUT");
+  const putDeps: MediaPutProvidersRouteDeps = { workspaceId: WORKSPACE_ID, ...rowErrors, saveProviders: async ({ workspaceId, providers, expectedRevision }) => {
+    try { await saveMediaProviderCredentials({ deps, input: { workspaceId, providers: providers as Record<string, MediaProviderCredentialInput> } }, { expectedRevision }); }
+    catch (error) { if (error instanceof MediaProviderCredentialStaleError) return { outcome: "stale" }; throw error; }
+    return { outcome: "saved", ...await getMediaProviderCredentialsModel({ deps, workspaceId }) };
+  } };
+  expect(await refusalOf(() => mediaPutProvidersRoute.handle({ input: parsed.value, deps: putDeps, authorize }))).toEqual(STALE);
+  expect(await repo.listByWorkspaceId({ workspaceId: WORKSPACE_ID })).toEqual(recreated);
+  await mediaPatchProviderRoute.handle({ input: { ...input, body: { apiKey: "rotated-token-123456" } }, deps: patchDeps, authorize });
+  expect((await repo.listByWorkspaceId({ workspaceId: WORKSPACE_ID }))[0]?.vaultRecord?.id).toBe("fresh-2");
+});
 
 describe("mediaGetProvidersRoute", () => {
   it("keeps the method, path, status and no body cap; parses nothing", () => {

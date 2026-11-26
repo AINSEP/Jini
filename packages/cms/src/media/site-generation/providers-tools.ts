@@ -2,7 +2,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/media-generation';
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
 import { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
 import type { OperatorLocaleDeps } from '@jini-ai/core/contracts/headless/plugin-host';
-import { type Clock } from "@jini-ai/core/primitives";
+import { type Clock, type IdGenerator } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
@@ -28,6 +28,7 @@ export interface MediaProviderToolDeps extends OperatorLocaleDeps {
   siteAssistantSecretSealer: SecretSealerPort;
   siteAssistantSecretKeyring: KeyringPort;
   clock: Clock;
+  idGen: IdGenerator;
   /** The composition-built media provider registry (built-in + plugin vendors); listing and the
    *  credential form read it, so a plugin vendor can be listed and given a key like a built-in one. */
   mediaProviderRegistry: MediaProviderListing;
@@ -100,7 +101,7 @@ function savedProviderMessage({ provider, tokenHint, locale, host }: {
 export async function saveMediaCredential(required: { ctx: ToolExecutionContext; deps: MediaProviderToolDeps; surfaces: AssistantSurfaceDeps;
   host: {
     getMediaProviderCredentials: (required: { repo: MediaProviderCredentialRepoPort }, optional: { workspaceId: string }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined }>>;
-    saveProviders: (required: { deps: { repo: Pick<MediaProviderCredentialRepoPort, 'replaceWorkspace' | 'vault'>; sealer: SecretSealerPort; keyring: KeyringPort; clock: Clock; providerCatalog: MediaProviderListing }; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined; apiKeyHint?: CredentialTokenHint | null | undefined }>>;
+    saveProviders: (required: { deps: { repo: Pick<MediaProviderCredentialRepoPort, 'replaceWorkspace' | 'vault'>; sealer: SecretSealerPort; keyring: KeyringPort; clock: Clock; idGen: IdGenerator; providerCatalog: MediaProviderListing }; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined; apiKeyHint?: CredentialTokenHint | null | undefined }>>;
     assertCredentialFreeField: (required: { value: string; field: string }) => void;
     credentialText: (required: { id: 'saved' | 'blank' | 'generationUnavailable'; locale: string }) => string;
     formatCredentialHint: (required: { hint: CredentialTokenHint | null | undefined; locale: string }) => string;
@@ -122,7 +123,7 @@ export async function saveMediaCredential(required: { ctx: ToolExecutionContext;
   // Strict non-secret validation and authorization retain their precedence over channel errors.
   return host.secureCard({ ctx, surfaces, prep: { provider, configured, reason, locale },
     save: ({ value, signal }) => saveMediaProviderKey({
-      deps: { repo: abortableCredentialRepo({ store: deps.mediaProviderCredentialRepo, signal }), sealer: deps.siteAssistantSecretSealer, keyring: deps.siteAssistantSecretKeyring, clock: deps.clock, providerCatalog: deps.mediaProviderRegistry },
+      deps: { repo: abortableCredentialRepo({ store: deps.mediaProviderCredentialRepo, signal }), sealer: deps.siteAssistantSecretSealer, keyring: deps.siteAssistantSecretKeyring, clock: deps.clock, idGen: deps.idGen, providerCatalog: deps.mediaProviderRegistry },
       workspaceId: deps.workspaceId, provider: provider.id, apiKey: value, saveProviders: host.saveProviders,
     }),
     result: ({ prep, run }) => credentialProposalResult({ prep, run, host }),

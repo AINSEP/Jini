@@ -11,7 +11,7 @@ import { authorizeChangeSet, changeSetIdParam, type ChangeSetRoutePrincipal } fr
 
 /** The deps this route reads: the service's own collaborators (all required here, the host decides
  *  explicitly), the registry it reverts through, and the host's change-set header DTO. */
-export interface ChangeSetRevertRouteDeps extends Required<Pick<RevertChangeSetDeps, "changeSets" | "clock" | "idGen" | "outbox">> {
+export interface ChangeSetRevertRouteDeps extends Required<Pick<RevertChangeSetDeps, "changeSets" | "clock" | "idGen" | "outbox" | "transaction">> {
   workspaceId: string;
   /** The SAME registry the host's agent revert tool uses — one shared instance, so a human revert and an
    *  agent revert can never disagree on what a change set's inverse is. */
@@ -136,7 +136,7 @@ export const changeSetRevertRoute = defineJsonRoute<{ changeSetId: string; force
     await authorizeChangeSet({ authorize, permission: "changeset.revert" }, { entityId: input.changeSetId });
     try {
       const reverted = await revertChangeSet({
-        deps: { changeSets: deps.changeSets, registry: deps.revertRegistry, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox },
+        deps: { changeSets: deps.changeSets, registry: deps.revertRegistry, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox, transaction: deps.transaction },
         input: { workspaceId: deps.workspaceId, changeSetId: input.changeSetId, force: input.force, principalKind: principal.kind, actor: revertActor({ principal }) },
       }, { actorId: principal.id, authorizeItem: itemAuthorizer({ authorize }) });
       return ok({ value: { changeSet: deps.toChangeSetHeader({ changeSet: reverted }) } });

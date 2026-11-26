@@ -25,6 +25,7 @@ function setup(rows: VaultRecord[]) {
   const repo: MediaProviderCredentialRepoPort = { vault, listByWorkspaceId: async () => records, upsert: async () => {}, deleteByProviderIds: async () => {},
     replaceWorkspace: vi.fn(async ({ plan }) => { const next = plan({ existing: records }); records = [...next.upserts]; return records; }) };
   const deps: MediaProviderCredentialSaveDeps & MediaProviderCredentialResolveDeps = { repo, vaultPolicy, sha256Hex,
+    idGen: { newId: () => "fresh-canonical" },
     builtInProviderIds: new Set(["canonical"]), credentialPolicy: { assertCredentialFreeField: () => {}, normalizeCredentialToken: ({ value }) => String(value) },
     credentialInputMessage: () => undefined, storageMessage: "storage", createVault: () => ({ prepare, findOne }),
     clock: { nowMs: () => Date.parse("2026-01-01") }, keyring: { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(), deriveSigningSecret: async () => new Uint8Array() },
@@ -52,7 +53,7 @@ describe("media credential set", () => {
     const s = setup([row("legacy")]);
     await saveMediaProviderCredentials({ deps: s.deps, input: { workspaceId: "w", providers: { canonical: { model: "next" } } } });
     expect(s.findOne).toHaveBeenCalledWith(expect.objectContaining({ provider: "legacy" }));
-    expect(s.prepare).toHaveBeenCalledWith(expect.objectContaining({ provider: "canonical", payload: { apiKey: "secret" }, expectedRevision: null }));
+    expect(s.prepare).toHaveBeenCalledWith(expect.objectContaining({ id: "fresh-canonical", provider: "canonical", payload: { apiKey: "secret" }, expectedRevision: null }));
     expect(s.records()[0]?.sealed?.ciphertext).toBe("canonical");
   });
 });

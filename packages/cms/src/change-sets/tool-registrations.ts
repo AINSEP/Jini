@@ -18,6 +18,7 @@ import {
   RevertForbiddenError,
   RevertNotPossibleError,
   revertChangeSet,
+  type RevertChangeSetDeps,
   type RevertRegistry,
 } from "../core/commands/index.js";
 
@@ -78,6 +79,7 @@ export interface ChangeSetToolDeps {
   /** The SAME registry `change-sets/revert.ts`'s HTTP route reverts through — one shared instance,
    *  so an agent revert and a human revert can never disagree on what a change set's inverse is. */
   revertRegistry: RevertRegistry;
+  revertTransaction: RevertChangeSetDeps["transaction"];
   clock: Clock;
   idGen: { newId(): string };
   outbox: OutboxPort;
@@ -155,6 +157,7 @@ export function toChangeSetView({ changeSet }: { changeSet: ChangeSetRecord }, _
             clock: routeDeps.clock,
             idGen: routeDeps.idGen,
             outbox: routeDeps.outbox,
+            transaction: routeDeps.revertTransaction,
           },
           input: {
             workspaceId: routeDeps.workspaceId,

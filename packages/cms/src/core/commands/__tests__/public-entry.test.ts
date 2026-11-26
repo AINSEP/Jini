@@ -30,6 +30,12 @@ test("public commands entry reverts in reverse order and preserves the agent for
   const deps = {
     changeSets: repo, registry, clock: { nowMs: () => Date.parse("2026-11-07T01:00:00.000Z") },
     idGen: { newId: () => "event" },
+    transaction: async <T>({ work }: { work: () => Promise<T> }) => {
+      const before = await repo.listByWorkspace({ workspaceId: "workspace" });
+      const writes = [...applied];
+      try { return await work(); }
+      catch (error) { for (const row of before) await repo.save(row); applied.splice(0, applied.length, ...writes); throw error; }
+    },
   };
   await expect(revertChangeSet({ deps, input: {
     workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "agent", actor: { id: "owner", kind: "agent" },
@@ -73,7 +79,13 @@ function policyFixture(options: PolicyFixtureOptions = {}) {
     currentVersion: async ({ entityId }) => { log.push(`version:${entityId}`); return options.version ?? 2; },
     applyInverse: async ({ item }, extra) => { log.push(`write:${item.entityId}`); actors.push(extra?.actorId); },
   });
-  const deps = { changeSets: repo, registry, clock: { nowMs: () => Date.parse("2026-11-07T01:00:00.000Z") }, idGen: { newId: () => "event" } };
+  const deps = { changeSets: repo, registry, clock: { nowMs: () => Date.parse("2026-11-07T01:00:00.000Z") }, idGen: { newId: () => "event" },
+    transaction: async <T>({ work }: { work: () => Promise<T> }) => {
+      const before = await repo.listByWorkspace({ workspaceId: "workspace" });
+      const writtenActors = [...actors];
+      try { return await work(); }
+      catch (error) { for (const row of before) await repo.save(row); actors.splice(0, actors.length, ...writtenActors); throw error; }
+    } };
   return { deps, repo, log, actors };
 }
 

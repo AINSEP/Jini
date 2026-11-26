@@ -5,6 +5,7 @@ import {
   type VaultRepoPort,
 } from "@jini-ai/core/contracts/vault";
 import type { VaultMeta } from "@jini-ai/core/contracts/vault";
+import type { IdGenerator } from "@jini-ai/core/primitives";
 import type { MediaProviderCredentialRecord, MediaProviderCredentialRepoPort, MediaProviderCredentialReplacePlanner } from "./provider-credential-contracts.js";
 
 export interface MediaCredentialVaultPolicy {
@@ -54,7 +55,7 @@ function clearedIds({ providerId, policy }: { providerId: string; policy: MediaC
   return providerId === writeId ? readIds : [providerId];
 }
 
-/** Deterministic id for a provider's first row; later writes keep whatever id is stored. */
+/** Historical fixture/compatibility identity; writes keep the stored id or allocate a fresh one. */
 export function mediaVaultId({ providerId }: { providerId: string }, _options = {}): string {
   return `vault:${JSON.stringify([MEDIA_PROVIDER_KIND, providerId])}`;
 }
@@ -86,9 +87,9 @@ export function mediaVaultRecord({ row, policy }: { row: VaultPutRecord; policy:
 }
 
 /** A prepared row must target the stored row's id; its hints win over the stored row's. */
-function rowIdentity({ record, existing }: { record: MediaProviderCredentialRecord; existing: VaultRecord | undefined }, _options = {}) {
+function rowIdentity({ record, existing, idGen }: { record: MediaProviderCredentialRecord; existing: VaultRecord | undefined; idGen: IdGenerator }, _options = {}) {
   const prepared = record.vaultRecord;
-  const id = existing?.id ?? prepared?.id ?? mediaVaultId(record);
+  const id = existing?.id ?? prepared?.id ?? idGen.newId();
   if (prepared && prepared.id !== id) throw new VaultError({ code: "conflict" });
   return { id, hint: prepared ?? existing };
 }
@@ -112,12 +113,13 @@ function carriedFromExisting({ record, existing }: { record: MediaProviderCreden
 export class MediaProviderCredentialVaultRepo implements MediaProviderCredentialRepoPort {
   readonly vault: VaultRepoPort;
   private readonly policy: MediaCredentialVaultPolicy;
-  constructor({ vault, policy }: { vault: VaultRepoPort; policy: MediaCredentialVaultPolicy }, _optional = {}) { this.vault = vault; this.policy = policy; }
+  private readonly idGen: IdGenerator;
+  constructor({ vault, policy, idGen }: { vault: VaultRepoPort; policy: MediaCredentialVaultPolicy; idGen: IdGenerator }, _optional = {}) { this.vault = vault; this.policy = policy; this.idGen = idGen; }
   async listByWorkspaceId({ workspaceId }: { workspaceId: string }): Promise<MediaProviderCredentialRecord[]> {
     return (await this.vault.list(mediaVaultScope({ workspaceId, policy: this.policy }))).map(row => mediaVaultRecord({ row, policy: this.policy }));
   }
   private row({ record, existing }: { record: MediaProviderCredentialRecord; existing: VaultRecord | undefined }, _options = {}): VaultRecord {
-    const { id, hint } = rowIdentity({ record, existing });
+    const { id, hint } = rowIdentity({ record, existing, idGen: this.idGen });
     return { ...mediaVaultScope({ ...record, policy: this.policy }), id, provider: record.providerId, label: record.providerId,
       meta: this.policy.parseMeta({ meta: { ...existing?.meta, baseUrl: record.baseUrl, model: record.model } }),
       sealed: record.sealed, ...preservedHints({ hint, sealed: record.sealed }), ...carriedFromExisting({ record, existing }) };

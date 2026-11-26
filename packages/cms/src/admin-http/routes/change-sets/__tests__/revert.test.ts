@@ -23,6 +23,18 @@ function setup(options: { status?: "applied" | "proposed"; current?: number | nu
   const outbox = { enqueue: async (event: DomainEvent) => { events.push(event); } } as unknown as OutboxPort;
   const deps: ChangeSetRevertRouteDeps = {
     workspaceId: WORKSPACE_ID, changeSets, revertRegistry: registry, outbox,
+    transaction: async <T>({ work }: { work: () => Promise<T> }) => {
+      const before = await changeSets.listByWorkspace({ workspaceId: WORKSPACE_ID });
+      const writes = [...applied];
+      const enqueued = [...events];
+      try { return await work(); }
+      catch (error) {
+        for (const row of before) await changeSets.save(row);
+        applied.splice(0, applied.length, ...writes);
+        events.splice(0, events.length, ...enqueued);
+        throw error;
+      }
+    },
     clock: { nowMs: () => Date.parse("2026-10-05T00:00:00.000Z") }, idGen: { newId: () => "evt-1" }, toChangeSetHeader,
   } as ChangeSetRevertRouteDeps;
   return { deps, events, applied, changeSets };

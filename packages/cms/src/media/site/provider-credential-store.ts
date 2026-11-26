@@ -1,10 +1,10 @@
 import type { MediaProviderCredentialRecord, MediaProviderCredentialReplacePlanner, MediaProviderCredentialRepoPort } from "./provider-credential-contracts.js";
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
-import type { Clock as ClockPort, ISODateTime, UUID } from "@jini-ai/core/primitives";
+import type { Clock as ClockPort, IdGenerator, ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type { KeyringPort, SecretSealerPort, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
 import type { SecretsVaultService } from "@jini-ai/core/contracts/site/secrets-credential-sets";
-import { mediaProviderVault, mediaVaultId, mediaVaultRecord, mediaVaultScope, resolveMediaCredentialIds, type MediaCredentialVaultPolicy } from "./provider-credential-vault.js";
+import { mediaProviderVault, mediaVaultRecord, mediaVaultScope, resolveMediaCredentialIds, type MediaCredentialVaultPolicy } from "./provider-credential-vault.js";
 
 type VaultPutRecord = Parameters<VaultRepoPort["put"]>[0]["record"];
 /**
@@ -138,6 +138,7 @@ export interface MediaProviderCredentialWriteDeps extends MediaProviderCredentia
   sealer: SecretSealerPort;
   keyring: KeyringPort;
   clock: ClockPort;
+  idGen: IdGenerator;
   /** The live media provider registry (built-in + plugin vendors, 2026-10-21). A plugin vendor's id is
    *  accepted only when the registry holds that exact public id; omitted, only built-in ids are. */
   providerCatalog?: MediaProviderIdCatalog;
@@ -245,7 +246,7 @@ async function sealNewProviderKeys(
     if (!deps.repo.vault) throw new MediaProviderCredentialSecretStoreUnconfiguredError(deps.storageMessage);
     const existing = (await deps.repo.vault.list(scope))[0];
     fresh.set(providerId, await vault.prepare({ ...scope,
-      id: existing?.id ?? mediaVaultId({ providerId }), expectedRevision: existing?.revision ?? null,
+      id: existing?.id ?? deps.idGen.newId(), expectedRevision: existing?.revision ?? null,
       provider: providerId, label: providerId, meta: { ...existing?.meta, baseUrl: trimmedOrNull({ value: entry.baseUrl }), model: trimmedOrNull({ value: entry.model }) },
       payload: { apiKey }, hintToken: apiKey }));
   }
@@ -271,7 +272,7 @@ async function migrateLegacyProviderKeys(deps: MediaProviderCredentialSaveDeps, 
     const legacy = await openStoredCredential({ vault: repoVault, sealer: deps.sealer, workspaceId: input.workspaceId, storedId, deps });
     if (legacy === null) continue;
     migrated.set(providerId, await vault.prepare({ ...mediaVaultScope({ workspaceId: input.workspaceId, providerId, policy: deps.vaultPolicy }),
-      id: mediaVaultId({ providerId }), expectedRevision: null, provider: providerId, label: providerId,
+      id: deps.idGen.newId(), expectedRevision: null, provider: providerId, label: providerId,
       meta: { baseUrl: trimmedOrNull({ value: entry.baseUrl }), model: trimmedOrNull({ value: entry.model }) },
       payload: { apiKey: legacy.apiKey }, hintToken: legacy.apiKey }));
   }
