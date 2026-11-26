@@ -298,7 +298,8 @@ export function registerPublishContentPeerPushRoutes(required: {
   mount<Input, Output, Deps>(required: {
     spec: JsonRouteSpec<Input, Output, Deps, PublishRoutePrincipal>;
     preflight: { readHeaders: readonly []; check: () => RouteRefusal | undefined };
-    requestDeps: (facts: Pick<Deps, Extract<keyof Deps, 'requireOverwriteSession'>>) => Deps;
+    /** The host supplies the request-scoped overwrite gate; routes that never overwrite ignore it. */
+    requestDeps: (facts: { requireOverwriteSession(required: Record<string, never>): void }) => Deps;
     failure: (facts: Pick<Parameters<typeof respondWithPeerActionError>[0], "err" | "json" | "incident" | "discloseDetails" | "method" | "route">) => void;
   }): void;
   openPeer: Parameters<typeof peerPushPlanRoute.handle>[0]["deps"]["openPeer"];

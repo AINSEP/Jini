@@ -16,14 +16,14 @@ export async function renderVirtualPage<TMenu = StaticMenuContent>({ post, curre
     withListingBatch(): void;
     resolveRenderThemeId(required: { resolveStoredThemeId: () => Promise<string> }): Promise<string>;
     resolveActiveThemeId(): Promise<string>;
-    resolveSiteAssistantWidgetForRequest(): Promise<RenderSiteRequired["siteAssistantEnabled"]>;
+    resolveSiteAssistantWidgetForRequest(): Promise<NonNullable<RenderSiteRequired["siteAssistantEnabled"]>>;
     resolveActiveTheme(required: { activeThemeId: string }): object | "none" | null;
     NO_THEME_ID: "none";
     resolveTemplateBranchChoice(required: { theme: object; post: PostRecord }): { kind: "ineligible" | "as-chosen" } | { kind: "page-shell"; templateChoice: string };
     resolvePerVisitorResponse(): PerVisitorResponse;
     renderViaTemplate(required: { theme: object; post: PostRecord; staticMenus: Readonly<Record<string, TMenu>> }, optional: { pendingBodyJson: undefined; pendingBodyHtml: string; extraHead: undefined; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
     resolveStaticMenusForRender(required: { theme: object; currentPath: string }): Promise<Readonly<Record<string, TMenu>>>;
-    renderGenericPostPage(required: { theme: object | null; post: PostRecord; posts: PostRecord[]; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
+    renderGenericPostPage(required: { theme: object | null; post: PostRecord; posts: PostRecord[]; siteAssistantEnabled: NonNullable<RenderSiteRequired["siteAssistantEnabled"]> }): Promise<string>;
     sendPublicPage(required: { html: string; perVisitor: PerVisitorResponse }): Promise<void> | void;
     sendNoThemesInstalled(): void;
   };

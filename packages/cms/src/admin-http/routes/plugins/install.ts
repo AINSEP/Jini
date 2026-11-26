@@ -147,7 +147,7 @@ export function registerPluginInstallRoutes<Parser>(required: {
   }): void;
   parserFactory(required: { type: "application/zip"; limit: number; inflate: false }): Parser;
   mountRaw<Deps>(required: {
-    spec: { method: 'post'; path: string; handle(required: { raw: RouteInputContext; deps: Deps; context?: { id: string } | undefined; authorize?: JsonRouteAuthorize | undefined }, _optional?: Record<string, never>): Promise<Response> };
+    spec: { method: 'post'; path: string; handle(required: { raw: RouteInputContext; deps: Deps; context?: { id: string } | undefined; authorize?: JsonRouteAuthorize | undefined }, _optional?: { readonly signal: AbortSignal }): Promise<Response> };
     requestDeps: (facts: Omit<Parameters<typeof readZipUpload>[0]["deps"], "uploadLimitText" | "parseZip"> & { parseZip(parser: Parser): Promise<unknown> }) => Deps;
     failure: PluginInstallFailureWriter;
   }): void;

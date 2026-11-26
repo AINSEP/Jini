@@ -16,13 +16,14 @@ import { renderSiteConsentPreview } from './cookie-consent.js';
 
 const CONSENT_CSS_SELECTORS = ['#jini-consent', '.jini-consent', '.jini-consent-reopen'];
 
-/** The host's publish-refusal envelope: fixed code, wording and fix/rollback choices around the blocking problems. */
-export interface ConsentDeploymentRefusal {
+/** The host's publish-refusal envelope: fixed code, wording and fix/rollback choices around the blocking problems.
+ *  A type alias (not an interface) so it satisfies the deploy route's `Record<string, unknown>` refusal body. */
+export type ConsentDeploymentRefusal = {
   code: string;
   error: string;
   blockingProblems: ConsentProblem[];
   choices: { id: string; label: string; href: string; action: string; warning?: string }[];
-}
+};
 
 export interface ConsentServicePorts {
   bannerModeRefusal?: string | undefined;

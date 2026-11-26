@@ -4,17 +4,19 @@ import type { PublicPostRecord as PostRecord } from "../../../posts/post.js";
 import type { StaticMenuContent } from "../../../public-http/routes/site/pages/render-context/static-menus.js";
 import { withPageShellChoice } from "../../../public-http/routes/site/pages/handlers/post.js";
 
-type ContentRouteDeps = {
+/** `TMenus` is the host's resolved static-menu map: this module only carries it from
+ *  `resolveStaticMenusForRender` to `renderViaTemplate`, so the host's own shape flows through unchanged. */
+type ContentRouteDeps<TMenus = Readonly<Record<string, StaticMenuContent>>> = {
   getPresentationSettings(): Promise<{ settings: { activeThemeId: string } }>;
   isBarePageChoice(post: PostRecord): boolean;
   renderBarePreview(required: { post: PostRecord }): Promise<string>;
   resolveActiveTheme(required: { activeThemeId: string }): object | "none" | null;
   NO_THEME_ID: "none";
   resolveTemplateBranchChoice(required: { theme: object; post: PostRecord }): { kind: "ineligible" | "as-chosen" } | { kind: "page-shell"; templateChoice: string };
-  resolveStaticMenusForRender(required: { theme: object; currentPath: string }): Promise<Readonly<Record<string, StaticMenuContent>>>;
+  resolveStaticMenusForRender(required: { theme: object; currentPath: string }): Promise<TMenus>;
   postPublicPath(required: { slug: string }): string;
   createMemberAccessResolver(): object;
-  renderViaTemplate(required: { theme: object; post: PostRecord; staticMenus: Readonly<Record<string, StaticMenuContent>> }, optional: { pendingBodyJson: JsonObject | undefined; pendingBodyHtml: string | undefined; siteAssistantEnabled: false; postPreviewsAccess: { resolver: object; context: { isAuthenticated: boolean; activeTierIds: string[]; isPaid: boolean } } }): Promise<string>;
+  renderViaTemplate(required: { theme: object; post: PostRecord; staticMenus: TMenus }, optional: { pendingBodyJson: JsonObject | undefined; pendingBodyHtml: string | undefined; siteAssistantEnabled: false; postPreviewsAccess: { resolver: object; context: { isAuthenticated: boolean; activeTierIds: string[]; isPaid: boolean } } }): Promise<string>;
   copy: { missingTheme: string; themeOff: string };
 };
 
@@ -94,7 +96,7 @@ function resolvePreviewBodyOverrides(
  * @complexity One bounded page render plus the existing theme, embed and menu repository reads.
  * @example await renderPostPreview({ deps, input: { post, templateChoice: "article.html", bodyJson: pending } });
  */
-export async function renderPostPreview({ deps, input }: { deps: ContentRouteDeps; input: PostPreviewRenderInput }, _optional = {}): Promise<PostPreviewRenderResult> {
+export async function renderPostPreview<TMenus>({ deps, input }: { deps: ContentRouteDeps<TMenus>; input: PostPreviewRenderInput }, _optional = {}): Promise<PostPreviewRenderResult> {
   const post = input.post;
   const overrideTemplateChoice = input.templateChoice === undefined ? post.templateChoice ?? null : input.templateChoice;
   const pendingBodyJson = input.bodyJson;
@@ -208,7 +210,7 @@ export async function renderBarePostPreview({ deps, post }: { deps: {
   });
 }
 
-export function createPostPreviewRenderer(required: Omit<ContentRouteDeps, "renderBarePreview"> & Parameters<typeof renderBarePostPreview>[0]["deps"], _optional = {}) {
+export function createPostPreviewRenderer<TMenus>(required: Omit<ContentRouteDeps<TMenus>, "renderBarePreview"> & Parameters<typeof renderBarePostPreview>[0]["deps"], _optional = {}) {
   return ({ input }: { input: PostPreviewRenderInput }, _optional = {}): Promise<PostPreviewRenderResult> => renderPostPreview({
     deps: { ...required, renderBarePreview: ({ post }) => renderBarePostPreview({ deps: required, post }) }, input,
   });

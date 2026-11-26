@@ -5,7 +5,7 @@ import type { ComponentType, ReactNode } from "react";
 type MediaProviderMap = Record<string, { apiKey?: string; baseUrl?: string; model?: string; apiKeyConfigured?: boolean; apiKeyTail?: string; source?: string }>;
 type MediaProvidersPort = { fetchMediaProviders: () => Promise<MediaProviderMap | null> } & (
   { saveMediaProviders: (providers: MediaProviderMap) => Promise<MediaProviderMap> }
-  | { patchProvider: (required: { providerId: string; fields: { apiKey?: string; baseUrl?: string; model?: string } }, optional?: Record<string, never>) => Promise<MediaProviderMap>; removeProvider: (required: { providerId: string }, optional?: Record<string, never>) => Promise<MediaProviderMap> }
+  | { applyProviderChanges: (required: { removes: readonly string[]; patches: readonly { providerId: string; fields: { apiKey?: string; baseUrl?: string; model?: string } }[] }, optional?: Record<string, never>) => Promise<MediaProviderMap>; patchProvider: (required: { providerId: string; fields: { apiKey?: string; baseUrl?: string; model?: string } }, optional?: Record<string, never>) => Promise<MediaProviderMap>; removeProvider: (required: { providerId: string }, optional?: Record<string, never>) => Promise<MediaProviderMap> }
 );
 
 /** No cards until the host answers: an empty list, never a stale built-in roster. */
