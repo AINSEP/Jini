@@ -61,3 +61,39 @@ export async function listPublishCredentialsReply({ deps }: { deps: {
   // narrow.
   void deps.triggerAccountLabelHeal(credentials);
 }
+
+const BASE_PATH = "/api/admin/v1/workspaces/:workspaceId/system/publish/credentials";
+
+export function registerPublishCredentialsListRoute(required: {
+  mount(required: { method: "get"; path: string; handle: (facts: {
+    foreignWorkspace: () => boolean; principalId: () => string;
+    authorize: (params: { principalId: string; permission: string; workspaceId: string; entityType: string }) => Promise<boolean>;
+    json: (body: unknown, status: number) => void;
+    failure: (error: unknown, options: { operation: string; code: string }) => void;
+  }) => Promise<void> }): void;
+  workspaceId: string;
+  list: Parameters<typeof listPublishCredentialsReply>[0]["deps"]["list"];
+  executionMode: () => string;
+  triggerAccountLabelHeal: Parameters<typeof listPublishCredentialsReply>[0]["deps"]["triggerAccountLabelHeal"];
+  storeErrors: CredentialStoreErrorClasses;
+  operation: string;
+}, _optional = {}): void {
+  required.mount({ method: "get", path: BASE_PATH, handle: async facts => {
+    if (facts.foreignWorkspace()) return;
+    const principalId = facts.principalId();
+    const params = { principalId, permission: "system.publish", workspaceId: required.workspaceId, entityType: "site-publish" };
+    if (!(await facts.authorize(params))) return;
+    try {
+      await listPublishCredentialsReply({ deps: {
+        list: required.list,
+        executionMode: required.executionMode,
+        json: body => { facts.json(body, 200); },
+        triggerAccountLabelHeal: required.triggerAccountLabelHeal,
+      } });
+    } catch (err) {
+      const refusal = knownPublishCredentialListRefusal({ err, storeErrors: required.storeErrors });
+      if (refusal) { facts.json(refusal.body, refusal.status); return; }
+      facts.failure(err, { operation: required.operation, code: "INTERNAL_ERROR" });
+    }
+  } });
+}

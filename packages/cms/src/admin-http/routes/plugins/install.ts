@@ -37,7 +37,7 @@ async function readInstallInput({ body, query, route, readZipUpload }: {
 }): Promise<{ ok: false; refusal: InstallRefusal } | { ok: true; kind: 'preview'; input: PluginInstallInput } | { ok: true; kind: 'apply'; input: PluginInstallInput & { expectedDigest: string } }> {
   // ZIP options ride the query string; folder options are the JSON body.
   const options = (route.zip ? query : body) as InstallOptions | undefined;
-  // `!options` is a wiring guard: `req.body` is undefined when the route is mounted without express.json().
+  // `!options` is a wiring guard: `req.body` is undefined when the route is mounted without the host JSON parser.
   if (!options || !validReplacement({ replacement: options.replace, zip: route.zip })) return { ok: false, refusal: OPTIONS_INVALID };
   const expectedDigest = options.expectedDigest;
   let digest: { kind: 'preview' } | { kind: 'apply'; expectedDigest: string };
@@ -133,4 +133,40 @@ export function respondInstallFailure({ error, deps }: { error: unknown; deps: {
 } }, _optional = {}): void {
   if (error instanceof deps.installError) { deps.json({ code: error.code, error: error.message }, pluginInstallErrorStatus({ code: error.code })); return; }
   deps.failure(error);
+}
+
+/** Local sources are explicitly opt-in, even for admins. ZIP parsing follows authorization. */
+export function registerPluginInstallRoutes(required: {
+  mountJson(required: {
+    spec: typeof folderPluginInstallPreviewRoute | typeof folderPluginInstallRoute;
+    deps: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"];
+    failure: (facts: { error: unknown; principalId: () => string; json: (body: unknown, status: number) => void; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
+  }): void;
+  mountRaw(required: {
+    spec: typeof zipPluginInstallPreviewRoute | typeof zipPluginInstallRoute;
+    parser: { type: "application/zip"; limit: number; inflate: false };
+    requestDeps: (facts: Omit<Parameters<typeof readZipUpload>[0]["deps"], "uploadLimitText">) => Parameters<typeof zipPluginInstallRoute.handle>[0]["deps"];
+    failure: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"];
+  }): void;
+  installer: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"]["installer"];
+  onInstalled: Parameters<typeof folderPluginInstallRoute.handle>[0]["deps"]["onInstalled"];
+  onFailure: (required: { actorId: string; reasonClass: "refused" | "internal" }) => void;
+  installError: Parameters<typeof respondInstallFailure>[0]["deps"]["installError"];
+  operation: string; maxArchiveBytes: number; uploadLimitText: string;
+}, _optional = {}): void {
+  const matrix = [[folderPluginInstallPreviewRoute, false, true], [folderPluginInstallRoute, false, false], [zipPluginInstallPreviewRoute, true, true], [zipPluginInstallRoute, true, false]] as const;
+  for (const [spec, zip, preview] of matrix) {
+    const failureWriter: Parameters<Parameters<typeof registerPluginInstallRoutes>[0]["mountJson"]>[0]["failure"] = facts => {
+      if (!preview) required.onFailure({ actorId: facts.principalId(), reasonClass: facts.error instanceof required.installError ? "refused" : "internal" });
+      respondInstallFailure({ error: facts.error, deps: { installError: required.installError, json: facts.json, failure: error => facts.incident(error, { operation: required.operation, code: "INTERNAL_ERROR" }) } });
+    };
+    if (zip) {
+      required.mountRaw({ spec, parser: { type: "application/zip", limit: required.maxArchiveBytes, inflate: false },
+        requestDeps: facts => ({ installer: required.installer, onInstalled: required.onInstalled, readZipUpload: () => readZipUpload({ deps: { ...facts, uploadLimitText: required.uploadLimitText } }) }),
+        failure: failureWriter,
+      });
+    } else {
+      required.mountJson({ spec, deps: { installer: required.installer, onInstalled: required.onInstalled }, failure: failureWriter });
+    }
+  }
 }

@@ -169,3 +169,43 @@ export function scanGitHistoryForSecrets({ repoRoot, runner, policy }: Parameter
     policy,
   });
 }
+
+export function createRepoSecretCheck({ repoRoot, runner, fs, skipExtensions, maxScanBytes, exemptions, stdout, stderr, copy }: {
+  repoRoot: string;
+  runner: Parameters<typeof scanRepoForSecrets>[0]["runner"];
+  fs: Parameters<typeof scanRepoForSecrets>[0]["fs"];
+  skipExtensions: ReadonlySet<string>; maxScanBytes: number;
+  exemptions: readonly { file: string; patternName: string; value: string }[];
+  stdout: (text: string) => void; stderr: (text: string) => void;
+  copy: { clean: string; tip: (count: number) => string; history: (count: number) => string; guidance: string };
+}, _optional = {}) {
+  function isAllowlisted({ file, patternName, value }: { file: string; patternName: string; value: string }, _optional = {}): boolean {
+    return exemptions.some((e) => e.file === file && e.patternName === patternName && e.value === value);
+  }
+  const policy = { selectPath: ({ file }: { file: string }) => !skipExtensions.has(path.extname(file).toLowerCase()), maxScanBytes, isAllowlisted };
+  const scanTip = (_required: Record<string, never> = {}, _optional = {}) => scanRepoForSecrets({ repoRoot, runner, fs, policy });
+  const scanHistory = (_required: Record<string, never> = {}, _optional = {}) => scanGitHistoryForSecrets({ repoRoot, runner, fs, policy });
+  function run(_required: Record<string, never>, _optional = {}): 0 | 1 {
+    const tipViolations = scanTip();
+    const historyViolations = scanHistory();
+    if (tipViolations.length === 0 && historyViolations.length === 0) {
+      stdout(copy.clean);
+      return 0;
+    }
+    if (tipViolations.length > 0) {
+      stderr(copy.tip(tipViolations.length));
+      for (const v of tipViolations) {
+        stderr(`  - ${v.file}:${v.line} [${v.patternName}]`);
+      }
+    }
+    if (historyViolations.length > 0) {
+      stderr(copy.history(historyViolations.length));
+      for (const v of historyViolations) {
+        stderr(`  - ${v.file}:${v.line} [${v.patternName}]`);
+      }
+    }
+    stderr(copy.guidance);
+    return 1;
+  }
+  return { scanTip, scanHistory, isAllowlisted, run };
+}

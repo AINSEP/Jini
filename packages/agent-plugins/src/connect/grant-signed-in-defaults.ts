@@ -1,7 +1,7 @@
 import { ToolInputError, describeErrorForLog, redactSecrets } from '@jini-ai/core';
 
 import { createApplyConnectDefaults, type ApplyConnectDefaultsDeps } from "./apply-connect-defaults.js";
-import { hasStoredAgentPluginCredential } from "./connect-tool.js";
+import { hasStoredAgentPluginCredential } from "./catalog.js";
 import { deriveAgentPluginConnectionId } from "./federate-mcp.js";
 import type { AgentPluginMcpProjectionPorts } from "./ports.js";
 import type { InstalledAgentPluginServers, TokenImportLog } from "./import-access-token.js";

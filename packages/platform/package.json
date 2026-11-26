@@ -61,7 +61,9 @@
       "./object-store/site/artifact-provider": "universal",
       "./secrets/root-key/decide": "node",
       "./secrets/root-key/files": "node",
-      "./secrets/root-key/material": "node"
+      "./secrets/root-key/material": "node",
+      "./secrets/root-key/ordered-keyring": "node",
+      "./secrets/root-key/sources": "node"
     },
     "isolation": {
       "entries": {
@@ -339,6 +341,16 @@
       "types": "./dist/secrets/root-key/material.d.ts",
       "import": "./dist/secrets/root-key/material.js",
       "default": "./dist/secrets/root-key/material.js"
+    },
+    "./secrets/root-key/ordered-keyring": {
+      "types": "./dist/secrets/root-key/ordered-keyring.d.ts",
+      "import": "./dist/secrets/root-key/ordered-keyring.js",
+      "default": "./dist/secrets/root-key/ordered-keyring.js"
+    },
+    "./secrets/root-key/sources": {
+      "types": "./dist/secrets/root-key/sources.d.ts",
+      "import": "./dist/secrets/root-key/sources.js",
+      "default": "./dist/secrets/root-key/sources.js"
     }
   },
   "files": [

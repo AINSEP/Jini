@@ -13,7 +13,8 @@ import {
   buildAgentPluginAccessTokenFormWithPorts, buildAgentPluginAccessTokenOutcomeWithPorts, resolveAgentPluginCardIdentity,
   type AgentPluginAccessTokenFormMessages, type AgentPluginCardIdentity,
 } from "./connect-card-ui.js";
-import { titleCaseFromPluginId, type ResolvedAgentPluginForConnect } from "./connect-tool.js";
+import { titleCaseFromPluginId } from "./connect-tool.js";
+import type { ResolvedAgentPluginForConnect } from "./installed-plugin.js";
 
 /**
  * @file `agent_plugin_set_access_token` — the generic access-token fallback for an Agent Plugin whose

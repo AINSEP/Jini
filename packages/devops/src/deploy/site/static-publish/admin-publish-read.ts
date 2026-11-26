@@ -118,3 +118,21 @@ export function describePublishTargets({ registry }: { registry: DeployTargetReg
   }));
 }
 
+
+/** The registry's public target descriptors for this workspace, bound into the `publish-targets` spec;
+ * registry refusals (a module that did not load) are logged, never returned. @complexity O(t). */
+export function publishTargetsFor({ deps }: { deps: Pick<AdminPublishSiteDeps, "workspaceId" | "loadDeployTargets" | "refusal"> }, _optional = {}) {
+  return async () => {
+    const registry = await deps.loadDeployTargets({ workspaceId: deps.workspaceId });
+    for (const refusal of registry.refusals) deps.refusal(refusal);
+    return describePublishTargets({ registry });
+  };
+}
+
+export function createAdminPublishRead(required: PublishSiteContext, _optional = {}) {
+  return {
+    readTargetConfig: (input: Omit<Parameters<typeof readTargetConfig>[0], "deps">, _optional = {}) => readTargetConfig({ ...input, deps: required.deps }),
+    publishPreview: publishPreviewFor({ context: required }),
+    publishTargets: publishTargetsFor({ deps: required.deps }),
+  };
+}

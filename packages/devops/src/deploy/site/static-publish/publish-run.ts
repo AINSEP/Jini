@@ -1,3 +1,4 @@
+import { credentialChoice } from "./admin-publish-read.js";
 import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 import type { PublishJobSnapshot, DeployPublishProgress } from "@jini-ai/devops/deploy";
 import { publishStaticSite, type StaticPublishDeps, type StaticPublishInput } from "./adapter.js";
@@ -25,7 +26,7 @@ import type { StaticPublishOutcome, StaticPublishTargetId } from "@jini-ai/devop
  *
  * Lives in `static-publish/`, not this domain's sibling `features/deployments/export-run.ts` — a
  * DIFFERENT sub-feature (this file's own imports are `static-publish/adapter.ts`'s `publishStaticSite`
- * only, never `#src/features/site-export/index`), but the SAME reasoning `export-run.ts`'s header gives for its own
+ * only, never the host's site-export module), but the SAME reasoning `export-run.ts`'s header gives for its own
  * placement applies here too: `host src/server/inbound/admin-http/routes/system/publish-site.ts` (a `src/server/**` file)
  * is free to import FROM this domain, but `publish-agent-tools.ts`'s own `tool-registrations.ts`-style
  * rule (see `deployments/tool-registrations.ts`'s file header) forbids the reverse — a domain's
@@ -285,4 +286,34 @@ export function startPublishRun(
     });
 
   return getPublishRunSnapshot(deps);
+}
+
+export function createAdminPublishStart(required: {
+  start: typeof startPublishRun;
+  deps: StaticPublishDeps;
+  input: Pick<StaticPublishInput, "workspaceId" | "publishOutputRootDir" | "idGen" | "exportSiteBound">;
+  clock: Parameters<typeof startPublishRun>[0]["clock"];
+  historyStore: PublishHistoryStore;
+}, _optional = {}) {
+  return function startAdminPublish({ principal, parsed, config }: {
+    principal: { id: string }; parsed: { projectName: string; credentialId?: unknown }; config: StaticPublishInput["config"];
+  }, _optional = {}): PublishRunSnapshot {
+    // Deliberately not awaited — see this file's header for why the response returns before the
+    // publish finishes. `startPublishRun` itself keeps the shared slot in sync as the publish
+    // settles, so a poller can never observe a stale "running" snapshot after the promise has
+    // actually settled.
+    return required.start({ deps: required.deps, input: {
+      productEvent: { userId: principal.id, source: "admin" },
+      workspaceId: required.input.workspaceId,
+      publishOutputRootDir: required.input.publishOutputRootDir,
+      idGen: required.input.idGen,
+      exportSiteBound: required.input.exportSiteBound,
+      config,
+      projectName: parsed.projectName,
+      // The connection the operator actually chose in the Static Site tab. Never defaulted here:
+      // an absent id means "this caller has no chosen connection", which the credential source
+      // answers with its own default lookup — see the trigger request parser.
+      ...credentialChoice({ value: parsed.credentialId }),
+    }, clock: required.clock, historyStore: required.historyStore });
+  };
 }

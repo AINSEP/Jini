@@ -57,3 +57,11 @@ export function externalMcpErrorStatus({ error, deps }: { error: unknown; deps: 
 function externalMcpReplyBody(reply: { readonly status: number; readonly body?: unknown }): { status: number; body: unknown } {
   return { status: reply.status, body: reply.body };
 }
+
+export async function runWithExternalMcpRateLimit({ deps, run }: {
+  deps: Parameters<typeof withinRateLimit>[0]["deps"];
+  run: () => Promise<void>;
+}, _optional = {}): Promise<void> {
+  if (!(await withinRateLimit({ deps }))) return;
+  await run();
+}

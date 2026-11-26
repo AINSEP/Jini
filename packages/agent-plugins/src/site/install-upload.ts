@@ -1,5 +1,5 @@
 import { planAgentPluginUpdate, AgentPluginUpdateError, type AgentPluginMcpProvisioningPort } from "@jini-ai/agent-plugins/lifecycle";
-import { readInstalledAgentPluginIdentity } from "@jini-ai/agent-plugins/lifecycle/host-tools";
+import type { readInstalledAgentPluginIdentity } from "@jini-ai/agent-plugins/lifecycle/host-tools";
 import type { PluginHostPort, AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 /**
  * @file `installUploadedAgentPlugin()` — the admin "Add a plugin" upload: one operator-supplied
@@ -25,13 +25,12 @@ import type { PluginHostPort, AgentPluginLayout } from "@jini-ai/core/contracts/
  * Nothing in an uploaded package runs: skills are markdown, and code seams only trust bundled
  * digests (`trusted-plugin-files.ts`).
  */
-import { createHash } from "node:crypto";
 import path from "node:path";
 import type { lstat } from "node:fs/promises";
 import type { createAgentPluginLifecycle, AgentPluginLifecyclePorts, StagedTree } from "../lifecycle/index.js";
 import type { PluginStateEffects } from "@jini-ai/agent-plugins/persistent-state";
 
-import { parseAgentPluginManifest } from "@jini-ai/agent-plugins/lifecycle";
+import type { parseAgentPluginManifest } from "@jini-ai/agent-plugins/lifecycle";
 
 import {
   AgentPluginInstallError,
@@ -93,7 +92,7 @@ async function readBounded(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
  * entry names and the candidate `plugin.json` files.
  * @complexity O(e) in entry count, capped at {@link MAX_PREPASS_ENTRIES}.
  */
-async function locatePackage(reader: AgentPluginArchiveReaderPort, archive: Uint8Array): Promise<{ prefix: string; pluginId: string }> {
+async function locatePackage(reader: AgentPluginArchiveReaderPort, archive: Uint8Array, parseManifest: typeof parseAgentPluginManifest): Promise<{ prefix: string; pluginId: string }> {
   const { manifests, topLevel } = await scanPackageManifests({ reader, archive });
   const folders = [...topLevel].filter((name) => name.endsWith("/"));
   const enclosingFolder = topLevel.size === 1 && folders.length === 1 ? folders[0] : null;
@@ -109,7 +108,7 @@ async function locatePackage(reader: AgentPluginArchiveReaderPort, archive: Uint
   } catch (error) {
     throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: "plugin.json is not valid JSON" }, { cause: error });
   }
-  const parsed = parseAgentPluginManifest({ value });
+  const parsed = parseManifest({ value });
   if (!parsed.ok) throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: `plugin.json failed validation: ${parsed.errors.join("; ")}` });
   return { prefix, pluginId: parsed.manifest.name };
 }
@@ -130,6 +129,9 @@ export interface InstallUploadedAgentPluginOptional {
   readonly pluginHost?: PluginHostPort;
   readonly mcpProvisioning?: AgentPluginMcpProvisioningPort;
   readonly snapshotSettings?: import("@jini-ai/agent-plugins/lifecycle").UpdateAgentPluginRequired["snapshotSettings"];
+  readonly parseManifest: typeof parseAgentPluginManifest;
+  readonly readInstallIdentity: typeof readInstalledAgentPluginIdentity;
+  readonly sha256: (archive: Uint8Array) => string;
   readonly archiveReader: AgentPluginArchiveReaderPort;
   readonly lifecycle: Pick<ReturnType<typeof createAgentPluginLifecycle>, 'installAgentPlugin' | 'listInstalledPlugins' | 'stageForRemoval' | 'restoreStagedTrees' | 'removeFrozenPackageTree' | 'setAgentPluginActivation' | 'isAgentPluginRecordedAsBundled' | 'resolveAgentPluginActivation'>;
   readonly createLifecycle: (required: { layout: AgentPluginLayout }, optional: Partial<Pick<AgentPluginLifecyclePorts, 'mcpProvisioning'>> & Pick<AgentPluginLifecyclePorts, 'identityAdmission'>) => Pick<ReturnType<typeof createAgentPluginLifecycle>, 'updateAgentPlugin'>;
@@ -178,9 +180,9 @@ export async function installUploadedAgentPlugin(
   const layout = optional.layout;
   const reader = optional.archiveReader;
 
-  const digest = validateUploadedBytes({ archive, expectedSha256, maxAgentPluginInstallArchiveBytes: optional.maxAgentPluginInstallArchiveBytes });
+  const digest = validateUploadedBytes({ archive, expectedSha256, maxAgentPluginInstallArchiveBytes: optional.maxAgentPluginInstallArchiveBytes, sha256: optional.sha256 });
 
-  const { prefix, pluginId } = await locatePackage(reader, archive);
+  const { prefix, pluginId } = await locatePackage(reader, archive, optional.parseManifest);
   if (required.update) {
     return updateUploadedAgentPlugin({ ...required, update: required.update, expectedSha256: digest, archiveReader: withinPrefix({ reader, prefix }), candidateId: pluginId }, optional);
   }
@@ -192,30 +194,10 @@ export async function installUploadedAgentPlugin(
     // The lock belongs to installAgentPlugin. Doing an id check outside it lets two uploads
     // both pass and publish ambiguous digests. Keep check, disabled activation, and swap together.
     publishGuard: async ({ plugin: indexed, publish }) => {
-      const run = async () => {
-        const existing = await checkExisting({ workspaceRoot: workspaceLayout.root, pluginId, digest, replace: required.replace === true, candidate: indexed, lifecycle: optional.lifecycle });
-        const same = existing.find(entry => entry.archiveDigest === digest);
-        if (same) { alreadyInstalled = true; return same; }
-        upgradeFrom = existing.flatMap(entry => entry.version ? [entry.version] : []);
-        const staged: StagedTree[] = [];
-        const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
-        await assertOwnedPluginPath({ contain: containAgentPluginStatePath, workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
-        let installed: InstalledAgentPlugin;
-        try {
-          for (const previous of existing) staged.push(await stageForRemoval({ packagesDir, packageRoot: previous.packageRoot }));
-          // Write OFF before publication: a missing activation record otherwise means active.
-          // Replacement already proved this record OFF; preserve it exactly on success or rollback.
-          if (existing.length === 0) await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId, enabled: false, actor }, { origin: "operator-installed" });
-          installed = await publish();
-        } catch (error) {
-          await removeFailedPublication({ packagesDir, digest, staged, lstat: optional.lstat, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree });
-          throw await restoreStagedTrees({ staged, cause: error });
-        }
-        await retireReplacedPackages({ staged, pluginId, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree, warnCleanup: optional.warnCleanup });
-        return installed;
-      };
+      const run = () => publishUploadedAgentPlugin({ workspaceLayout, pluginId, digest, required, optional, indexed, publish, actor, stageForRemoval, restoreStagedTrees, setAgentPluginActivation, assertOwnedPluginPath, containAgentPluginStatePath,
+        markAlreadyInstalled: () => { alreadyInstalled = true; }, setUpgradeFrom: versions => { upgradeFrom = versions; } });
       if (!optional.pluginHost) return run();
-      const identity = await readInstalledAgentPluginIdentity({ plugin: indexed });
+      const identity = await optional.readInstallIdentity({ plugin: indexed });
       return optional.pluginHost.withInstallIdentity({ candidate: { id: identity.id, localId: pluginId, family: "agent-plugin" }, run });
     },
   });
@@ -288,11 +270,11 @@ export interface AgentPluginUploadPreview {
 /** Extracts through the real install validator in staging; preview never publishes code or memory.
  * Host paths from that ephemeral extraction are deliberately absent from this projection. */
 export async function previewUploadedAgentPlugin(required: InstallUploadedAgentPluginRequired, optional: InstallUploadedAgentPluginOptional): Promise<AgentPluginUploadPreview> {
-  validateUploadedBytes({ ...required, maxAgentPluginInstallArchiveBytes: optional.maxAgentPluginInstallArchiveBytes });
+  validateUploadedBytes({ ...required, maxAgentPluginInstallArchiveBytes: optional.maxAgentPluginInstallArchiveBytes, sha256: optional.sha256 });
   const reader = optional.archiveReader;
   const layout = optional.layout;
   const { installAgentPlugin } = optional.lifecycle;
-  const { prefix, pluginId } = await locatePackage(reader, required.archive);
+  const { prefix, pluginId } = await locatePackage(reader, required.archive, optional.parseManifest);
   const plugin = await installAgentPlugin({ archive: required.archive, expectedSha256: required.expectedSha256,
     archiveReader: withinPrefix({ reader, prefix }), layout, workspaceId: required.workspaceId }, { previewOnly: true });
   const existing = await checkExisting({ workspaceRoot: layout.forWorkspace({ workspaceId: required.workspaceId }).root, pluginId, digest: plugin.archiveDigest, replace: required.replace === true, candidate: plugin, lifecycle: optional.lifecycle });
@@ -305,11 +287,11 @@ export async function previewUploadedAgentPlugin(required: InstallUploadedAgentP
 
 /** Both preview and install check the upload cap/digest before a reader opens any stream.
  * installAgentPlugin repeats these checks at the extraction boundary. */
-function validateUploadedBytes(required: { archive: Uint8Array; expectedSha256: string; maxAgentPluginInstallArchiveBytes(): number }, _optional: Record<string, never> = {}): string {
+function validateUploadedBytes(required: { archive: Uint8Array; expectedSha256: string; maxAgentPluginInstallArchiveBytes(): number; sha256: (archive: Uint8Array) => string }, _optional: Record<string, never> = {}): string {
   if (required.archive.byteLength > required.maxAgentPluginInstallArchiveBytes()) {
     throw new AgentPluginInstallError({ code: "ARCHIVE_TOO_LARGE", message: "archive exceeds the 32 MiB upload cap" });
   }
-  const digest = createHash("sha256").update(required.archive).digest("hex");
+  const digest = required.sha256(required.archive);
   if (!/^[a-f0-9]{64}$/i.test(required.expectedSha256) || digest !== required.expectedSha256.toLowerCase()) {
     throw new AgentPluginInstallError({ code: "DIGEST_MISMATCH", message: "the uploaded bytes do not match the file that was chosen" });
   }
@@ -369,4 +351,45 @@ async function retireReplacedPackages(
     try { await removeFrozenPackageTree({ root: tree.quarantined }); }
     catch (error) { warnCleanup({ pluginId, error }); }
   }
+}
+
+async function publishUploadedAgentPlugin({ workspaceLayout, pluginId, digest, required, optional, indexed, publish, actor, stageForRemoval, restoreStagedTrees, setAgentPluginActivation, assertOwnedPluginPath, containAgentPluginStatePath, markAlreadyInstalled, setUpgradeFrom }: {
+  workspaceLayout: ReturnType<AgentPluginLayout['forWorkspace']>; pluginId: string; digest: string;
+  required: InstallUploadedAgentPluginRequired; optional: InstallUploadedAgentPluginOptional;
+  indexed: UpdateRevision; publish: () => Promise<InstalledAgentPlugin>;
+  actor: string;
+  stageForRemoval: InstallUploadedAgentPluginOptional['lifecycle']['stageForRemoval'];
+  restoreStagedTrees: InstallUploadedAgentPluginOptional['lifecycle']['restoreStagedTrees'];
+  setAgentPluginActivation: InstallUploadedAgentPluginOptional['lifecycle']['setAgentPluginActivation'];
+  assertOwnedPluginPath: InstallUploadedAgentPluginOptional['assertOwnedPluginPath'];
+  containAgentPluginStatePath: InstallUploadedAgentPluginOptional['contain'];
+  markAlreadyInstalled: () => void; setUpgradeFrom: (versions: string[]) => void;
+}, _optional = {}): Promise<InstalledAgentPlugin> {
+        const existing = await checkExisting({ workspaceRoot: workspaceLayout.root, pluginId, digest, replace: required.replace === true, candidate: indexed, lifecycle: optional.lifecycle });
+        const same = existing.find(entry => entry.archiveDigest === digest);
+        if (same) { markAlreadyInstalled(); return same; }
+        setUpgradeFrom(existing.flatMap(entry => entry.version ? [entry.version] : []));
+        const staged: StagedTree[] = [];
+        const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
+        await assertOwnedPluginPath({ contain: containAgentPluginStatePath, workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+        let installed: InstalledAgentPlugin;
+        try {
+          for (const previous of existing) staged.push(await stageForRemoval({ packagesDir, packageRoot: previous.packageRoot }));
+          // Write OFF before publication: a missing activation record otherwise means active.
+          // Replacement already proved this record OFF; preserve it exactly on success or rollback.
+          if (existing.length === 0) await setAgentPluginActivation({ workspaceRoot: workspaceLayout.root, pluginId, enabled: false, actor }, { origin: "operator-installed" });
+          installed = await publish();
+        } catch (error) {
+          await removeFailedPublication({ packagesDir, digest, staged, lstat: optional.lstat, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree });
+          throw await restoreStagedTrees({ staged, cause: error });
+        }
+        await retireReplacedPackages({ staged, pluginId, removeFrozenPackageTree: optional.lifecycle.removeFrozenPackageTree, warnCleanup: optional.warnCleanup });
+        return installed;
+      }
+
+export function createAgentPluginUpload(required: InstallUploadedAgentPluginOptional, _optional = {}) {
+  return {
+    installUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'> = {}) => installUploadedAgentPlugin(input, { ...required, ...optional }),
+    previewUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'pluginHost' | 'mcpProvisioning' | 'snapshotSettings'> = {}) => previewUploadedAgentPlugin(input, { ...required, ...optional }),
+  };
 }

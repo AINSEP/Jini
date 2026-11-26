@@ -12,7 +12,7 @@ export interface SiteKeySource { readonly kind: string; readonly path?: string }
  * A env-kind source whose var IS set but blank or whitespace-only is treated as ABSENT, not
  * present-but-invalid: `development/scripts/start.mjs`'s own `clearBlankSiteKeyEnv` exists for the
  * exact same reason — a spawned child (the desktop app's own boot path) can pass a blank value
- * through, and an operator's shell profile can just as easily `export TOVU_SITE_KEY=` with nothing
+ * through, and an operator's shell profile can just as easily a blank site-key variable with nothing
  * after it. Either way the var must fall through to the next source exactly as if it had never been
  * set, not be reported as a broken/invalid key. A file-kind source's content is NOT trimmed or
  * blank-checked here — a real file that exists and is empty is a genuinely broken on-disk state
@@ -82,7 +82,7 @@ interface PresentSiteKey {
  * silently skip a broken source: that could select a key the operator did not intend.
  * @complexity O(sources), with one small env/file read per attempted source.
  */
-function firstPresentSiteKey(input: { sources: readonly SiteKeySource[]; env: Record<string, string | undefined>; readSiteKeySourceMaterial: InspectSiteKeyMaterialOptions["readSiteKeySourceMaterial"] }, _optional = {}): PresentSiteKey | undefined {
+export function firstPresentSiteKey(input: { sources: readonly SiteKeySource[]; env: Record<string, string | undefined>; readSiteKeySourceMaterial: InspectSiteKeyMaterialOptions["readSiteKeySourceMaterial"] }, _optional = {}): PresentSiteKey | undefined {
   for (const source of input.sources) {
     const material = input.readSiteKeySourceMaterial({ source, env: input.env });
     if (material !== undefined) return { source, material, parsed: parseSiteKeyHex({ raw: material.raw }) };
@@ -153,7 +153,7 @@ export function revealSiteKeyMaterial(options: InspectSiteKeyMaterialOptions, _o
  * the first-boot `siteKeyId` (the boot completes the file with `siteId` = that same id, so the name
  * holds across that first restart). Undefined when the file is missing or holds neither. Shared by
  * the server's site identity (`deps.ts`'s `siteIdentityFor`) and `host deploy config`, which carries
- * it to the deployed server as `TOVU_SITE_ID`, so both name the same site the same way.
+ * it to the deployed server as the host's site-id environment variable, so both name the same site the same way.
  * @complexity O(1), one small file read.
  */
 export function readSiteMetaId({ siteDir, readSiteMetaJson, idField, fallbackIdField }: { siteDir: string; readSiteMetaJson: (required: { siteDir: string }) => Record<string, unknown> | undefined; idField: string; fallbackIdField: string }, _optional = {}): string | undefined {

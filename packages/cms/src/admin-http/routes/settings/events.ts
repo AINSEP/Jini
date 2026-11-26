@@ -1,3 +1,5 @@
+import type { createThemePreviewFeed } from "../../../themes/preview/refresh.node.js";
+import type { collectChangedNamespaces } from "@jini-ai/core/settings";
 import type { ChangeFeedBatch } from '@jini-ai/core/settings';
 import type { SettingRevisionRecord } from '@jini-ai/core/settings';
 
@@ -277,4 +279,60 @@ export function createNamespaceResolver({ deps }: { deps: { settingsRepo: { find
     return namespace;
   };
   return resolveNamespace;
+}
+
+export async function openSettingsEventsRequest(required: {
+  workspaceId: string;
+  resolveTimers: () => Pick<Parameters<typeof settingsEventsRoute.open>[0]["ports"], "schedule" | "clear">;
+  admission: Parameters<typeof admitSubscriber>[0]["deps"];
+  request: {
+    httpVersionMajor: () => number; lastEventId: () => string | undefined; afterRevision: () => unknown; themeRevision: () => unknown;
+    writeHead: (status: number, headers: Record<string, string>) => void;
+    write: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["write"];
+    end: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["end"];
+    onClose: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["onClose"];
+  };
+  settingsRepo: Parameters<typeof createNamespaceResolver>[0]["deps"]["settingsRepo"];
+  readHead: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["readHead"]; readRevisions: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["readRevisions"];
+  collect: typeof collectChangedNamespaces;
+  reauthorize: (required: { principalId: string; workspaceId: string; includePreview: boolean }) => Promise<FeedAccess>;
+  createPreviewFeed: typeof createThemePreviewFeed;
+  readPreview: Parameters<typeof createThemePreviewFeed>[0]["read"]; isReservedPath: Parameters<typeof createThemePreviewFeed>[0]["isReservedPath"];
+  report: Parameters<typeof settingsEventsRoute.open>[0]["ports"]["report"];
+  headFailureText: string;
+}, _optional = {}): Promise<void> {
+  // Resolved per request, not at registration: a test that swaps the global timers after the
+  // route is registered must still be the one this stream schedules on.
+  const timers = required.resolveTimers();
+  const admission = await admitSubscriber({ deps: required.admission });
+  if (!admission) return;
+  const { request } = required;
+  const viewer = { workspaceId: required.workspaceId, principalId: admission.principal.id };
+  const resolveNamespace = createNamespaceResolver({ deps: { settingsRepo: required.settingsRepo } });
+  let previewFeed: ReturnType<typeof createThemePreviewFeed>;
+  return settingsEventsRoute.open({ workspaceId: required.workspaceId, initialAccess: admission.access,
+    lastEventId: request.lastEventId(), afterRevision: request.afterRevision(), ports: {
+      writeHead: () => { request.writeHead(200, sseWriteHeadHeaders({ httpVersionMajor: request.httpVersionMajor() })); },
+      write: request.write, end: request.end, onClose: request.onClose,
+      schedule: ({ work, ms }) => {
+        // One tiny site-local marker bridges saves from the separate agent-daemon process.
+        // Theme events have their own type and never advance the settings ledger's Last-Event-ID.
+        previewFeed ??= required.createPreviewFeed({ isReservedPath: required.isReservedPath, read: required.readPreview,
+          emit: ({ frame }, _options = {}) => { request.write({ frame: `event: theme-preview-refresh\ndata: ${JSON.stringify(frame)}\n\n` }); },
+        }, { resumeRevision: typeof request.themeRevision() === "string" ? request.themeRevision() as string : undefined });
+        return timers.schedule({ work, ms });
+      },
+      clear: timers.clear,
+      readHead: required.readHead, readRevisions: required.readRevisions,
+      collect: ({ revisions }) => required.collect({ revisions, viewer, resolveNamespace }),
+      reauthorize: () => required.reauthorize({ principalId: admission.principal.id, workspaceId: required.workspaceId, includePreview: admission.includePreview }),
+      previewTick: () => previewFeed(), report: required.report, headFailureText: required.headFailureText,
+    },
+  });
+}
+
+export function registerSettingsEventsRoute(required: Omit<Parameters<typeof openSettingsEventsRequest>[0], "request" | "admission"> & {
+  mount(required: { method: "get"; path: string; handle: (facts: Pick<Parameters<typeof openSettingsEventsRequest>[0], "request" | "admission">) => Promise<void> }): void;
+}, _optional = {}): void {
+  required.mount({ method: settingsEventsRoute.method, path: settingsEventsRoute.path, handle: facts => openSettingsEventsRequest({ ...required, ...facts }) });
 }

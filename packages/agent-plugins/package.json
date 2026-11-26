@@ -139,7 +139,10 @@
       "./react/installed-skills-composer-source": "browser",
       "./react/agent-plugin-install-port": "browser",
       "./react/use-agent-plugins.hooks": "browser",
-      "./react/AgentPluginDetailsModal": "browser"
+      "./react/AgentPluginDetailsModal": "browser",
+      "./site/automatic-agent-plugins": "node",
+      "./connect/host-deps": "universal",
+      "./connect/installed-plugin": "universal"
     },
     "isolation": {
       "entries": {
@@ -517,6 +520,21 @@
       "types": "./dist/react/AgentPluginDetailsModal.d.ts",
       "import": "./dist/react/AgentPluginDetailsModal.js",
       "default": "./dist/react/AgentPluginDetailsModal.js"
+    },
+    "./site/automatic-agent-plugins": {
+      "types": "./dist/site/automatic-agent-plugins.d.ts",
+      "import": "./dist/site/automatic-agent-plugins.js",
+      "default": "./dist/site/automatic-agent-plugins.js"
+    },
+    "./connect/host-deps": {
+      "types": "./dist/connect/host-deps.d.ts",
+      "import": "./dist/connect/host-deps.js",
+      "default": "./dist/connect/host-deps.js"
+    },
+    "./connect/installed-plugin": {
+      "types": "./dist/connect/installed-plugin.d.ts",
+      "import": "./dist/connect/installed-plugin.js",
+      "default": "./dist/connect/installed-plugin.js"
     }
   },
   "files": [

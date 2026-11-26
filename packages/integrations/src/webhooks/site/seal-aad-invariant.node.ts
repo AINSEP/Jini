@@ -41,3 +41,29 @@ export function findSealCallsWithoutAad(
   }
   return violations;
 }
+
+/** The host's exact exemption: one path AND one whitespace-collapsed call text, never the text alone. */
+export function createNonSecretSealCallPredicate({ exemptions }: { exemptions: Readonly<Record<string, string>> }, _optional = {}) {
+  return ({ displayPath, text }: { displayPath: string; text: string }): boolean => exemptions[displayPath] === text;
+}
+
+export function runSealAadCheck({ repoRoot, scanRoot, fs, ast, exemptions, stdout, stderr, copy }: {
+  repoRoot: string; scanRoot: string;
+  fs: Parameters<typeof findSealCallsWithoutAad>[0]["fs"];
+  ast: typeof ts;
+  exemptions: Readonly<Record<string, string>>;
+  stdout: (text: string) => void; stderr: (text: string) => void;
+  copy: { clean: string; findings: (count: number) => string; guidance: string };
+}, _optional = {}): 0 | 1 {
+  const violations = findSealCallsWithoutAad({ repoRoot, scanRoot, fs, ast, isExempt: createNonSecretSealCallPredicate({ exemptions }) });
+  if (violations.length === 0) {
+    stdout(copy.clean);
+    return 0;
+  }
+  stderr(copy.findings(violations.length));
+  for (const v of violations) {
+    stderr(`  - ${v.file}:${v.line} [${v.reason}] ${v.text}`);
+  }
+  stderr(copy.guidance);
+  return 1;
+}

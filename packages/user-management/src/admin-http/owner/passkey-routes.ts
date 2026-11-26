@@ -104,3 +104,43 @@ export async function ownerPasskeyStatusRoute({ admission }: { admission: Pick<A
     admission.json({ isOwner: true, credentials: credentials.map(c => ({ id: c.id })) });
   } catch (error) { admission.failure(error); }
 }
+
+/** Compose Jini from the serving site's trusted scope and credential adapter; O(1), no poll. */
+export async function resolveOwnerPasskeyRouteDeps(required: {
+  store: () => OwnerPasskeyDeps["credentials"] | undefined;
+  mfa: () => Promise<OwnerPasskeyDeps["mfa"]>;
+  webauthn: () => OwnerPasskeyDeps["webauthn"];
+  site: Parameters<typeof ownerPasskeySite>[0];
+  unavailableMessage: string;
+}, _optional = {}): Promise<OwnerPasskeyDeps> {
+  if (!required.store()) throw new IdentityValidationError({ message: required.unavailableMessage });
+  return { mfa: await required.mfa(), credentials: required.store()!, webauthn: required.webauthn(), site: ownerPasskeySite(required.site) };
+}
+
+/** Admission failures reveal no credentials; protocol proofs are never logged. O(1). */
+export function answerOwnerPasskeyFailure({ error, json, incident, operation, incidentOptions }: {
+  error: unknown; json: (body: unknown, status: number) => void;
+  incident: (error: unknown, options: { operation: string; code: string; message: string; failure: { step: string; action: string } }) => void;
+  operation: string;
+  incidentOptions: { operation: string; code: string; message: string; failure: { step: string; action: string } };
+}, _optional = {}): void {
+  const expected = error instanceof IdentityValidationError || error instanceof OwnerRequiredError;
+  if (!expected) {
+    incident(error, incidentOptions);
+    return;
+  }
+  json({ error: error.message, code: "PASSKEY_REFUSED", details: { operation } }, error instanceof OwnerRequiredError ? 403 : 400);
+}
+
+/** Status reads only public credential identifiers for the signed-in owner, once per settings load. */
+export function registerOwnerPasskeyRoutes(required: {
+  root: string;
+  mount(required: { method: "post" | "get"; path: string; handle: (admission: Admission) => Promise<void> }): void;
+}, _optional: Record<string, never> = {}): void {
+  for (const action of ["enroll", "confirm", "begin-login", "login", "remove"] as const) {
+    required.mount({ method: "post", path: `${required.root}/${action}`, handle: admission => ownerPasskeyActionRoute({ action, admission }) });
+  }
+  required.mount({ method: "get", path: required.root, handle: async admission => {
+    await ownerPasskeyStatusRoute({ admission });
+  } });
+}

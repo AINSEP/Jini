@@ -3,9 +3,7 @@
  * belongs to, how a failed step maps to its HTTP answer, the fixed refusal bodies of the shared gate,
  * the owner-setup response contract and the owner-setup body check.
  *
- * Express registration, socket handling (upload deadlines, the single upload lane) and body parsers
- * stay with the host's adapter: they depend on the host's process and socket policy, and the host's
- * parsers differ in how they inflate bodies. This module sees plain values only. The host's refusal
+ * Registration uses neutral request facts and injected socket/body-parser effects. This module sees plain values only. The host's refusal
  * class and byte formatter are injected as {@link SiteImportFailureCollaborators}.
  */
 
@@ -199,4 +197,160 @@ export async function completeSiteImportOwner({ body, backend: readBackend, prin
   const backend = readBackend();
   if (!backend) throw new Error('site import owner setup has no import backend');
   return backend.completeOwner({ principalId: principalId(), importId: importId(), ...parsed.input }, { signal: signal() });
+}
+
+export function createSiteImportUploadLane(required: { uploadDeadlineMs: number; uploadIdleMs: number; setTimeout: typeof globalThis.setTimeout; clearTimeout: typeof globalThis.clearTimeout }, _optional = {}) {
+  let uploadBusy = false;
+  return {
+    admit(request: { json: (body: unknown, status: number) => void; destroy: () => void; setIdleTimeout: (milliseconds: number, callback: () => void) => void; onClose: (callback: () => void) => void }): boolean {
+      if (uploadBusy) { const reply = uploadBusyReply(); request.json(reply.body, reply.status); return false; }
+      uploadBusy = true;
+      const deadline = required.setTimeout(request.destroy, required.uploadDeadlineMs);
+      deadline.unref();
+      request.setIdleTimeout(required.uploadIdleMs, request.destroy);
+      request.onClose(() => { required.clearTimeout(deadline); uploadBusy = false; });
+      return true;
+    },
+  };
+}
+
+export function answerSiteImportFailure({ error: caught, step, request, required }: {
+  error: unknown; step: string;
+  request: Parameters<Parameters<Parameters<typeof registerSiteImportRoutes>[0]["mount"]>[0]["handle"]>[0];
+  required: Parameters<typeof registerSiteImportRoutes>[0];
+}, _optional = {}): void {
+  let error = caught;
+  try { required.mapHistoryError(error); }
+  catch (mapped) { error = mapped; }
+  if (error instanceof required.historyUnavailable) {
+    request.failure(error, { code: error.code, message: error.message, status: error.status, field: "message" });
+    return;
+  }
+  const mapped = mapImportFailure({ step, error, collaborators: required.failureCollaborators });
+  if (mapped) { request.json(mapped.body, mapped.status); return; }
+  request.failure(error, importIncident({ step }));
+}
+
+export function registerSiteImportRoutes(required: {
+  workspaceId: string;
+  mount(required: { method: "get" | "post"; path: string; handle: (request: {
+    workspaceId: () => string; principalId: () => string;
+    authorize: (params: { principalId: string; workspaceId: string; permission: string; entityType: string }) => Promise<boolean>;
+    requireSession: (required: { message: string; permission: string }) => boolean;
+    noStore: (headers: Readonly<Record<string, string>>) => void;
+    json: (body: unknown, status: number) => void;
+    failure: (error: unknown, options: SiteImportIncident | { code: string; message: string; status: number; field: "message" }) => void;
+    body: () => unknown; query: () => Record<string, unknown>; importId: () => string;
+    origin: () => string | undefined; protocol: () => string; host: () => string | undefined;
+    parseZip: (options: { type: "application/zip"; limit: number; inflate: false }) => Promise<void>;
+    parseForm: (options: { extended: false; limit: "8kb" }) => Promise<void>;
+    isBuffer: (value: unknown) => value is Uint8Array;
+    onClose: (callback: () => void) => void; onAborted: (callback: () => void) => void; writableEnded: () => boolean;
+    destroy: () => void; setIdleTimeout: (milliseconds: number, callback: () => void) => void;
+  }) => Promise<void> }): void;
+  backend: () => (Parameters<typeof importSiteBackup>[0]["backend"] & Parameters<typeof readSiteImportOwner>[0]["backend"] & NonNullable<ReturnType<Parameters<typeof completeSiteImportOwner>[0]["backend"]>> & SiteImportListRouteDeps & { upload(required: { principalId: string; archive: Uint8Array }): Promise<unknown> }) | undefined;
+  parseInput: Parameters<typeof importSiteBackup>[0]["parseInput"];
+  refusal: Parameters<typeof completeSiteImportOwner>[0]["refusal"];
+  mapHistoryError: (error: unknown) => void;
+  historyUnavailable: abstract new (...args: never[]) => Error & { code: string; status: number };
+  failureCollaborators: SiteImportFailureCollaborators;
+  steps: { list: string; import: string; upload: string; ownerGet: string; ownerPost: string };
+  ownerSessionMessage: string; originRefusalMessage: string;
+  maxArchiveBytes: number; uploadDeadlineMs: number; uploadIdleMs: number;
+  setTimeout: typeof globalThis.setTimeout; clearTimeout: typeof globalThis.clearTimeout;
+}, _optional = {}): void {
+  const lane = createSiteImportUploadLane(required);
+  registerListAndImportRoutes(required);
+  registerUploadRoute(required, lane);
+  registerOwnerRoutes(required);
+}
+
+/** Common headers, workspace match, authorization and backend-availability gate; returns the backend or `false` after answering. */
+async function gateImport({ required, request, step, permission }: {
+  required: Parameters<typeof registerSiteImportRoutes>[0];
+  request: Parameters<Parameters<Parameters<typeof registerSiteImportRoutes>[0]["mount"]>[0]["handle"]>[0];
+  step: string; permission: string;
+}, _optional = {}) {
+  request.noStore({ "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer" });
+  if (request.workspaceId() !== required.workspaceId) { const reply = workspaceUnavailableReply({ step }); request.json(reply.body, reply.status); return false; }
+  if (!await request.authorize({ principalId: request.principalId(), workspaceId: required.workspaceId, permission, entityType: "site-registry" })) return false;
+  const backend = required.backend();
+  if (!backend) { const reply = importUnavailableReply({ step }); request.json(reply.body, reply.status); return false; }
+  return backend;
+}
+
+/** Owner-setup gate: a signed-in session only, then the normal write gate and an existing-import check. */
+async function gateImportOwner(input: Omit<Parameters<typeof gateImport>[0], "permission">) {
+  const { required, request } = input;
+  if (!request.requireSession({ message: required.ownerSessionMessage, permission: "system.write" })) return false;
+  const backend = await gateImport({ ...input, permission: "system.write" });
+  if (!backend) return false;
+  backend.get({ principalId: request.principalId(), importId: request.importId() });
+  return backend;
+}
+
+function requestSignal(request: Parameters<Parameters<Parameters<typeof registerSiteImportRoutes>[0]["mount"]>[0]["handle"]>[0]) {
+  const controller = new AbortController();
+  request.onAborted(() => controller.abort());
+  request.onClose(() => { if (!request.writableEnded()) controller.abort(); });
+  return controller.signal;
+}
+
+function registerListAndImportRoutes(required: Parameters<typeof registerSiteImportRoutes>[0], _optional = {}): void {
+  const root = siteImportListRouteSpec.path;
+  required.mount({ method: "get", path: root, handle: async request => {
+    try {
+      const backend = await gateImport({ required, request, step: required.steps.list, permission: "system.read" });
+      if (!backend) return;
+      const principalId = request.principalId();
+      // Authorization precedes query interpretation.
+      const parsed = parseSiteImportListQuery({ query: request.query() });
+      if (!parsed.ok) { request.json({ code: "INVALID_CURSOR", message: "Import history failed: This list of imports changed. Reload it to see the newest imports." }, 400); return; }
+      const result = await siteImportListRouteSpec.handle({ input: parsed.value, deps: { listPage: input => backend.listPage(input) }, context: { principalId } });
+      if (result.ok) request.json(result.value, 200);
+      else request.json({ code: "INVALID_CURSOR", message: "Import history failed: This list of imports changed. Reload it to see the newest imports." }, 400);
+    } catch (error) { answerSiteImportFailure({ required, request, error, step: required.steps.list }); }
+  } });
+  required.mount({ method: "post", path: root, handle: async request => {
+    try {
+      const backend = await gateImport({ required, request, step: required.steps.import, permission: "system.write" });
+      if (!backend) return;
+      const imported = await importSiteBackup({ backend, body: request.body, parseInput: required.parseInput, principalId: request.principalId, signal: () => requestSignal(request) });
+      request.json(imported, 200);
+    } catch (error) { answerSiteImportFailure({ required, request, error, step: required.steps.import }); }
+  } });
+}
+
+function registerUploadRoute(required: Parameters<typeof registerSiteImportRoutes>[0], lane: ReturnType<typeof createSiteImportUploadLane>): void {
+  required.mount({ method: "post", path: siteImportListRouteSpec.path + "/uploads", handle: async request => {
+    try {
+      if (!await gateImport({ required, request, step: required.steps.upload, permission: "system.write" })) return;
+      if (!lane.admit(request)) return;
+      await request.parseZip({ type: "application/zip", limit: required.maxArchiveBytes, inflate: false });
+      if (!request.isBuffer(request.body())) throw required.refusal({ code: "INVALID_INPUT", message: "Upload raw application/zip bytes, not a filesystem path or base64 JSON." });
+      const backend = required.backend();
+      if (!backend) throw new Error("site import ZIP upload has no import backend");
+      request.json(await backend.upload({ principalId: request.principalId(), archive: request.body() as Uint8Array }), 201);
+    } catch (error) { answerSiteImportFailure({ required, request, error, step: required.steps.upload }); }
+  } });
+}
+
+function registerOwnerRoutes(required: Parameters<typeof registerSiteImportRoutes>[0], _optional = {}): void {
+  const path = siteImportListRouteSpec.path + "/:importId/owner";
+  required.mount({ method: "get", path, handle: async request => {
+    try {
+      const backend = await gateImportOwner({ required, request, step: required.steps.ownerGet });
+      if (!backend) return;
+      request.json(readSiteImportOwner({ backend, principalId: request.principalId, importId: request.importId }), 200);
+    } catch (error) { answerSiteImportFailure({ required, request, error, step: required.steps.ownerGet }); }
+  } });
+  required.mount({ method: "post", path, handle: async request => {
+    try {
+      if (!await gateImportOwner({ required, request, step: required.steps.ownerPost })) return;
+      // Exact Origin prevents a sibling origin choosing a password with the owner's session.
+      if (request.origin() !== request.protocol() + "://" + request.host()) { request.json({ code: "FORBIDDEN", message: required.originRefusalMessage }, 403); return; }
+      await request.parseForm({ extended: false, limit: "8kb" });
+      request.json(await completeSiteImportOwner({ body: request.body, backend: required.backend, principalId: request.principalId, importId: request.importId, signal: () => requestSignal(request), refusal: required.refusal }), 200);
+    } catch (error) { answerSiteImportFailure({ required, request, error, step: required.steps.ownerPost }); }
+  } });
 }

@@ -1,6 +1,6 @@
 import { resolveTarget, saveStaticAccessToken, type AgentPluginTokenTargetDeps, type TokenAuthTarget } from "./access-token-tool.js";
 import { describeErrorForLog } from "@jini-ai/core";
-import { hasStoredAgentPluginCredential } from "./connect-tool.js";
+import { hasStoredAgentPluginCredential } from "./catalog.js";
 import type { McpServerConfig } from "../lifecycle/manifest.js";
 import type { AgentPluginInstalledMcpReads } from "./federate-mcp.js";
 import type { SavedTokenSwitchOutcome } from "./switch-on-saved-token.js";

@@ -92,3 +92,8 @@ export async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput & 
   if (!result.enabled) await options.notifyRosterChanged?.({ lowered: { pluginIds: [input.pluginId] } });
   return result;
 }
+
+export function createSetAgentPluginEnabled(required: Pick<Parameters<typeof setAgentPluginEnabled>[0], 'createLifecycle' | 'bindProviderFacePorts' | 'assertAgentPluginReady' | 'AgentPluginLinkedError'>, _optional = {}) {
+  const lifecycles: Parameters<typeof setAgentPluginEnabled>[0]['lifecycles'] = new WeakMap();
+  return (input: SetAgentPluginEnabledInput, options: Parameters<typeof setAgentPluginEnabled>[1] = {}): Promise<SetAgentPluginEnabledResult> => setAgentPluginEnabled({ ...input, ...required, lifecycles }, options);
+}

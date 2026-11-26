@@ -92,3 +92,27 @@ function sendShareUploadRefusal({ error, deps }: Parameters<typeof sendSiteShare
   deps.json({ code: refusal.code, message: `${step} failed: upload raw application/zip bytes within the 300 MiB cap.` }, refusal.status);
   return true;
 }
+
+/** Register on POST …/site-shares/:shareId/password after the existing session middleware.
+ * The backend owns record/workspace lookup and password opening; this boundary adds browser-only
+ * owner and CSRF checks. Every outcome, including denial, remains non-cacheable.
+ */
+export function createSiteSharePasswordHandler({ readBackend }: {
+  readBackend: () => { revealPassword(required: { principalId: string; shareId: string }): Promise<unknown> } | undefined;
+}, _optional = {}) {
+  return async ({ owner, principalId, shareId, json, failure }: {
+    owner: Parameters<typeof requireSavedKeysOwnerSession>[0]["deps"];
+    principalId: () => string; shareId: () => string;
+    json: (body: unknown, status: number) => void;
+    failure: (error: unknown, options: { password: true }) => void;
+  }): Promise<void> => {
+    try {
+      if (!await requireSavedKeysOwnerSession({ deps: owner })) return;
+      const backend = readBackend();
+      if (!backend) { json({ code: "UNAVAILABLE", message: "Export password lookup failed: saved keys are unavailable." }, 503); return; }
+      json(await backend.revealPassword({ principalId: principalId(), shareId: shareId() }), 200);
+    } catch (error) {
+      failure(error, { password: true });
+    }
+  };
+}

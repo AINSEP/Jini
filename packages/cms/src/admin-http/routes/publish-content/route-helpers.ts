@@ -13,3 +13,18 @@ export function knownMappedErrorResponse({ err, table }: { err: unknown; table: 
   }
   return undefined;
 }
+
+/**
+ * Maps a typed error to its status and `{error, code}` body, keeping the typed error's own message.
+ * Anything not in `table` is a 500 with fixed text: a raw driver error's message is never echoed.
+ * @complexity O(t) in the table length.
+ */
+export function mappedErrorResponse({ err, table, incident, operation, method, route, discloseDetails }: {
+  err: unknown; table: readonly MappedErrorClass[];
+  incident: (error: unknown, options: { operation: string; method: string; route: string; discloseDetails: boolean; message?: string | undefined }) => RouteRefusal;
+  operation: string; method: string; route: string; discloseDetails: boolean;
+}, { message }: { message?: string } = {}): RouteRefusal {
+  const known = knownMappedErrorResponse({ err, table });
+  if (known) return known;
+  return incident(err, { operation, message, method, route, discloseDetails });
+}

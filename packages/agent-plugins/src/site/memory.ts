@@ -1,5 +1,6 @@
 import path from "node:path";
-import { createPluginMemory, type migratePluginLayout, type PluginStateEffects, type WorkspaceMigrationOwnership } from "@jini-ai/agent-plugins/persistent-state";
+import { createPluginMemory, migratePluginLayout, type PluginStateEffects, type WorkspaceMigrationOwnership } from "@jini-ai/agent-plugins/persistent-state";
+import type { parseAgentPluginManifest } from "../lifecycle/manifest.js";
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 
 export async function appendPluginNotes(required: PluginStateEffects & { workspaceRoot: string; pluginId: string; guidance: string }, _optional: {} = {}): Promise<string> {
@@ -50,4 +51,30 @@ export async function migrateSiblingAgentPluginLayouts(required: Parameters<type
     try { await required.migrateAgentPluginLayout({ workspaceId }); }
     catch (error) { required.warnMigration({ workspaceId, error }); }
   }
+}
+
+export function createPluginMemoryBindings(required: Pick<PluginStateEffects, 'filesystem' | 'withLock'> & {
+  parseManifest: typeof parseAgentPluginManifest;
+  onEvent: NonNullable<Parameters<typeof migratePluginLayout>[0]['onEvent']>;
+  warnInvalidWorkspace: Parameters<typeof discoverSiteWorkspaceIds>[0]['warnInvalidWorkspace'];
+  warnMigration: Parameters<typeof discoverSiteWorkspaceIds>[0]['warnMigration'];
+}, _optional = {}) {
+  const { filesystem, withLock, parseManifest, onEvent, warnInvalidWorkspace, warnMigration } = required;
+  const effects = { filesystem, withLock };
+  const migrateAgentPluginLayout = (input: Pick<PluginStateEffects, "contain"> & { layout: AgentPluginLayout; workspaceId: string }, optional: { ownership?: WorkspaceMigrationOwnership } = {}) => migratePluginLayout({
+    ...effects, contain: input.contain, workspaceRoot: input.layout.forWorkspace({ workspaceId: input.workspaceId }).root,
+    parsePluginId: ({ value }) => {
+      const result = parseManifest({ value });
+      if (!result.ok) throw new Error(result.errors.join("; "));
+      return result.manifest.name;
+    },
+    onEvent,
+  }, optional.ownership ? { ownership: optional.ownership } : {});
+  return {
+    pluginMemory: (input: Pick<PluginStateEffects, "contain"> & { workspaceId: string; pluginId: string; layout: AgentPluginLayout }, _optional = {}) => createPluginMemory({ ...effects, contain: input.contain, workspaceRoot: input.layout.forWorkspace({ workspaceId: input.workspaceId }).root, pluginId: input.pluginId }),
+    migrateAgentPluginLayout,
+    appendPluginNotes: (input: Pick<PluginStateEffects, "contain"> & { workspaceRoot: string; pluginId: string; guidance: string }, _optional = {}) => appendPluginNotes({ ...effects, ...input }),
+    migrateSiteAgentPluginLayouts: (input: Pick<PluginStateEffects, "contain"> & { layout: AgentPluginLayout; workspaceId: string }, optional: { ownership?: WorkspaceMigrationOwnership } = {}) => migrateSiteAgentPluginLayouts({ ...input, filesystem, migrateAgentPluginLayout: (request, options) => migrateAgentPluginLayout({ layout: input.layout, contain: input.contain, ...request }, options), warnInvalidWorkspace, warnMigration }, optional),
+    migrateSiblingAgentPluginLayouts: (input: Pick<PluginStateEffects, "contain"> & { layout: AgentPluginLayout; workspaceId: string }, _optional = {}) => migrateSiblingAgentPluginLayouts({ ...input, filesystem, migrateAgentPluginLayout: (request, options) => migrateAgentPluginLayout({ layout: input.layout, contain: input.contain, ...request }, options), warnInvalidWorkspace, warnMigration }),
+  };
 }

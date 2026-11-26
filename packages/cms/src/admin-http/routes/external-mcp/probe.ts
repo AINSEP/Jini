@@ -1,3 +1,4 @@
+import { runWithExternalMcpRateLimit } from "./route-helpers.js";
 import { defineJsonRoute, ok, routeReply } from '@jini-ai/core/contracts/server';
 import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal } from './shared.js';
 
@@ -12,3 +13,20 @@ export const externalMcpProbeRoute = defineJsonRoute<{ serverId: string }, unkno
     return ok({ value: routeReply({ status: outcome.ok ? 200 : outcome.status, body: outcome.body }) });
   },
 });
+
+export function registerExternalMcpProbeRoute(required: {
+  mount(required: {
+    spec: typeof externalMcpProbeRoute;
+    authorization: "direct";
+    deps: Parameters<typeof externalMcpProbeRoute.handle>[0]["deps"];
+    before: (facts: { rate: Parameters<typeof runWithExternalMcpRateLimit>[0]["deps"] }, next: () => Promise<void>) => Promise<void>;
+    failure: (facts: { error: unknown; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
+  }): void;
+  probe: Parameters<typeof externalMcpProbeRoute.handle>[0]["deps"]["probe"];
+  operation: string;
+}, _optional = {}): void {
+  required.mount({ spec: externalMcpProbeRoute, authorization: "direct", deps: { probe: required.probe },
+    before: (facts, next) => runWithExternalMcpRateLimit({ deps: facts.rate, run: next }),
+    failure: ({ error, incident }) => incident(error, { operation: required.operation, code: "INTERNAL_ERROR" }),
+  });
+}

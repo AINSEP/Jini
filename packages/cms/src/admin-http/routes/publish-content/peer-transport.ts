@@ -1,8 +1,7 @@
-import type { Response } from 'express';
 import { PublishContentPeerTransportError } from '../../../publish/content/peer-transport.js';
 import { PublishContentPeerCredentialMissingError, PublishContentPeerNotFoundError, PublishContentPeerSecretStoreUnconfiguredError } from '../../../publish/content/peers.js';
 import { PublishTrustHandshakeError } from '../../../publish/trust/handshake-client.js';
-import type { MappedErrorClass, RouteRefusal } from './route-helpers.js';
+import { mappedErrorResponse, type MappedErrorClass, type RouteRefusal } from './route-helpers.js';
 import type { PeerCallDeps } from "../../../publish/content/peer-transport.js";
 import type { PublishScope } from "../../../publish/content/ui/contract.js";
 import { readOverwriteEntityKeys } from "./import.js";
@@ -248,7 +247,7 @@ export function knownPeerActionRefusal({ err }: { err: unknown }, _options: Reco
 export const OVERWRITE_REFUSED = Symbol("overwrite-refused");
 
 /** A route's own "who may tick overwrite" rule; on `false` it has already sent its 403. */
-export type OverwriteRule = (required: { res: Response; overwriteEntityKeys: readonly string[] | null }, optional?: Record<string, never>) => boolean;
+export type OverwriteRule = (required: { res: { status(code: number): { json(body: unknown): unknown } }; overwriteEntityKeys: readonly string[] | null }, optional?: Record<string, never>) => boolean;
 
 /**
  * Reads `overwriteEntityKeys` (Jini's parser answers the `"invalid"` sentinel for a malformed set,
@@ -257,11 +256,68 @@ export type OverwriteRule = (required: { res: Response; overwriteEntityKeys: rea
  *   or the rule's own 403 has been sent.
  * @complexity O(n) in the submitted key count.
  */
-export function acceptOverwriteEntityKeys({ res, raw, mayOverwrite }: { res: Response; raw: unknown; mayOverwrite: OverwriteRule }, _options: Record<string, never> = {}): readonly string[] | null | typeof OVERWRITE_REFUSED {
+export function acceptOverwriteEntityKeys({ res, raw, mayOverwrite }: { res: { status(code: number): { json(body: unknown): unknown } }; raw: unknown; mayOverwrite: OverwriteRule }, _options: Record<string, never> = {}): readonly string[] | null | typeof OVERWRITE_REFUSED {
   const keys = readOverwriteEntityKeys({ overwriteEntityKeys: raw });
   if (keys === "invalid") {
     res.status(400).json({ error: "'overwriteEntityKeys' must be an array of strings", code: "VALIDATION_ERROR" });
     return OVERWRITE_REFUSED;
   }
   return mayOverwrite({ res, overwriteEntityKeys: keys }) ? keys : OVERWRITE_REFUSED;
+}
+
+/** Answers a peer action's failure. Manual publishing (`backstop.ts`) reuses it, so a live-site
+ *  failure reaches the owner there as the same actionable answer; `message` names its private 500.
+ *  @complexity O(1). */
+export function respondWithPeerActionError(required: Omit<Parameters<typeof mappedErrorResponse>[0], "table"> & {
+  json: (body: unknown, status: number) => void;
+}, optional: Parameters<typeof mappedErrorResponse>[1] = {}): void {
+  const known = knownPeerActionRefusal({ err: required.err });
+  if (known) { required.json(known.body, known.status); return; }
+  // The mapper needs the registered template to distinguish preparation from an uncertain send.
+  // Concrete request paths and mounted base URLs can contain private IDs and never enter copy.
+  const refusal = mappedErrorResponse({ ...required, table: PEER_ACTION_ERRORS }, optional);
+  required.json(refusal.body, refusal.status);
+}
+
+/** The per-request transport bag: the guarded client plus the opened credential.
+ * @complexity O(1) plus one repo read and one AEAD open. */
+export function createPeerCallResolver(required: {
+  workspaceId: string;
+  resolveCredential: (required: { workspaceId: string; id: string }) => Promise<PeerCallDeps<string>["credential"]>;
+  httpClient: PeerCallDeps<string>["httpClient"];
+  publishHistory: Pick<NonNullable<PeerCallDeps<string>["publishHistory"]>, "store" | "clock">;
+}, _optional = {}) {
+  return async ({ peerId }: { peerId: string }, _optional = {}): Promise<PeerCallDeps<string>> => {
+    const credential = await required.resolveCredential({ workspaceId: required.workspaceId, id: peerId });
+    return { credential, httpClient: required.httpClient, publishHistory: { store: required.publishHistory.store, workspaceId: required.workspaceId, clock: required.publishHistory.clock } };
+  };
+}
+
+/** The three push routes, in their registered order; the pull spec follows them. */
+export function registerPublishContentPeerPushRoutes(required: {
+  mount(required: {
+    spec: typeof peerPushPlanRoute | typeof peerPushConfirmRoute | typeof peerPushExecuteRoute;
+    preflight: { readHeaders: readonly []; check: () => RouteRefusal | undefined };
+    requestDeps: (facts: { requireOverwriteSession: () => void }) => Parameters<typeof peerPushPlanRoute.handle>[0]["deps"] | Parameters<typeof peerPushConfirmRoute.handle>[0]["deps"] | Parameters<typeof peerPushExecuteRoute.handle>[0]["deps"];
+    failure: (facts: Pick<Parameters<typeof respondWithPeerActionError>[0], "err" | "json" | "incident" | "discloseDetails">) => void;
+  }): void;
+  openPeer: Parameters<typeof peerPushPlanRoute.handle>[0]["deps"]["openPeer"];
+  plan: Parameters<typeof peerPushPlanRoute.handle>[0]["deps"]["plan"];
+  confirm: Parameters<typeof peerPushConfirmRoute.handle>[0]["deps"]["confirm"];
+  execute: Parameters<typeof peerPushExecuteRoute.handle>[0]["deps"]["execute"];
+  canPublishToLive: () => boolean; liveSiteRefusal: RouteRefusal; operation: string;
+}, _optional = {}): void {
+  const preflight = { readHeaders: [] as const, check: () => required.canPublishToLive() ? undefined : required.liveSiteRefusal };
+  required.mount({ spec: peerPushPlanRoute, preflight,
+    requestDeps: facts => ({ openPeer: required.openPeer, plan: required.plan, requireOverwriteSession: facts.requireOverwriteSession }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushPlanRoute.path }),
+  });
+  required.mount({ spec: peerPushConfirmRoute, preflight,
+    requestDeps: () => ({ openPeer: required.openPeer, confirm: required.confirm }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushConfirmRoute.path }),
+  });
+  required.mount({ spec: peerPushExecuteRoute, preflight,
+    requestDeps: facts => ({ openPeer: required.openPeer, execute: required.execute, requireOverwriteSession: facts.requireOverwriteSession }),
+    failure: facts => respondWithPeerActionError({ ...facts, operation: required.operation, method: "POST", route: peerPushExecuteRoute.path }),
+  });
 }

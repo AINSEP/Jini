@@ -1,5 +1,6 @@
 import { probeToken, type AgentPluginTokenCredentialsPort, type AgentPluginTokenValidator } from "./access-token-tool.js";
-import { titleCaseFromPluginId, type ResolvedAgentPluginForConnect } from "./connect-tool.js";
+import { titleCaseFromPluginId } from "./connect-tool.js";
+import type { ResolvedAgentPluginForConnect } from "./installed-plugin.js";
 import type { AgentPluginTokenAuth, McpServerConfig } from "../lifecycle/manifest.js";
 
 /**

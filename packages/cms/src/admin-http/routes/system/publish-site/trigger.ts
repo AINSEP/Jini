@@ -114,3 +114,42 @@ async function checkPublishPreconditions<TConfig, TSnapshot extends { status: st
   if (consent) return { ok: false, status: 409, body: consent, reasonClass: 'consent' };
   return { ok: true, parsed, config: read.config };
 }
+
+export function registerPublishTriggerRoute(required: {
+  mount(required: {
+    spec: ReturnType<typeof createPublishTriggerRoute<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }>>;
+    deps: PublishTriggerDeps<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }>;
+    refusal: (facts: { response: { status: number; body: unknown }; json: (body: unknown, status: number) => void; principalId: () => string }) => void;
+    failure: (facts: { error: unknown; incident: (error: unknown, options: { operation: string; code: string }) => void }) => void;
+  }): void;
+  readConfig(required: { targetId: string; raw: Record<string, unknown>; blankAsAbsent: boolean }): Promise<{ ok: true; config: { target: string; customDomain?: string | undefined }; registry: unknown } | { ok: false; error: string }>;
+  plan(required: { registry: unknown; config: { target: string; customDomain?: string | undefined } }): { ok: true } | { ok: false; message: string };
+  start(required: { principal: { id: string }; parsed: { projectName: string; credentialId?: unknown }; config: { target: string; customDomain?: string | undefined } }): { status: string };
+  snapshot: () => { status: string };
+  siteConsent: { deploymentCheck(required: { principalId: string; permission: string }): Promise<Record<string, unknown> | null | undefined> } | undefined;
+  consentUnavailable: () => Record<string, unknown>;
+  domainConfirmationText: string;
+  onBlocked: (required: { principalId: string; reasonClass: "config" | "consent" | "busy" | "auth" }) => void;
+  operation: string;
+}, _optional = {}): void {
+  const deps: PublishTriggerDeps<{ config: { target: string; customDomain?: string | undefined }; registry: unknown }, { status: string }> = {
+    readConfig: async ({ targetId, raw }) => {
+      const read = await required.readConfig({ targetId, raw, blankAsAbsent: false });
+      return read.ok ? { ok: true, config: { config: read.config, registry: read.registry } } : read;
+    },
+    plan: ({ config: read }) => required.plan({ registry: read.registry, config: read.config }),
+    hasCustomDomain: ({ config: read }) => Boolean(read.config.customDomain),
+    domainConfirmationText: required.domainConfirmationText,
+    deploymentCheck: async ({ principalId }) => (required.siteConsent ? await required.siteConsent.deploymentCheck({ principalId, permission: "system.publish" }) : required.consentUnavailable()) ?? undefined,
+    snapshot: required.snapshot,
+    start: ({ config: read, projectName, principalId, credentialId }) => required.start({ principal: { id: principalId }, config: read.config, parsed: { projectName, ...(credentialId === undefined ? {} : { credentialId }) } }),
+    onBlocked: required.onBlocked,
+  };
+  required.mount({ spec: createPublishTriggerRoute({ deps }), deps,
+    refusal: facts => {
+      facts.json(facts.response.body, facts.response.status);
+      if (facts.response.status === 403) required.onBlocked({ principalId: facts.principalId(), reasonClass: "auth" });
+    },
+    failure: facts => facts.incident(facts.error, { operation: required.operation, code: "INTERNAL_ERROR" }),
+  });
+}

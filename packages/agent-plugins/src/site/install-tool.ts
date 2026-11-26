@@ -1,6 +1,5 @@
 import { createAgentPluginUpdateEffects, requireUpdateMcpDeps, type UpdateMcpDeps } from "./update-effects.js";
 import { AgentPluginUpdateError, AgentPluginHostIncompatibleError, isAgentPluginName, type UpdateAgentPluginRequired } from "@jini-ai/agent-plugins/lifecycle";
-import { createHash } from "node:crypto";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, ToolInputError, type AgentToolDefinition, type DerivedRiskByToolId, type ToolRegistration, type ToolExecutionContext } from "@jini-ai/core";
 import { FolderZipError } from "@jini-ai/agent-plugins/folder-zip";
@@ -29,6 +28,7 @@ export type AgentPluginsInstallToolDeps = {
   readonly agentPluginLayout: AgentPluginLayout;
   readonly bundledAgentPluginsSourceRoot: string;
   readonly catalog: readonly AgentToolDefinition[];
+  readonly catalogModule: string;
   readonly toolMetadata: Parameters<typeof buildDomainRegistrations>[0]['metadata'];
   readonly installPermission: string;
   readonly zipLocalFolder: typeof zipLocalFolder;
@@ -48,7 +48,7 @@ export const AGENT_PLUGINS_INSTALL_TOOL_ID = "agent_plugins_install";
 export const derivedRisk: DerivedRiskByToolId = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
 
 export function buildRegistrations(deps: AgentPluginsInstallToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
-  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: "@jini-ai/agent-plugins/site/install-tool", catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
+  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }), domain: "agent-plugins-install", catalogModule: deps.catalogModule, catalog: indexCatalogById({ catalog: deps.catalog }), derivedRisk,
     handlers: {
       [AGENT_PLUGINS_INSTALL_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "install" }),
       [AGENT_PLUGINS_UPDATE_TOOL_ID]: ctx => runInstallTool({ deps, ctx, operation: "update" }),
@@ -95,7 +95,7 @@ async function readToolArchive({ deps, ctx }: { deps: AgentPluginsInstallToolDep
   } else {
     archive = await deps.pluginInstallSource.readArchive({ request, ownerId: ctx.principal.id, runId: ctx.run.id, maxBytes: deps.maxAgentPluginInstallArchiveBytes() }, { ...(deps.readInstallAttachment ? { readAttachment: deps.readInstallAttachment } : {}) });
   }
-  return { request, archive, expectedSha256: createHash("sha256").update(archive).digest("hex") };
+  return { request, archive, expectedSha256: deps.uploadOptions.sha256(archive) };
 }
 
 /** Every named lifecycle refusal is a result the model can act on; anything else stays redacted. */
@@ -142,7 +142,7 @@ async function installArchivePlugin(
   try {
     // Customized copies enter the SAME preview/install/state-reporting sequence as folder uploads.
     const { request, archive, expectedSha256 } = prepared.archive
-      ? { request: { replace: false }, archive: prepared.archive, expectedSha256: createHash('sha256').update(prepared.archive).digest('hex') }
+      ? { request: { replace: false }, archive: prepared.archive, expectedSha256: deps.uploadOptions.sha256(prepared.archive) }
       : await readToolArchive({ deps, ctx });
     const required = { archive, expectedSha256, workspaceId: deps.workspaceId, actor: ctx.principal.id, replace: request.replace };
     const optional = { ...deps.uploadOptions, layout: deps.agentPluginLayout, ...(deps.pluginHost ? { pluginHost: deps.pluginHost } : {}) };

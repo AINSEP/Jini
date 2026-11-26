@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'vitest';
+import { parseAgentPluginManifest } from '../../lifecycle/manifest.js';
+import { readInstalledAgentPluginIdentity } from '../../lifecycle/host-tools/index.js';
 import { AgentPluginUpdateError } from '../../lifecycle/index.js';
 import { createAgentPluginSiteLayout } from '../../lifecycle/layout.js';
 import { installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional } from '../install-upload.js';
@@ -11,7 +13,7 @@ function fixture(oldInstalled = false) {
   let installed = oldInstalled ? [previous] : [];
   const candidate = { ...previous, archiveDigest: expectedSha256, version: '1.1.0', packageRoot: '/new' };
   const layout = createAgentPluginSiteLayout({ siteDir: '/site', rootOverride: '/plugins', diagnostics: { rootOverride: () => new Error('root'), workspaceId: () => new Error('workspace'), pluginId: () => new Error('plugin'), pluginDataId: () => new Error('data'), memoryKind: () => new Error('memory') } });
-  const optional = { layout, archiveReader: { async *entries() { const manifest = Buffer.from(JSON.stringify({ '$schema': 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'demo', description: 'Demo' }));
+  const optional = { layout, parseManifest: parseAgentPluginManifest, readInstallIdentity: readInstalledAgentPluginIdentity, sha256: (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex'), archiveReader: { async *entries() { const manifest = Buffer.from(JSON.stringify({ '$schema': 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'demo', description: 'Demo' }));
     yield { kind: 'file', entryPath: 'plugin.json', declaredBytes: manifest.length, openReadStream: async function* () { yield manifest; } }; } },
     lifecycle: { installAgentPlugin: async (_input: unknown, options: { publishGuard(input: { plugin: unknown; publish(): Promise<unknown> }): Promise<unknown> }) => options.publishGuard({ plugin: candidate, publish: async () => { order.push('publish'); installed = [candidate]; return candidate; } }),
       listInstalledPlugins: async () => installed, setAgentPluginActivation: async () => { order.push('off'); },
