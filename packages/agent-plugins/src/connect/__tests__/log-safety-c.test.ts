@@ -27,7 +27,7 @@ describe('sheet C reporting and safe outcomes', () => {
     expect(parsePluginCredentialCards({ raw: '[]' })).toEqual({ ok: false, reason: 'plugin manifest must be an object' });
     expect(parsePluginCredentialCards({ raw: '{"extensions":{"jini":{"credentialCards":"bad"}}}' })).toEqual({ ok: false, reason: 'credentialCards must be an array of at most 32 cards' });
     const failure = new Error('Host warning refused');
-    expect(parsePluginCredentialCards({ raw: '{"extensions":{"tovu":{"credentialCards":[]}}}' }, { onWarning: () => { throw failure; } })).toEqual({ ok: false, reason: 'Host warning refused' });
+    expect(parsePluginCredentialCards({ raw: '{"extensions":{"tovu":{"credentialCards":[]}}}' }, { legacyIdentity: { namespace: 'tovu', warning: 'legacy plugin metadata key' }, onWarning: () => { throw failure; } })).toEqual({ ok: false, reason: 'Host warning refused' });
   });
 
   it('retains collision refusal callbacks and their safe default', () => {
