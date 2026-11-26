@@ -10,8 +10,9 @@ import { describe, expect, it, vi } from "vitest";
  * `save-error` state. Both branches of that asymmetry are asserted here.
  */
 
-const { getMediaProviders, patchMediaProvider, removeMediaProvider } = vi.hoisted(() => ({
+const { getMediaProviders, applyMediaProviderChanges, patchMediaProvider, removeMediaProvider } = vi.hoisted(() => ({
   getMediaProviders: vi.fn(),
+  applyMediaProviderChanges: vi.fn(),
   patchMediaProvider: vi.fn(),
   removeMediaProvider: vi.fn(),
 }));
@@ -21,7 +22,7 @@ import { createMediaApi } from "../api/media-api.js";
 import { createMediaProvidersPort } from "../media-providers-port.js";
 import { WORKSPACE_ID } from "@jini-ai/admin/shell/lib/admin-http/config";
 
-const mediaProvidersPort = createMediaProvidersPort({ mediaApi: { getMediaProviders, patchMediaProvider, removeMediaProvider } });
+const mediaProvidersPort = createMediaProvidersPort({ mediaApi: { getMediaProviders, applyMediaProviderChanges, patchMediaProvider, removeMediaProvider } });
 
 describe("mediaProvidersPort.fetchMediaProviders", () => {
   it("returns the provider map on success", async () => {

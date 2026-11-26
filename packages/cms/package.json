@@ -429,6 +429,7 @@
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/put-providers": "universal",
       "./admin-http/routes/media/patch-provider": "universal",
+      "./admin-http/routes/media/batch-providers": "universal",
       "./admin-http/routes/media/delete-provider": "universal",
       "./admin-http/routes/media/update": "node",
       "./admin-http/routes/media/where-used": "universal",
@@ -763,6 +764,7 @@
       "./react/widgets/WidgetConfigFields/WidgetConfigFields": "browser",
       "./react/collections/CollectionEntryEditor": "browser",
       "./media/site/provider-credential-store": "universal",
+      "./media/site/provider-credential-batch": "universal",
       "./media/site/provider-credential-vault": "universal",
       "./media/site/provider-credential-store.memory": "universal",
       "./media/site/promote-chat-attachment": "node",
@@ -1255,6 +1257,7 @@
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
         "./admin-http/routes/media/patch-provider": "media",
+        "./admin-http/routes/media/batch-providers": "media",
         "./admin-http/routes/media/delete-provider": "media",
         "./admin-http/routes/media/import-url": "media",
         "./admin-http/routes/media/where-used": "media",
@@ -3573,6 +3576,11 @@
       "import": "./dist/admin-http/routes/media/patch-provider.js",
       "default": "./dist/admin-http/routes/media/patch-provider.js"
     },
+    "./admin-http/routes/media/batch-providers": {
+      "types": "./dist/admin-http/routes/media/batch-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/batch-providers.js",
+      "default": "./dist/admin-http/routes/media/batch-providers.js"
+    },
     "./admin-http/routes/media/delete-provider": {
       "types": "./dist/admin-http/routes/media/delete-provider.d.ts",
       "import": "./dist/admin-http/routes/media/delete-provider.js",
@@ -5182,6 +5190,11 @@
       "types": "./dist/media/site/provider-credential-store.d.ts",
       "import": "./dist/media/site/provider-credential-store.js",
       "default": "./dist/media/site/provider-credential-store.js"
+    },
+    "./media/site/provider-credential-batch": {
+      "types": "./dist/media/site/provider-credential-batch.d.ts",
+      "import": "./dist/media/site/provider-credential-batch.js",
+      "default": "./dist/media/site/provider-credential-batch.js"
     },
     "./media/site/provider-credential-vault": {
       "types": "./dist/media/site/provider-credential-vault.d.ts",

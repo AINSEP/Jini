@@ -127,6 +127,7 @@ export type MediaProviderEditPatch = Pick<MediaProviderCredentials, 'apiKey' | '
 export interface MediaProviderRowsPort {
   /** Same contract as {@link MediaProvidersPort.fetchMediaProviders}, including `null` for unreachable. */
   fetchMediaProviders(): Promise<MediaProviderMap | null>;
+  applyProviderChanges(required: { removes: readonly string[]; patches: readonly { providerId: string; fields: MediaProviderEditPatch }[] }, optional?: Record<string, never>): Promise<MediaProviderMap>;
   /** Merges `fields` into one provider's stored credentials; no other provider is touched. */
   patchProvider(required: { providerId: string; fields: MediaProviderEditPatch }, optional?: Record<string, never>): Promise<MediaProviderMap>;
   /** Deletes exactly one provider's stored credentials. */

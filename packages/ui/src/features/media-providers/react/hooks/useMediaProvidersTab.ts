@@ -107,14 +107,14 @@ function editableFields({ entry }: { entry: MediaProviderCredentials }): MediaPr
 
 /**
  * Sends one write's worth of changes and resolves the server's resulting map. A whole-map port gets
- * the send-time map, as it always has. A per-provider port gets one call per changed provider:
+ * the send-time map, as it always has. A per-provider port gets one batch of explicit changes:
  * a removal for each clear this write carries, and a patch for each pending provider that still
  * has an entry.
  *
  * A provider missing from the local map is NOT removed unless the operator cleared it. Map omission
  * is not evidence of intent to delete: an edit can empty an entry that was never saved, and a map
  * read before another window's save simply never contained that provider. Only an explicit Clear
- * says "delete this one", so only a clear becomes `removeProvider`.
+ * says "delete this one", so only a clear becomes a removal.
  */
 async function sendProviders({ port, sent, clears, pending }: {
   port: AnyMediaProvidersPort;
@@ -124,14 +124,13 @@ async function sendProviders({ port, sent, clears, pending }: {
 }): Promise<MediaProviderMap> {
   // A whole-map port has no `patchProvider`; `in` narrows the union to the per-provider shape.
   if (!('patchProvider' in port)) return port.saveMediaProviders(sent);
-  let saved: MediaProviderMap | undefined;
-  for (const providerId of clears) saved = await port.removeProvider({ providerId });
-  for (const providerId of pending) {
+  const patches = pending.flatMap(providerId => {
     const entry = sent[providerId];
-    if (entry !== undefined) saved = await port.patchProvider({ providerId, fields: editableFields({ entry }) });
-  }
+    return entry === undefined ? [] : [{ providerId, fields: editableFields({ entry }) }];
+  });
   // Nothing changed: the local map is already what the server holds for this write.
-  return saved ?? sent;
+  if (clears.length === 0 && patches.length === 0) return sent;
+  return port.applyProviderChanges({ removes: clears, patches });
 }
 
 /** A save rejection as display text; a non-`Error` rejection is stringified rather than read as `.message`. */

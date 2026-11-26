@@ -30,7 +30,7 @@ export interface MediaPatchProviderRouteDeps extends MediaProviderRowErrorDeps {
 }
 
 const FIELD_NAMES: ReadonlySet<string> = new Set(["apiKey", "baseUrl", "model"]);
-const FIELDS_INVALID = { status: 400, error: "Send the settings for one provider only: its API key, base URL or model, each as text.", code: "MEDIA_PROVIDER_FIELDS_INVALID" } as const;
+export const FIELDS_INVALID = { status: 400, error: "Send the settings for one provider only: its API key, base URL or model, each as text.", code: "MEDIA_PROVIDER_FIELDS_INVALID" } as const;
 
 /**
  * The body as one provider's fields, or a 400 that echoes none of it. Only the three editable
@@ -38,7 +38,7 @@ const FIELDS_INVALID = { status: 400, error: "Send the settings for one provider
  * than read, so this route can never become a second whole-set write.
  * @complexity O(k) in the body's key count.
  */
-function requireProviderFields({ body }: { body: unknown }, _optional: Record<string, never> = {}): MediaProviderFieldsInput {
+export function requireProviderFields({ body }: { body: unknown }, _optional: Record<string, never> = {}): MediaProviderFieldsInput {
   if (typeof body !== "object" || body === null || Array.isArray(body)) return rejectRoute(FIELDS_INVALID);
   const fields: MediaProviderFieldsInput = {};
   for (const [name, value] of Object.entries(body)) {
