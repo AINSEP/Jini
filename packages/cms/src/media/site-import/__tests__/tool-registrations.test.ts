@@ -106,3 +106,13 @@ it("refuses mutually exclusive replacement sources before reading either", async
   expect(deps.source.readLocal).not.toHaveBeenCalled();
   expect(deps.replacement.replace).not.toHaveBeenCalled();
 });
+
+
+it("keeps omitted editorial properties in the storage input", async () => {
+  const { deps, ctx, handler } = fixture();
+  await handler("media_import_local_file")(ctx({ root: "site", path: "image.png" }));
+  expect(deps.storage.upload).toHaveBeenCalledWith({ input: {
+    workspaceId: "workspace", bytes, filename: "image.png", contentType: "image/png", provenance: { kind: "upload", path: "image.png" },
+    alt: undefined, caption: undefined, description: undefined, createdByPrincipal: "agent",
+  } }, {});
+});

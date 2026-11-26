@@ -1,4 +1,11 @@
-import type { RetentionMeasurement, RetentionPolicy, RetentionSweepResult } from "@jini-ai/platform/retention";
+interface RetentionMeasurement { readonly bytes: number | null; readonly items?: number }
+interface RetentionSweepResult { readonly freedBytes: number | null; readonly removed: number }
+interface RetentionPolicy {
+  readonly id: string;
+  readonly kind: "cache" | "derived" | "old-copy";
+  measure(): Promise<RetentionMeasurement>;
+  sweep(input: { readonly now: number }): Promise<RetentionSweepResult>;
+}
 import type { SiteShareRecord, SiteShareRegistry } from "./share-registry.js";
 
 /** The two file operations the pass needs, injected so a host (or a test) owns the filesystem. */

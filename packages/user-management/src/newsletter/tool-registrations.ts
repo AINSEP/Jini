@@ -15,7 +15,8 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/newsletter';
 import { buildDomainRegistrations, indexCatalogById, resolveHostReadRefs, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 
 import { type AuthorizeFn, type EventBusPort, type OutboxPort } from "@jini-ai/core/contracts/events";
-import type { PositionalMailer as MailerPort, MailSenderIdentityPort } from "@jini-ai/platform/mail";
+import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mail";
+import type { MailSenderIdentityPort } from "@jini-ai/core/contracts/site/platform-mail";
 import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
 import type { ToolContributor } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";

@@ -1,11 +1,17 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/post';
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type DerivedRiskByToolId, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
 import { type JsonObject } from "@jini-ai/core/primitives";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { getAdminPostById } from "@jini-ai/cms/posts/post-read";
 import { PostNotFoundError, type PublicPostRecord as PostRecord, type PostRepoPort } from "@jini-ai/cms/posts/post";
-import type { readPageBodyOptions, shapePageBody, ShapedPageBody } from "@jini-ai/diagnostics/web-evidence/page-body";
+type PageBodyOptions = { maxBytes?: number | undefined; find?: string | undefined; textOnly?: boolean | undefined };
+type ShapedPageBody = { bodyBytes: number; truncated: boolean } & (
+  { body: string; matches?: never; matchCount?: never } |
+  { matches: Array<{ offset: number; snippet: string }>; matchCount: number; body?: never }
+);
+declare const readPageBodyOptions: (required: { input: Record<string, unknown> }, optional?: Record<string, never>) => PageBodyOptions;
+declare const shapePageBody: (required: { body: string }, optional?: PageBodyOptions) => ShapedPageBody;
 
 /** Renderer injected at the server composition root; the feature has no server/assistant value edge. */
 export interface PostPreviewToolDeps {

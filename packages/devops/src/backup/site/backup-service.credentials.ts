@@ -1,7 +1,6 @@
 
 
 import type { CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
-import { buildAuthorizationHeader } from "@jini-ai/integrations/credentialed-http";
 
 import type { CredentialedRepositoryTarget, SourceControlProvider } from "../../source-control/site/provider-module.js";
 import { pickSourceControlProviderForApi } from "../../source-control/registry.js";
@@ -26,8 +25,8 @@ interface ResolvedBackupCredential {
 }
 
 /** A resolved credential's repository target: its API plus the `Authorization` header built from it. */
-export function backupTarget({ credential, owner, repo }: { credential: ResolvedBackupCredential; owner: string; repo: string }, _optional: Record<string, never> = {}): CredentialedRepositoryTarget {
-  return { baseUrl: credential.baseUrl, authorization: buildAuthorizationHeader({ connection: credential.connection, schemes: [] }), owner, repo };
+export function backupTarget({ deps, credential, owner, repo }: { deps: SiteBackupToolDeps["deps"]; credential: ResolvedBackupCredential; owner: string; repo: string }, _optional: Record<string, never> = {}): CredentialedRepositoryTarget {
+  return { baseUrl: credential.baseUrl, authorization: deps.buildAuthorizationHeader({ connection: credential.connection, schemes: [] }), owner, repo };
 }
 
 /** Every git-host provider an enabled plugin ships, or the refusal when there is none. */
@@ -127,7 +126,7 @@ async function findHostConnection(required: {
 }): Promise<{ ok: true; found: HostConnection | null } | Refusal> {
   const { deps, provider } = required;
   try {
-    return { ok: true, found: await resolveDefaultForSourceControl({ repo: required.repo, sealer: deps.siteAssistantSecretSealer }, { workspaceId: deps.workspaceId, providerId: required.providerId }) };
+    return { ok: true, found: await resolveDefaultForSourceControl({ deps: deps.deps, repo: required.repo, sealer: deps.siteAssistantSecretSealer }, { workspaceId: deps.workspaceId, providerId: required.providerId }) };
   } catch (err) {
     if (err instanceof SourceControlCredentialSecretStoreUnconfiguredError) return { ok: false, code: "CREDENTIAL_UNREADABLE", message: unreadableCredentialMessage({ deps, label: `${provider.label} connection` }) };
     throw err;

@@ -4,7 +4,6 @@ import type { DbOpsPort } from "@jini-ai/core/contracts/site/gated-mutations-por
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { CredentialSetRepoPort as BaseCredentialRepo, CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
 
-import { normalizeWriteFilePath } from "@jini-ai/integrations/custom-credentials/write-files-validation";
 import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import type { CredentialedRepositoryTarget, InspectBackupRepositoryResult, SourceControlProvider, SourceControlKitHttpClient as HttpClientPort } from "../../source-control/site/provider-module.js";
 
@@ -88,6 +87,14 @@ export interface SiteBackupCall {
 /** The slice of the route-deps bag these tools read. Structural, so this module never imports
  *  `server/routes/types`. */
 export interface SiteBackupToolDeps {
+  deps: import("../../source-control/site/store.js").SourceControlCredentialReadDeps["deps"] & {
+    CustomCredentialValidationError: new (message: string) => Error;
+    normalizeWriteFilePath(required: { rawPath: string }): string;
+    validateBranch(required: { value: string }): string;
+    validateCommitMessage(required: { value: string }): string;
+    buildAuthorizationHeader(required: { connection: CustomProviderConnectionInput; schemes: readonly never[] }): string;
+  };
+  readonly planVersion: Readonly<Record<string, string>>;
   readonly siteImportBackend?: SiteImportBackend; readonly siteShareBackend?: SiteShareBackend;
   readonly authorize: AuthorizeFn; readonly workspaceId: string;
   readonly customCredentialSetRepo: CustomCredentialSetRepoPort;
@@ -200,7 +207,7 @@ const UNAVAILABLE: Refusal = { ok: false, code: "UNAVAILABLE", message: "site ba
  */
 export async function planSiteBackup(required: { deps: SiteBackupToolDeps; call: SiteBackupCall }, _optional: Record<string, never> = {}): Promise<unknown> {
   const { deps, call: ctx } = required;
-  const input = parsePlanInput({ rawInput: ctx.input, SITE_BACKUP_SCOPES: deps.siteBackupScopes });
+  const input = parsePlanInput({ deps: deps.deps, rawInput: ctx.input, SITE_BACKUP_SCOPES: deps.siteBackupScopes });
   await requireBackupPermissions(deps, ctx);
   const sources = deps.siteBackupSources;
   if (!sources) return { planned: false, code: UNAVAILABLE.code, message: UNAVAILABLE.message };
@@ -209,10 +216,10 @@ export async function planSiteBackup(required: { deps: SiteBackupToolDeps; call:
   if (!credential.ok) return { planned: false, code: credential.code, message: credential.message };
 
   const folderName = deps.siteFolderName({ siteDir: sources.siteDir });
-  const folder = input.folder ?? normalizeWriteFilePath({ rawPath: folderName });
+  const folder = input.folder ?? deps.deps.normalizeWriteFilePath({ rawPath: folderName });
   const { owner, repo: repoName } = deps.validateRepositoryTarget({ owner: input.owner, repo: input.repo }, { ...(credential.provider.validateTarget === undefined ? {} : { validateTarget: credential.provider.validateTarget }) });
-  requireUnreservedFolder({ folder, provider: credential.provider });
-  const target = backupTarget({ credential, owner, repo: repoName });
+  requireUnreservedFolder({ deps: deps.deps, folder, provider: credential.provider });
+  const target = backupTarget({ deps: deps.deps, credential, owner, repo: repoName });
   const repo = await inspect({ deps, provider: credential.provider, toolId: PLAN_TOOL_ID, input: { ...target, ...(input.branch !== undefined ? { branch: input.branch } : {}), folder } });
   if (!repo.ok) return { planned: false, code: repo.code, message: repo.message };
 

@@ -1,10 +1,9 @@
 import type { SecretCardForm } from "@jini-ai/core/contracts/cards";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
-import type { findPluginCredentialCard, LoadPluginCredentialCards } from "@jini-ai/agent-plugins/connect";
-import { abortGuardedCredentialRepo } from "@jini-ai/integrations/vendor-credentials/abort-guarded-repo";
+type LoadPluginCredentialCards = (workspaceId: string) => Promise<readonly PluginCredentialCard[]>;
+declare const findPluginCredentialCard: (required: { loadCards?: LoadPluginCredentialCards | undefined; workspaceId: string; saveKind: PluginCredentialCard["saveKind"]; target: string }, optional?: Record<string, never>) => Promise<PluginCredentialCard | undefined>;
 
 
-import { CREDENTIAL_MESSAGES } from '@jini-ai/platform/secrets/credential-token';
 import type { CredentialTokenHint, CredentialConnection } from "@jini-ai/core/contracts/site/secrets-credential-token";
 
 import { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
@@ -13,7 +12,8 @@ import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { optionalString, requireInputRecord, requireString } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 import { ToolInputError, type ToolExecutionOptions, type ToolExecutionContext } from '@jini-ai/core';
-import type { defineSecretCardTool, SecretCardRun } from '@jini-ai/ui/mcp-ui/secret-card';
+import type { SurfaceCardsPort, SurfaceCardSecretRun as SecretCardRun } from "@jini-ai/core/contracts/cards";
+declare const defineSecretCardTool: SurfaceCardsPort["defineSecretCardTool"];
 import type { SecretCardField } from '@jini-ai/core/contracts/cards';
 import type { SurfaceAskThenReport } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -25,6 +25,10 @@ import type { AuthorizeFn } from '@jini-ai/core/contracts/events';
  * `loadSourceControlProviders` is required: the composition root (`tool-registrations.ts`) resolves the
  * installed-plugins default, so this module never reads a workspace it was not handed. */
 export interface SourceControlCredentialSetupDeps extends OperatorLocaleDeps {
+  deps: SourceControlCredentialWriteDeps["deps"] & {
+    CREDENTIAL_MESSAGES: Readonly<Record<"showSecret" | "hideSecret" | "generationUnavailable" | "secretValue" | "saveSecret" | "cancel" | "secretForm" | "env" | "url" | "set" | "storage" | "savedTitle" | "blank" | "limit" | "ascii" | "control" | "plain" | "saved" | "connected" | "auth" | "timeout" | "unreachable" | "chars", string>>;
+    abortGuardedCredentialRepo<T extends { readonly vault?: import("@jini-ai/core/contracts/vault").VaultRepoPort }>(required: { store: T; signal: AbortSignal }, optional?: Record<string, never>): T;
+  };
   defineSecretCardTool: typeof defineSecretCardTool;
   applyPluginCredentialCard: (required: { card?: PluginCredentialCard; form: SecretCardForm }) => SecretCardForm;
   findPluginCredentialCard: typeof findPluginCredentialCard;
@@ -32,7 +36,7 @@ export interface SourceControlCredentialSetupDeps extends OperatorLocaleDeps {
   credentialSaveToolId: string;
   credentialFormUriHost: string;
   backupRepositoryRules: string;
-  credentialText: (required: { id: keyof typeof CREDENTIAL_MESSAGES; locale: string }) => string;
+  credentialText: (required: { id: keyof SourceControlCredentialSetupDeps["deps"]["CREDENTIAL_MESSAGES"]; locale: string }) => string;
   formatCredentialHint: (required: { hint: CredentialTokenHint | null | undefined; locale: string }) => string;
   reportCredentialFailure: (message: string) => void;
   assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"];
@@ -98,10 +102,10 @@ function sourceControlCredentialSaver(deps: SourceControlCredentialSetupDeps, _o
       if (!prep.descriptor) throw new ToolInputError({ message: 'Source control credential save has no provider configuration.' });
       const connection = connectionFromForm({ descriptor: prep.descriptor, values });
       const store = deps.sourceControlCredentialSetRepo;
-      const repo = abortGuardedSourceControlRepo({ store, signal });
+      const repo = abortGuardedSourceControlRepo({ store, signal, deps: deps.deps });
       // New project keys stay non-default while the shared save-result path attaches them to this site.
       return createSourceControlCredential({ deps: {
-        repo, sealer: deps.siteAssistantSecretSealer,
+        deps: deps.deps, repo, sealer: deps.siteAssistantSecretSealer,
         keyring: deps.siteAssistantSecretKeyring, clock: deps.clock, idGen: deps.idGen,
         loadSourceControlProviders: deps.loadSourceControlProviders,
         assertCredentialFreeField: deps.assertCredentialFreeField, buildSourceControlProvider: deps.buildSourceControlProvider, isProjectKeyCreateConflictError: deps.isProjectKeyCreateConflictError,
@@ -178,8 +182,8 @@ export async function proposeSourceControlCredential(spec: { ctx: ToolExecutionC
     text: { noEmitter: 'source_control_propose_credential requires an interactive form channel. Nothing was saved.', saveFailure: PROPOSE_CREDENTIAL_SAVE_FAILED },
     safeError: err => {
       if (err instanceof SourceControlCredentialDuplicateLabelError) return err.message;
-      const id = Object.entries(CREDENTIAL_MESSAGES).find(([, text]) => err instanceof Error && text === err.message)?.[0];
-      return id ? deps.credentialText({ id: id as keyof typeof CREDENTIAL_MESSAGES, locale }) : undefined;
+      const id = Object.entries(deps.deps.CREDENTIAL_MESSAGES).find(([, text]) => err instanceof Error && text === err.message)?.[0];
+      return id ? deps.credentialText({ id: id as keyof SourceControlCredentialSetupDeps["deps"]["CREDENTIAL_MESSAGES"], locale }) : undefined;
     },
     // Fixed metadata only: neither an exception's text nor a submitted value is safe to log.
     logFailure: metadata => deps.reportCredentialFailure(JSON.stringify(metadata)),
@@ -194,7 +198,7 @@ type SourceControlSetRepo = SourceControlCredentialSetupDeps['sourceControlCrede
  * that ended while the async seal was pending writes nothing more. Reads pass straight through.
  * @complexity O(1) wiring; each call costs what the wrapped store's call costs.
  */
-export function abortGuardedSourceControlRepo({ store, signal }: { store: SourceControlSetRepo; signal: AbortSignal }, _options = {}): SourceControlSetRepo {
+export function abortGuardedSourceControlRepo({ store, signal, deps }: { store: SourceControlSetRepo; signal: AbortSignal; deps: SourceControlCredentialSetupDeps["deps"] }, _options = {}): SourceControlSetRepo {
   // The async seal can outlive the run; the existing store must not write after abandonment.
   // Saves write through `vault`, so it must be forwarded (omitting it fails every save) with the same guard.
   const vault = store.vault;
@@ -218,7 +222,7 @@ export function abortGuardedSourceControlRepo({ store, signal }: { store: Source
     delete: input => { signal.throwIfAborted(); return store.delete(input); },
     ...(updateAccountLabel ? { updateAccountLabel: (input: Parameters<NonNullable<typeof store.updateAccountLabel>>[0]) => { signal.throwIfAborted(); return updateAccountLabel(input); } } : {}),
     // The project half writes too (project-first saves): guarded alike.
-    ...(store.project ? { project: { ...store.project, repo: abortGuardedCredentialRepo({ store: store.project.repo, signal }), ...(store.project.createRepo ? { createRepo: abortGuardedCredentialRepo({ store: store.project.createRepo, signal }) } : {}) } } : {}),
+    ...(store.project ? { project: { ...store.project, repo: deps.abortGuardedCredentialRepo({ store: store.project.repo, signal }), ...(store.project.createRepo ? { createRepo: deps.abortGuardedCredentialRepo({ store: store.project.createRepo, signal }) } : {}) } } : {}),
   };
 }
 

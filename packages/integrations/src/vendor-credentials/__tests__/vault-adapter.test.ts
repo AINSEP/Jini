@@ -75,3 +75,10 @@ test("the sealed fixture requires the original owner and writes only after prote
   await vault.put({ ...binding.scope({ workspaceId: "site", kind: "source-control" }), id: "new", expectedRevision: null, provider: "provider", label: "new", meta: {}, payload: { token: "next-token" } });
   expect(order).toEqual(["seal", "verify", "put"]);
 });
+
+
+test("the protected service keyring exposes only activeKey", () => {
+  const openService = vi.fn(policy.openService);
+  createCredentialVaultBinding({ policy: { ...policy, openService } }).open({ repo: { vault: new InMemoryVaultRepo({}) }, storageError: () => new Error("storage") });
+  expect(Object.keys(openService.mock.calls[0]![0].keyring)).toEqual(["activeKey"]);
+});

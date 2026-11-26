@@ -8,7 +8,7 @@ import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, optionalBoolean, o
 import { type JsonObject } from "@jini-ai/core/primitives";
 import { type AgentToolDefinition as PostAgentToolDefinition, type ToolContributor } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import { type PostRecord } from "@jini-ai/cms/posts/post";
 

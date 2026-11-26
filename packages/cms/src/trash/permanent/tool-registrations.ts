@@ -1,6 +1,6 @@
 import type { ChatDeleteSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/permanent-delete';
-import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 import {
   buildDomainRegistrations,
@@ -11,7 +11,7 @@ import {
   type ToolHandler,
   type ToolRegistration,
 } from "@jini-ai/core";
-import { requireToolPermission } from "@jini-ai/cms/core";
+import { requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { SurfaceDetail } from "@jini-ai/core/contracts/cards";
 import type { ToolContributor } from "@jini-ai/core";

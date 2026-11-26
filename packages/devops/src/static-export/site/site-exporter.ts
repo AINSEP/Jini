@@ -93,7 +93,7 @@ async function resolveExportIdentity({ routeDeps, publicUrl }: Pick<ExportSiteOp
 }
 
 /** Compose the real CMS manifest/theme/security policy with Jini's export engine. */
-export async function exportSite({ routeDeps, outputDir, clean, basePath, includeThemePreviews, themeId, publicUrl }: ExportSiteOptions, _options = {}) {
+export async function exportHostSite({ routeDeps, outputDir, clean, basePath, includeThemePreviews, themeId, publicUrl }: ExportSiteOptions, _options = {}) {
   const tracedFetch = routeDeps.trackFetch({ fetch: (input, init) => fetch(input, init), observability: routeDeps.observability });
   const { manifest, themeCount } = await exportManifestForTheme({ routeDeps }, { themeId, includeThemePreviews });
   const { publicOrigin, publicBaseUrl, sourceOrigin } = await resolveExportIdentity({ routeDeps, publicUrl });

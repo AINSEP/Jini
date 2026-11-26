@@ -6,9 +6,7 @@ import { validateValueAgainstSchema, type SettingValueSchema } from "@jini-ai/co
 import { createConsoleLogger, type Logger, type JsonValue } from "@jini-ai/core/primitives";
 
 import { SiteShareRefusal, archiveRefusalName } from "../share-refusal.js";
-import { listColumns, listTables } from "@jini-ai/db/kernel";
 
-import { declareDataModule } from "@jini-ai/db/data-modules";
 import type { DataModuleDecl, TableDecl } from "@jini-ai/core/contracts/site/db-data-modules";
 
 import type { Row, Kernel, sanitizeShareDatabase } from "./projection.js";
@@ -60,7 +58,7 @@ function portableColumnsOnly(required: { name: string; table: TableDecl; columns
  * Logs the redacted declaration diagnostic; only the fixed refusal crosses the worker boundary.
  * @throws SiteShareRefusal when the owner refuses. O(declaration + diagnostic bytes). */
 async function declarePortableTables(required: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  target: Kernel; decl: DataModuleDecl; tables: TableDecl[] }, { logger = createConsoleLogger({ prefix: "[site-share]" }) }: { logger?: Pick<Logger, "error"> } = {}): Promise<void> {
-  const result = await declareDataModule({ db: required.target, dbPath: ":memory:", decl: { ...required.decl, tables: required.tables } });
+  const result = await required.host.deps.declareDataModule({ db: required.target, dbPath: ":memory:", decl: { ...required.decl, tables: required.tables } });
   if (result.ok) return;
   // A typed refusal is written verbatim to refusal.txt, so native error text belongs only in logs.
   logger.error({ message: "Cannot build portable plugin schema" }, {
@@ -73,10 +71,10 @@ async function declarePortableTables(required: { host: Parameters<typeof sanitiz
  * Never executes source DDL; `listTables` omits SQLite's own `sqlite_*` tables.
  * @throws SiteShareRefusal UNSUPPORTED_DATA with the table and required policy.
  * @complexity O(tables), with one bounded existence query per undeclared table.
- * @example await refuseUnknownShareTables({ source, trusted: new Set(await listTables(target)) });
+ * @example await refuseUnknownShareTables({ source, trusted: new Set(await host.deps.listTables(target)) });
  */
 export async function refuseUnknownShareTables({ host, source, trusted }: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; trusted: ReadonlySet<string> }, _options = {}): Promise<void> {
-  for (const table of await listTables({ kernel: source })) {
+  for (const table of await host.deps.listTables({ kernel: source })) {
     if (trusted.has(table) || host.SHARE_LEGACY_PRIVATE_TABLES.has(table) || host.CHAT_TABLE_NAMES.includes(table) || table.startsWith("_vault_backup_")) continue;
     const rows = await source.query<{ found: number }>(sql`SELECT 1 AS found FROM ${sql.id(table)} LIMIT 1`);
     if (rows.length) throw new SiteShareRefusal({ code: "UNSUPPORTED_DATA", message: `Cannot share unsupported nonempty table '${archiveRefusalName({ name: table })}'. Add an approved portable-data policy for this table first.` });
@@ -106,8 +104,8 @@ function requireTrustedColumns(required: { table: string; columns: string[]; sou
  * @throws SiteShareRefusal for missing required columns or unapproved core columns.
  */
 async function copyTable({ host, source, target, table, credentialWarnings }: { host: Parameters<typeof sanitizeShareDatabase>[0]["host"];  source: Kernel; target: Kernel; table: string; credentialWarnings: CredentialWarning[] }, { signal, portablePlugin, omittedMediaIds = [] }: { signal?: AbortSignal; portablePlugin?: boolean; omittedMediaIds?: readonly string[] } = {}): Promise<void> {
-  const columns = (await listColumns({ kernel: target, table })).map(row => row.name);
-  const sourceColumns = (await listColumns({ kernel: source, table })).map(row => row.name);
+  const columns = (await host.deps.listColumns({ kernel: target, table })).map(row => row.name);
+  const sourceColumns = (await host.deps.listColumns({ kernel: source, table })).map(row => row.name);
   const defaults = ADDITIVE_COLUMN_DEFAULTS.get(table) ?? {};
   requireTrustedColumns({ table, columns, sourceColumns, defaults }, { portablePlugin });
   const rows = await source.run(db => db.selectFrom(table).select(columns.filter(column => sourceColumns.includes(column))).execute());

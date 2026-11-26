@@ -1,4 +1,5 @@
 ---
+"@jini-ai/cms": minor
 "@jini-ai/integrations": minor
 ---
 

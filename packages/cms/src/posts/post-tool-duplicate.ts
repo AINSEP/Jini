@@ -1,7 +1,8 @@
 import { getAdminPostById } from "@jini-ai/cms/posts/post-read";
 import { createPost } from "./post-create.js";
 import { AGENT_TOOL_PRINCIPAL_KIND } from "@jini-ai/core";
-import { adaptLegacyAuthorize, requireToolPermission, type PostStatus } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
+import type { PostStatus } from "@jini-ai/cms/core";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { DuplicateResourceHandlerContributor } from "@jini-ai/core/contracts/site/assistant-tool-contributions";
 import { PostNotFoundError, PostValidationError, type PostRecord, type PublicPostRecord } from "@jini-ai/cms/posts/post";

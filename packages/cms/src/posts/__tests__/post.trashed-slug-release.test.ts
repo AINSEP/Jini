@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { createPost } from "../post-create.js";
 import { updatePost } from "../post-update.js";
 import { retirePostForReplacement } from "../post-retire.js";
-import { restorePostForward } from "../post-trash.js";
+import { deletePost, restorePostForward } from "../post-trash.js";
 import type { PostRecord, PostRepoPort, PostRevisionInput } from "../post.js";
 
 function fixture() {
@@ -45,8 +45,10 @@ it("a no-op update keeps the stored version and revision ledger", async () => {
   const f = fixture();
   const post = (await createPost({ deps: f.deps, input: { workspaceId: "w", id: "post", title: "Title", slug: "title" } })).post;
   const count = f.revisions.length;
-  const result = await updatePost({ deps: f.deps, input: { workspaceId: "w", id: post.id, title: post.title, slug: post.slug, bodyJson: post.bodyJson, status: post.status, expectedVersion: post.version } });
+  const compare = vi.fn(isDeepStrictEqual);
+  const result = await updatePost({ deps: { ...f.deps, isDeepStrictEqual: compare }, input: { workspaceId: "w", id: post.id, title: post.title, slug: post.slug, bodyJson: post.bodyJson, status: post.status, expectedVersion: post.version } });
   expect(result).toEqual({ post, revisionId: null, previousRevisionId: null }); expect(f.revisions).toHaveLength(count);
+  expect(compare).toHaveBeenCalledTimes(2);
 });
 
 it("replacement retirement records rename then removal and forward restore clears the trash index", async () => {
@@ -60,4 +62,17 @@ it("replacement retirement records rename then removal and forward restore clear
   const restored = await restorePostForward({ deps: { ...f.deps, forgetRemoved }, input: { prior } });
   expect(restored?.post).toMatchObject({ slug: "title", version: prior.version + 3 }); expect(restored?.post.deletedAt).toBeUndefined();
   expect(forgetRemoved).toHaveBeenCalledWith({ workspaceId: "w", id: "post" }); expect(f.revisions.at(-1)?.op).toBe("restore");
+});
+
+
+it("post deletion supplies the read version to the marker and refuses its conflict without effects", async () => {
+  const f = fixture();
+  const post = (await createPost({ deps: f.deps, input: { workspaceId: "w", id: "post", title: "Title", slug: "title" } })).post;
+  const remove = vi.fn<Parameters<typeof deletePost>[0]["deps"]["remove"]>(async () => ({ ok: false, reason: "version-changed" }));
+  vi.mocked(f.repo.appendRevision).mockClear(); f.outbox.enqueue.mockClear();
+  await expect(deletePost({ deps: { ...f.deps, remove }, input: { workspaceId: "w", id: post.id } })).rejects.toThrow("changed while it was being deleted");
+  expect(remove.mock.calls[0]![0].expectedVersion).toBe(post.version);
+  expect(f.repo.appendRevision).not.toHaveBeenCalled();
+  expect(f.outbox.enqueue).not.toHaveBeenCalled();
+  expect(f.rows.get(post.id)).toBe(post);
 });

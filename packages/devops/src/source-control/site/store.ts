@@ -1,14 +1,14 @@
 
 
-import { CREDENTIAL_MESSAGES } from '@jini-ai/platform/secrets/credential-token';
 import type { CredentialConnection } from "@jini-ai/core/contracts/site/secrets-credential-token";
 import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
 
 import { isUniqueViolation } from "@jini-ai/core/contracts/storage";
 import type { KeyringPort } from "@jini-ai/core/contracts/vault";
-import type { SecretSealerPort } from "@jini-ai/integrations/secrets";
+import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import { VaultError, type VaultSummary } from "@jini-ai/core/contracts/vault";
-import { credentialCreateTarget, credentialScopes, type CredentialScope, type ScopedCredentialDeps } from "@jini-ai/integrations/vendor-credentials/project-scope";
+import type { CredentialScope } from "@jini-ai/core/contracts/site/credential-project-half";
+interface ScopedCredentialDeps<D> { readonly deps: D; readonly workspaceId: string; readonly scope: CredentialScope }
 import type { DescriptorI18n } from "@jini-ai/core/text";
 import type { SourceControlProviderDescriptor as BaseProviderDescriptor } from "../contracts.js";
 import type { SourceControlCredentialForm } from "./credential-form.js";
@@ -66,7 +66,7 @@ function bound(deps: { repo: Pick<SourceControlCredentialSetRepoPort, "credentia
   return deps.repo.credentialVault;
 }
 function vault(deps: SourceControlCredentialReadDeps & Partial<SourceControlCredentialWriteDeps>, _options = {}) {
-  return bound(deps).open({ ...deps, storageError: () => new SourceControlCredentialSecretStoreUnconfiguredError(CREDENTIAL_MESSAGES.storage) });
+  return bound(deps).open({ ...deps, storageError: () => new SourceControlCredentialSecretStoreUnconfiguredError(deps.deps.CREDENTIAL_MESSAGES.storage) });
 }
 
 /** Error names (and the transport's own wording) that mean the probe ran out of time, not that the host refused it. */
@@ -126,6 +126,13 @@ async function probeAccountLabel({ deps, workspaceId, providerId, token }: { dep
 }
 
 export interface SourceControlCredentialReadDeps {
+  deps: {
+    CREDENTIAL_MESSAGES: Readonly<Record<"storage", string>>;
+    CredentialInputError: abstract new (...args: never[]) => Error;
+    normalizeCredentialToken(required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>): string;
+    credentialScopes<D extends { repo: SourceControlCredentialSetRepoPort }>(required: { deps: D; workspaceId: string }, optional?: Record<string, never>): ScopedCredentialDeps<D>[];
+    credentialCreateTarget<D extends { repo: SourceControlCredentialSetRepoPort }>(required: { deps: D; input: { workspaceId: string; scope?: unknown }; invalid: (message: string) => Error }, optional?: Record<string, never>): ScopedCredentialDeps<D>;
+  };
   repo: SourceControlCredentialSetRepoPort;
   sealer?: SecretSealerPort;
 }
@@ -140,7 +147,7 @@ const reportedScope = (deps: SourceControlCredentialReadDeps, scoped: ScopedCred
 
 /** The row with this id, from the first store holding it (ids are unique across both). @complexity O(scopes). */
 async function locateById<D extends SourceControlCredentialReadDeps>(deps: D, input: { workspaceId: UUID; id: UUID }): Promise<Located<D> | null> {
-  for (const scoped of credentialScopes({ deps, workspaceId: input.workspaceId })) {
+  for (const scoped of deps.deps.credentialScopes({ deps, workspaceId: input.workspaceId })) {
     const record = await scoped.deps.repo.findById({ workspaceId: scoped.workspaceId, id: input.id });
     if (record) return { scoped, record };
   }
@@ -155,7 +162,7 @@ async function locateById<D extends SourceControlCredentialReadDeps>(deps: D, in
 async function listEffective<D extends SourceControlCredentialReadDeps>(deps: D, workspaceId: UUID): Promise<Located<D>[]> {
   const found: Located<D>[] = [];
   const claimed = new Set<string>();
-  for (const scoped of credentialScopes({ deps, workspaceId })) {
+  for (const scoped of deps.deps.credentialScopes({ deps, workspaceId })) {
     const records = await scoped.deps.repo.listByWorkspace({ workspaceId: scoped.workspaceId });
     for (const record of records.filter((row) => !claimed.has(`${row.providerId}\0${row.label}`))) found.push({ scoped, record });
     for (const record of records) claimed.add(`${record.providerId}\0${record.label}`);
@@ -261,8 +268,8 @@ export async function createSourceControlCredential(
   { deps, input }: { deps: SourceControlCredentialWriteDeps; input: CreateSourceControlCredentialInput },
   _options = {},
 ): Promise<SourceControlCredentialSummary> {
-  const label = validateLabel({ raw: input.label, assertCredentialFreeField: deps.assertCredentialFreeField });
-  const connection = validateConnection({ raw: input.connection, registry: await credentialRegistry({ deps, workspaceId: input.workspaceId }), assertCredentialFreeField: deps.assertCredentialFreeField });
+  const label = validateLabel({ deps: deps.deps, raw: input.label, assertCredentialFreeField: deps.assertCredentialFreeField });
+  const connection = validateConnection({ deps: deps.deps, raw: input.connection, registry: await credentialRegistry({ deps, workspaceId: input.workspaceId }), assertCredentialFreeField: deps.assertCredentialFreeField });
   const canonical = deps.repo.canonical;
   if (canonical?.supports({ providerId: connection.providerId })) {
     if (!canonical.create) throw new SourceControlCredentialValidationError("Open the provider's API key card to save this shared key.");
@@ -270,7 +277,7 @@ export async function createSourceControlCredential(
   }
   const isDefault = optionalBoolean({ raw: input.isDefault, field: "isDefault" });
   // Project-first (`@jini-ai/integrations/vendor-credentials/project-scope`); "site" = only for this site.
-  const target = credentialCreateTarget({ deps, input, invalid: message => new SourceControlCredentialValidationError(message) });
+  const target = deps.deps.credentialCreateTarget({ deps, input, invalid: message => new SourceControlCredentialValidationError(message) });
   await assertLabelFreeOnSite({ deps, target, workspaceId: input.workspaceId, providerId: connection.providerId, label });
   const id = deps.idGen.newId();
   const summary = await saveConnection({ deps: target.deps, input: { ...bound(target.deps).scope({ workspaceId: target.workspaceId, kind: "source-control", id }),
@@ -295,19 +302,19 @@ async function saveConnection({ deps, input }: { deps: SourceControlCredentialWr
 /** `deps` writes the store holding `summary`'s row; `workspaceId` is the site's (its provider registry). */
 async function probeSavedConnection({ deps, summary, connection, workspaceId }: { deps: SourceControlCredentialWriteDeps; summary: VaultSummary; connection: SourceControlConnectionInput; workspaceId: UUID }, _options = {}): Promise<SourceControlCredentialSummary> {
   const probe = await probeAccountLabel({ deps, workspaceId, providerId: connection.providerId, token: connection.token });
-  try { if (probe.accountLabel !== null) assertPlainAccountLabel({ value: probe.accountLabel, assertCredentialFreeField: deps.assertCredentialFreeField }); } catch { probe.accountLabel = null; }
+  try { if (probe.accountLabel !== null) assertPlainAccountLabel({ deps: deps.deps, value: probe.accountLabel, assertCredentialFreeField: deps.assertCredentialFreeField }); } catch { probe.accountLabel = null; }
   if (probe.accountLabel !== null) {
     // This is the saved revision, not a new read's revision: an old probe must not heal a rotation.
     try {
       if (!deps.repo.vault) throw new Error("Source control credential has no vault");
       await deps.repo.vault.patchMeta({ workspaceId: summary.workspaceId, id: summary.id,
-      expectedRevision: summary.revision, patch: { accountLabel: assertPlainAccountLabel({ value: probe.accountLabel, assertCredentialFreeField: deps.assertCredentialFreeField }) }, updatedAt: summary.updatedAt }); }
+      expectedRevision: summary.revision, patch: { accountLabel: assertPlainAccountLabel({ deps: deps.deps, value: probe.accountLabel, assertCredentialFreeField: deps.assertCredentialFreeField }) }, updatedAt: summary.updatedAt }); }
     catch { /* A metadata failure does not undo the saved token. */ }
   }
   return { ...vaultSummary({ summary, hint: bound(deps).hint }), accountLabel: probe.accountLabel, connection: probe.connection };
 }
-function assertPlainAccountLabel({ value, assertCredentialFreeField }: { value: string; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): string {
-  assertPlainField({ value, field: "accountLabel", assertCredentialFreeField });
+function assertPlainAccountLabel({ deps, value, assertCredentialFreeField }: { deps: SourceControlCredentialReadDeps["deps"]; value: string; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): string {
+  assertPlainField({ deps, value, field: "accountLabel", assertCredentialFreeField });
   return value;
 }
 
@@ -328,9 +335,9 @@ async function loadSourceControlCredentialUpdate({ deps, input }: { deps: Source
   const located = await locateById(deps, input);
   if (!located) throw new SourceControlCredentialNotFoundError(`no source control credential '${input.id}' in this workspace`);
   const { scoped, record: existing } = located;
-  const label = input.label !== undefined ? validateLabel({ raw: input.label, assertCredentialFreeField: deps.assertCredentialFreeField }) : existing.label;
+  const label = input.label !== undefined ? validateLabel({ deps: deps.deps, raw: input.label, assertCredentialFreeField: deps.assertCredentialFreeField }) : existing.label;
   const requestedDefault = optionalBoolean({ raw: input.isDefault, field: "isDefault" });
-  if (!scoped.deps.repo.vault) throw new SourceControlCredentialSecretStoreUnconfiguredError(CREDENTIAL_MESSAGES.storage);
+  if (!scoped.deps.repo.vault) throw new SourceControlCredentialSecretStoreUnconfiguredError(deps.deps.CREDENTIAL_MESSAGES.storage);
   const row = await scoped.deps.repo.vault.find({ workspaceId: scoped.workspaceId, id: input.id });
   if (!row) throw new SourceControlCredentialNotFoundError(`no source control credential '${input.id}' in this workspace`);
   const where = bound(scoped.deps).scope({ workspaceId: scoped.workspaceId, kind: "source-control" });
@@ -352,7 +359,7 @@ export async function updateSourceControlCredential(
   const { scoped, existing, label, requestedDefault, row, where } = await loadSourceControlCredentialUpdate({ deps, input });
   const patch = await normalizeConnectionPatch({ raw: input.connection, existing: existing.providerId, registry: () => credentialRegistry({ deps, workspaceId: input.workspaceId }) });
   if (patch !== undefined && !isEmptyTokenPatch({ value: patch })) {
-    const connection = validateConnection({ raw: patch, registry: await credentialRegistry({ deps, workspaceId: input.workspaceId }), assertCredentialFreeField: deps.assertCredentialFreeField });
+    const connection = validateConnection({ deps: deps.deps, raw: patch, registry: await credentialRegistry({ deps, workspaceId: input.workspaceId }), assertCredentialFreeField: deps.assertCredentialFreeField });
     await assertMoveFreeOnSite({ deps, scoped, existing, workspaceId: input.workspaceId, providerId: connection.providerId, label });
     const summary = await saveConnection({ deps: scoped.deps, input: { ...where, id: input.id,
       expectedRevision: row.revision, provider: connection.providerId, label, payload: { ...connection }, hintToken: connection.token,
@@ -412,7 +419,7 @@ export async function findDefaultSourceControlCredential(deps: SourceControlCred
   input: { workspaceId: UUID; providerId: SourceControlProviderId }): Promise<Pick<SourceControlCredentialSetRecord, "id" | "label" | "providerId"> | null> {
   if (deps.repo.canonical?.supports(input)) return deps.repo.canonical.describe(input);
   const claimed = new Set<string>();
-  for (const scoped of credentialScopes({ deps, workspaceId: input.workspaceId })) {
+  for (const scoped of deps.deps.credentialScopes({ deps, workspaceId: input.workspaceId })) {
     const found = await selectSourceControlCredential({ repo: scoped.deps.repo, workspaceId: scoped.workspaceId, providerId: input.providerId, claimed });
     if (found) return found;
   }
@@ -421,9 +428,9 @@ export async function findDefaultSourceControlCredential(deps: SourceControlCred
 
 /** The first store's selected credential for the host: this site's, else the attached project's.
  * @complexity O(attached inventory); opening retains the vault's context and authentication checks. */
-async function findDefaultOpened(deps: { repo: SourceControlCredentialSetRepoPort; sealer: SecretSealerPort }, input: { workspaceId: UUID; providerId: SourceControlProviderId }) {
+async function findDefaultOpened(deps: SourceControlCredentialReadDeps & { sealer: SecretSealerPort }, input: { workspaceId: UUID; providerId: SourceControlProviderId }) {
   const claimed = new Set<string>();
-  for (const scoped of credentialScopes({ deps, workspaceId: input.workspaceId })) {
+  for (const scoped of deps.deps.credentialScopes({ deps, workspaceId: input.workspaceId })) {
     const selected = await selectSourceControlCredential({ repo: scoped.deps.repo, workspaceId: scoped.workspaceId, providerId: input.providerId, claimed });
     if (!selected) continue;
     // The attached-only inventory can select a sole nondefault without changing the project's default.
@@ -438,7 +445,7 @@ async function findDefaultOpened(deps: { repo: SourceControlCredentialSetRepoPor
 /** Resolve exactly one eligible credential through Jini's context-checked open. Genuine decrypt
  * failures stay typed: this runs in the daemon as well as the HTTP process. */
 export async function resolveDefaultForSourceControl(
-  deps: { repo: SourceControlCredentialSetRepoPort; sealer: SecretSealerPort },
+  deps: SourceControlCredentialReadDeps & { sealer: SecretSealerPort },
   input: { workspaceId: UUID; providerId: SourceControlProviderId }
 ): Promise<{ id: UUID; label: string; connection: SourceControlConnectionInput } | null> {
   try {
@@ -446,10 +453,10 @@ export async function resolveDefaultForSourceControl(
     // This site's default first (a site with any row for the host has one), else the project's.
     const resolved = await findDefaultOpened(deps, input);
     if (!resolved) return null;
-    if (!resolved.payload) throw new SourceControlCredentialSecretStoreUnconfiguredError(CREDENTIAL_MESSAGES.storage);
+    if (!resolved.payload) throw new SourceControlCredentialSecretStoreUnconfiguredError(deps.deps.CREDENTIAL_MESSAGES.storage);
     // Reading a saved connection never requires its plugin or reinterprets its paired fields.
     const connection = { ...resolved.payload, providerId: resolved.summary.provider,
-      token: normalizeStoredToken({ value: resolved.payload.token }) } as SourceControlConnectionInput;
+      token: normalizeStoredToken({ deps: deps.deps, value: resolved.payload.token }) } as SourceControlConnectionInput;
     return { id: resolved.summary.id, label: resolved.summary.label, connection };
-  } catch { throw new SourceControlCredentialSecretStoreUnconfiguredError(CREDENTIAL_MESSAGES.storage); }
+  } catch { throw new SourceControlCredentialSecretStoreUnconfiguredError(deps.deps.CREDENTIAL_MESSAGES.storage); }
 }

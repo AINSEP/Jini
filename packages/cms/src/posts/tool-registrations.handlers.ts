@@ -4,7 +4,7 @@ import { getAdminPostById } from "@jini-ai/cms/posts/post-read";
 
 import { optionalNumber, requireInputRecord, requireString, withSchemaOnRejection, type ToolHandler } from "@jini-ai/core";
 
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 
 import { PostNotFoundError } from "@jini-ai/cms/posts/post";
 

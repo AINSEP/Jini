@@ -109,3 +109,18 @@ test("malformed deep-link input refuses before lookup and authorization precedes
   expect(f.host.authorize).toHaveBeenCalled();
   expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
 });
+
+
+test("the prepared restore preserves the gateway plan and an undefined createdAt property", async () => {
+  const f = fixture();
+  const plan = { planId: "plan", planHash: "hash", extra: "gateway-field" };
+  f.host.plan = vi.fn(async () => ({ ok: true, value: plan }));
+  f.deps.restorePointsRepo.list = vi.fn(async () => []);
+  let prepared: unknown;
+  const describe = f.host.describe;
+  f.host.describe = value => { prepared = value; return describe(value); };
+  await buildRecoveryRegistrations(f).find(row => row.descriptor.id === "backup_execute_restore")!.handler(ctx, { emitSurface: vi.fn() });
+  expect(prepared).toEqual({ restorePointId: "point", plan, createdAt: undefined });
+  expect((prepared as { plan: unknown }).plan).toBe(plan);
+  expect(Object.hasOwn(prepared as object, "createdAt")).toBe(true);
+});

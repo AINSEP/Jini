@@ -86,11 +86,19 @@ describe("media generation execution", () => {
     deps.providers.generateImage.mockResolvedValue({ bytes, providerId: "stub-provider", usedStubFallback: true });
     expect(await registration.handler(ctx({ prompt: "Draw a picture!", model: "plugin-first", allowStubFallback: true }))).toMatchObject({ model: "plugin-first", provider: "stub-provider", media: { placeholder: true, createdBy: null } });
     expect(deps.storage.upload).toHaveBeenCalledWith({ input: {
-      workspaceId: "workspace", bytes, filename: "Draw-a-picture.png", contentType: "image/png", createdByPrincipal: "agent", provenance: { kind: "generated" },
+      workspaceId: "workspace", bytes, filename: "Draw-a-picture.png", contentType: "image/png", alt: undefined, caption: undefined, credit: undefined, description: undefined, createdByPrincipal: "agent", provenance: { kind: "generated" },
     } }, {});
     expect(deps.providers.generateImage).toHaveBeenCalledWith(expect.objectContaining({ allowStubFallback: true }), { signal: expect.any(AbortSignal) });
     expect(deps.storage.recordContentType).toHaveBeenCalledWith({ workspaceId: "workspace", sha256: "hash", contentType: "image/png" }, {});
     expect(deps.storage.upload.mock.invocationCallOrder[0]).toBeLessThan(deps.storage.recordContentType.mock.invocationCallOrder[0]!);
     expect(deps.storage.recordContentType.mock.invocationCallOrder[0]).toBeLessThan(deps.storage.resolvePublicUrls.mock.invocationCallOrder[0]!);
   });
+});
+
+
+it("an unknown saved-selection model does not hide the next eligible model", async () => {
+  const { deps, catalogInput, ctx } = fixture();
+  const registration = buildMediaGenerationRegistrations({ deps, catalogInput: { ...catalogInput, imageModelIds: ["missing", "plugin-first"] } })[0]!;
+  deps.providers.readSavedSelections.mockResolvedValue({ plugin: { apiKeyConfigured: true, model: "plugin-first" } });
+  expect(await registration.handler(ctx({ prompt: "Picture" }))).toMatchObject({ model: "plugin-first", provider: "actual-provider" });
 });

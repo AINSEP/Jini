@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { exportSite, type ExportSiteRouteDeps } from "../site-exporter.js";
+import { exportHostSite, type ExportSiteRouteDeps } from "../site-exporter.js";
 import type { ExportSiteArgs, ExportSiteOptions } from "../../contracts.js";
 
 const runner = vi.hoisted(() => ({ run: vi.fn() }));
@@ -31,7 +31,7 @@ function fixture() {
 it("the destination public URL overrides an explicit base path and reports warning order", async () => {
   const outputDir = await mkdtemp(path.join(tmpdir(), "wmz-export-"));
   try {
-    const result = await exportSite({ routeDeps: fixture(), outputDir, publicUrl: "https://destination.example/copy", basePath: "/ignored" });
+    const result = await exportHostSite({ routeDeps: fixture(), outputDir, publicUrl: "https://destination.example/copy", basePath: "/ignored" });
     expect(runner.run.mock.calls.at(-1)?.[1]).toEqual({ basePath: "/copy" });
     expect(result.basePathRewriteWarning).toBe("The base path was ignored because the public URL sets the path. Rewrite limit.");
     expect(result.consentWarning).toBe("Consent first. Placeholder second. Scripts third.");
@@ -42,7 +42,7 @@ it("without public origin omits discovery routes and removes their stale output"
   const outputDir = await mkdtemp(path.join(tmpdir(), "wmz-export-"));
   try {
     await writeFile(path.join(outputDir, "sitemap.xml"), "stale"); await writeFile(path.join(outputDir, "feed.xml"), "stale");
-    await exportSite({ routeDeps: fixture(), outputDir });
+    await exportHostSite({ routeDeps: fixture(), outputDir });
     const args = runner.run.mock.calls.at(-1)![0] as ExportSiteArgs;
     expect((await args.manifest.build({})).routes.map(route => route.path)).toEqual(["/"]);
     await expect(readFile(path.join(outputDir, "sitemap.xml"))).rejects.toMatchObject({ code: "ENOENT" });

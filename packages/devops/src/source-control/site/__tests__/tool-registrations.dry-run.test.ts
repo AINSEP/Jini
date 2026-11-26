@@ -1,3 +1,4 @@
+import { credentialScopes } from "@jini-ai/integrations/vendor-credentials/project-scope";
 import { expect, it, vi } from "vitest";
 import { buildSourceControlRegistrations, type SourceControlToolDeps } from "../tool-registrations.js";
 import { executeCommitSchema } from "../commit-schema.js";
@@ -7,7 +8,7 @@ it("dry-run previews the same destination without a provider write", async () =>
   const buildSourceControlProvider = vi.fn();
   const previewCommitExport = vi.fn(async () => ({ ok: true, fileCount: 1, totalBytes: 4, paths: ["index.html"] }));
   const descriptor = { id: "git", label: "Git", apiOrigin: "https://git.example" };
-  const deps = { workspaceId: "w", authorize: async () => ({ allowed: true }), sourceControlExportRootDir: "/export", idGen: { newId: () => "id" }, staticSitePackager: { entryFile: "index.html" },
+  const deps = { deps: { credentialScopes }, workspaceId: "w", authorize: async () => ({ allowed: true }), sourceControlExportRootDir: "/export", idGen: { newId: () => "id" }, staticSitePackager: { entryFile: "index.html" },
     loadSourceControlProviders: async () => ({ get: () => ({ descriptor, module: { supportsFolder: true } }), list: () => [{ descriptor }], refusals: [] }),
     sourceControlCredentialSetRepo: { listByProvider: async () => [{ id: "key", label: "label", providerId: "git", isDefault: true }], listByWorkspace: async () => [] },
     catalog: new Map([

@@ -1,3 +1,4 @@
+import { abortGuardedCredentialRepo } from "@jini-ai/integrations/vendor-credentials/abort-guarded-repo";
 import { expect, it, vi } from "vitest";
 import { proposeSourceControlCredential, PROPOSE_CREDENTIAL_CLOSED, type SourceControlCredentialSetupDeps } from "../credential-setup.js";
 
@@ -5,7 +6,7 @@ it("an aborted secure-card submission cannot save a credential", async () => {
   const abort = new AbortController();
   const create = vi.fn();
   const descriptor = { id: "git", label: "Git", credential: { tokenField: "token", fields: [{ name: "token", label: "Token", required: true, secret: true }] } };
-  const deps = { workspaceId: "w", authorize: async () => ({ allowed: true }), loadSourceControlProviders: async () => ({ get: () => ({ descriptor }), list: () => [{ descriptor }], refusals: [] }),
+  const deps = { deps: { abortGuardedCredentialRepo }, workspaceId: "w", authorize: async () => ({ allowed: true }), loadSourceControlProviders: async () => ({ get: () => ({ descriptor }), list: () => [{ descriptor }], refusals: [] }),
     sourceControlCredentialSetRepo: { canonical: { supports: () => true, create } }, findPluginCredentialCard: async () => undefined,
     credentialSaveToolId: "credential_save", credentialFormUriHost: "host", assertCredentialFreeField: () => {},
     defineSecretCardTool: (spec: { prepare: () => Promise<unknown>; save: (required: { prep: unknown; values: Record<string, unknown>; signal: AbortSignal }) => Promise<unknown>; result: (required: { prep: unknown; run: { status: string } }) => unknown }) => ({ handler: () => async () => {

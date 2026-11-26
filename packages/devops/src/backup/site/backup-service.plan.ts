@@ -1,8 +1,6 @@
-import { CustomCredentialValidationError } from "@jini-ai/integrations/credentialed-http/sets";
 import { requireInputRecord } from "@jini-ai/core";
 
 
-import { normalizeWriteFilePath, validateBranch, validateCommitMessage } from "@jini-ai/integrations/custom-credentials/write-files-validation";
 
 import type { SourceControlProvider } from "../../source-control/site/provider-module.js";
 import { findReservedPath } from "../../source-control/registry.js";
@@ -32,38 +30,38 @@ interface ParsedPlanInput {
   readonly commitMessage: string | undefined;
 }
 
-function optionalString({ raw, field }: { raw: Record<string, unknown>; field: string }, _optional: Record<string, never> = {}): string | undefined {
+function optionalString({ raw, field, deps }: { deps: SiteBackupToolDeps["deps"]; raw: Record<string, unknown>; field: string }, _optional: Record<string, never> = {}): string | undefined {
   const value = raw[field];
   if (value === undefined) return undefined;
-  if (typeof value !== "string") throw new CustomCredentialValidationError(`'${field}' must be a string`);
+  if (typeof value !== "string") throw new deps.CustomCredentialValidationError(`'${field}' must be a string`);
   return value;
 }
 
 /** Every switch defaults to true; anything but a boolean for a known scope is refused. */
-function parseInclude({ value, SITE_BACKUP_SCOPES }: { value: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }, _optional: Record<string, never> = {}): SiteBackupInclude {
+function parseInclude({ value, SITE_BACKUP_SCOPES, deps }: { deps: SiteBackupToolDeps["deps"]; value: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }, _optional: Record<string, never> = {}): SiteBackupInclude {
   if (value === undefined) return { database: true, media: true, themes: true, plugins: true, settings: true };
-  const include = readIncludeSwitches({ raw: requireIncludeRecord({ value, SITE_BACKUP_SCOPES }), SITE_BACKUP_SCOPES });
-  if (!SITE_BACKUP_SCOPES.some((scope) => include[scope])) throw new CustomCredentialValidationError("'include' switches everything off; there would be nothing to back up");
+  const include = readIncludeSwitches({ deps, raw: requireIncludeRecord({ deps, value, SITE_BACKUP_SCOPES }), SITE_BACKUP_SCOPES });
+  if (!SITE_BACKUP_SCOPES.some((scope) => include[scope])) throw new deps.CustomCredentialValidationError("'include' switches everything off; there would be nothing to back up");
   return include;
 }
 
 /** The `include` object itself: a plain object whose keys are all known scopes. */
-function requireIncludeRecord(required: { value: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }): Record<string, unknown> {
-  const { value, SITE_BACKUP_SCOPES } = required;
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CustomCredentialValidationError("'include' must be an object of true/false switches");
+function requireIncludeRecord(required: { deps: SiteBackupToolDeps["deps"]; value: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }): Record<string, unknown> {
+  const { deps, value, SITE_BACKUP_SCOPES } = required;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new deps.CustomCredentialValidationError("'include' must be an object of true/false switches");
   const raw = value as Record<string, unknown>;
   const unknownKeys = Object.keys(raw).filter((key) => !(SITE_BACKUP_SCOPES as readonly string[]).includes(key));
-  if (unknownKeys.length > 0) throw new CustomCredentialValidationError(`'include' has unknown switch(es): ${unknownKeys.join(", ")} (known: ${SITE_BACKUP_SCOPES.join(", ")})`);
+  if (unknownKeys.length > 0) throw new deps.CustomCredentialValidationError(`'include' has unknown switch(es): ${unknownKeys.join(", ")} (known: ${SITE_BACKUP_SCOPES.join(", ")})`);
   return raw;
 }
 
 /** Each scope's switch, true when absent; a non-boolean is refused by name. */
-function readIncludeSwitches(required: { raw: Record<string, unknown>; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }): SiteBackupInclude {
-  const { SITE_BACKUP_SCOPES } = required;
+function readIncludeSwitches(required: { deps: SiteBackupToolDeps["deps"]; raw: Record<string, unknown>; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }): SiteBackupInclude {
+  const { deps, SITE_BACKUP_SCOPES } = required;
   const include = {} as Record<(typeof SITE_BACKUP_SCOPES)[number], boolean>;
   for (const scope of SITE_BACKUP_SCOPES) {
     const flag = required.raw[scope];
-    if (flag !== undefined && typeof flag !== "boolean") throw new CustomCredentialValidationError(`'include.${scope}' must be true or false`);
+    if (flag !== undefined && typeof flag !== "boolean") throw new deps.CustomCredentialValidationError(`'include.${scope}' must be true or false`);
     include[scope] = flag ?? true;
   }
   return include;
@@ -71,9 +69,9 @@ function readIncludeSwitches(required: { raw: Record<string, unknown>; SITE_BACK
 
 /** The backup folder: repository-relative, never `.git`. The host's own reserved folders
  *  ({@link requireUnreservedFolder}) are checked once the credential names the host. */
-function parseFolder({ raw }: { raw: string | undefined }, _optional: Record<string, never> = {}): string | undefined {
+function parseFolder({ raw, deps }: { deps: SiteBackupToolDeps["deps"]; raw: string | undefined }, _optional: Record<string, never> = {}): string | undefined {
   if (raw === undefined) return undefined;
-  return normalizeWriteFilePath({ rawPath: raw });
+  return deps.normalizeWriteFilePath({ rawPath: raw });
 }
 
 /**
@@ -83,25 +81,25 @@ function parseFolder({ raw }: { raw: string | undefined }, _optional: Record<str
  * @throws {CustomCredentialValidationError} naming the reserved folder.
  * @complexity O(r) reserved paths.
  */
-export function requireUnreservedFolder({ folder, provider }: { folder: string; provider: SourceControlProvider }, _optional: Record<string, never> = {}): void {
+export function requireUnreservedFolder({ folder, provider, deps }: { deps: SiteBackupToolDeps["deps"]; folder: string; provider: SourceControlProvider }, _optional: Record<string, never> = {}): void {
   const reserved = findReservedPath({ folder, reservedPaths: provider.reservedPaths });
-  if (reserved !== undefined) throw new CustomCredentialValidationError(`the backup folder must not be inside '${reserved}': '${folder}'`);
+  if (reserved !== undefined) throw new deps.CustomCredentialValidationError(`the backup folder must not be inside '${reserved}': '${folder}'`);
 }
 
 /** @throws {CustomCredentialValidationError} Any malformed field — before any permission check,
  *  decrypt or network call. Owner and repo are the host's to judge, after the credential is resolved. */
-export function parsePlanInput({ rawInput, SITE_BACKUP_SCOPES }: { rawInput: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }, _optional: Record<string, never> = {}): ParsedPlanInput {
+export function parsePlanInput({ rawInput, SITE_BACKUP_SCOPES, deps }: { deps: SiteBackupToolDeps["deps"]; rawInput: unknown; SITE_BACKUP_SCOPES: readonly SiteBackupScope[] }, _optional: Record<string, never> = {}): ParsedPlanInput {
   const raw = requireInputRecord({ input: rawInput });
-  const branch = optionalString({ raw, field: "branch" });
-  const commitMessage = optionalString({ raw, field: "commitMessage" });
+  const branch = optionalString({ deps, raw, field: "branch" });
+  const commitMessage = optionalString({ deps, raw, field: "commitMessage" });
   return {
-    credential: optionalString({ raw, field: "credential" }),
+    credential: optionalString({ deps, raw, field: "credential" }),
     owner: raw.owner,
     repo: raw.repo,
-    branch: branch === undefined ? undefined : validateBranch({ value: branch }),
-    folder: parseFolder({ raw: optionalString({ raw, field: "folder" }) }),
-    include: parseInclude({ value: raw.include, SITE_BACKUP_SCOPES }),
-    commitMessage: commitMessage === undefined ? undefined : validateCommitMessage({ value: commitMessage }),
+    branch: branch === undefined ? undefined : deps.validateBranch({ value: branch }),
+    folder: parseFolder({ deps, raw: optionalString({ deps, raw, field: "folder" }) }),
+    include: parseInclude({ deps, value: raw.include, SITE_BACKUP_SCOPES }),
+    commitMessage: commitMessage === undefined ? undefined : deps.validateCommitMessage({ value: commitMessage }),
   };
 }
 
@@ -165,6 +163,7 @@ export async function savePlan(required: {
       totalBytes: content.totalBytes,
       site: { name: siteName, folderName: required.folderName },
       schema: deps.runtimeSchemaVersion(),
+      ...deps.planVersion,
       createdAt,
     },
   });

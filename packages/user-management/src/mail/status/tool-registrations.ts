@@ -9,12 +9,71 @@ import { ToolPermissionDeniedError as ForbiddenError } from "@jini-ai/core";
 import { describeErrorForLog, forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 
-import type { PositionalMailer as MailerPort, MailSenderIdentityPort, MailStatusReport } from "@jini-ai/platform/mail";
-import type { MailProviderControl } from "@jini-ai/platform/mail";
+import type { PositionalMailer as MailerPort, MailStatusReport, MailTestModeSetting, MailTestApproval } from "@jini-ai/core/contracts/mail";
+import type { MailSenderIdentityPort } from "@jini-ai/core/contracts/site/platform-mail";
+import type { MailProviderControl } from "./provider-operations.js";
 import { mailStatusAgentToolCatalog } from "@jini-ai/user-management/mail/status/agent-tools";
-import type { planMailTestSend, readTestRecipient, runMailTestSend, MailTestSendDeps, MailTestSendPlan } from "@jini-ai/platform/mail/test-send";
+
 import { activateMailProvider, checkMailProvider } from "./provider-operations.js";
 import { asToolInputError, currentLanesDetail } from "./provider-tool-registrations.js";
+
+type MailTestSendRefusal = { ok: false; reason: "duplicate" | "rate_limited"; retryAfterMs: number };
+
+/** Deliberate test sends per site; separate from (and in front of) the provider's own bucket. */
+interface MailTestSendLimiter {
+  tryTake(required: { principalId: string; to: string }): { ok: true } | MailTestSendRefusal;
+}
+
+/** Ports the operation reads; the field names match `RouteDeps`, so a route can pass its deps through. */
+interface MailTestSendDeps {
+  workspaceId: string;
+  mailer: MailerPort;
+  /** Await current transactional resolution before freezing synchronous capabilities. */
+  mailLaneReady?: (required: { lane: "transactional" | "bulk" }) => Promise<boolean>;
+  /** The operator's account, for the default recipient. */
+  userRepo?: Pick<UserRepoPort, "findByPrincipalId">;
+  /** The site's system-mail From (`platform/mail/sender-identity.ts`). */
+  mailSenderIdentity?: MailSenderIdentityPort;
+  /** Host copy: the placeholder From for a non-delivering mailer, whose `name` also fills a configured
+   *  sender's missing name. Absent: `no-reply@mail.local` named "Site". */
+  mailTestFallbackSender?: { email: string; name: string };
+  /** Shared by the route and the tool (one per site, `deps.ts`); absent (hermetic roots), only the
+   *  provider's own limits apply. */
+  mailTestSendLimiter?: MailTestSendLimiter;
+  /** Fresh `core.mail.testMode`, so a redirect is reported as one. Absent: treated as off. */
+  mailTestMode?: () => Promise<MailTestModeSetting>;
+  mailTestProvider?: () => Promise<string | null>;
+  /** Site-owned request results, shared by HTTP and tools; no token is taken on replay. */
+  mailTestRequests?: Map<string, Promise<MailTestSendResult>>;
+}
+
+/** Where the message is meant to go, frozen before any approval card or send. */
+interface MailTestSendPlan {
+  to: string;
+  /** True when the caller chose the recipient; false for the operator's own address. */
+  chosen: boolean;
+  approval: MailTestApproval;
+  driver: string;
+  /** Set when test mode will rewrite the recipient. */
+  redirectTo?: string;
+  /** True when test mode keeps the message locally instead of sending it. */
+  capture?: boolean;
+}
+
+interface Common { to: string; from: string; driver: string; at: string }
+type MailTestSendResult =
+  /** The provider accepted the message for delivery; delivery itself is not yet known. */
+  | Common & { outcome: "accepted"; providerMessageId: string }
+  /** Nothing left this machine: kept by test-mode capture or printed by the local console driver. */
+  | Common & { outcome: "captured"; where: "capture" | "console"; providerMessageId: string }
+  /** Test mode sent it to another address instead of `to`. */
+  | Common & { outcome: "redirected"; redirectedTo: string; providerMessageId: string }
+  /** Refused or failed; the code and message are the mailer's caller-safe ones. */
+  | Common & { outcome: "failed" | "unknown"; errorCode: string; message: string; retryable: boolean; retryAfterMs?: number };
+
+declare const planMailTestSend: (required: { principalId: string; to?: string; deps: MailTestSendDeps }, optional?: Record<string, never>) => Promise<MailTestSendPlan>;
+declare const readTestRecipient: (required: { value: unknown }, optional?: Record<string, never>) => string | undefined;
+declare const runMailTestSend: (required: { deps: MailTestSendDeps; principalId: string; plan: MailTestSendPlan; ref: string }, optional?: { now?: () => number }) => Promise<MailTestSendResult>;
 
 export interface MailStatusToolDeps {
   authorize: AuthorizeFn; workspaceId: string; mailer: MailerPort;

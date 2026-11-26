@@ -54,3 +54,15 @@ it("purge joins the principal lock rather than opening a second transaction", as
   expect(f.order).toEqual(["lock", "read", "guard", "purge", "unlock"]);
   expect(f.purge.purgeUser).toHaveBeenCalledTimes(1);
 });
+
+
+it("a blocked user purge leaves identity and sessions untouched", async () => {
+  const f = fixture();
+  f.policy.assertAccountAction.mockRejectedValue(new Error("protected owner"));
+  await expect(f.adapter.purge(target)).rejects.toThrow("protected owner");
+  expect(f.purge.purgeUser).not.toHaveBeenCalled();
+  expect(f.store.compareAndSetStatus).not.toHaveBeenCalled();
+  expect(f.store.revokeSessions).not.toHaveBeenCalled();
+  expect(f.store.appendEvent).not.toHaveBeenCalled();
+  expect(f.order).toEqual(["lock", "read", "guard", "unlock"]);
+});

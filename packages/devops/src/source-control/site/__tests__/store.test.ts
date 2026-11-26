@@ -1,3 +1,5 @@
+import { CREDENTIAL_MESSAGES, CredentialInputError, normalizeCredentialToken } from "@jini-ai/platform/secrets/credential-token";
+import { credentialScopes, credentialCreateTarget } from "@jini-ai/integrations/vendor-credentials/project-scope";
 import { expect, it, vi } from "vitest";
 import { SecretsVaultService, InMemoryVaultRepo, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { CredentialSetVaultAdapter, toSourceControlCredentialRecord } from "@jini-ai/integrations/vendor-credentials/vault-adapter";
@@ -10,7 +12,7 @@ function fixture() {
   const descriptor = { id: "git", label: "Git", apiOrigin: "https://git.example", module: "git.mjs", credential: { tokenField: "token", fields: [{ name: "token", label: "Token", required: true, secret: true }] } };
   const loadSourceControlProviders = vi.fn(async () => ({ get: () => ({ descriptor, module: {} }), list: () => [{ descriptor }], refusals: [] }));
   const buildSourceControlProvider = vi.fn(async () => { throw new Error("probe failed"); });
-  const deps = { repo, clock: { nowMs: () => 0 }, idGen: { newId: () => "credential" }, keyring: { activeKey: async () => ({ keyId: "k" }), derive: vi.fn(), deriveSigningSecret: vi.fn() },
+  const deps = { deps: { CREDENTIAL_MESSAGES, CredentialInputError, normalizeCredentialToken, credentialScopes, credentialCreateTarget }, repo, clock: { nowMs: () => 0 }, idGen: { newId: () => "credential" }, keyring: { activeKey: async () => ({ keyId: "k" }), derive: vi.fn(), deriveSigningSecret: vi.fn() },
     sealer: { seal: async ({ plaintext }: { plaintext: string }) => ({ keyId: "k", alg: "test", nonce: "nonce", ciphertext: plaintext }), open: async ({ sealed }: { sealed: { ciphertext: string } }) => sealed.ciphertext },
     loadSourceControlProviders, buildSourceControlProvider, assertCredentialFreeField: vi.fn(), isProjectKeyCreateConflictError: () => false,
   } as unknown as SourceControlCredentialWriteDeps;

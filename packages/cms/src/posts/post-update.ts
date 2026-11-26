@@ -218,14 +218,14 @@ async function followsTitleSlug(
  * @complexity O(n) comparison for n body/ext JSON values; one repo read.
  */
 async function unchangedLiveRow(
-  required: { repo: PostRepoPort; input: UpdatePostInput; post: PostRecord },
+  required: { repo: PostRepoPort; input: UpdatePostInput; post: PostRecord; isDeepStrictEqual: UpdatePostDeps["isDeepStrictEqual"] },
   _optional: Record<string, never> = {}
 ): Promise<PublicPostRecord | null> {
   const { repo, input, post } = required;
   const current = await repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!isPublicPost(current) || isTrashed(current)) throw new PostNotFoundError(`post '${input.id}' was not found`);
   assertExpectedVersion({ existing: current, expectedVersion: input.expectedVersion });
-  return isDeepStrictEqual(savedPostContent(current), savedPostContent(post)) ? current : null;
+  return required.isDeepStrictEqual(savedPostContent(current), savedPostContent(post)) ? current : null;
 }
 
 /**
@@ -291,7 +291,7 @@ export async function updatePost(
   // `PostNotFoundError` reach the caller exactly as they did before this change.
   return deps.repo.transaction({ fn: async () => {
     if (deps.isDeepStrictEqual(savedPostContent(existing), savedPostContent(post))) {
-      const current = await unchangedLiveRow({ repo: deps.repo, input, post });
+      const current = await unchangedLiveRow({ repo: deps.repo, input, post, isDeepStrictEqual: deps.isDeepStrictEqual });
       if (current) return { post: current, revisionId: null, previousRevisionId: null };
     }
     if (trashedHolder) await releaseTrashedSlug({ repo: deps.repo, holder: trashedHolder });

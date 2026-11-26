@@ -5,10 +5,11 @@ import { statfs, writeFile } from "node:fs/promises";
 
 import path from "node:path";
 
-import type { backfillPostSearchIndex, PostSearchHostConfig } from "@jini-ai/cms/posts/sql";
+import type { Kysely, RawBuilder } from "kysely";
+import type { StorageKernel, SqliteClient, ColumnInfo } from "@jini-ai/core/contracts/storage";
+type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
+interface PostSearchHostConfig { searchConfig: string; projectionVersionSettingId: string }
 import { SiteShareRefusal } from "../share-refusal.js";
-import { listTables, type KyselyKernel } from "@jini-ai/db/kernel";
-import { sqliteKernel, sqliteClientOf, sqliteConnectionOf, closeSqliteConnection, type SqliteConnectionSource } from "@jini-ai/db/kernel/sqlite";
 
 import type { DataModuleDecl } from "@jini-ai/core/contracts/site/db-data-modules";
 
@@ -20,7 +21,11 @@ import { documentReferences, archiveMediaSources, rewriteMediaRows } from "./pro
 export { prepareSharePluginTables, refuseUnknownShareTables } from "./projection.tables.js";
 export type Row = Record<string, unknown>;
 type Tables = Record<string, Row>;
-export type Kernel = KyselyKernel<Tables>;
+export interface Kernel extends StorageKernel<Kysely<Tables>, Tables> {
+  readonly transport: "better-sqlite3" | "pglite" | "node-postgres" | "pglite-socket";
+  query<R>(statement: RawBuilder<R>): Promise<R[]>;
+  execute(statement: RawBuilder<unknown>): Promise<void>;
+}
 /** Free-space probe for the private staging directory (`node:fs/promises` `statfs` by default). */
 export type StagingSpacePort = (path: string) => Promise<{ bavail: number; bsize: number }>;
 
@@ -35,6 +40,15 @@ export type StagingSpacePort = (path: string) => Promise<{ bavail: number; bsize
  * @complexity O(snapshot + portable rows) time/space, bounded to the v1 expanded cap.
  */
 export async function sanitizeShareDatabase(required: { host: {
+    deps: {
+      listTables(required: { kernel: Kernel }, optional?: Record<string, never>): Promise<string[]>;
+      listColumns(required: { kernel: Kernel; table: string }, optional?: Record<string, never>): Promise<ColumnInfo[]>;
+      declareDataModule(required: { db: Kernel; dbPath: string; decl: DataModuleDecl }): Promise<{ ok: boolean; error?: { message?: string } }>;
+      sqliteKernel(required: { source: SqliteConnectionSource }): Kernel;
+      sqliteClientOf(required: { source: SqliteConnectionSource }): { serialize(): Buffer };
+      sqliteConnectionOf(required: { kernel: Kernel }): { serialize(): Buffer } | undefined;
+      closeSqliteConnection(required: { source: SqliteConnectionSource }): void;
+    };
     SHARE_TABLES: readonly string[]; SHARE_LEGACY_PRIVATE_TABLES: ReadonlySet<string>; CHAT_TABLE_NAMES: readonly string[];
     PUBLISHABLE_SETTINGS: Readonly<Record<string, unknown>>; SHARE_LIMITS: { maxExpandedBytes: number };
     databaseCapMessage: string; insufficientStorageMessage: string;
@@ -44,8 +58,8 @@ export async function sanitizeShareDatabase(required: { host: {
     tempRoot: OwnedTempRootScope;
     openSqliteFileKernel: (required: { filePath: string }, optional?: { readOnly?: boolean }) => Kernel;
     openContentDb: (required: { filePath: string }) => SqliteConnectionSource;
-    schemaErasedKernel: (required: { store: SqliteConnectionSource }) => Parameters<typeof backfillPostSearchIndex>[0]["kernel"];
-    backfillPostSearchIndex: typeof backfillPostSearchIndex;
+    schemaErasedKernel: (required: { store: SqliteConnectionSource }) => StorageKernel<Kysely<unknown>, unknown>;
+    backfillPostSearchIndex: (required: { kernel: StorageKernel<Kysely<unknown>, unknown>; config: PostSearchHostConfig }, optional?: { batchSize?: number }) => Promise<number>;
   };  snapshot: Buffer; omittedMediaIds?: readonly string[]; modules: readonly DataModuleDecl[]; searchHost: PostSearchHostConfig }, optional: { signal?: AbortSignal; statfs?: StagingSpacePort; tempRoot?: OwnedTempRootScope } = {}): Promise<ShareDatabaseProjection> {
   optional.signal?.throwIfAborted();
   if (required.snapshot.length > required.host.SHARE_LIMITS.maxExpandedBytes) throw new SiteShareRefusal({ code: "LIMIT_EXCEEDED", message: required.host.databaseCapMessage });
@@ -60,11 +74,11 @@ export async function sanitizeShareDatabase(required: { host: {
       await writeFile(filePath, required.snapshot, { flag: "wx", mode: 0o600 });
       source = required.host.openSqliteFileKernel({ filePath }, { readOnly: true });
       fresh = required.host.openContentDb({ filePath: ":memory:" });
-      const target = sqliteKernel<Tables>({ source: fresh });
+      const target = required.host.deps.sqliteKernel({ source: fresh });
       const from = source;
-      const present = new Set(await listTables({ kernel: from }));
+      const present = new Set(await required.host.deps.listTables({ kernel: from }));
       const plugins = await prepareSharePluginTables({ host: required.host, target, present, modules: required.modules });
-      await refuseUnknownShareTables({ host: required.host, source, trusted: new Set([...await listTables({ kernel: target }), ...plugins.private]) });
+      await refuseUnknownShareTables({ host: required.host, source, trusted: new Set([...await required.host.deps.listTables({ kernel: target }), ...plugins.private]) });
       await copyPortableTables({ host: required.host, source: from, target, present, plugins, credentialWarnings, omittedMediaIds: required.omittedMediaIds }, optional);
       await required.host.backfillPostSearchIndex({ kernel: required.host.schemaErasedKernel({ store: fresh }), config: required.searchHost });
       const documents = await documentReferences({ host: required.host, target });
@@ -74,11 +88,11 @@ export async function sanitizeShareDatabase(required: { host: {
       ];
       // Older shares included Trash/orphan sidecars. v2 emits only retained owners, so
       // arbitrary unreferenced archive media must refuse rather than be pruned on import.
-      const bytes = sqliteClientOf({ source: fresh }).serialize();
+      const bytes = required.host.deps.sqliteClientOf({ source: fresh }).serialize();
       return { bytes, media, documents, credentialWarnings, archiveMedia: await archiveMediaSources({ target }) };
     } finally {
       await source?.close();
-      if (fresh) closeSqliteConnection({ source: fresh });
+      if (fresh) required.host.deps.closeSqliteConnection({ source: fresh });
     }
   } });
 }
@@ -96,7 +110,7 @@ export async function rewriteArchiveMedia(required: { host: Parameters<typeof sa
       await writeFile(file, required.bytes, { mode: 0o600, flag: "wx" });
       target = required.host.openSqliteFileKernel({ filePath: file });
       await rewriteMediaRows({ target, copies: required.copies }, optional);
-      const connection = sqliteConnectionOf({ kernel: target });
+      const connection = required.host.deps.sqliteConnectionOf({ kernel: target });
       if (!connection) throw new Error("Share database has no SQLite connection");
       const bytes = connection.serialize();
       return bytes;

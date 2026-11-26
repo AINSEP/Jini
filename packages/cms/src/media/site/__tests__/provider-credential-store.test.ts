@@ -6,7 +6,7 @@ import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDep
 import { mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError } from "../provider-credential-store.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
-import { mediaVaultRecord } from "../provider-credential-vault.js";
+import { mediaProviderVault, mediaVaultRecord } from "../provider-credential-vault.js";
 
 const vaultPolicy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: { canonical: ["legacy"] },
   parseMeta: ({ meta }) => { const m = meta as Record<string, unknown>; return {
@@ -69,4 +69,13 @@ it("opens a legacy credential under its stored identity and existing AAD", async
   }) };
   expect(await resolveMediaProviderCredential({ deps, workspaceId: "w", providerId: "canonical" })).toEqual({ apiKey: "fixture-key", baseUrl: null, model: null });
   expect(open).toHaveBeenCalledWith({ sealed: legacy.sealed }, { aad: 'secrets-vault:v1:["w","legacy","media-provider","test",null,null]' });
+});
+
+
+it("the singleton adapter delegates ownership validation to the vault service", async () => {
+  const s = setup([]);
+  const stored = { ...row("canonical"), ownerKey: "foreign" };
+  vi.mocked(s.vault.list).mockResolvedValue([stored]);
+  const vault = mediaProviderVault({ vault: s.vault, providerId: "canonical", policy: vaultPolicy });
+  expect(await vault.findOne!({ workspaceId: "w", kind: "media-provider", ownerKey: "test", principalId: null, binding: null })).toBe(stored);
 });

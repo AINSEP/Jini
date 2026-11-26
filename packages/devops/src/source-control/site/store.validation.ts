@@ -1,4 +1,3 @@
-import { CredentialInputError, normalizeCredentialToken } from "@jini-ai/platform/secrets/credential-token";
 import type { SourceControlProviderId, SourceControlConnectionInput } from "@jini-ai/core/contracts/site/source-control-credentials";
 import type { UUID } from "@jini-ai/core/primitives";
 import { SourceControlCredentialValidationError, type SourceControlCredentialWriteDeps, type SourceControlProviderDescriptor, type SourceControlProviderRegistry } from "./store.js";
@@ -8,14 +7,14 @@ const MAX_LABEL_LENGTH = 200;
 /** Narrows and validates a caller-supplied `label`. Never throws a raw `TypeError` — every
  *  rejection is a {@link SourceControlCredentialValidationError} the route layer can map to its own
  *  `400`. */
-export function validateLabel({ raw, assertCredentialFreeField }: { raw: unknown; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _optional = {}): string {
+export function validateLabel({ raw, assertCredentialFreeField, deps }: { deps: SourceControlCredentialWriteDeps["deps"]; raw: unknown; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _optional = {}): string {
   if (typeof raw !== "string" || raw.trim() === "") {
     throw new SourceControlCredentialValidationError("label must be a non-empty string");
   }
   if (raw.length > MAX_LABEL_LENGTH) {
     throw new SourceControlCredentialValidationError(`label must be ${MAX_LABEL_LENGTH} characters or fewer`);
   }
-  assertPlainField({ value: raw, field: "label", assertCredentialFreeField });
+  assertPlainField({ deps, value: raw, field: "label", assertCredentialFreeField });
   return raw;
 }
 
@@ -117,48 +116,49 @@ export async function credentialRegistry({ deps, workspaceId }: { deps: SourceCo
   return deps.loadSourceControlProviders({ workspaceId });
 }
 
-export function normalizeStoredToken({ value }: { value: unknown }): string {
-  try { return normalizeCredentialToken({ value }); }
-  catch (err) { if (err instanceof CredentialInputError) { throw new SourceControlCredentialValidationError(err.message); } throw err; }
+export function normalizeStoredToken({ value, deps }: { deps: SourceControlCredentialWriteDeps["deps"]; value: unknown }): string {
+  try { return deps.normalizeCredentialToken({ value }); }
+  catch (err) { if (err instanceof deps.CredentialInputError) { throw new SourceControlCredentialValidationError(err.message); } throw err; }
 }
-export function assertPlainField(required: { value: string; field: string; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }): void {
-  try { required.assertCredentialFreeField(required); }
-  catch (err) { if (err instanceof CredentialInputError) { throw new SourceControlCredentialValidationError(err.message); } throw err; }
+export function assertPlainField(required: { deps: SourceControlCredentialWriteDeps["deps"]; value: string; field: string; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }): void {
+  const { deps, ...input } = required;
+  try { required.assertCredentialFreeField(input); }
+  catch (err) { if (err instanceof deps.CredentialInputError) { throw new SourceControlCredentialValidationError(err.message); } throw err; }
 }
 
 /** Validate declared fields before sealing. Authentication pairs stay in one ciphertext blob.
  * Only declared fields are accepted on new writes; existing saved payloads remain opaque.
  * @complexity O(f) time/space, f bounded by the existing credential-form parser (10 fields). */
-export function validateConnection({ raw, registry, assertCredentialFreeField }: { raw: unknown; registry: SourceControlProviderRegistry; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): SourceControlConnectionInput {
+export function validateConnection({ raw, registry, assertCredentialFreeField, deps }: { deps: SourceControlCredentialWriteDeps["deps"]; raw: unknown; registry: SourceControlProviderRegistry; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): SourceControlConnectionInput {
   const value = connectionObject({ raw });
   const descriptor = requireProvider({ providerId: value.providerId, registry });
   const canonical = canonicalConnection({ value, descriptor });
-  const token = normalizeStoredToken({ value: canonical.token });
-  return { ...collectDeclaredFields({ value, descriptor, assertCredentialFreeField }), providerId: descriptor.id, token };
+  const token = normalizeStoredToken({ deps, value: canonical.token });
+  return { ...collectDeclaredFields({ deps, value, descriptor, assertCredentialFreeField }), providerId: descriptor.id, token };
 }
 
 /** Collect only the provider's additional declared fields; the primary secret is stored as `token`.
  * Authentication pairs stay in the same ciphertext blob. @complexity O(f) time/space, f <= 10. */
-function collectDeclaredFields({ value, descriptor, assertCredentialFreeField }: { value: Record<string, unknown>; descriptor: SourceControlProviderDescriptor; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): Record<string, string> {
+function collectDeclaredFields({ value, descriptor, assertCredentialFreeField, deps }: { deps: SourceControlCredentialWriteDeps["deps"]; value: Record<string, unknown>; descriptor: SourceControlProviderDescriptor; assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"] }, _options = {}): Record<string, string> {
   const tokenField = descriptor.credential?.tokenField ?? 'token';
   const fields: Record<string, string> = {};
   for (const field of descriptor.credential?.fields ?? []) {
     if (field.name === tokenField) continue;
-    const validated = validateDeclaredField({ value: value[field.name], field, providerId: descriptor.id, assertCredentialFreeField });
+    const validated = validateDeclaredField({ deps, value: value[field.name], field, providerId: descriptor.id, assertCredentialFreeField });
     if (validated !== undefined) fields[field.name] = validated;
   }
   return fields;
 }
 
 /** Non-secret metadata uses the existing credential-free admission check; secrets use token admission. */
-function validateDeclaredField({ value, field, providerId, assertCredentialFreeField }: {
+function validateDeclaredField({ value, field, providerId, assertCredentialFreeField, deps }: { deps: SourceControlCredentialWriteDeps["deps"];
   assertCredentialFreeField: SourceControlCredentialWriteDeps["assertCredentialFreeField"];
   value: unknown; field: import('@jini-ai/devops/source-control/site/credential-form').SourceControlCredentialField; providerId: string;
 }, _options = {}): string | undefined {
   if (value === undefined && !field.required) return undefined;
   const text = requireNonEmptyString({ raw: value, field: field.name, providerId });
-  if (field.secret) return normalizeStoredToken({ value: text });
-  assertPlainField({ value: text, field: field.name, assertCredentialFreeField });
+  if (field.secret) return normalizeStoredToken({ deps, value: text });
+  assertPlainField({ deps, value: text, field: field.name, assertCredentialFreeField });
   return text;
 }
 

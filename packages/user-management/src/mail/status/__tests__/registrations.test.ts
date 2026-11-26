@@ -1,3 +1,7 @@
+import { getMailActivity, listMailActivity, listMailSuppressions, MailActivityForbiddenError, MailActivityUnavailableError, MailSuppressionsUnavailableError, planMailSuppressionRemoval,
+  readMailActivityId, readMailActivityQuery, readMailSuppressionQuery, readMailSuppressionRemoval, runMailSuppressionRemoval } from "@jini-ai/platform/mail";
+import { readMailFeedbackSetup } from "@jini-ai/platform/mail/feedback-setup";
+import { mailUseReadinessDepsFrom, readMailUseReadiness } from "@jini-ai/platform/mail/use-readiness";
 import { expect, it, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -41,7 +45,7 @@ it("capture-clear rereads after approval and refuses a changed revision before c
   const planCaptureClear = vi.fn().mockResolvedValueOnce({ plan: { count: 1, newestAt: "before" }, revision: "before", clear })
     .mockResolvedValueOnce({ plan: { count: 2, newestAt: "after" }, revision: "after", clear });
   const deps = { workspaceId: "w", authorize: async () => ({ allowed: true, reason: "grant" }) } as MailDeliveryToolDeps;
-  const registration = buildMailDeliveryRegistrations(deps, surfaces, { planCaptureClear, approvalToolHandler }).find(item => item.descriptor.id === "mail_clear_captured")!;
+  const registration = buildMailDeliveryRegistrations(deps, surfaces, { planCaptureClear, approvalToolHandler, deps: { getMailActivity, listMailActivity, listMailSuppressions, MailActivityForbiddenError, MailActivityUnavailableError, MailSuppressionsUnavailableError, planMailSuppressionRemoval, readMailActivityId, readMailActivityQuery, readMailSuppressionQuery, readMailSuppressionRemoval, runMailSuppressionRemoval, readMailFeedbackSetup, mailUseReadinessDepsFrom, readMailUseReadiness } }).find(item => item.descriptor.id === "mail_clear_captured")!;
   await expect(registration.handler(ctx, {})).rejects.toThrow("New test emails arrived");
   expect(planCaptureClear).toHaveBeenCalledTimes(2);
   expect(clear).not.toHaveBeenCalled();

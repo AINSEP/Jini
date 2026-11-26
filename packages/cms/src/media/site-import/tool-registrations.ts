@@ -186,13 +186,6 @@ async function readReplacementSource({ routeDeps, input, remote }: { routeDeps: 
     : readLocalReplacement({ routeDeps, input });
 }
 
-function editorialFields({ input, keys }: { input: Record<string, unknown>; keys: readonly ("alt" | "caption" | "credit" | "description")[] }, _optional = {}) {
-  return keys.reduce<Pick<MediaToolUploadInput, "alt" | "caption" | "credit" | "description">>((fields, key) => {
-    const value = optionalString({ input, key });
-    return { ...fields, ...(value === undefined ? {} : { [key]: value }) };
-  }, {});
-}
-
 function createMediaReplaceFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReadonlyMap<string, AgentToolDefinition>): ToolHandler {
   return async (ctx) => {
   const input = requireInputRecord({ input: ctx.input });
@@ -243,7 +236,8 @@ function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATAL
         input: {
           workspaceId: routeDeps.workspaceId, bytes, filename, contentType,
           provenance: { kind: 'upload', path: request.relativePath },
-          ...editorialFields({ input, keys: ["alt", "caption", "description"] }),
+          alt: optionalString({ input, key: "alt" }), caption: optionalString({ input, key: "caption" }),
+          description: optionalString({ input, key: "description" }),
           createdByPrincipal: ctx.principal.id,
         },
         sourceUrl: "",
@@ -269,16 +263,18 @@ function createMediaImportFromUrlHandler(routeDeps: MediaImportToolDeps, CATALOG
         const fetched = await routeDeps.source.fetchRemote({ url }, {});
 
         ctx.signal.throwIfAborted();
-        const override = optionalString({ input, key: "filename" });
         const result = await persistImportedMedia({
           storage: routeDeps.storage, ...(routeDeps.tracker === undefined ? {} : { tracker: routeDeps.tracker }), actorId: ctx.principal.id,
           input: {
             workspaceId: routeDeps.workspaceId,
             provenance: { kind: 'url', url: fetched.url.href },
             bytes: fetched.bytes,
-            filename: buildImportFilename({ url: fetched.url, contentType: fetched.contentType }, { ...(override === undefined ? {} : { override }) }),
+            filename: buildImportFilename({ url: fetched.url, contentType: fetched.contentType }, { override: optionalString({ input, key: "filename" }) }),
             contentType: fetched.contentType,
-            ...editorialFields({ input, keys: ["alt", "caption", "credit", "description"] }),
+            alt: optionalString({ input, key: "alt" }),
+            caption: optionalString({ input, key: "caption" }),
+            credit: optionalString({ input, key: "credit" }),
+            description: optionalString({ input, key: "description" }),
             createdByPrincipal: ctx.principal.id,
           },
           sourceUrl: fetched.url.href,

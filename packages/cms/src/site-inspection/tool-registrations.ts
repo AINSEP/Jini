@@ -1,17 +1,36 @@
 import { toolMetadata } from "@jini-ai/core/tool-metadata/site-inspection";
-import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { AgentToolDefinition } from "@jini-ai/core";
-import type { readPageBodyOptions } from "@jini-ai/diagnostics/web-evidence/page-body";
+import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
+import type { RequestListener, Server } from "node:http";
+type PageBodyOptions = { maxBytes?: number | undefined; find?: string | undefined; textOnly?: boolean | undefined };
+declare const readPageBodyOptions: (required: { input: Record<string, unknown> }, optional?: Record<string, never>) => PageBodyOptions;
 
-import type { fetchLiveUrl, FetchLiveUrlDeps } from "@jini-ai/diagnostics/web-evidence/live-url";
+interface FetchLiveUrlDeps {
+  listKnownOrigins(): Promise<readonly string[]>;
+  httpClient: { send(request: HttpRequest): Promise<HttpResponse> };
+  reservedSegments: ReadonlySet<string>;
+  isEgressRefusal: (error: unknown) => error is { callerSafeMessage: string };
+  observeFetch?: (event: { origin: string; status?: number; durationMs: number; outcome: "response" | "refused" | "failed" }) => void;
+}
+declare const fetchLiveUrl: (deps: FetchLiveUrlDeps, input: PageBodyOptions & { path: string; origin?: string | undefined }, optional?: Record<string, never>) => Promise<unknown>;
 import { buildDomainRegistrations, indexCatalogById, optionalNumber, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
-import { requireToolPermission } from "@jini-ai/cms/core";
+import { requireToolPermission } from "@jini-ai/core";
 
 import type { ToolContributor } from "@jini-ai/core";
 
-import type { fetchPublishedPage, FetchPublishedPageDeps } from "@jini-ai/diagnostics/web-evidence/published-page";
+interface FetchPublishedPageDeps {
+  createSiteApp(optional?: { themeId?: string; consentAudit?: true }): RequestListener;
+  readonly createServer?: (listener: RequestListener) => Server;
+  readonly fetch?: typeof globalThis.fetch;
+  readonly observability?: ObservabilityPort;
+  readonly trackFetch: (required: { fetch: typeof globalThis.fetch; observability: ObservabilityPort }) => typeof globalThis.fetch;
+  readonly reservedSegments: ReadonlySet<string>;
+}
+declare const fetchPublishedPage: (required: { deps: FetchPublishedPageDeps; input: { path: string } }, optional?: PageBodyOptions & { timeoutMs?: number }) => Promise<unknown>;
 
 import { buildSiteCapabilities, SITE_CAPABILITIES_SECTION_NAMES } from "@jini-ai/cms/site-inspection/site-capabilities";
 import { buildSiteProfile, SITE_PROFILE_SECTION_NAMES } from "@jini-ai/cms/site-inspection/site-profile";

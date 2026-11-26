@@ -1,4 +1,4 @@
-import { createUserTrashAdapter } from "../adapters/user.js";
+import { createUserTrashAdapter } from "@jini-ai/user-management/identity/sql/user-trash-adapter";
 import { createRedirectTrashAdapter } from "../adapters/redirect.js";
 import { createMemberTrashAdapter as createSqlMemberAdapter } from "../adapters/member-credential-sql.js";
 import { expect, test, vi } from "vitest";
@@ -92,8 +92,12 @@ test("a blocked user purge leaves the identity and sessions untouched", async ()
     await kernel.execute(sql`INSERT INTO principals VALUES ('member','site','disabled','Owner','old')`);
     await kernel.execute(sql`INSERT INTO sessions VALUES ('member','site')`);
     const purgeUser = vi.fn();
-    const adapter = createUserTrashAdapter({ db: kernel, tables: { principals: "principals", users: "identity_users", sessions: "sessions", outbox: "outbox_events" },
-      eventValues: vi.fn(), assertAccountAction: async () => { throw new Error("protected owner"); }, purge: { purgeUser }, idGen: { next: () => "event" }, clock: { nowIso: () => "now" } });
+    const adapter = createUserTrashAdapter({ store: {
+      underPrincipalLock: ({ run }) => kernel.transaction(async () => { await kernel.lockKey("trash:user:site:member"); return run(); }),
+      readPrincipal: async () => ({ status: "disabled", displayName: "Owner" }),
+      readDisplayUsername: vi.fn(), compareAndSetStatus: vi.fn(), revokeSessions: vi.fn(), appendEvent: vi.fn(),
+    }, policy: { entityType: "user", assertAccountAction: async () => { throw new Error("protected owner"); } },
+      purge: { purgeUser }, idGen: { next: () => "event" }, clock: { nowIso: () => "now" } });
     await expect(adapter.purge(input)).rejects.toThrow("protected owner");
     expect(purgeUser).not.toHaveBeenCalled();
     expect(await kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "disabled", disabled_at: "old" }]);

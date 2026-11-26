@@ -1,3 +1,72 @@
+import type { MailActivityDeps, MailSuppressionDeps, MailActivityPosition, MailActivityFilter, MailSuppressionReason, MailActivityRepo, MailLaunchGateResult, MailSuppressionAdminRepo, MailSenderIdentityPort } from "@jini-ai/core/contracts/site/platform-mail";
+import type { PositionalMailer as MailerPort, MailSuppressionScope } from "@jini-ai/core/contracts/mail";
+import type { FormDefinitionRepoPort } from "@jini-ai/core/contracts/site/cms-forms";
+import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
+import type { MailProviderControl } from "./provider-operations.js";
+interface MailActivityQuery {
+  limit: number;
+  before?: MailActivityPosition;
+  filter: MailActivityFilter;
+}
+interface MailSuppressionQuery {
+  limit: number;
+  before?: MailActivityPosition;
+  filter: { search?: string; scope?: MailSuppressionScope; reason?: MailSuppressionReason };
+}
+interface MailSuppressionRemovalInput {
+  address: string;
+  scope: MailSuppressionScope;
+  reason: string;
+}
+interface MailSuppressionRemovalPlan extends MailSuppressionRemovalInput {
+  suppressionReason: MailSuppressionReason;
+  suppressedAt: string;
+  revision: string;
+  /** What removal does and does not mean, shown before the person confirms. */
+  warnings: string[];
+}
+interface MailFeedbackSetupDeps<TCredentialRepo = unknown> {
+  workspaceId: string;
+  mailProviderControl?: Pick<MailProviderControl, "describe">;
+  /** The host's credential store, handed back to {@link MailFeedbackSetupDeps.listCustomCredentials}. */
+  customCredentialSetRepo?: TCredentialRepo;
+  originRegistry?: Pick<OriginRegistryPort, "canonicalOrigin">;
+  mailSuppressionAdmin?: Pick<MailSuppressionAdminRepo, "lastFeedbackEvent">;
+  /** Host: safe summaries (label + update time, never a secret) of the saved credentials. */
+  listCustomCredentials(deps: { repo: TCredentialRepo }, input: { workspaceId: string }): Promise<readonly { label: string; updatedAt: string }[]>;
+  /** Host: the persisted current/previous signing-secret labels for a provider (product-prefixed). */
+  mailWebhookSecretLabels(required: { providerLabel: string }): readonly [string, string];
+}
+interface MailUseLaunchGateDeps {
+  isSendingEnabled(workspaceId: string): Promise<boolean>;
+  /** `null` = unbound; the host gate checks presence only. */
+  consentCapability: unknown;
+  originRegistry: OriginRegistryPort;
+  mailer: MailerPort;
+}
+interface MailUseReadinessDeps {
+  workspaceId: string;
+  mailer: MailerPort;
+  mailSenderIdentity?: MailSenderIdentityPort;
+  mailLaneReady?: (required: { lane: "transactional" | "bulk" }) => Promise<boolean>;
+  /** The live gate's probe; absent, gated rows report `purpose_gate_unavailable` as unknown. */
+  mailPurposeGate?: MailPurposeGateProbe;
+  formDefinitionRepo?: Pick<FormDefinitionRepoPort, "list">;
+  /** Present only when Newsletter is installed; absent, its two rows are omitted. */
+  newsletterLaunchGate?: MailUseLaunchGateDeps;
+  /** Host: Newsletter's launch gate evaluator (the one its send path runs); absent, Newsletter's rows are `newsletter_gate_unavailable` unknown. */
+  evaluateNewsletterLaunchGate?(required: { deps: MailUseLaunchGateDeps; workspaceId: string; isTestSend: boolean }): Promise<Pick<MailLaunchGateResult, "unmetPreconditions">>;
+  mailActivity?: Pick<MailActivityRepo, "list">;
+  nowIso?: () => string;
+}
+type MailUseReadinessHostDeps = Omit<MailUseReadinessDeps, "newsletterLaunchGate"> & {
+  originRegistry?: MailUseLaunchGateDeps["originRegistry"];
+  newsletterCampaignRepo?: unknown;
+  membersConsentCapability?: MailUseLaunchGateDeps["consentCapability"];
+  newsletterSendingEnabled?: MailUseLaunchGateDeps["isSendingEnabled"];
+};
+type MailPurposeGateProbe = (required: { capabilityName: string; lane: "interactive" | "notification" }) => Promise<boolean>;
+
 import { toolMetadata } from "@jini-ai/core/tool-metadata/mail-status";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, ToolPermissionDeniedError as ForbiddenError, requireToolPermission } from "@jini-ai/core";
@@ -7,14 +76,8 @@ import type { ToolContributor } from "@jini-ai/core";
 import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 import type { HumanConfirmer, ToolHandler, ToolExecutionOptions } from "@jini-ai/core";
 import { mailDeliveryAgentToolCatalog } from "@jini-ai/user-management/mail/status/delivery-agent-tools";
-import {
-  getMailActivity, listMailActivity, listMailSuppressions, MailActivityForbiddenError, MailActivityUnavailableError, MailSuppressionsUnavailableError, planMailSuppressionRemoval,
-  readMailActivityId, readMailActivityQuery, readMailSuppressionQuery, readMailSuppressionRemoval, runMailSuppressionRemoval, type MailSuppressionRemovalPlan,
-} from "@jini-ai/platform/mail";
 import { mailDomainDepsFrom, type MailHostActivityDeps } from "@jini-ai/user-management/mail/status/domain-deps";
-import { readMailFeedbackSetup, type MailFeedbackSetupDeps } from "@jini-ai/platform/mail/feedback-setup";
 import { MAIL_STATUS_PERMISSION } from "@jini-ai/user-management/mail/status/permissions";
-import { mailUseReadinessDepsFrom, readMailUseReadiness, type MailUseReadinessHostDeps } from "@jini-ai/platform/mail/use-readiness";
 import type { MailCaptureClearPlan, MailCaptureClearResult } from "@jini-ai/core/contracts/mail";
 
 /**
@@ -64,6 +127,24 @@ export type MailCaptureClearPlanner = (args: { deps: MailDeliveryToolDeps; ctx: 
 
 /** The host-bound collaborators the delivery tools need beyond their deps. */
 export interface MailDeliveryToolCollaborators {
+  deps: {
+    getMailActivity(required: { principalId: string; activityId: { idempotencyKey: string; recipient: string }; deps: MailActivityDeps }): Promise<unknown>;
+    listMailActivity(required: { principalId: string; query: MailActivityQuery; deps: MailActivityDeps }): Promise<unknown>;
+    listMailSuppressions(required: { principalId: string; query: MailSuppressionQuery; deps: MailSuppressionDeps }): Promise<unknown>;
+    MailActivityForbiddenError: abstract new (...args: never[]) => Error;
+    MailActivityUnavailableError: abstract new (...args: never[]) => Error;
+    MailSuppressionsUnavailableError: abstract new (...args: never[]) => Error;
+    planMailSuppressionRemoval(required: { principalId: string; input: MailSuppressionRemovalInput; deps: MailSuppressionDeps }): Promise<MailSuppressionRemovalPlan>;
+    readMailActivityId(required: { value: unknown }): { idempotencyKey: string; recipient: string };
+    readMailActivityQuery(required: { input: Record<string, unknown> }): MailActivityQuery;
+    readMailSuppressionQuery(required: { input: Record<string, unknown> }): MailSuppressionQuery;
+    readMailSuppressionRemoval(required: { input: Record<string, unknown> }): MailSuppressionRemovalInput;
+    runMailSuppressionRemoval(required: { principalId: string; plan: MailSuppressionRemovalPlan; deps: MailSuppressionDeps }): Promise<unknown>;
+    readMailFeedbackSetup(deps: MailFeedbackSetupDeps): Promise<unknown>;
+    mailUseReadinessDepsFrom(deps: MailUseReadinessHostDeps): MailUseReadinessDeps;
+    readMailUseReadiness(deps: MailUseReadinessDeps): Promise<unknown>;
+  };
+
   planCaptureClear: MailCaptureClearPlanner;
   approvalToolHandler<TPrepared>(required: {
     surfaces: AssistantSurfaceDeps;
@@ -105,6 +186,9 @@ function permission({ deps, ctx, name }: { deps: MailDeliveryToolDeps; ctx: Tool
  */
 export function buildMailDeliveryRegistrations(deps: MailDeliveryToolDeps, surfaces: AssistantSurfaceDeps, collaborators: MailDeliveryToolCollaborators): ToolRegistration[] {
   const { planCaptureClear, approvalToolHandler } = collaborators;
+  const { getMailActivity, listMailActivity, listMailSuppressions, MailActivityForbiddenError, MailActivityUnavailableError, MailSuppressionsUnavailableError,
+    planMailSuppressionRemoval, readMailActivityId, readMailActivityQuery, readMailSuppressionQuery, readMailSuppressionRemoval, runMailSuppressionRemoval,
+    readMailFeedbackSetup, mailUseReadinessDepsFrom, readMailUseReadiness } = collaborators.deps;
   return buildDomainRegistrations({ metadata: toolMetadata, domain: "system-mail-delivery", catalogModule: "features/mail-status/delivery-agent-tools.ts", catalog: indexCatalogById({ catalog: mailDeliveryAgentToolCatalog }), derivedRisk: mailDeliveryDerivedRisk, handlers: withModelFacingErrors({ handlers: {
     mail_get_readiness: async (ctx) => {
       requireInputRecord({ input: ctx.input });

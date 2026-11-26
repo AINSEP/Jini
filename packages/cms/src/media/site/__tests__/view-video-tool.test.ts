@@ -47,3 +47,12 @@ it("returns the existing video summary and image result envelope", async () => {
     { type: "image", mimeType: "image/jpeg", data: "AQ==" },
   ] });
 });
+
+
+it("passes the signal property to the extractor even when undefined", async () => {
+  const s = setup();
+  const tool = buildMediaViewVideoRegistrations({ deps: s.deps, catalog: s.catalog })[0]!;
+  await tool.handler({ ...ctx({ attachmentRef: "attachment:12345678" }), signal: undefined } as unknown as ToolExecutionContext);
+  expect(s.deps.extractor.extract).toHaveBeenCalledWith({ bytes }, expect.objectContaining({ signal: undefined }));
+  expect(Object.hasOwn(vi.mocked(s.deps.extractor.extract).mock.calls[0]![1]!, "signal")).toBe(true);
+});

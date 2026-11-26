@@ -1,4 +1,4 @@
-import type { LoadPluginCredentialCards } from "@jini-ai/agent-plugins/connect";
+type LoadPluginCredentialCards = NonNullable<SourceControlCredentialSetupDeps["loadPluginCredentialCards"]>;
 import { toolMetadata } from '@jini-ai/core/tool-metadata/source-control';
 import { normalizeRepositoryFolder, prefixRepositoryPath } from "../repository-path.js";
 import { type Clock } from "@jini-ai/core/primitives";
@@ -12,7 +12,7 @@ import { ToolInputError } from "@jini-ai/core";
 
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { KeyringPort } from "@jini-ai/core/contracts/vault";
-import type { SecretSealerPort } from "@jini-ai/integrations/secrets";
+import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { ToolContributor } from "@jini-ai/core";
@@ -137,9 +137,9 @@ async function findConfiguredCredential({ deps, providerId }: { deps: SourceCont
     const saved = await findSavedApiKey({ deps, providerId });
     return saved ? { providerId, credentialSource: "saved-api-key" } : null;
   }
-  const explicit = await findDefaultSourceControlCredential({ repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId, providerId });
+  const explicit = await findDefaultSourceControlCredential({ deps: deps.deps, repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId, providerId });
   if (explicit) return { providerId, credentialSource: "source-control" };
-  const identities = await listSourceControlCredentials({ repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId });
+  const identities = await listSourceControlCredentials({ deps: deps.deps, repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId });
   if (identities.some(identity => identity.providerId === providerId)) return null;
   const saved = await findSavedApiKey({ deps, providerId });
   return saved ? { providerId, credentialSource: "saved-api-key" } : null;
@@ -201,7 +201,7 @@ export interface SourceControlToolDeps extends SourceControlCredentialSetupDeps 
   readonly switchedOffPluginSentence: (required: { pluginIds: readonly string[] }) => string;
   readonly buildSourceControlProvider: (required: { load: LoadSourceControlProviders; observability?: ObservabilityPort; httpClient?: HttpClientPort; workspaceId: string; providerId: string }) => Promise<{ ok: true; provider: SourceControlProvider } | { ok: false; message: string }>;
   readonly previewCommitExport: (input: CommitSiteInput, optional: { providerId: string; validateTarget?: RepositoryTargetValidator }) => Promise<PreviewCommitExportResult>;
-  readonly commitSiteToSourceControl: (deps: { providerId: string; supportsFolder: boolean; credentialDeps: { repo: SourceControlCredentialSetRepoPort; sealer: SecretSealerPort; resolveSavedApiKey: (input: { workspaceId: string; providerId: string }, options?: Record<string, never>) => Promise<{ token: string } | null> }; gitAdapter: SourceControlCommitAdapter; validateTarget?: RepositoryTargetValidator }, input: CommitSiteInput) => Promise<SourceControlCommitOutcome>;
+  readonly commitSiteToSourceControl: (deps: { providerId: string; supportsFolder: boolean; credentialDeps: { deps: SourceControlCredentialSetupDeps["deps"]; repo: SourceControlCredentialSetRepoPort; sealer: SecretSealerPort; resolveSavedApiKey: (input: { workspaceId: string; providerId: string }, options?: Record<string, never>) => Promise<{ token: string } | null> }; gitAdapter: SourceControlCommitAdapter; validateTarget?: RepositoryTargetValidator }, input: CommitSiteInput) => Promise<SourceControlCommitOutcome>;
   readonly loadPluginCredentialCards?: LoadPluginCredentialCards;
   readonly authorize: AuthorizeFn;
   readonly workspaceId: string;
@@ -426,7 +426,7 @@ async function executeSourceControlCommit({ deps, ctx }: { deps: SourceControlTo
   // The run ended during the pre-dialog reads: no dialog, and no call left waiting on an abort already past.
   if (ctx.signal.aborted) return { committed: false, cancelled: false, reason: "abandoned" };
   const outcome = await deps.commitSiteToSourceControl(
-    { providerId: existing.providerId, supportsFolder: host.supportsFolder === true, credentialDeps: { repo: deps.sourceControlCredentialSetRepo, sealer: deps.siteAssistantSecretSealer,
+    { providerId: existing.providerId, supportsFolder: host.supportsFolder === true, credentialDeps: { deps: deps.deps, repo: deps.sourceControlCredentialSetRepo, sealer: deps.siteAssistantSecretSealer,
       resolveSavedApiKey: (input, options = {}) => resolveSavedApiKey({ deps, ...input }, options),
     }, gitAdapter: commitAdapter.adapter, ...(host.validateTarget ? { validateTarget: host.validateTarget } : {}) },
     commitInput({ deps, command })
@@ -441,7 +441,7 @@ export function buildSourceControlRegistrations(deps: SourceControlToolDeps, sur
       requireNoInput({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "source-control.read" }, { entityType: "source-control" });
 
-      const saved = await listSourceControlCredentials({ repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId });
+      const saved = await listSourceControlCredentials({ deps: deps.deps, repo: deps.sourceControlCredentialSetRepo }, { workspaceId: deps.workspaceId });
       const registry = await providerLoader(deps)({ workspaceId: deps.workspaceId });
 
       const providers = await Promise.all(reportedProviderIds(registry, saved.map((credential) => credential.providerId)).map(async (providerId) => {

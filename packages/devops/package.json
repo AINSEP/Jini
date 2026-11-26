@@ -918,16 +918,12 @@
     "parse5": "7.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "undici": "^7.30.1"
+    "undici": "^7.30.1",
+    "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/db": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^",
-    "@jini-ai/integrations": "workspace:^",
-    "@jini-ai/ui": "workspace:^",
-    "@jini-ai/agent-plugins": "workspace:^",
-    "@jini-ai/cms": "workspace:^",
-    "@jini-ai/db": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "typescript": "^5.6.0",

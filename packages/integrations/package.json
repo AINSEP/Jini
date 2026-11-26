@@ -70,7 +70,6 @@
       "./react/site-key/hooks/use-site-key.hooks": "browser",
       "./react/site-key/hooks/use-site-key-recovery.hooks": "browser",
       "./media-providers/catalog-projection": "universal",
-      "./media-providers/generation-credentials": "universal",
       "./webhooks/site/seal-aad-invariant.node": "node",
       "./web-screenshot/capture-root-file-lock": "node"
     },
@@ -396,11 +395,6 @@
       "types": "./dist/media-providers/catalog-projection.d.ts",
       "import": "./dist/media-providers/catalog-projection.js",
       "default": "./dist/media-providers/catalog-projection.js"
-    },
-    "./media-providers/generation-credentials": {
-      "types": "./dist/media-providers/generation-credentials.d.ts",
-      "import": "./dist/media-providers/generation-credentials.js",
-      "default": "./dist/media-providers/generation-credentials.js"
     },
     "./webhooks/site/seal-aad-invariant.node": {
       "types": "./dist/webhooks/site/seal-aad-invariant.node.d.ts",

@@ -148,7 +148,6 @@
       "./identity/user-purge": "universal",
       "./project-keys/sql/attachments": "node",
       "./identity/sql/user-trash-adapter": "node",
-      "./project-keys/shared-oauth-disconnect": "node",
       "./mail/status/provider-operations": "universal",
       "./mail/status/provider-tool-registrations": "universal",
       "./mail/status/delivery-tool-registrations": "universal",
@@ -878,11 +877,6 @@
       "import": "./dist/identity/sql/user-trash-adapter.js",
       "default": "./dist/identity/sql/user-trash-adapter.js"
     },
-    "./project-keys/shared-oauth-disconnect": {
-      "types": "./dist/project-keys/shared-oauth-disconnect.d.ts",
-      "import": "./dist/project-keys/shared-oauth-disconnect.js",
-      "default": "./dist/project-keys/shared-oauth-disconnect.js"
-    },
     "./mail/status/provider-operations": {
       "types": "./dist/mail/status/provider-operations.d.ts",
       "import": "./dist/mail/status/provider-operations.js",
@@ -941,9 +935,7 @@
     "@jini-ai/core": "workspace:^",
     "@simplewebauthn/browser": "14.0.0",
     "@simplewebauthn/server": "14.0.3",
-    "otplib": "13.6.0",
-    "@jini-ai/integrations": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "otplib": "13.6.0"
   },
   "peerDependencies": {
     "@jini-ai/ui-kit": "^0.7.3-next.2",
@@ -972,7 +964,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "@jini-ai/platform": "workspace:*"
   },
   "peerDependenciesMeta": {
     "argon2": {

@@ -797,12 +797,10 @@
       "./trash/permanent/tool-registrations": "universal",
       "./site-inspection/tool-registrations": "universal",
       "./taxonomy/site/publish-content": "universal",
-      "./trash/site/permissions": "universal",
       "./trash/site/adapters/redirect": "node",
       "./trash/site/adapters/member-credential-sql": "node",
       "./widgets/site/publish-content": "universal",
       "./publish/content/tool-registrations": "universal",
-      "./trash/site/adapters/user": "node",
       "./posts/post-create": "universal",
       "./posts/post-update": "universal",
       "./posts/post-retire": "universal",
@@ -819,7 +817,9 @@
       "./posts/post-tool-update": "universal",
       "./posts/preview-tool": "universal",
       "./posts/publish-content": "universal",
-      "./posts/tool-registrations": "universal"
+      "./posts/tool-registrations": "universal",
+      "./media/site-generation/generation-credentials": "universal",
+      "./site/keep-off-content-store": "node"
     },
     "isolation": {
       "domains": {
@@ -5223,11 +5223,6 @@
       "import": "./dist/taxonomy/site/publish-content.js",
       "default": "./dist/taxonomy/site/publish-content.js"
     },
-    "./trash/site/permissions": {
-      "types": "./dist/trash/site/permissions.d.ts",
-      "import": "./dist/trash/site/permissions.js",
-      "default": "./dist/trash/site/permissions.js"
-    },
     "./trash/site/adapters/redirect": {
       "types": "./dist/trash/site/adapters/redirect.d.ts",
       "import": "./dist/trash/site/adapters/redirect.js",
@@ -5246,10 +5241,6 @@
     "./publish/content/tool-registrations": {
       "types": "./dist/publish/content/tool-registrations.d.ts",
       "import": "./dist/publish/content/tool-registrations.js"
-    },
-    "./trash/site/adapters/user": {
-      "types": "./dist/trash/site/adapters/user.d.ts",
-      "import": "./dist/trash/site/adapters/user.js"
     },
     "./posts/post-create": {
       "types": "./dist/posts/post-create.d.ts",
@@ -5318,6 +5309,14 @@
     "./posts/tool-registrations": {
       "types": "./dist/posts/tool-registrations.d.ts",
       "import": "./dist/posts/tool-registrations.js"
+    },
+    "./media/site-generation/generation-credentials": {
+      "types": "./dist/media/site-generation/generation-credentials.d.ts",
+      "import": "./dist/media/site-generation/generation-credentials.js"
+    },
+    "./site/keep-off-content-store": {
+      "types": "./dist/site/keep-off-content-store.d.ts",
+      "import": "./dist/site/keep-off-content-store.js"
     }
   },
   "files": [
@@ -5374,16 +5373,16 @@
     "sharp": "^0.35.5",
     "typescript": "^5.6.0",
     "unpdf": "^1.9.1",
-    "@cfworker/json-schema": "^4.1.1"
+    "@cfworker/json-schema": "^4.1.1",
+    "@jini-ai/devops": "workspace:*",
+    "@jini-ai/user-management": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "@sindresorhus/slugify": "^3.0.1",
     "parse5": "^7.3.0",
     "unpdf": "^1.8.1",
-    "mammoth": "^1.12.3",
-    "@jini-ai/diagnostics": "workspace:^",
-    "@jini-ai/user-management": "workspace:^"
+    "mammoth": "^1.12.3"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",

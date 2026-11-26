@@ -135,9 +135,9 @@ async function sourceVideoBytes(
   return bytes;
 }
 /** Only the sampling options the caller supplied; Jini owns every default (e.g. sixteen frames). */
-function extractionOptions({ input, signal }: { input: VideoToolInput; signal: AbortSignal | undefined }, _optional: Record<string, never> = {}) {
+function extractionOptions({ input, signal }: { input: VideoToolInput; signal: AbortSignal }, _optional: Record<string, never> = {}) {
   return {
-    ...(input.frames !== undefined ? { frames: input.frames } : {}), ...(input.at !== undefined ? { at: input.at } : {}), ...(signal === undefined ? {} : { signal }),
+    ...(input.frames !== undefined ? { frames: input.frames } : {}), ...(input.at !== undefined ? { at: input.at } : {}), signal,
     ...(input.layout !== undefined ? { layout: input.layout } : {}),
     ...(input.every !== undefined ? { every: input.every } : {}), ...(input.start !== undefined ? { start: input.start } : {}),
   };
