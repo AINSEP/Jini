@@ -27,7 +27,7 @@ const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
  * interpolated below, because the guard's import extractor matches `import('<literal>')` even
  * inside a string.
  */
-const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean }> = {
+const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean; reactPeer?: boolean }> = {
   core: {
     dirs: ["core"],
     probe: `m.restorePointFilename({ scopeId: "a/b", watermarkAtCapture: 3, timestamp: 4 }) === "restore-point-a_b-wm3-4.db" && m.sanitizeForFilename({ value: "a/b" }) === "a_b" && m.PGLITE_SOCKET_FILE === ".s.PGSQL.5432"`,
@@ -199,6 +199,23 @@ SUBPATHS["recovery/agent-tools"] = {
   dirs: ["recovery"],
   probe: `typeof m.createRecoveryAgentToolCatalog === "function" && m.createRecoveryAgentToolCatalog({ backupWorkflowGuidance: "g", restorePointIdSource: "s" }).length === 7`,
 };
+SUBPATHS["site/repo.memory"] = {
+  dirs: ["site"],
+  probe: `["InMemoryDatabaseLedgerRepo", "InMemoryRestorePointsRepo", "InMemorySiteStatusRepo", "InMemoryMigrationRunsRepo", "InMemoryDbOpsAdapter"].every(name => typeof m[name] === "function")`,
+};
+SUBPATHS["transfer/confirmation-ui"] = {
+  dirs: ["transfer"],
+  probe: `m.DATABASE_TRANSFER_RUN_TOOL_ID === "database_transfer_run" && typeof m.describeTransferApproval === "function" && typeof m.formatSnapshotTime === "function"`,
+};
+SUBPATHS["transfer/destination-store"] = {
+  dirs: ["transfer"],
+  probe: `typeof m.SealedDatabaseDestinationStore === "function" && typeof m.authorizeDestinationVaultContext === "function" && new m.DestinationUnreadableError() instanceof Error`,
+};
+// Browser bindings: React is an opt-in peer, so this subpath imports in a fixture that adds only React.
+SUBPATHS["react/recovery/Recovery"] = {
+  dirs: ["react/recovery"], reactPeer: true,
+  probe: `typeof m.Recovery === "function"`,
+};
 SUBPATHS["testing/pg-fixture"] = {
   dirs: ["."],
   probe: `typeof m.createPgFixture === "function"`,
@@ -209,6 +226,7 @@ const DRIVERS = ["better-sqlite3", "pg", "@electric-sql/pglite"];
 let fixtureDir: string;
 let emptyFixtureDir: string;
 let noPlatformFixtureDir: string;
+let reactFixtureDir: string;
 
 /** Runs an ESM snippet with the fixture as the bare-specifier resolution base. */
 function runInFixture(source: string, cwd = fixtureDir): { status: number; stdout: string; stderr: string } {
@@ -277,9 +295,14 @@ beforeAll(() => {
   noPlatformFixtureDir = mkdtempSync(join(tmpdir(), "jini-db-noplatform-"));
   cpSync(join(fixtureDir, "node_modules"), join(noPlatformFixtureDir, "node_modules"), { recursive: true });
   rmSync(join(noPlatformFixtureDir, "node_modules/@jini-ai/platform"), { recursive: true, force: true });
+  // The driver-free install plus only the React peer, so React is the one difference.
+  reactFixtureDir = mkdtempSync(join(tmpdir(), "jini-db-react-"));
+  cpSync(join(emptyFixtureDir, "node_modules"), join(reactFixtureDir, "node_modules"), { recursive: true });
+  cpSync(realpathSync(join(packageRoot, "node_modules", "react")), join(reactFixtureDir, "node_modules", "react"), { recursive: true });
 });
 
 afterAll(() => {
+  if (reactFixtureDir) rmSync(reactFixtureDir, { recursive: true, force: true });
   if (noPlatformFixtureDir) rmSync(noPlatformFixtureDir, { recursive: true, force: true });
   if (emptyFixtureDir) rmSync(emptyFixtureDir, { recursive: true, force: true });
   if (fixtureDir) rmSync(fixtureDir, { recursive: true, force: true });
@@ -339,7 +362,7 @@ describe("@jini-ai/db in an install with no database driver present", () => {
 
   for (const [subpath, { dirs, probe }] of Object.entries(SUBPATHS)) {
     it(`./${subpath} imports alone, works, and loads only ${dirs.join(" + ")}`, () => {
-      const result = importAlone(`@jini-ai/db/${subpath}`, probe, SUBPATHS[subpath]!.kernel ? fixtureDir : emptyFixtureDir);
+      const result = importAlone(`@jini-ai/db/${subpath}`, probe, SUBPATHS[subpath]!.reactPeer ? reactFixtureDir : SUBPATHS[subpath]!.kernel ? fixtureDir : emptyFixtureDir);
       expect(result.stderr).toBe("");
       expect(result.status).toBe(0);
       expect(result.probe).toBe("ok");
@@ -352,7 +375,12 @@ describe("@jini-ai/db in an install with no database driver present", () => {
       }
       const packages = result.resolved.filter((url) => url.includes("/node_modules/") && !url.includes("/node_modules/@jini-ai/db/"));
       // The recovery catalog is plain data (type-only core import), so it loads no peer at all.
-      if (subpath === "tools" || (subpath.startsWith("recovery") && subpath !== "recovery/agent-tools")) {
+      if (SUBPATHS[subpath]!.reactPeer) {
+        // React is the opt-in peer: it loads, nothing beyond it and core does, and without it the import fails.
+        expect(packages.some((url) => url.includes("/node_modules/react/"))).toBe(true);
+        for (const url of packages) expect(url, `${subpath} loaded a package other than react/core`).toMatch(/\/node_modules\/(?:react|@jini-ai\/core)\//);
+        expect(importAlone(`@jini-ai/db/${subpath}`, probe, emptyFixtureDir).stderr).toContain("Cannot find package 'react'");
+      } else if (subpath === "tools" || (subpath.startsWith("recovery") && subpath !== "recovery/agent-tools")) {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) {

@@ -295,6 +295,15 @@
       ],
       "react/recovery/Recovery": [
         "./dist/react/recovery/Recovery.d.ts"
+      ],
+      "site/repo.memory": [
+        "./dist/site/repo.memory.d.ts"
+      ],
+      "transfer/confirmation-ui": [
+        "./dist/transfer/confirmation-ui.d.ts"
+      ],
+      "transfer/destination-store": [
+        "./dist/transfer/destination-store.d.ts"
       ]
     }
   },
