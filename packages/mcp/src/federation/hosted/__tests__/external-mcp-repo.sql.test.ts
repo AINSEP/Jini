@@ -71,6 +71,11 @@ it("access update writes no credential columns", async () => {
   const update = f.queries.find(query => query.sql.startsWith("update"))?.sql.split(" where ")[0];
   expect(update).toContain('"enabled"');
   expect(update).not.toMatch(/oauth|env_secret|auth_mode|command/);
+  expect(update).toContain('"write_grants_updated_by_principal_id"');
+  expect(update).toContain('"write_grants_updated_at"');
+  const query = f.queries.find(query => query.sql.startsWith("update"))!;
+  expect(query.parameters).toContain("actor");
+  expect(query.parameters).toContain("now");
   expect(f.locks).toEqual(["secrets_vault:ws"]);
 });
 

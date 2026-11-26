@@ -19,7 +19,7 @@ export function getDeployOpsAgentToolCatalog(required: {
   maxWaitSeconds: number; readPermission: string; writePermission: string;
   secretNameDescription: string; unsetSecretDescription: string;
 }, _optional = {}): AgentToolDefinition[] {
-  const { registry, maxWaitSeconds: MAX_WAIT_SECONDS } = required;
+  const { registry, maxWaitSeconds: MAX_WAIT_SECONDS, readPermission } = required;
   const platforms = registry ? registry.list().map(p => p.descriptor) : bundledDescriptors(required.readBundledDescriptors, required.sourceRoot);
   const ids = platforms.map(p => p.id);
   const listed = platformList(platforms);
@@ -29,7 +29,7 @@ export function getDeployOpsAgentToolCatalog(required: {
   const secretsListed = registry ? platformList(secrets) : " Platforms: whichever deploy platforms have a secrets adapter.";
   const common = `${listed} Use these instead of custom_credential_make_request for deploy checks on these platforms. They don't deploy or change anything; to start a deploy use deployment_ops_deploy. For a static-site publish use deployment_get_static_publish_capabilities / the publish tools instead. Refuses unknown platforms, ambiguous credentials, saved-host mismatches, and rejected auth (use custom_credential_verify).`;
   const base = { platform: { type: "string", enum: ids }, target: { type: "string", minLength: 1, maxLength: 200, description: "App name or owner/repo, as required by the platform." }, credentialLabel: { type: "string", minLength: 1, maxLength: 200 }, runId: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" }, branch: { type: "string", minLength: 1, maxLength: 200 } };
-  const definition = ({ name, description, properties, required }: { name: string; description: string; properties: Record<string, unknown>; required: string[] }, _options = {}): AgentToolDefinition => ({ name, description: description + common, sideEffects: "none", authorization: { permission: required.readPermission }, inputSchema: { type: "object", additionalProperties: false, properties, required } });
+  const definition = ({ name, description, properties, required }: { name: string; description: string; properties: Record<string, unknown>; required: string[] }, _options = {}): AgentToolDefinition => ({ name, description: description + common, sideEffects: "none", authorization: { permission: readPermission }, inputSchema: { type: "object", additionalProperties: false, properties, required } });
   return [
     definition({ name: "deployment_ops_status", description: "Check whether an app is up, running and healthy or whether a deployment workflow build passed or failed. Returns platform, target, healthy/deploying/failing/stopped/unknown state, summary, machine/job items, optional run URL and checkedAt.", properties: base, required: ["platform", "target"] }),
     definition({ name: "deployment_ops_logs", description: "Read bounded error logs to explain why a hosted app crashed or a deployment workflow build failed. Returns platform, target, lines with message and optional time/source/level, and truncated. Workflow adapters return failed steps and check annotations, not the redirected full log archive.", properties: { ...base, limit: { type: "integer", minimum: 1, maximum: 500, clamp: true, default: 100 } }, required: ["platform", "target"] }),

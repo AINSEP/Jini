@@ -1,18 +1,15 @@
 import { validatedWorksFor, updatedWorksFor, validateLabel, optionalBoolean, validateConnection, connectionCredentialSpec, isSecretField, preservedMove, type ValidatedConnection } from './store-validation.js';
 import { decryptRecord, ownerOf, type PublishCredentialResolveDeps } from './store-resolution.js';
-import type { normalizeCredentialToken } from '@jini-ai/platform/secrets/credential-token';
 import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
 
 import { isUniqueViolation } from "@jini-ai/core/contracts/storage";
-import type { KyselyKernel } from "@jini-ai/db/kernel";
 import type { KeyringPort } from "@jini-ai/core/contracts/vault";
-import type { SecretSealerPort } from "@jini-ai/integrations/secrets";
-import type { matchingCredentialProviderIds, selectCredentialForProvider, normalizeCredentialWorksFor } from "@jini-ai/platform/secrets/credential-sets";
+import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import { VaultError, type VaultSummary } from "@jini-ai/core/contracts/vault";
 import type { VaultContext, VaultRepoPort, VendorCredentialSetRecord as CoreVendorRecord, VendorCredentialSetRepoPort as CoreVendorRepo } from "@jini-ai/core/contracts/vault";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
-import type { SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
-import type { credentialCreateTarget, credentialScopes, ScopedCredentialDeps } from "@jini-ai/integrations/vendor-credentials/project-scope";
+import type { SecretsVaultService } from "@jini-ai/core/contracts/site/secrets-credential-sets";
+interface ScopedCredentialDeps<D> { readonly deps: D; readonly workspaceId: string; readonly scope: "site" | "project" }
 import type { DeployTargetCredentialSpec, DeployTargetFieldSpec, DeployTargetRegistry } from "@jini-ai/devops/deploy/site/deploy-targets/types";
 import type { PublishConnectionInput, PublishCredentialScope, PublishCredentialSummary, PublishProviderId } from "@jini-ai/devops/deploy/site/publish-credentials/types";
 
@@ -139,13 +136,15 @@ export interface PublishCredentialReadDeps {
   readonly storageMessage: string;
   readonly CredentialInputError: abstract new (...args: never[]) => Error;
   readonly ProjectKeyCreateConflictError: abstract new (...args: never[]) => Error;
-  readonly normalizeCredentialToken: typeof normalizeCredentialToken;
+  readonly normalizeCredentialToken: (required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>) => string;
   readonly assertCredentialFreeField: (required: { value: string; field: string }) => void;
-  readonly normalizeCredentialWorksFor: typeof normalizeCredentialWorksFor;
-  readonly matchingCredentialProviderIds: typeof matchingCredentialProviderIds;
-  readonly selectCredentialForProvider: typeof selectCredentialForProvider;
-  readonly credentialScopes: typeof credentialScopes;
-  readonly credentialCreateTarget: typeof credentialCreateTarget;
+  readonly normalizeCredentialWorksFor: (required: { value: unknown }, optional?: Record<string, never>) => string[];
+  readonly matchingCredentialProviderIds: (required: { credential: { kind: string; provider: string | null; meta: { credentialType?: unknown; worksFor?: unknown } };
+    providers: readonly { id: string; vendorId: string; acceptsCustomToken: boolean }[] }, optional?: Record<string, never>) => string[];
+  readonly selectCredentialForProvider: <T extends { kind: string; provider: string | null; meta: { credentialType?: unknown; worksFor?: unknown }; id: string; isDefault: boolean }>(required: {
+    credentials: readonly T[]; provider: { id: string; vendorId: string; acceptsCustomToken: boolean }; id?: string }, optional?: Record<string, never>) => T | null;
+  readonly credentialScopes: <D extends PublishCredentialReadDeps>(required: { deps: D; workspaceId: string }, optional?: Record<string, never>) => ScopedCredentialDeps<D>[];
+  readonly credentialCreateTarget: <D extends PublishCredentialReadDeps>(required: { deps: D; input: { workspaceId: string; scope?: unknown }; invalid: (message: string) => Error }, optional?: Record<string, never>) => ScopedCredentialDeps<D>;
   readonly parseStoreMeta: (required: { kind: "vendor"; meta: VaultSummary["meta"]; provider: string | null }) => { worksFor: string[] };
   repo: VendorCredentialSetRepoPort;
   sealer?: SecretSealerPort;
@@ -437,7 +436,7 @@ async function connectionChanges({ deps, input, existing, registry, host, row }:
  *  A project row is removed only when no other site uses it; its attachments are removed with it. */
 export async function deletePublishCredential(deps: {
   repo: Pick<VendorCredentialSetRepoPort, "delete" | "findById" | "project">;
-  transaction?: Pick<KyselyKernel<unknown>, "transaction">;
+  transaction?: { transaction<T>(fn: () => Promise<T>): Promise<T> };
 }, input: { workspaceId: UUID; id: UUID }): Promise<void> {
   const owner = await ownerOf(deps.repo, input);
   await owner.repo.delete({ workspaceId: owner.workspaceId, id: input.id });

@@ -10,7 +10,7 @@ function fixture(oldInstalled = false) {
   const order: string[] = []; const previous = { pluginId: 'demo', archiveDigest: 'old', packageRoot: '/old', version: '1.0.0' };
   let installed = oldInstalled ? [previous] : [];
   const candidate = { ...previous, archiveDigest: expectedSha256, version: '1.1.0', packageRoot: '/new' };
-  const layout = createAgentPluginSiteLayout({ root: '/plugins', diagnostics: { workspaceId: () => new Error('workspace'), pluginId: () => new Error('plugin'), pluginDataId: () => new Error('data'), memoryKind: () => new Error('memory') } });
+  const layout = createAgentPluginSiteLayout({ siteDir: '/site', rootOverride: '/plugins', diagnostics: { rootOverride: () => new Error('root'), workspaceId: () => new Error('workspace'), pluginId: () => new Error('plugin'), pluginDataId: () => new Error('data'), memoryKind: () => new Error('memory') } });
   const optional = { layout, archiveReader: { async *entries() { const manifest = Buffer.from(JSON.stringify({ '$schema': 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'demo', description: 'Demo' }));
     yield { kind: 'file', entryPath: 'plugin.json', declaredBytes: manifest.length, openReadStream: async function* () { yield manifest; } }; } },
     lifecycle: { installAgentPlugin: async (_input: unknown, options: { publishGuard(input: { plugin: unknown; publish(): Promise<unknown> }): Promise<unknown> }) => options.publishGuard({ plugin: candidate, publish: async () => { order.push('publish'); installed = [candidate]; return candidate; } }),

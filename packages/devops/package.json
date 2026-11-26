@@ -13,6 +13,8 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./deploy/site/deploy-ops/secret-confirm": "universal",
+      "./deploy/site/deploy-ops/run-ops": "node",
       "./deploy/site/publish-credentials/compatibility-port": "universal",
       "./deploy/site/deploy-targets/registry": "node",
       "./deploy/site/deploy-ops/registry": "node",
@@ -177,6 +179,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./deploy/site/deploy-ops/secret-confirm": {
+      "types": "./dist/deploy/site/deploy-ops/secret-confirm.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/secret-confirm.js",
+      "default": "./dist/deploy/site/deploy-ops/secret-confirm.js"
+    },
+    "./deploy/site/deploy-ops/run-ops": {
+      "types": "./dist/deploy/site/deploy-ops/run-ops.d.ts",
+      "import": "./dist/deploy/site/deploy-ops/run-ops.js",
+      "default": "./dist/deploy/site/deploy-ops/run-ops.js"
+    },
     "./deploy/site/publish-credentials/compatibility-port": {
       "types": "./dist/deploy/site/publish-credentials/compatibility-port.d.ts",
       "import": "./dist/deploy/site/publish-credentials/compatibility-port.js",

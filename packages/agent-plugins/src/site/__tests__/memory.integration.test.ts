@@ -15,9 +15,9 @@ test('sibling migration locks finish before the active workspace lock is acquire
       assert.equal(held, false, 'workspace locks must not nest'); held = true; order.push(lockPath);
       try { return await run(); } finally { held = false; }
     } };
-  const layout = createAgentPluginSiteLayout({ root, diagnostics: { workspaceId: () => new Error('workspace'), pluginId: () => new Error('plugin'), pluginDataId: () => new Error('data'), memoryKind: () => new Error('memory') } });
+  const layout = createAgentPluginSiteLayout({ siteDir: root, rootOverride: root, diagnostics: { rootOverride: () => new Error('root'), workspaceId: () => new Error('workspace'), pluginId: () => new Error('plugin'), pluginDataId: () => new Error('data'), memoryKind: () => new Error('memory') } });
   const required = { ...effects, layout, workspaceId: 'active',
-    migrateAgentPluginLayout: ({ workspaceId }: { workspaceId: string }, options = {}) => migratePluginLayout({ ...effects, workspaceRoot: layout.forWorkspace({ workspaceId }).root, parsePluginId: () => 'demo', onEvent: () => {} }, options),
+    migrateAgentPluginLayout: ({ workspaceId }: { workspaceId: string }, options = {}) => migratePluginLayout({ ...effects, workspaceRoot: layout.forWorkspace({ workspaceId }).root, parsePluginId: () => 'demo', onEvent: () => { assert.equal(held, true, 'migration effects require the workspace lock'); } }, options),
     warnInvalidWorkspace: ({ error }: { error: unknown }) => { throw error; }, warnMigration: ({ error }: { error: unknown }) => { throw error; } };
   try {
     await filesystem.mkdir(path.join(root, 'ws', 'active'), { recursive: true });

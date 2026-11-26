@@ -1,8 +1,7 @@
-import type { assertCredentialToken } from '@jini-ai/platform/secrets/credential-token';
 import type { UUID } from "@jini-ai/core/primitives";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 
-import type { SecretSealerPort } from "@jini-ai/integrations/secrets";
+import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import { DEPLOY_FETCH_TIMEOUTS } from "@jini-ai/devops/deploy/site/deploy-targets/host-kit";
 import type { DeployCredentialCheck, DeployTargetCredentialSpec, DeployTargetRegistry  } from "@jini-ai/devops/deploy/site/deploy-targets/types";
 import type { PluginDeployHostKit as DeployHostKit } from "@jini-ai/devops/deploy";
@@ -150,7 +149,7 @@ export class InMemoryPublishCredentialVerificationCache implements PublishCreden
 
 /** What {@link computeVerificationResult} needs to run one host's check. */
 interface VerificationContext {
-  readonly assertCredentialToken: typeof assertCredentialToken;
+  readonly assertCredentialToken: (required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>) => void;
   readonly CredentialInputError: VerifyPublishCredentialDeps['CredentialInputError'];
   readonly credentialText: VerifyPublishCredentialDeps['credentialText'];
   readonly registry: DeployTargetRegistry;
@@ -179,7 +178,7 @@ function cannotVerify({ reason, clock }: { reason: string; clock: { nowIso(): st
 
 /** Apply the existing token policy to the primary token and present, descriptor-declared secrets. */
 function assertVerificationCredential({ credential, spec, assertCredentialToken }: {
-  assertCredentialToken: typeof import("@jini-ai/platform/secrets/credential-token").assertCredentialToken;
+  assertCredentialToken: (required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>) => void;
   credential: DeployTargetCredential;
   spec: DeployTargetCredentialSpec | undefined;
 }, _options: Record<string, never> = {}): void {
@@ -243,7 +242,7 @@ function checkedVerificationResult({ context, loaded, check }: {
 }
 
 export interface VerifyPublishCredentialDeps {
-  readonly assertCredentialToken: typeof assertCredentialToken;
+  readonly assertCredentialToken: (required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>) => void;
   readonly CredentialInputError: abstract new (...args: never[]) => Error;
   readonly credentialText: (required: { id: "auth" | "timeout" | "unreachable" }) => string;
   readonly createDeployHostKit: (required: { fetchFn?: typeof fetch; observability?: ObservabilityPort; timeouts: typeof DEPLOY_FETCH_TIMEOUTS }) => DeployHostKit;
@@ -296,7 +295,7 @@ export async function verifyPublishCredential(
 }
 
 export interface VerifyPublishCredentialByIdDeps {
-  readonly assertCredentialToken: typeof assertCredentialToken;
+  readonly assertCredentialToken: (required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>) => void;
   readonly CredentialInputError: abstract new (...args: never[]) => Error;
   readonly credentialText: (required: { id: "auth" | "timeout" | "unreachable" }) => string;
   readonly createDeployHostKit: (required: { fetchFn?: typeof fetch; observability?: ObservabilityPort; timeouts: typeof DEPLOY_FETCH_TIMEOUTS }) => DeployHostKit;

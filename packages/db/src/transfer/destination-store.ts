@@ -36,12 +36,6 @@ export class DestinationUnreadableError extends Error {
  * `findDefault`: 0012 copied legacy rows with is_default=false (the old table had no such column),
  * and a default-only read made an upgraded site's destination invisible (parity finding R1). */
 export type DatabaseDestinationRepoPort = VaultRepoPort & Required<Pick<VaultRepoPort, "findOne">>;
-export async function authorizeDestinationVaultContext(
-  { context, scope }: { readonly context: { readonly kind: string; readonly ownerKey: string; readonly principalId: string | null }; readonly scope: { readonly kind: string; readonly ownerKey: string } },
-  _options = {}
-): Promise<void> {
-  if (context.kind !== scope.kind || context.ownerKey !== scope.ownerKey || context.principalId !== null) throw new VaultError({ code: "context" });
-}
 
 export class SealedDatabaseDestinationStore implements DatabaseDestinationStorePort {
   constructor(private readonly deps: {

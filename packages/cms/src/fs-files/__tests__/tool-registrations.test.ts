@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'vitest';
 import type { AssistantSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
 import type { ToolExecutionContext } from '@jini-ai/core';
-import { buildFsFilesRegistrations, type FsFilesToolDeps } from '../tool-registrations.js';
+import { buildFsFilesRegistrations, preparePickedFolderBatch, resolvePickedFolder, type FsFilesToolDeps } from '../tool-registrations.js';
 import { getFsFilesAgentToolCatalog } from '../agent-tools.js';
 
 function toolDeps(siteDir: string): FsFilesToolDeps {
@@ -37,5 +37,19 @@ test('a declined prepared write never calls the writer', async () => {
     const deps = { ...toolDeps(site), resolveRoots: () => ({ site, custom: picked }) };
     const tool = buildFsFilesRegistrations(deps).find(item => item.descriptor.id === 'fs_write_files')!;
     assert.deepEqual(await tool.handler(ctx({ files: [{ path: 'note.txt', content: 'hello' }] })), { applied: false, reason: 'declined' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('picked-folder batches refuse parent and absolute paths before resolving or reading a target', () => {
+  const root = mkdtempSync(join(tmpdir(), 'fs-files-containment-'));
+  const site = join(root, 'site'); const picked = join(root, 'picked');
+  mkdirSync(site); mkdirSync(picked);
+  try {
+    const routeDeps = { workspaceId: 'ws', siteBinding: { dir: site }, resolveFsRoots: () => ({ custom: picked }),
+      resolveFsFilePath: () => { assert.fail('escaped target must be refused before target access'); } };
+    assert.equal(resolvePickedFolder({ routeDeps }), picked);
+    for (const path of ['../outside.txt', '/outside.txt']) {
+      assert.throws(() => preparePickedFolderBatch({ routeDeps, files: [{ path, content: 'refused' }] }), /plain relative path/);
+    }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/fs-files';
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, optionalBoolean, optionalNumber, optionalString, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 
@@ -114,7 +114,7 @@ export function describeWriteBatch({ folder, writes }: PreparedWriteBatch, { too
 
 /** The picked folder's real path under the write rule; `files_copy`/`image_transform` read it through
  * the same rule. @throws {FsWriteInputError} No folder or an unsafe folder. @complexity O(1) fs calls. */
-export function resolvePickedFolder({ routeDeps }: { routeDeps: FsFilesToolDeps }, _optional = {}): string {
+export function resolvePickedFolder({ routeDeps }: { routeDeps: Pick<FsFilesToolDeps, "resolveRoots" | "resolveFsRoots" | "siteBinding" | "workspaceId"> }, _optional = {}): string {
   const { resolveFsRoots } = routeDeps;
   const custom = (routeDeps.resolveRoots ?? (() => resolveFsRoots({ siteDir: routeDeps.siteBinding.dir, workspaceId: routeDeps.workspaceId })))().custom;
   if (custom === undefined) throw new FsWriteInputError({ message: "No folder is picked — ask the person to pick one with the composer's folder button" });
@@ -124,7 +124,7 @@ export function resolvePickedFolder({ routeDeps }: { routeDeps: FsFilesToolDeps 
 /** Resolves the picked folder and validates one batch before its card; nothing is written.
  * Shared with `image_transform`, so both write through one folder rule and one card.
  * @throws {ToolInputError} No folder, an unsafe folder, or a refused file. @complexity O(n·depth). */
-export function preparePickedFolderBatch({ routeDeps, files }: { routeDeps: FsFilesToolDeps; files: unknown }, _optional = {}): PreparedWriteBatch {
+export function preparePickedFolderBatch({ routeDeps, files }: { routeDeps: Pick<FsFilesToolDeps, "resolveRoots" | "resolveFsRoots" | "siteBinding" | "workspaceId" | "resolveFsFilePath">; files: unknown }, _optional = {}): PreparedWriteBatch {
   try {
     const folder = resolvePickedFolder({ routeDeps });
     return { folder, writes: prepareFileWrites({ folder, files, resolveFsFilePath: routeDeps.resolveFsFilePath }) };

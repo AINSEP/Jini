@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { LoadedDeployTarget } from '../types.js';
-import { loadDeployTargetRegistry, loadInstalledDeployTargets } from '../registry.js';
+import { loadDeployTargetRegistry, loadInstalledDeployTargets, loadBundledDeployTargetRegistry } from '../registry.js';
 
 test('disabled metadata is discoverable without executable registry admission', async () => {
   const descriptor = { id: 'host', label: 'Host' } as LoadedDeployTarget['descriptor'];
@@ -23,4 +23,18 @@ test('duplicate target IDs drop every claimant', async () => {
   const registry = await loadDeployTargetRegistry({ workspaceId: 'ws', loadContributions: async () => ({ items: loaded, refusals: [] }) });
   assert.deepEqual(registry.list(), []); assert.equal(registry.get('shared'), undefined);
   assert.deepEqual(registry.refusals, ["deploy target 'shared' was not loaded: more than one plugin declares it ('first', 'second')"]);
+});
+
+test('bundled target loading passes the trusted contribution definition', async () => {
+  const registry = await loadBundledDeployTargetRegistry({ sourceRoot: '/bundled',
+    bundledContributionSources: () => [{ pluginId: 'hosting', packageRoot: '/bundled/hosting' }],
+    loadPluginContributionsFromSource: async ({ plugin, definition }) => {
+      assert.equal(plugin.pluginId, 'hosting');
+      assert.equal(definition.filename, 'jini-deploy-targets.json');
+      assert.equal(typeof definition.parse, 'function');
+      assert.equal(typeof definition.validate, 'function');
+      return { items: [], refusals: [] };
+    },
+  });
+  assert.deepEqual(registry.list(), []);
 });

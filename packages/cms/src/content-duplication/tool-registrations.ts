@@ -1,5 +1,5 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/content-duplication';
-import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 /**
  * @file Maps `agent-tools.ts`'s single `content_duplicate` catalog entry onto every resource
  * currently registered in `assistant/duplicate-resource-registry.ts`, as a `ToolRegistration`.
@@ -37,7 +37,7 @@ import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
  * the registry's contents visible here at all.
  */
 import { buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
-import { requireToolPermission } from "@jini-ai/cms/core";
+import { requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { ToolInputError } from "@jini-ai/core";
 

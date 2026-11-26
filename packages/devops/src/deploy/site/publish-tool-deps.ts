@@ -9,9 +9,6 @@ import type { PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
 import type { ToolFailureDiagnostic } from '@jini-ai/core/contracts/site/daemon-tool-recovery';
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { UIResource } from '@jini-ai/core/contracts/site/protocol-mcp-ui';
-import type { findPluginCredentialCard } from '@jini-ai/agent-plugins/connect';
-import type { abortGuardedCredentialRepo } from '@jini-ai/integrations/vendor-credentials/abort-guarded-repo';
-import type { LoadPluginCredentialCards } from "@jini-ai/agent-plugins/connect";
 import type { LoadInstalledDeployTargets } from "@jini-ai/devops/deploy/site/deploy-targets/types";
 import type { GatewayDeps } from '@jini-ai/core/gated-mutations';
 import type { OperatorLocaleDeps } from '@jini-ai/core/contracts/headless/plugin-host';
@@ -20,7 +17,7 @@ import type { ExportReport as BaseExportReport } from '../../static-export/contr
 type ExportReport = BaseExportReport & { consentWarning?: string };
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { KeyringPort } from "@jini-ai/core/contracts/vault";
-import type { SecretSealerPort } from "@jini-ai/integrations/secrets";
+import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import type { PublishExecutionMode } from "@jini-ai/devops/deploy/site/publish-credentials/execution-mode";
 import type { PublishCredentialWriteDeps, PublishCredentialReadDeps } from './publish-credentials/store.js';
 type VendorCredentialSetRepoPort = PublishCredentialReadDeps['repo'];
@@ -69,8 +66,8 @@ export interface StaticPublishToolDeps extends OperatorLocaleDeps {
   readonly credentialFormApp: SecretCardForm['app'];
   readonly credentialRowLabel: string;
   readonly credentialSaveToolId: string;
-  readonly abortGuardedCredentialRepo: typeof abortGuardedCredentialRepo;
-  readonly findPluginCredentialCard: typeof findPluginCredentialCard;
+  readonly abortGuardedCredentialRepo: <T extends { readonly vault?: import('@jini-ai/core/contracts/vault').VaultRepoPort }>(required: { store: T; signal: AbortSignal }, optional?: Record<string, never>) => T;
+  readonly findPluginCredentialCard: (required: { loadCards?: StaticPublishToolDeps['loadPluginCredentialCards'] | undefined; workspaceId: string; saveKind: PluginCredentialCard['saveKind']; target: string }, optional?: Record<string, never>) => Promise<PluginCredentialCard | undefined>;
   readonly applyPluginCredentialCard: (required: { card?: PluginCredentialCard; form: SecretCardForm }) => SecretCardForm;
   readonly assertCredentialFreeField: (required: { value: string; field: string }) => void;
   readonly credentialText: (required: { id: 'saved' | 'connected' | 'auth' | 'timeout' | 'unreachable' | 'blank' | 'savedTitle'; locale?: string }) => string;
@@ -84,7 +81,7 @@ export interface StaticPublishToolDeps extends OperatorLocaleDeps {
     describe(input: { ctx: ToolExecutionContext; prepared: TPrepared }, optional: ToolExecutionOptions): HumanConfirmSpec | Promise<HumanConfirmSpec>;
     run(input: { ctx: ToolExecutionContext; prepared: TPrepared; confirmer: HumanConfirmer }, optional: ToolExecutionOptions): Promise<unknown>;
   }, optional: { flag: string }) => ToolHandler;
-  readonly loadPluginCredentialCards?: LoadPluginCredentialCards;
+  readonly loadPluginCredentialCards?: (workspaceId: string) => Promise<readonly PluginCredentialCard[]>;
   /** Existing shared gateway; required when publishing with infrastructure changes. */
   readonly gatedMutations?: { readonly gatewayDeps: GatewayDeps };
   readonly hostKit?: StaticPublishDeps["hostKit"];

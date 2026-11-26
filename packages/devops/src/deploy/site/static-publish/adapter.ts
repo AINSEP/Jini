@@ -14,7 +14,6 @@ import { DeployError, type DeployFile, type DeployPublishInput, type DeployPubli
 import { withDeclaredHosts } from "@jini-ai/core/contracts/server/security-headers";
 
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
-import type { createNoopTracker } from "@jini-ai/diagnostics/observability";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import type { DeployTargetRegistry, HostDeployTarget, LoadedDeployTarget  } from "@jini-ai/devops/deploy/site/deploy-targets/types";
 import type { PluginDeployHostKit as DeployHostKit } from "@jini-ai/devops/deploy";
@@ -90,7 +89,7 @@ export type ResolvedPublishCredential = DeployTargetCredential;
 export interface StaticPublishDeps {
   readonly publishJobs: ReturnType<typeof import('../../index.js').createPublishJobStore<StaticPublishOutcome>>;
   readonly redactSecretShapes: (required: { text: string }) => { text: string };
-  readonly createNoopTracker: typeof createNoopTracker;
+  readonly createNoopTracker: (required: Record<string, never>) => Tracker;
   readonly createDeployHostKit: (required: { observability?: ObservabilityPort }) => DeployHostKit;
   readonly defaultPublicPageSecurityHeaders: () => import("@jini-ai/core/contracts/server/security-headers").SecurityHeaderSet;
   readonly firstExportFailure: (report: ExportReport) => ReturnType<typeof firstExportFailure>;

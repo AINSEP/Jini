@@ -1,4 +1,4 @@
-import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 
 import { PublishContentApplyRowError } from "@jini-ai/cms/publish/transfer";

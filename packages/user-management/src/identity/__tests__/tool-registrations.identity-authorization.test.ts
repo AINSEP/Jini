@@ -7,7 +7,7 @@ import { InMemoryPrincipalRepo, InMemoryUserRepo, InMemorySessionRepo, InMemoryR
   InMemoryPolicyPermissionRepo, InMemoryRolePolicyRepo, InMemoryPrincipalRoleRepo, InMemoryPrincipalPolicyRepo,
   createTransactionalInMemoryIdentityRepos, seedIdentity, assertCallerHasAnyPermission } from '../../server/index.js';
 import { assertUserAccountAction } from '../delete-user-service.js';
-import { buildGatedIdentityRegistrations, type IdentityToolDeps } from '../tool-registrations.js';
+import { buildGatedIdentityRegistrations, withoutPassword, type IdentityToolDeps } from '../tool-registrations.js';
 
 async function fixture(afterApproval: (repos: IdentityRepos, owner: string) => Promise<void> = async () => {}) {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
@@ -52,4 +52,9 @@ test('the real service rechecks authority lost during human approval', async () 
   const tool = f.tools.find(item => item.descriptor.id === 'identity_role_delete')!;
   await assert.rejects(tool.handler(ctx(f.ownerPrincipalId, { roleId: 'role' })), IdentityForbiddenError);
   assert.deepEqual(await f.repos.roles.findById({ workspaceId: 'ws', id: 'role' }), role);
+});
+
+test('user create model schema exposes no password field or requirement', () => {
+  assert.deepEqual(withoutPassword({ schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' } }, required: ['username', 'password'] } }),
+    { type: 'object', properties: { username: { type: 'string' } }, required: ['username'] });
 });

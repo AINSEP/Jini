@@ -127,7 +127,7 @@ export async function loadBundledDeployTargetRegistry(required: {
   const items: LoadedDeployTarget[] = [];
   const refusals: string[] = [];
   for (const plugin of required.bundledContributionSources({ sourceRoot: required.sourceRoot, filename: DEPLOY_TARGETS_FILENAME })) {
-    const load = await required.loadPluginContributionsFromSource({ plugin });
+    const load = await required.loadPluginContributionsFromSource({ plugin, definition: targetContribution });
     items.push(...load.items);
     refusals.push(...load.refusals);
   }

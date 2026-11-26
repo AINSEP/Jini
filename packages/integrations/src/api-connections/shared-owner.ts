@@ -5,7 +5,7 @@ import type { ApiConnectionDescriptor } from './types.js';
 import type { SharedOAuthConnection } from './shared.js';
 import type { OAuthClient } from "@jini-ai/core/contracts/oauth";
 import type { KeyringPort, SecretSealerPort, VaultRepoPort, VaultMeta, VaultContext } from '@jini-ai/core/contracts/vault';
-import type { SecretsVaultService } from '@jini-ai/platform/secrets/credential-sets';
+import type { SecretsVaultService } from '@jini-ai/core/contracts/site/secrets-credential-sets';
 import type { ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 
 /** Issuing configuration is sealed in the owner store; a consuming site's client cannot replace it. */

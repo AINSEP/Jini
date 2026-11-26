@@ -73,11 +73,16 @@ const MAX_ID_SEGMENT_LENGTH = 64;
 
 import type { AgentPluginLayout, AgentPluginWorkspaceLayout } from '@jini-ai/core/contracts/headless/plugin-host';
 
-export function createAgentPluginSiteLayout(required: { root: string; diagnostics: {
+export function createAgentPluginSiteLayout(required: { siteDir: string; rootOverride: string | undefined; diagnostics: {
+  rootOverride(input: { rootOverride: string }): Error;
   workspaceId(input: { workspaceId: string }): Error; pluginId(input: { pluginId: string }): Error;
   pluginDataId(input: { pluginId: string }): Error; memoryKind(): Error;
 } }, _optional = {}): AgentPluginLayout {
-  const root = path.resolve(required.root);
+  const override = required.rootOverride;
+  if (override !== undefined && !path.isAbsolute(override)) {
+    throw required.diagnostics.rootOverride({ rootOverride: override });
+  }
+  const root = path.resolve(override ?? path.join(required.siteDir, "agent-plugins"));
   const workspacesDir = path.join(root, "ws");
 
   return {

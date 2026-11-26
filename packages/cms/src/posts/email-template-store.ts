@@ -1,9 +1,13 @@
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
-import type {
-  EmailTemplateHtmlSession,
-  EmailTemplateRecord,
-  EmailTemplateStore,
-} from "@jini-ai/platform/mail/email-template-operations";
+type EmailTemplateRecord = { id: string; name: string; html: string; version: number; updatedAt: string };
+type EmailTemplateHtmlSession = { version: number | null; write(args: { html: string }): Promise<boolean> };
+interface EmailTemplateStore {
+  find(args: { id: string }): Promise<EmailTemplateRecord | null>;
+  create(args: { name: string; seedHtml: string; actorId: string }): Promise<EmailTemplateRecord>;
+  openHtml(args: { id: string; actorId: string }): Promise<EmailTemplateHtmlSession>;
+  rename(args: { id: string; name: string; ifVersion: number }): Promise<boolean>;
+  listPage(args: { limit: number; before?: { updatedAt: string; id: string } }): Promise<Array<EmailTemplateRecord | null>>;
+}
 
 import { type PostRecord, type PostRepoPort } from "@jini-ai/cms/posts/post";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";

@@ -2,7 +2,7 @@ import { AgentPluginUpdateError, type AgentPluginMcpProvisioningPort } from '@ji
 import type { provisionAgentPluginMcpServers, resolveAgentPluginMcpServers } from '../connect/federate-mcp.js';
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 
-type ProvisionDeps = Parameters<typeof provisionAgentPluginMcpServers>[0];
+type ProvisionDeps = import('./service-ports.js').AgentPluginMcpContext & Pick<import('./service-ports.js').AgentPluginMcpPort, 'repo' | 'saveServer'> & Partial<Pick<import('./service-ports.js').AgentPluginMcpPort, 'notifyRosterChanged'>>;
 export type UpdateMcpDeps = {
   workspaceId: string; agentPluginLayout: AgentPluginLayout;
   mcp: ProvisionDeps;
@@ -22,7 +22,7 @@ export type UpdateMcpHostDeps = Pick<UpdateMcpDeps, "workspaceId" | "agentPlugin
 export function createAgentPluginUpdateEffects(
   { deps, actor, resolveServers, provisionServers }: { deps: UpdateMcpDeps; actor: string;
     resolveServers(input: Omit<Parameters<typeof resolveAgentPluginMcpServers>[0], 'lifecycle'>): ReturnType<typeof resolveAgentPluginMcpServers>;
-    provisionServers(deps: ProvisionDeps, input: Omit<Parameters<typeof provisionAgentPluginMcpServers>[1], 'classifyTrust' | 'messages'>): ReturnType<typeof provisionAgentPluginMcpServers>;
+    provisionServers(deps: ProvisionDeps, input: Omit<Parameters<typeof provisionAgentPluginMcpServers>[0], 'deps' | 'classifyTrust' | 'messages'>): ReturnType<typeof provisionAgentPluginMcpServers>;
   },
   _optional = {},
 ): AgentPluginMcpProvisioningPort {

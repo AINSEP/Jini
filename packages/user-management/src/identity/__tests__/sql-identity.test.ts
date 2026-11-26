@@ -49,3 +49,16 @@ it("authorization writes serialize with the workspace guard", async () => {
   expect(events).toEqual(["identity:ws", "guard", "identity:ws", "write"]);
   await kernel.close();
 });
+
+it('authorization queries retain their workspace predicate', async () => {
+  const { kernel } = fixture();
+  const repo = new SqlPolicyPermissionRepo({ kernel, table: 'grants' });
+  await repo.save({ id: 'other-grant', workspaceId: 'other', policyId: 'same-policy', permission: 'secret', resourceType: null, constraintJson: null });
+  await repo.save({ id: 'own-grant', workspaceId: 'ws', policyId: 'same-policy', permission: 'read', resourceType: null, constraintJson: null });
+  expect(await repo.listByPolicyId({ workspaceId: 'ws', policyId: 'same-policy' })).toEqual([
+    { id: 'own-grant', workspaceId: 'ws', policyId: 'same-policy', permission: 'read', resourceType: null, constraintJson: null },
+  ]);
+  await repo.deleteByPolicyId({ workspaceId: 'ws', policyId: 'same-policy' });
+  expect((await repo.listByPolicyId({ workspaceId: 'other', policyId: 'same-policy' })).map(row => row.id)).toEqual(['other-grant']);
+  await kernel.close();
+});

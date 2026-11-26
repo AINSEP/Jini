@@ -14,14 +14,20 @@ import {
   previewEmailTemplate,
   requireText,
 } from "@jini-ai/platform/mail/email-template-operations";
-import type { EmailTemplateStore } from "./email-template-operations.js";
+export interface EmailTemplateStorePort {
+  find(args: { id: string }): Promise<{ id: string; name: string; html: string; version: number; updatedAt: string } | null>;
+  create(args: { name: string; seedHtml: string; actorId: string }): Promise<{ id: string; name: string; html: string; version: number; updatedAt: string }>;
+  openHtml(args: { id: string; actorId: string }): Promise<{ version: number | null; write(args: { html: string }): Promise<boolean> }>;
+  rename(args: { id: string; name: string; ifVersion: number }): Promise<boolean>;
+  listPage(args: { limit: number; before?: { updatedAt: string; id: string } }): Promise<Array<{ id: string; name: string; html: string; version: number; updatedAt: string } | null>>;
+}
 
 export interface EmailTemplatesToolDeps {
   workspaceId: string;
   editHtmlPermission: string;
   catalog: readonly import('@jini-ai/core').AgentToolDefinition[];
   requirePermission(input: { ctx: ToolExecutionContext; name: string }): Promise<unknown>;
-  emailTemplateStore(): EmailTemplateStore;
+  emailTemplateStore(): EmailTemplateStorePort;
   ForbiddenError: abstract new (...args: never[]) => Error;
 }
 
