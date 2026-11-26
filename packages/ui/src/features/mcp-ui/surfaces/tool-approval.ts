@@ -1,3 +1,6 @@
+import type { HumanConfirmSpec } from '@jini-ai/core/contracts/site/human-confirm';
+import type { SurfaceDetail } from '@jini-ai/core/contracts/cards';
+import { approvalText } from '@jini-ai/core/contracts/site/approval-i18n';
 import { isNonArrayRecord, type ToolDescriptor } from '@jini-ai/core';
 import { surfaceDetailLabel } from './structured-details.js';
 
@@ -50,5 +53,23 @@ export function toolApprovalPresentation(
     ...(summary ? { summary: text({ key: summary }) } : {}),
     confirmLabel: text({ key: nonBlank({ value: descriptor.metadata?.actionVerb }) ?? 'Confirm' }),
     labels: schemaLabels({ schema: descriptor.inputSchema }, { text }),
+  };
+}
+
+/** Shared operator-language presentation for policy approvals and domain-owned tool plans. */
+export function toolApprovalConfirmation({ descriptor, input, locale, details = [], danger = false }: {
+  descriptor: Parameters<typeof toolApprovalPresentation>[0]['descriptor']; input: unknown; locale: string;
+  details?: readonly SurfaceDetail[]; danger?: boolean;
+}, _options = {}): HumanConfirmSpec {
+  const toolId = descriptor.id;
+  const presentation = toolApprovalPresentation({ descriptor }, { text: ({ key }) => approvalText({ locale, key }) });
+  return {
+    toolId, errorCode: 'TOOL_APPROVAL', title: presentation.title,
+    ...(presentation.summary ? { description: presentation.summary } : {}), details, danger,
+    detailDisclosure: { label: approvalText({ locale, key: 'Details' }), details: [
+      { label: approvalText({ locale, key: 'Input' }), value: input ?? {}, labels: presentation.labels,
+        description: `${approvalText({ locale, key: 'Technical name' })}: ${toolId}` },
+    ] },
+    confirmLabel: presentation.confirmLabel, cancelLabel: approvalText({ locale, key: 'Cancel' }),
   };
 }

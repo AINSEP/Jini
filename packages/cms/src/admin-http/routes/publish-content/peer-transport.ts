@@ -1,3 +1,7 @@
+import { PublishContentPeerTransportError } from '../../../publish/content/peer-transport.js';
+import { PublishContentPeerCredentialMissingError, PublishContentPeerNotFoundError, PublishContentPeerSecretStoreUnconfiguredError } from '../../../publish/content/peers.js';
+import { PublishTrustHandshakeError } from '../../../publish/trust/handshake-client.js';
+import type { MappedErrorClass, RouteRefusal } from './route-helpers.js';
 import type { PeerCallDeps } from "../../../publish/content/peer-transport.js";
 import type { PublishScope } from "../../../publish/content/ui/contract.js";
 import { readOverwriteEntityKeys } from "./import.js";
@@ -212,3 +216,30 @@ export const peerPushExecuteRoute = defineJsonRoute<{ peerId: string; body: unkn
     return ok({ value: await deps.execute({ peer, bundleId, confirmationToken, ...(overwriteEntityKeys === null ? {} : { overwriteEntityKeys }) }) });
   },
 });
+
+/** The typed errors a peer action answers with their own message. */
+export const PEER_ACTION_ERRORS: readonly MappedErrorClass[] = [
+  [PublishContentPeerNotFoundError, 404, "PEER_NOT_FOUND"],
+  // A connected destination's handshake. 502 for the same reason a transport error is: this
+  // instance is fine and the request was well-formed — the far side (or the path to it) is what
+  // failed, and the message is already the sentence the owner needs to act on.
+  [PublishTrustHandshakeError, 502, "PUBLISH_TRUST_HANDSHAKE_FAILED"],
+  [PublishContentPeerCredentialMissingError, 409, "PEER_CREDENTIAL_MISSING"],
+  [PublishContentPeerSecretStoreUnconfiguredError, 503, "SECRET_STORE_UNCONFIGURED"],
+];
+
+/** A peer action's typed failure as its refusal, or `undefined` for the redacted 500. Manual
+ *  publishing (`modules/publish-content-backstop.ts`) maps its failures through this too.
+ *  @complexity O(t) in the table length. */
+export function knownPeerActionRefusal({ err }: { err: unknown }, _options: Record<string, never> = {}): RouteRefusal | undefined {
+  if (err instanceof PublishContentPeerTransportError) {
+    // 502: this instance is fine and the request was well-formed; the PEER (or the path to it) is
+    // what failed. A 500 here would send an operator looking in the wrong server's logs — and for
+    // `EGRESS_REFUSED` specifically, the message is the `devHostAllowlist` diagnosis, which is only
+    // actionable if it reaches them intact.
+    return { status: 502, body: { error: err.message, code: err.code } };
+  }
+  const match = PEER_ACTION_ERRORS.find(([errorClass]) => err instanceof errorClass);
+  return match ? { status: match[1], body: { error: (err as Error).message, code: match[2] } } : undefined;
+}
+

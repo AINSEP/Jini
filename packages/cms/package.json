@@ -785,7 +785,16 @@
       "./react/posts/hooks/post-editor-messages": "universal",
       "./react/posts/hooks/post-editor-state.rules": "universal",
       "./react/posts/hooks/post-editor-save.rules": "universal",
-      "./react/posts/hooks/use-post-url-dialog.hooks": "browser"
+      "./react/posts/hooks/use-post-url-dialog.hooks": "browser",
+      "./html/site/safe-url": "universal",
+      "./admin-http/routes/media/provider-catalog": "universal",
+      "./admin-http/routes/system/publish-credentials/list": "universal",
+      "./public-http/http/site/render-site": "universal",
+      "./public-http/routes/site/media-rendition": "universal",
+      "./public-http/routes/site/pages/handlers/marketing": "universal",
+      "./public-http/routes/site/pages/handlers/post": "universal",
+      "./public-http/routes/site/pages/handlers/post-not-found": "universal",
+      "./public-http/routes/site/pages/handlers/slug-routes": "universal"
     },
     "isolation": {
       "domains": {
@@ -1250,7 +1259,16 @@
         "./react/posts/hooks/post-editor-messages": "posts",
         "./react/posts/hooks/post-editor-state.rules": "posts",
         "./react/posts/hooks/post-editor-save.rules": "posts",
-        "./react/posts/hooks/use-post-url-dialog.hooks": "posts"
+        "./react/posts/hooks/use-post-url-dialog.hooks": "posts",
+        "./public-http/routes/site/media-rendition": "media",
+        "./public-http/routes/site/pages/handlers/marketing": "presentation",
+        "./public-http/routes/site/pages/handlers/post": "presentation",
+        "./public-http/routes/site/pages/handlers/post-not-found": "presentation",
+        "./public-http/routes/site/pages/handlers/slug-routes": "presentation",
+        "./html/site/safe-url": "media",
+        "./admin-http/routes/media/provider-catalog": "media",
+        "./admin-http/routes/system/publish-credentials/list": "admin-http",
+        "./public-http/http/site/render-site": "presentation"
       }
     },
     "optionalPeers": {
@@ -5133,6 +5151,51 @@
       "types": "./dist/react/posts/hooks/use-post-url-dialog.hooks.d.ts",
       "import": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js",
       "default": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js"
+    },
+    "./html/site/safe-url": {
+      "types": "./dist/html/site/safe-url.d.ts",
+      "import": "./dist/html/site/safe-url.js",
+      "default": "./dist/html/site/safe-url.js"
+    },
+    "./admin-http/routes/media/provider-catalog": {
+      "types": "./dist/admin-http/routes/media/provider-catalog.d.ts",
+      "import": "./dist/admin-http/routes/media/provider-catalog.js",
+      "default": "./dist/admin-http/routes/media/provider-catalog.js"
+    },
+    "./admin-http/routes/system/publish-credentials/list": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/list.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/list.js"
+    },
+    "./public-http/http/site/render-site": {
+      "types": "./dist/public-http/http/site/render-site.d.ts",
+      "import": "./dist/public-http/http/site/render-site.js",
+      "default": "./dist/public-http/http/site/render-site.js"
+    },
+    "./public-http/routes/site/media-rendition": {
+      "types": "./dist/public-http/routes/site/media-rendition.d.ts",
+      "import": "./dist/public-http/routes/site/media-rendition.js",
+      "default": "./dist/public-http/routes/site/media-rendition.js"
+    },
+    "./public-http/routes/site/pages/handlers/marketing": {
+      "types": "./dist/public-http/routes/site/pages/handlers/marketing.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/marketing.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/marketing.js"
+    },
+    "./public-http/routes/site/pages/handlers/post": {
+      "types": "./dist/public-http/routes/site/pages/handlers/post.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/post.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/post.js"
+    },
+    "./public-http/routes/site/pages/handlers/post-not-found": {
+      "types": "./dist/public-http/routes/site/pages/handlers/post-not-found.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/post-not-found.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/post-not-found.js"
+    },
+    "./public-http/routes/site/pages/handlers/slug-routes": {
+      "types": "./dist/public-http/routes/site/pages/handlers/slug-routes.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/slug-routes.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/slug-routes.js"
     }
   },
   "files": [

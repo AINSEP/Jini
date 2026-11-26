@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
-import { createTemplatePreviewEmbedsRoute, type PreviewEmbedsRouteDeps } from "../template-preview-embeds.js";
+import { createTemplatePreviewEmbedsRoute, projectPreviewYoutubeIds, type PreviewEmbedsRouteDeps } from "../template-preview-embeds.js";
 
 /** @file The template-preview embed inspection spec: authorization before rendering, the projector
  * seeing only iframe `src` strings in document order, and inert markup never counting as an embed. */
@@ -143,4 +143,11 @@ describe("createTemplatePreviewEmbedsRoute", () => {
     await run({ deps });
     expect((renders[0] as { required: { rawTemplateChoice: unknown } }).required.rawTemplateChoice).toBeUndefined();
   });
+});
+
+it("projects preview video ids in first-occurrence order", () => {
+  expect(projectPreviewYoutubeIds({ iframeSources: [
+    "https://www.youtube.com/embed/abc_123-XYZ", "https://youtu.be/def_456-UVW",
+    "https://www.youtube-nocookie.com/embed/abc_123-XYZ", "https://evil.example/embed/ghi_789-RST",
+  ] })).toEqual({ youtubeIds: ["abc_123-XYZ", "def_456-UVW"] });
 });

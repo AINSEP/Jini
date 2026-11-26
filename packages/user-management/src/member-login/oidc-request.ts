@@ -42,7 +42,7 @@ export type OidcCallbackResult = { kind: 'signed_in'; result: MemberSignInResult
  * signed-in session (cookie + event, written by the spec after it clears the proof cookie) or the email proof.
  * @complexity O(1) protocol/transaction calls; S2 owns bounded exchange and indexed persistence.
  */
-export async function completeMemberOidcCallback({ context, protocol, links, browserBinding: readBinding, query, cancelled, userAgent, ip, deliveryAllowed, continuationLocation }: {
+export async function completeMemberOidcCallback(required: {
   context: LoginContext; protocol: OidcLoginDeps; links: MemberLoginLinkDeps;
   browserBinding: (required: Record<string, never>) => string;
   query: (required: Record<string, never>) => Readonly<Record<string, unknown>>;
@@ -51,8 +51,10 @@ export async function completeMemberOidcCallback({ context, protocol, links, bro
   deliveryAllowed: (required: { email: string }) => Promise<void>;
   continuationLocation: (required: { providerId: string; challengeId: string; continuation: string }) => string;
 }, _optional = {}): Promise<OidcCallbackResult> {
+  const { context, protocol, browserBinding: readBinding, query, cancelled, deliveryAllowed, continuationLocation } = required;
   const browserBinding = readBinding({});
   const login = await completeOidcLogin({ deps: protocol, input: { ...context, browserBinding, params: readOidcCallbackParams({ query: query({}), cancelled }) } });
+  const { links, userAgent, ip } = required;
   const linked = await resolveFederatedIdentity({ deps: links, input: { workspaceId: context.workspaceId,
     identity: login.identity, startedAt: login.startedAt, ...(login.connectMemberId === undefined ? {} : { connectMemberId: login.connectMemberId }),
     ...(userAgent === undefined ? {} : { userAgent }), ip } });
@@ -75,11 +77,13 @@ export async function completeMemberOidcCallback({ context, protocol, links, bro
 /** Open the sealed continuation against this browser's proof cookie and link the identity with the emailed code.
  * @complexity O(1) sealed open and challenge/link calls.
  */
-export async function verifyMemberOidcEmailProof({ context, protocol, links, browserBinding, proof, userAgent, ip }: {
+export async function verifyMemberOidcEmailProof(required: {
   context: LoginContext; protocol: OidcLoginDeps; links: MemberLoginLinkDeps; browserBinding: string;
   proof: { continuation: string; challengeId: string; code: string }; userAgent: string | undefined; ip: string;
 }, _optional = {}): Promise<MemberLoginLinkResult> {
+  const { context, protocol, browserBinding, proof } = required;
   const login = await openLoginEmailContinuation({ deps: protocol, input: { ...context, browserBinding, continuation: proof.continuation } });
+  const { links, userAgent, ip } = required;
   return resolveFederatedIdentity({ deps: links, input: { workspaceId: context.workspaceId,
     identity: login.identity, startedAt: login.startedAt, ...(login.connectMemberId === undefined ? {} : { connectMemberId: login.connectMemberId }),
     emailProof: { challengeId: proof.challengeId, code: proof.code }, ...(userAgent === undefined ? {} : { userAgent }), ip } });

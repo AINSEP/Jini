@@ -45,9 +45,10 @@ export async function readVisitorConsent({ readSnapshot, snapshotUnavailable, re
   try {
     const snapshot = await readSnapshot({});
     if (snapshotUnavailable({ config: snapshot })) return readConsent({ cookieHeader: '', policy: '', regionMode: 'opt-in' });
-    if (snapshot && siteBannerMode({ config: snapshot }) === 'off') return readConsent({ cookieHeader: '', policy: snapshot.policyVersion, regionMode: 'opt-in' }, {
-      ...facts({}), anonymous: true,
-    });
+    if (snapshot && siteBannerMode({ config: snapshot }) === 'off') {
+      const { secGpc, dnt, nowMs } = facts({});
+      return readConsent({ cookieHeader: '', policy: snapshot.policyVersion, regionMode: 'opt-in' }, { secGpc, dnt, nowMs, anonymous: true } as Parameters<typeof readConsent>[1]);
+    }
     const config = snapshot ?? await readPolicy({});
     const { cookieHeader, ...privacy } = facts({});
     return readConsent({ cookieHeader, policy: config.policyVersion, regionMode: config.regionMode === 'opt-in' ? 'opt-in' : 'auto' }, {

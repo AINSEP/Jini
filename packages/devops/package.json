@@ -141,7 +141,8 @@
       "./source-control/react/rules": "universal",
       "./source-control/react/source-control-visuals": "browser",
       "./source-control/react/ProvidersTab": "browser",
-      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser"
+      "./source-control/react/hooks/use-source-control-credentials.hooks": "browser",
+      "./deploy/site/static-publish/admin-publish-read": "universal"
     },
     "isolation": {
       "shared": [
@@ -805,6 +806,11 @@
       "types": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts",
       "import": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js",
       "default": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.js"
+    },
+    "./deploy/site/static-publish/admin-publish-read": {
+      "types": "./dist/deploy/site/static-publish/admin-publish-read.d.ts",
+      "import": "./dist/deploy/site/static-publish/admin-publish-read.js",
+      "default": "./dist/deploy/site/static-publish/admin-publish-read.js"
     }
   },
   "typesVersions": {
@@ -841,6 +847,9 @@
       ],
       "source-control/react/hooks/use-source-control-credentials.hooks": [
         "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts"
+      ],
+      "deploy/site/static-publish/admin-publish-read": [
+        "./dist/deploy/site/static-publish/admin-publish-read.d.ts"
       ]
     }
   },

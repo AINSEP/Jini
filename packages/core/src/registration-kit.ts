@@ -591,3 +591,17 @@ export function mergeDerivedRiskMaps(requiredArgs: { slices: readonly { domain: 
 
   return merged;
 }
+
+/**
+ * Refuses any input key outside `allowed`. For the confirm-gated tools a stray `confirm: true` or
+ * `confirmationToken` is refused out loud, so the model is never left thinking it counted.
+ *
+ * @throws {ToolInputError} Naming the first unexpected key.
+ * @complexity O(k) in the input's key count.
+ */
+export function refuseUnexpectedKeys({ input, allowed }: { input: Record<string, unknown>; allowed: readonly string[] }, _optional = {}): void {
+  const extra = Object.keys(input).find((key) => !allowed.includes(key));
+  if (extra !== undefined) {
+    throw new ToolInputError({ message: `'${extra}' is not an input of this tool. Only a click in the confirm dialog confirms it — nothing in the tool input can.` });
+  }
+}

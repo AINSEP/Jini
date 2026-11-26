@@ -147,7 +147,8 @@
       "./project-keys/tools": "universal",
       "./identity/user-purge": "universal",
       "./project-keys/sql/attachments": "node",
-      "./identity/sql/user-trash-adapter": "node"
+      "./identity/sql/user-trash-adapter": "node",
+      "./admin-http/owner/passkey-routes": "node"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -180,7 +181,8 @@
         "./identity/repo.authentication": "server",
         "./identity/repo.authorization": "server",
         "./member-login/unlink-identity": "members",
-        "./member-login/oidc-request": "server"
+        "./member-login/oidc-request": "server",
+        "./admin-http/owner/passkey-routes": "server"
       },
       "shared": [
         "src/server/auth-challenge.ts",
@@ -869,6 +871,11 @@
       "types": "./dist/identity/sql/user-trash-adapter.d.ts",
       "import": "./dist/identity/sql/user-trash-adapter.js",
       "default": "./dist/identity/sql/user-trash-adapter.js"
+    },
+    "./admin-http/owner/passkey-routes": {
+      "types": "./dist/admin-http/owner/passkey-routes.d.ts",
+      "import": "./dist/admin-http/owner/passkey-routes.js",
+      "default": "./dist/admin-http/owner/passkey-routes.js"
     }
   },
   "files": [

@@ -19,8 +19,10 @@
         "./site/cookie-consent": "render",
         "./site/http": "render",
         "./site/validation": "render",
-      "./site/service": "render",
-      "./site/tool-registrations": "render"
+        "./site/service": "render",
+        "./site/tool-registrations": "render",
+        "./site/document-state": "render",
+        "./site/document-assets": "render"
       },
       "shared": [
         "src/site/config.ts",
@@ -58,7 +60,9 @@
       "./site/ensure-privacy-defaults": "universal",
       "./site/tool-registrations": "node",
       "./site/request": "universal",
-      "./site/revisions.repo": "node"
+      "./site/revisions.repo": "node",
+      "./site/document-state": "universal",
+      "./site/document-assets": "universal"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version.",
@@ -190,6 +194,16 @@
       "types": "./dist/site/revisions.repo.d.ts",
       "import": "./dist/site/revisions.repo.js",
       "default": "./dist/site/revisions.repo.js"
+    },
+    "./site/document-state": {
+      "types": "./dist/site/document-state.d.ts",
+      "import": "./dist/site/document-state.js",
+      "default": "./dist/site/document-state.js"
+    },
+    "./site/document-assets": {
+      "types": "./dist/site/document-assets.d.ts",
+      "import": "./dist/site/document-assets.js",
+      "default": "./dist/site/document-assets.js"
     }
   },
   "files": [

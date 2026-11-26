@@ -28,3 +28,31 @@ it("does not link a continuation whose browser binding mismatches", async () => 
   expect(openLoginEmailContinuation).toHaveBeenCalledWith({ deps: {}, input: { workspaceId: "w", providerId: "p", browserBinding: "wrong", continuation: "sealed" } });
   expect(resolveFederatedIdentity).not.toHaveBeenCalled();
 });
+
+it("reads link facts only after callback protocol completion and after a proof retry", async () => {
+  const order: string[] = [];
+  const login = { identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "now", authenticatedAt: "now", returnPath: "/account" };
+  vi.mocked(completeOidcLogin).mockImplementation(async () => { order.push("protocol"); return login; });
+  vi.mocked(resolveFederatedIdentity).mockImplementation(async () => { order.push("link"); return { kind: "email_verification_required", email: "a@example.com", providerId: "p" }; });
+  const required = {
+    context: { workspaceId: "w", providerId: "p" }, protocol: {} as OidcLoginDeps,
+    get links() { order.push("links"); return {} as MemberLoginLinkDeps; },
+    get userAgent() { order.push("userAgent"); return "agent"; },
+    get ip() { order.push("ip"); return "ip"; },
+  };
+  const callback = Object.defineProperties({
+    context: required.context, protocol: required.protocol, browserBinding: () => "binding", query: () => ({ code: "c", state: "s" }),
+    cancelled: () => new Error("cancelled"), deliveryAllowed: async () => {}, continuationLocation: () => "location",
+  }, Object.getOwnPropertyDescriptors(required)) as Parameters<typeof completeMemberOidcCallback>[0];
+  await completeMemberOidcCallback(callback);
+  expect(order).toEqual(["protocol", "links", "userAgent", "ip", "link"]);
+  order.length = 0;
+  vi.mocked(openLoginEmailContinuation).mockImplementationOnce(async () => { order.push("proof-refused"); throw new Error("retry"); })
+    .mockImplementationOnce(async () => { order.push("proof"); return login; });
+  const proof = Object.defineProperties({ context: required.context, protocol: required.protocol, browserBinding: "binding", proof: { continuation: "c", challengeId: "id", code: "123456" } }, Object.getOwnPropertyDescriptors(required)) as Parameters<typeof verifyMemberOidcEmailProof>[0];
+  await expect(verifyMemberOidcEmailProof(proof)).rejects.toThrow("retry");
+  expect(order).toEqual(["proof-refused"]);
+  order.length = 0;
+  await verifyMemberOidcEmailProof(proof);
+  expect(order).toEqual(["proof", "links", "userAgent", "ip", "link"]);
+});
