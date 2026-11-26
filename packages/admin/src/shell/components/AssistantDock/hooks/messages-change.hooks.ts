@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { isTerminalRunStatus, type ChatMessage } from "@jini-ai/chat/core";
+import type { ChatMessage } from "../../../../react/kit.js";
 
 import type { UseAssistantChats } from "../../../hooks/use-assistant-chats.hooks.js";
 
@@ -25,13 +25,13 @@ import type { UseAssistantChats } from "../../../hooks/use-assistant-chats.hooks
  * });
  */
 export function shouldPublishOnMessagesChange(
-  { messages, settledRunMessageId }: { messages: ChatMessage[]; settledRunMessageId: string | null },
+  { messages, settledRunMessageId, deps }: { messages: ChatMessage[]; settledRunMessageId: string | null; deps: { isTerminalRunStatus: (required: { status: ChatMessage["runStatus"] }) => boolean } },
 ): { publish: boolean; nextSettledRunMessageId: string | null } {
   const last = messages[messages.length - 1];
   if (!last || last.role !== "assistant") {
     return { publish: false, nextSettledRunMessageId: settledRunMessageId };
   }
-  if (!isTerminalRunStatus({ status: last.runStatus })) {
+  if (!deps.isTerminalRunStatus({ status: last.runStatus })) {
     // Retry reuses a saved assistant message's id; its next real completion must still publish.
     return { publish: false, nextSettledRunMessageId: settledRunMessageId === last.id ? null : settledRunMessageId };
   }
@@ -126,7 +126,8 @@ export function shouldPublishContentOnToolProgress(
  * const handleMessagesChange = useMessagesChangeHandler({ chats });
  */
 export function useMessagesChangeHandler(
-  { chats, publishSettingsRefresh, publishContentRefresh, publishMessages }: {
+  { chats, publishSettingsRefresh, publishContentRefresh, publishMessages, deps }: {
+    deps: { isTerminalRunStatus: (required: { status: ChatMessage["runStatus"] }) => boolean };
     chats: Pick<UseAssistantChats, "onMessagesChange"> & Partial<Pick<UseAssistantChats, "paneKey" | "initialMessages">>;
     publishSettingsRefresh: () => void; publishContentRefresh: () => void; publishMessages: (messages: ChatMessage[]) => void;
   },
@@ -141,7 +142,7 @@ export function useMessagesChangeHandler(
       if (history.current.paneKey !== chats.paneKey || history.current.initialMessages !== chats.initialMessages) {
         history.current = { paneKey: chats.paneKey, initialMessages: chats.initialMessages };
         const initialMessages = chats.initialMessages ?? [];
-        settledRunMessageId.current = shouldPublishOnMessagesChange({ messages: initialMessages, settledRunMessageId: null }).nextSettledRunMessageId;
+        settledRunMessageId.current = shouldPublishOnMessagesChange({ messages: initialMessages, settledRunMessageId: null, deps }).nextSettledRunMessageId;
         publishedToolProgress.current = shouldPublishContentOnToolProgress({ messages: initialMessages, publishedToolProgress: null }).nextPublishedToolProgress;
       }
       publishMessages(messages);
@@ -152,6 +153,7 @@ export function useMessagesChangeHandler(
       const { publish, nextSettledRunMessageId } = shouldPublishOnMessagesChange({
         messages,
         settledRunMessageId: settledRunMessageId.current,
+        deps,
       });
       settledRunMessageId.current = nextSettledRunMessageId;
 
@@ -169,7 +171,7 @@ export function useMessagesChangeHandler(
       // does not announce twice.
       if (publish || toolProgress.publish) publishContentRefresh();
     },
-    [chats, publishSettingsRefresh, publishContentRefresh, publishMessages],
+    [chats, publishSettingsRefresh, publishContentRefresh, publishMessages, deps],
   );
 }
 

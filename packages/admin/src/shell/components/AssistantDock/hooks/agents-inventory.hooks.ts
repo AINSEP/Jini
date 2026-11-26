@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { orFallback } from "@jini-ai/core/errors/idioms";
-import { type ChatPaneAgent } from "@jini-ai/chat/react";
+import type { ChatPaneAgent } from "../../../../react/kit.js";
 
 import type { AdminHttp } from "../../../lib/admin-http/request.js";
 import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
-import type { useCachedLoader } from "@jini-ai/ui/fetch-query";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import type { useAdminBootScope } from "../../../lib/admin-boot-scope.js";
 import type { CachedLoader } from "@jini-ai/core/fetch";
 
@@ -176,7 +176,7 @@ export async function rescanAgentsInto(
  * so pane retries can wait out a pending cooldown instead of spending their budget on cached reads. */
 export function useAgentsLoader(
   { useBootScope, useLoader, fetchAgents, clock }: {
-    useBootScope: typeof useAdminBootScope; useLoader: typeof useCachedLoader;
+    useBootScope: typeof useAdminBootScope; useLoader: FetchQueryAdapter["useCachedLoader"];
     fetchAgents: () => Promise<ChatPaneAgent[]>; clock: () => number;
   },
   _optional: Record<string, never> = {},

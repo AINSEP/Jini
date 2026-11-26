@@ -801,7 +801,11 @@
       "./screens/storage/hooks/use-screenshot-cleanup.hooks": "browser",
       "./shell/components/AssistantDock/hooks/agents-inventory.hooks": "browser",
       "./shell/components/AssistantDock/hooks/runtime-access.hooks": "browser",
-      "./shell/components/AssistantDock/hooks/messages-change.hooks": "browser"
+      "./shell/components/AssistantDock/hooks/messages-change.hooks": "browser",
+      "./shell/lib/paint-admin-accent": "browser",
+      "./screens/email/EmailSegments": "browser",
+      "./screens/email/EmailTemplateEditor": "browser",
+      "./shell/components/AssistantDock/assistant-dock-props": "browser"
     },
     "isolation": {
       "shared": [
@@ -5015,6 +5019,26 @@
       "types": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.js"
+    },
+    "./shell/lib/paint-admin-accent": {
+      "types": "./dist/shell/lib/paint-admin-accent.d.ts",
+      "import": "./dist/shell/lib/paint-admin-accent.js",
+      "default": "./dist/shell/lib/paint-admin-accent.js"
+    },
+    "./screens/email/EmailSegments": {
+      "types": "./dist/screens/email/EmailSegments.d.ts",
+      "import": "./dist/screens/email/EmailSegments.js",
+      "default": "./dist/screens/email/EmailSegments.js"
+    },
+    "./screens/email/EmailTemplateEditor": {
+      "types": "./dist/screens/email/EmailTemplateEditor.d.ts",
+      "import": "./dist/screens/email/EmailTemplateEditor.js",
+      "default": "./dist/screens/email/EmailTemplateEditor.js"
+    },
+    "./shell/components/AssistantDock/assistant-dock-props": {
+      "types": "./dist/shell/components/AssistantDock/assistant-dock-props.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-dock-props.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-dock-props.js"
     }
   },
   "files": [
@@ -5618,6 +5642,18 @@
       ],
       "shell/components/AssistantDock/hooks/messages-change.hooks": [
         "./dist/shell/components/AssistantDock/hooks/messages-change.hooks.d.ts"
+      ],
+      "shell/lib/paint-admin-accent": [
+        "./dist/shell/lib/paint-admin-accent.d.ts"
+      ],
+      "screens/email/EmailSegments": [
+        "./dist/screens/email/EmailSegments.d.ts"
+      ],
+      "screens/email/EmailTemplateEditor": [
+        "./dist/screens/email/EmailTemplateEditor.d.ts"
+      ],
+      "shell/components/AssistantDock/assistant-dock-props": [
+        "./dist/shell/components/AssistantDock/assistant-dock-props.d.ts"
       ]
     }
   },

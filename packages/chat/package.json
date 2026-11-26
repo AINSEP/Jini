@@ -55,7 +55,7 @@
       "./react/components/RoutedA2uiSurfaceCard": "browser",
       "./react/admin-execution/ai-agent-presentation": "universal",
       "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": "browser",
-      "./transports/ag-ui/approval-relay": "universal",
+      "./core/assistant-client/ag-ui-approval-relay": "universal",
       "./react/chat-cleanup/ChatCleanupPanel": "browser",
       "./react/chat-cleanup/chat-cleanup.hooks": "browser"
     },
@@ -290,7 +290,7 @@
       "import": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js",
       "default": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js"
     },
-    "./transports/ag-ui/approval-relay": {
+    "./core/assistant-client/ag-ui-approval-relay": {
       "types": "./dist/core/assistant-client/ag-ui-approval-relay.d.ts",
       "import": "./dist/core/assistant-client/ag-ui-approval-relay.js",
       "default": "./dist/core/assistant-client/ag-ui-approval-relay.js"
@@ -493,7 +493,7 @@
       "react/admin-execution/hooks/use-ai-agent-presentation.hooks": [
         "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts"
       ],
-      "transports/ag-ui/approval-relay": [
+      "core/assistant-client/ag-ui-approval-relay": [
         "./dist/core/assistant-client/ag-ui-approval-relay.d.ts"
       ],
       "react/chat-cleanup/ChatCleanupPanel": [

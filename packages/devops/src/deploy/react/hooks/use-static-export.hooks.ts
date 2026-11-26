@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ExportRunSnapshot as AdminExportRunSnapshot } from "@jini-ai/core/contracts/site/export-run";
-import type { useFetchQuery } from "@jini-ai/ui/fetch-query";
-import type { useContentRefreshSubscription } from "@jini-ai/admin/shell/hooks/use-content-refresh-subscription.hooks";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import { DEPLOYMENT_EXPORT_RESOURCE } from "@jini-ai/devops/deploy/react/rules";
 
 import type { StaticExportPort } from "@jini-ai/core/contracts/site/deployment-admin";
@@ -108,7 +107,7 @@ const POLL_FAILURE_LIMIT = 3;
 
 export function useStaticExport(required: {
   port: StaticExportPort; t: Translate; locale: string;
-  useFetchQuery: typeof useFetchQuery; useContentRefreshSubscription: typeof useContentRefreshSubscription;
+  useFetchQuery: FetchQueryAdapter["useFetchQuery"]; useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
   describeApiError: (required: { e: unknown; fallback: string }) => string;
   exportLoadErrorMessage: (required: { locale: string; error: string }) => string;
   exportPollErrorMessage: (required: { locale: string; error: string }) => string;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { ChatMessage } from "@jini-ai/chat/core";
+import { isTerminalRunStatus, type ChatMessage } from "@jini-ai/chat/core";
 import { useMessagesChangeHandler } from "../hooks/messages-change.hooks.js";
 
 it("refreshes content once for a new tool result and never republishes its replay", () => {
@@ -10,7 +10,7 @@ it("refreshes content once for a new tool result and never republishes its repla
   const publishMessages = vi.fn();
   const onMessagesChange = vi.fn();
   const { result } = renderHook(() => useMessagesChangeHandler({
-    chats: { onMessagesChange }, publishContentRefresh, publishSettingsRefresh, publishMessages,
+    chats: { onMessagesChange }, publishContentRefresh, publishSettingsRefresh, publishMessages, deps: { isTerminalRunStatus },
   }));
   const messages: ChatMessage[] = [{ id: "run", role: "assistant", content: "Working", runStatus: "running",
     events: [{ kind: "tool_result", toolUseId: "tool", content: "ok", isError: false }] }];

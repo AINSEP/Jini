@@ -797,7 +797,10 @@
       "./react/posts/post-editor-rules": "universal",
       "./react/posts/editor/notices/PostEditorNotices": "browser",
       "./react/widgets/WidgetConfigFields/MediaContentEditor.hooks": "browser",
-      "./react/pages/page-editor-rules": "universal"
+      "./react/pages/page-editor-rules": "universal",
+      "./react/widgets/WidgetPickerDialog/WidgetPickerDialog": "browser",
+      "./react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks": "browser",
+      "./react/media/hooks/use-media-writes.hooks": "browser"
     },
     "isolation": {
       "domains": {
@@ -5205,6 +5208,21 @@
       "types": "./dist/react/pages/page-editor-rules.d.ts",
       "import": "./dist/react/pages/page-editor-rules.js",
       "default": "./dist/react/pages/page-editor-rules.js"
+    },
+    "./react/widgets/WidgetPickerDialog/WidgetPickerDialog": {
+      "types": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.d.ts",
+      "import": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.js",
+      "default": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.js"
+    },
+    "./react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks": {
+      "types": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.d.ts",
+      "import": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.js",
+      "default": "./dist/react/widgets/WidgetPickerDialog/WidgetPickerDialog.hooks.js"
+    },
+    "./react/media/hooks/use-media-writes.hooks": {
+      "types": "./dist/react/media/hooks/use-media-writes.hooks.d.ts",
+      "import": "./dist/react/media/hooks/use-media-writes.hooks.js",
+      "default": "./dist/react/media/hooks/use-media-writes.hooks.js"
     }
   },
   "files": [

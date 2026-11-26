@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { type ChatPaneAgent, type ChatPaneRuntimeAccess } from "@jini-ai/chat/react";
+import type { ChatPaneAgent, ChatPaneRuntimeAccess } from "../../../../react/kit.js";
 
 import type { AgentsLoader } from "./agents-inventory.hooks.js";
 

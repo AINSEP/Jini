@@ -34,12 +34,17 @@ function createComposerReload(
   };
 }
 
-function watchComposerCapabilities(
-  { queryScope, setCatalog, createInstalledSource, createBundledSource, watch, reportFailure }: {
+export function watchComposerCapabilities(
+  { queryScope, setCatalog, createInstalledSource, createBundledSource, reportFailure, deps, window, document, skillsChangedEvent, getAssistantDockOpen, subscribeToAssistantDock }: {
     createInstalledSource: Parameters<typeof useComposerCapabilities>[0]["createInstalledSource"];
     createBundledSource: () => ComposerCapabilitySource;
-    watch: Parameters<typeof useComposerCapabilities>[0]["watch"];
     reportFailure: (error: unknown) => void;
+    deps: Parameters<typeof useComposerCapabilities>[0]["deps"];
+    window: Pick<Window, "addEventListener" | "removeEventListener">;
+    document: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+    skillsChangedEvent: string;
+    getAssistantDockOpen: () => boolean;
+    subscribeToAssistantDock: (listener: () => void) => () => void;
     queryScope: ReturnType<typeof useAdminBootScope>["queryScope"]; setCatalog: React.Dispatch<React.SetStateAction<{ scope: ReturnType<typeof useAdminBootScope>["queryScope"]; projection: ComposerCapabilityProjection }>> },
   _options: Record<string, never> = {},
 ): () => void {
@@ -47,12 +52,36 @@ function watchComposerCapabilities(
   // No module singleton can retain another user's installed capabilities.
   const installed = createInstalledSource();
   const state = { cancelled: false, generation: 0, shown: "" };
+  let stopPolling = () => {};
   const reload = createComposerReload({ installed, state, queryScope, setCatalog, createBundledSource, reportFailure });
   void reload();
-  const unsubscribe = watch({ refreshVisible: () => { void reload(); }, forceReload: () => { void reload({}, { force: true }); } });
+  const refreshVisible = () => {
+    if (document.visibilityState !== "hidden") void reload();
+  };
+  // Polling belongs to the dock's visible lifetime, including an unfocused visible window.
+  const syncPolling = (_required = {}, _options = {}) => {
+    stopPolling();
+    if (getAssistantDockOpen() && document.visibilityState !== "hidden") {
+      stopPolling = deps.startVisibleInterval({ tick: () => { void reload(); }, periodMs: 60_000 });
+    }
+  };
+  const visibilityChanged = () => { syncPolling(); refreshVisible(); };
+  const skillsChanged = () => { void reload({}, { force: true }); };
+  const stopDockSubscription = subscribeToAssistantDock(() => {
+    syncPolling();
+    if (getAssistantDockOpen()) refreshVisible();
+  });
+  syncPolling();
+  window.addEventListener(skillsChangedEvent, skillsChanged);
+  window.addEventListener("focus", refreshVisible);
+  document.addEventListener("visibilitychange", visibilityChanged);
   return () => {
     state.cancelled = true;
-    unsubscribe();
+    stopPolling();
+    stopDockSubscription();
+    window.removeEventListener(skillsChangedEvent, skillsChanged);
+    window.removeEventListener("focus", refreshVisible);
+    document.removeEventListener("visibilitychange", visibilityChanged);
   };
 }
 
@@ -87,11 +116,16 @@ export interface UseComposerCapabilities {
  * const { composerCapabilities } = useComposerCapabilities();
  */
 export function useComposerCapabilities(
-  { useBootScopeHook, createInstalledSource, createBundledSource, watch, reportFailure }: {
+  { useBootScopeHook, createInstalledSource, createBundledSource, reportFailure, deps, window, document, skillsChangedEvent, getAssistantDockOpen, subscribeToAssistantDock }: {
     useBootScopeHook: typeof useAdminBootScope;
     createInstalledSource: () => ComposerCapabilitySource & { reload(required: Record<string, never>, optional: { force: boolean }): ReturnType<ComposerCapabilitySource["list"]> };
     createBundledSource: () => ComposerCapabilitySource;
-    watch: (required: { refreshVisible: () => void; forceReload: () => void }, optional?: Record<string, never>) => () => void;
+    deps: { startVisibleInterval: (required: { tick: () => void; periodMs: number }) => () => void };
+    window: Pick<Window, "addEventListener" | "removeEventListener">;
+    document: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+    skillsChangedEvent: string;
+    getAssistantDockOpen: () => boolean;
+    subscribeToAssistantDock: (listener: () => void) => () => void;
     reportFailure: (error: unknown) => void;
   },
   _optional: Record<string, never> = {},
@@ -101,8 +135,8 @@ export function useComposerCapabilities(
 
   useEffect(() => {
     if (checking) return undefined;
-    return watchComposerCapabilities({ queryScope, setCatalog, createInstalledSource, createBundledSource, watch, reportFailure });
-  }, [queryScope, checking, createInstalledSource, createBundledSource, watch, reportFailure]);
+    return watchComposerCapabilities({ queryScope, setCatalog, createInstalledSource, createBundledSource, reportFailure, deps, window, document, skillsChangedEvent, getAssistantDockOpen, subscribeToAssistantDock });
+  }, [queryScope, checking, createInstalledSource, createBundledSource, reportFailure, deps, window, document, skillsChangedEvent, getAssistantDockOpen, subscribeToAssistantDock]);
 
   return { composerCapabilities: catalog.scope === queryScope && !checking ? catalog.projection : emptyComposerCapabilityProjection() };
 }

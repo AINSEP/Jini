@@ -15,7 +15,7 @@ import { ScreenshotCleanupSection } from "./ScreenshotCleanupSection.js";
 
 
 export interface StorageScreenProps {
-  Button: ElementType<ButtonHTMLAttributes<HTMLButtonElement>>;
+  kit: { Button: ElementType<ButtonHTMLAttributes<HTMLButtonElement>> };
   links: readonly StorageLink[];
   copy: ComponentProps<typeof StoragePanel>["copy"];
   t: Parameters<typeof useWiredStorage>[0]["t"];
@@ -34,7 +34,7 @@ export interface StorageScreenProps {
 }
 
 /** The Storage screen over injected clients, clock and locale; {@link Storage} binds the live ones. */
-export function StorageScreen({ client, screenshotClient, reportErrors, now, locale, useWiredStorageHook, useScreenshotCleanupHook, Button: KitButton, links, copy, t, categoryLabels, kindLabels, screenshotAgeDays, screenshotsAnchor, screenshotHeading }: StorageScreenProps, _optional: Record<string, never> = {}) {
+export function StorageScreen({ client, screenshotClient, reportErrors, now, locale, useWiredStorageHook, useScreenshotCleanupHook, kit: { Button: KitButton }, links, copy, t, categoryLabels, kindLabels, screenshotAgeDays, screenshotsAnchor, screenshotHeading }: StorageScreenProps, _optional: Record<string, never> = {}) {
   const useStorage = () => useWiredStorageHook({ client, reportErrors, locale, links, t, categoryLabels, kindLabels }, {});
   // The same `.jini-page` / `.jini-page-header` / `.jini-page-title` frame as Trash and Media: without it the
   // page opened on bare section headings with no title (live-found 2026-11-25).

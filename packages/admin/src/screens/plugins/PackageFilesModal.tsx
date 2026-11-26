@@ -44,7 +44,7 @@ export interface PackageFilesModalProps {
   /** Forward the shared shell's selected-view notification so the host can update its header. */
   readonly onView?: (viewId: string) => void;
   /** The view to open on (an additional view's id); the package files otherwise. */
-  readonly initialViewId?: string;
+  readonly initialViewId?: string | undefined;
 }
 
 /** A package-relative path with a `<wbr>` after every `/` (visual QA, 2026-08-31). Used by the

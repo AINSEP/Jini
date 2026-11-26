@@ -1,5 +1,5 @@
 import { type Translate } from '@jini-ai/core/text';
-import { type AccessTokenRowCategoryId } from "@jini-ai/admin/security/access-token-rows";
+import type { AdminCustomCredentialCategoryId as AccessTokenRowCategoryId } from "@jini-ai/core/contracts/site/api-security-api-types";
 /** A stable id for one of the four Tier-2 credential stores — `AccessTokenRow.id`'s counterpart for
  *  the stores this page reads through a completely different set of endpoints (see
  *  `@jini-ai/admin/security/host/hooks/other-credentials-port.hooks`). This id names the ROW this page renders, not the table. */

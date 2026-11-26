@@ -39,7 +39,7 @@ function harness() {
   };
   const screenshotClient: ScreenshotCleanupClient = { preview: vi.fn(), apply: vi.fn() };
   render(<StorageScreen client={client} screenshotClient={screenshotClient} reportErrors={({ error }) => String(error)} now={() => 0} locale="en" useWiredStorageHook={useWiredStorage} useScreenshotCleanupHook={useScreenshotCleanup}
-    Button="button" links={[]} t={({ key }) => key} categoryLabels={{ logs: "Logs", uploads: "Uploads", exports: "Exports" }}
+    kit={{ Button: "button" }} links={[]} t={({ key }) => key} categoryLabels={{ logs: "Logs", uploads: "Uploads", exports: "Exports" }}
     kindLabels={{ cache: "Cache", derived: "Rebuildable files", "old-copy": "Old copies" }}
     copy={{ automatic: "Automatic", yours: "Yours", shown: "Shown only", dryRun: "Clean up now", confirm: "Review and confirm", clean: "Clean up", lastAutomaticPass: "Last pass", freed: "Freed", failures: "Failed" }}
     screenshotAgeDays={90} screenshotsAnchor="screenshots" screenshotHeading="Delete screenshots older than 90 days" />);

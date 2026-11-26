@@ -1,7 +1,12 @@
-import type { MediaProviderOption } from "@jini-ai/core";
-import { I18nProvider, MediaProvidersTab, SETTINGS_DIALOG_DICTIONARIES } from "@jini-ai/ui";
+import type { MediaProviderOption, MediaProviderCatalogPolicy } from "@jini-ai/core";
 
-import type { ComponentProps } from "react";
+import type { ComponentType, ReactNode } from "react";
+
+type MediaProviderMap = Record<string, { apiKey?: string; baseUrl?: string; model?: string; apiKeyConfigured?: boolean; apiKeyTail?: string; source?: string }>;
+type MediaProvidersPort = { fetchMediaProviders: () => Promise<MediaProviderMap | null> } & (
+  { saveMediaProviders: (providers: MediaProviderMap) => Promise<MediaProviderMap> }
+  | { patchProvider: (required: { providerId: string; fields: { apiKey?: string; baseUrl?: string; model?: string } }, optional?: Record<string, never>) => Promise<MediaProviderMap>; removeProvider: (required: { providerId: string }, optional?: Record<string, never>) => Promise<MediaProviderMap> }
+);
 
 /** No cards until the host answers: an empty list, never a stale built-in roster. */
 const NO_PROVIDERS: readonly MediaProviderOption[] = [];
@@ -30,15 +35,21 @@ const NO_PROVIDERS: readonly MediaProviderOption[] = [];
  * is now the host's live provider catalog (`useMediaProviderCatalog`), the same array `Media` counts
  * for the tab badge, so a plugin-mounted vendor gets exactly one card and one count entry.
  */
-export function ExternalProvidersPanel({ locale, catalog, useAdminThemeBoundaryHook, mediaProvidersPort, mediaProviderCatalogPolicy, pinnedProviderIds }: {
+export function ExternalProvidersPanel({ locale, catalog, useAdminThemeBoundaryHook, mediaProvidersPort, mediaProviderCatalogPolicy, pinnedProviderIds, kit }: {
   locale: string;
   catalog: readonly MediaProviderOption[] | null;
   useAdminThemeBoundaryHook: (required: Record<string, never>, optional: Record<string, never>) => { "data-theme": string; "data-color-scheme"?: string };
-  mediaProvidersPort: ComponentProps<typeof MediaProvidersTab>["port"];
-  mediaProviderCatalogPolicy: NonNullable<ComponentProps<typeof MediaProvidersTab>["catalogPolicy"]>;
-  pinnedProviderIds: NonNullable<ComponentProps<typeof MediaProvidersTab>["pinnedProviderIds"]>;
+  mediaProvidersPort: MediaProvidersPort;
+  mediaProviderCatalogPolicy: MediaProviderCatalogPolicy;
+  pinnedProviderIds: readonly string[];
+  kit: {
+    I18nProvider: ComponentType<{ initialLocale: string; dictionaries: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>; fallbackLocale: string; syncDocumentAttributes: boolean; children?: ReactNode }>;
+    MediaProvidersTab: ComponentType<{ port: MediaProvidersPort; catalog: readonly MediaProviderOption[]; catalogPolicy: MediaProviderCatalogPolicy; pinnedProviderIds: readonly string[] }>;
+    SETTINGS_DIALOG_DICTIONARIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>;
+  };
 }, _optional = {}) {
   const themeBoundary = useAdminThemeBoundaryHook({}, {});
+  const { I18nProvider, MediaProvidersTab, SETTINGS_DIALOG_DICTIONARIES } = kit;
   return (
     <I18nProvider
       initialLocale={locale}

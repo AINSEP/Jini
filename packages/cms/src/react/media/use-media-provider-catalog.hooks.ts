@@ -1,7 +1,6 @@
 import type { MediaProviderOption } from "@jini-ai/core";
 import { useEffect, useState } from "react";
 
-import type { MediaProviderCatalogPort } from "@jini-ai/admin/screens/media/media-providers-port";
 
 /**
  * The host's live provider catalog for the External Providers tab: the SAME array its cards map
@@ -14,7 +13,7 @@ import type { MediaProviderCatalogPort } from "@jini-ai/admin/screens/media/medi
  * @complexity O(1) per render plus one request per mount.
  */
 export function useMediaProviderCatalog(
-  { port }: { port: MediaProviderCatalogPort },
+  { port }: { port: { fetchMediaProviderCatalog: () => Promise<readonly MediaProviderOption[] | null> } },
   _optional: Record<string, never> = {},
 ): readonly MediaProviderOption[] | null {
   const [catalog, setCatalog] = useState<readonly MediaProviderOption[] | null>(null);
