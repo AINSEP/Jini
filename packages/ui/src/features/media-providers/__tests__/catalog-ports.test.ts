@@ -125,7 +125,7 @@ it('uses the same policy for rendered catalog IDs, pinned IDs and credential sta
     saveMediaProviders: async providers => providers,
   };
   render(createElement(MediaProvidersTab, {
-    port, catalogPolicy: vendorPolicy,
+    port, catalogPolicy: vendorPolicy, useMediaProvidersTabHook: useMediaProvidersTab,
     catalog: [{ id: 'nano-banana', label: 'Banana' }, { id: 'extension', label: 'A Host Extension' }],
     pinnedProviderIds: ['nano-banana'], agentHandle: 'media',
   }));

@@ -59,7 +59,7 @@ export interface MediaProvidersTabProps {
    *  provider's own catalog id via `buildAgentListHandles`. */
   agentHandle?: string;
   useTHook?: typeof useT;
-  useMediaProvidersTabHook?: typeof useMediaProvidersTab;
+  useMediaProvidersTabHook: typeof useMediaProvidersTab;
   useMediaProviderKeyVisibilityHook?: typeof useMediaProviderKeyVisibility;
 }
 
@@ -81,7 +81,7 @@ export function MediaProvidersTab({
   labels,
   agentHandle,
   useTHook = useT,
-  useMediaProvidersTabHook = useMediaProvidersTab,
+  useMediaProvidersTabHook,
   useMediaProviderKeyVisibilityHook = useMediaProviderKeyVisibility,
 }: MediaProvidersTabProps) {
   const t = useTHook();

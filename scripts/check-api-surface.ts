@@ -13,6 +13,7 @@ import {
   baselineFileName, buildPackageSurface, coveredByChangeset, diffSurface, isBreaking,
   type PackageSurface,
 } from "./lib/api-surface.js";
+import { duplicateManifestExportKeys } from "./lib/package-sources.js";
 
 const root = join(import.meta.dirname, "..");
 const baseDir = join(root, "api-baseline");
@@ -30,7 +31,14 @@ for (const dir of readdirSync(join(root, "packages")).sort()) {
   const pkgDir = join(root, "packages", dir);
   const pj = join(pkgDir, "package.json");
   if (!existsSync(pj)) continue;
-  const json = JSON.parse(readFileSync(pj, "utf8"));
+  const source = readFileSync(pj, "utf8");
+  const duplicates = duplicateManifestExportKeys({ file: pj, source });
+  if (duplicates.length) {
+    for (const diagnostic of duplicates) console.error(`[api] ${diagnostic}`);
+    failed = true;
+    continue;
+  }
+  const json = JSON.parse(source);
   if (json.private || !json.exports) continue;
   const cur = buildPackageSurface({ pkgDir, exportsField: json.exports });
   pkgCount++; entryCount += Object.keys(cur).length;
@@ -54,4 +62,4 @@ for (const dir of readdirSync(join(root, "packages")).sort()) {
   if (breaking && !covered) failed = true;
 }
 console.log(`[api] ${update ? "wrote" : "checked"} ${pkgCount} packages, ${entryCount} entries, ${symCount} symbols`);
-if (failed) { console.error("[api] FAIL: removed export(s) without a major/minor changeset for that package. Add one (pnpm changeset) or restore the export."); process.exit(1); }
+if (failed) { console.error("[api] FAIL: duplicate manifest keys or removed export(s) without a major/minor changeset. Remove duplicate keys, add a changeset (pnpm changeset), or restore the export."); process.exit(1); }
