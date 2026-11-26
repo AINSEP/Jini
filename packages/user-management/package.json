@@ -162,7 +162,7 @@
       "./members/tool-registrations": "universal",
       "./newsletter/tool-registrations": "universal",
       "./newsletter/delivery/tool-registrations": "universal",
-      "./identity/sql/kernel-user-purge": "node"
+      "./identity/sql/kernel-user-purge": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
