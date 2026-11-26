@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolExecutionContext, type ToolContributor } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolExecutionContext, type ToolContributor } from "@jini-ai/core";
 import { withModelFacingErrors, type ModelFacingErrorRule } from "@jini-ai/core/model-facing-tool-errors";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { SiteShareBackend } from "./share-backend.js";
@@ -9,7 +9,8 @@ import { PLAN_TOOL_ID, planSiteBackup, PUSH_PERMISSION, pushSiteBackup, SITE_BAC
 
 export interface SiteBackupToolDeps extends SiteBackupServiceDeps {
   readonly catalog: ReadonlyMap<string, AgentToolDefinition>;
-  readonly toolMetadata: Parameters<typeof buildDomainRegistrations>[0]["metadata"];
+  readonly catalogModule: string;
+  readonly toolMetadata: NonNullable<Parameters<typeof buildDomainRegistrations>[0]["metadata"]>;
   readonly modelFacingErrors: readonly ModelFacingErrorRule[];
   readonly parseStaticExportInput: (required: { input: unknown }) => ReturnType<typeof parseStaticExportInput>;
   readonly parseSiteImportInput: typeof parseSiteImportInput;
@@ -187,19 +188,32 @@ export function buildSiteBackupRegistrations(deps: SiteBackupToolDeps, _surfaces
     site_share_list: (ctx) => handleShare({ deps, ctx, action: "list" }),
     site_share_revoke: (ctx) => handleShare({ deps, ctx, action: "revoke" }),
   };
-  return buildDomainRegistrations({ ...(deps.toolMetadata === undefined ? {} : { metadata: deps.toolMetadata }),
+  return buildDomainRegistrations({ metadata: deps.toolMetadata,
     domain: DOMAIN,
-    catalogModule: "features/site-backup/tool-registrations.ts",
+    catalogModule: deps.catalogModule,
     catalog: deps.catalog,
     handlers: withModelFacingErrors({ handlers, rules: deps.modelFacingErrors }),
     derivedRisk: siteBackupDerivedRisk,
   });
 }
 
-/** Contributes the site-backup tools — called once by `server/runtime/composition/
- *  tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`. */
-export function contributeSiteBackupTools(): ToolContributor<SiteBackupToolDeps, AssistantSurfaceDeps> {
-  return { domain: DOMAIN, build: buildSiteBackupRegistrations, risk: siteBackupDerivedRisk };
+export function contributeSiteBackupTools<THost>(required: {
+  catalog: readonly AgentToolDefinition[];
+  catalogModule: string;
+  toolMetadata: SiteBackupToolDeps["toolMetadata"];
+  modelFacingErrors: SiteBackupToolDeps["modelFacingErrors"];
+  parseStaticExportInput: SiteBackupToolDeps["parseStaticExportInput"];
+  parseSiteImportInput: SiteBackupToolDeps["parseSiteImportInput"];
+  parseSiteImportListQuery: SiteBackupToolDeps["parseSiteImportListQuery"];
+  bindServiceDeps: (deps: THost) => SiteBackupServiceDeps;
+}, _optional = {}): ToolContributor<THost, AssistantSurfaceDeps> {
+  const catalog = indexCatalogById({ catalog: required.catalog });
+  return { domain: DOMAIN, build: (deps, surfaces) => buildSiteBackupRegistrations(Object.assign(required.bindServiceDeps(deps), {
+    catalog, catalogModule: required.catalogModule,
+    toolMetadata: required.toolMetadata, modelFacingErrors: required.modelFacingErrors,
+    parseStaticExportInput: required.parseStaticExportInput, parseSiteImportInput: required.parseSiteImportInput,
+    parseSiteImportListQuery: required.parseSiteImportListQuery,
+  }), surfaces), risk: siteBackupDerivedRisk };
 }
 
 /** Local creation permissions precede all download, upload consumption and registry effects. */

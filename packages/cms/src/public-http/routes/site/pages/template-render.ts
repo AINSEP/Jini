@@ -7,18 +7,18 @@ import type { StaticMenuContent } from "./render-context/static-menus.js";
 import type { finishStaticTierDocument } from "./static-tier.js";
 import { injectExtraHeadIntoStaticPage } from "../../../../presentation/html.js";
 
-type TemplateRenderDeps = {
+type TemplateRenderDeps<TMenu = StaticMenuContent, TAccess extends object = object> = {
   resolveTemplate(required: { templateChoice: PostRecord["templateChoice"] }): { kind: "diagnostic" } | { kind: "template"; pageId: string; html: string };
-  renderMissingTemplatePage(required: { staticMenus: Readonly<Record<string, StaticMenuContent>> | undefined }): Promise<string>;
+  renderMissingTemplatePage(required: { staticMenus: Readonly<Record<string, TMenu>> | undefined }): Promise<string>;
   expandPartials(required: { html: string }): string;
   injectPageTitle(required: { html: string; title: string }): string;
   injectCurrentEntityContentId(required: { html: string; entityId: string }): string;
   renderAssignedTermsBlock(required: { post: PostRecord }): Promise<string>;
   placeAfterCurrentContent(required: { html: string; post: PostRecord; block: string }): string;
   resolveHtmlFormatContentMarkers(required: { html: string }, optional: { pendingHtmlOverride: { id: string; slug: string; bodyHtml: string } | undefined }): Promise<string>;
-  resolveHtmlPageEmbeds(required: { html: string; pendingContentOverride(): { pendingContentOverride?: { id: string; title: string; slug: string; updatedAt: string; publishAt: string | null; bodyJson: JsonObject } } }): Promise<ResolveHtmlPageEmbedsResult>;
-  renderHtmlPageBody(required: { html: string; resolved: ResolveHtmlPageEmbedsResult }, optional: { postAuthor: PostRecord; postPresentation: PostRecord }): string;
-  finishStaticTierDocument(required: { input: Parameters<typeof finishStaticTierDocument>[0]["input"] }, optional: Record<string, never>): Promise<string>;
+  resolveHtmlPageEmbeds(required: { html: string; pendingContentOverride(): { pendingContentOverride?: { id: string; title: string; slug: string; updatedAt: string; publishAt: string | null; bodyJson: JsonObject } } }): Promise<ResolveHtmlPageEmbedsResult | undefined>;
+  renderHtmlPageBody(required: { html: string; resolved: ResolveHtmlPageEmbedsResult | undefined }, optional: { postAuthor: PostRecord; postPresentation: PostRecord }): string;
+  finishStaticTierDocument(required: { input: Parameters<typeof finishStaticTierDocument<TMenu, TAccess>>[0]["input"] }, optional: Record<string, never>): Promise<string>;
   postPublicPath(required: { slug: string }): string;
   resolveFeaturedImageForRender(required: { post: PostRecord }): Promise<FeaturedImageView | null>;
   injectSiteAssistantIntoStaticPage(required: { html: string; enabled: RenderSiteRequired["siteAssistantEnabled"] }): string;
@@ -96,7 +96,7 @@ type TemplateRenderDeps = {
  * `false` so both existing callers (the admin preview endpoint, which must never show the public
  * widget in a preview iframe, and the two direct tests) keep their prior behavior unchanged.
  */
-export async function renderTemplateDocument({ deps, post, staticMenus }: { deps: TemplateRenderDeps; post: PostRecord; staticMenus: Readonly<Record<string, StaticMenuContent>> | undefined }, { pendingBodyJson, pendingBodyHtml, extraHead, siteAssistantEnabled = false, postPreviewsAccess }: { pendingBodyJson?: JsonObject | undefined; pendingBodyHtml?: string | undefined; extraHead?: string | undefined; siteAssistantEnabled?: RenderSiteRequired["siteAssistantEnabled"]; postPreviewsAccess?: object | undefined } = {}): Promise<string> {
+export async function renderTemplateDocument<TMenu = StaticMenuContent, TAccess extends object = object>({ deps, post, staticMenus }: { deps: TemplateRenderDeps<TMenu, TAccess>; post: PostRecord; staticMenus: Readonly<Record<string, TMenu>> | undefined }, { pendingBodyJson, pendingBodyHtml, extraHead, siteAssistantEnabled = false, postPreviewsAccess }: { pendingBodyJson?: JsonObject | undefined; pendingBodyHtml?: string | undefined; extraHead?: string | undefined; siteAssistantEnabled?: RenderSiteRequired["siteAssistantEnabled"]; postPreviewsAccess?: TAccess | undefined } = {}): Promise<string> {
   const resolution = deps.resolveTemplate({ templateChoice: post.templateChoice });
   if (resolution.kind === "diagnostic") {
     return deps.renderMissingTemplatePage({ staticMenus });

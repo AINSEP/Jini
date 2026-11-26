@@ -1,3 +1,5 @@
+import type { SiteCookieConsentDeps } from "@jini-ai/core/contracts/headless/site-cookie-consent";
+import { siteBannerMode } from "./cookie-consent.js";
 import type { ConsentConfig, DeclaredScript } from '@jini-ai/core/contracts/site/cookie-consent';
 
 /** One published construction snapshot per site (per consent deps), shared by every app built over
@@ -58,3 +60,41 @@ export function refreshDocumentState({ state, readPolicy, readDeclarations, poli
   return state.pending;
 }
 
+
+export function createSiteConsentDocumentOwner(required: {
+  schedule: DocumentState['schedule']; exportUnavailableWarning: string;
+}, _optional = {}) {
+  const documentStates = new WeakMap<SiteCookieConsentDeps, DocumentState>();
+  return {
+    unavailableDocumentPolicy: ({ consent, config }: { consent: SiteCookieConsentDeps | undefined; config: ConsentConfig | null }) => Boolean(consent && documentStates.has(consent) && !config),
+    documentDeclarations: async ({ consent }: { consent: SiteCookieConsentDeps | undefined }) => consent ? await documentStates.get(consent)?.scripts ?? [] : [],
+    documentPolicy: ({ consent }: { consent: SiteCookieConsentDeps | undefined }) => documentPolicy({ state: consent ? documentStates.get(consent) : undefined }),
+    client: ({ consent }: { consent: SiteCookieConsentDeps | undefined }) => consent ? documentStates.get(consent)?.client : undefined,
+    siteDocumentState: ({ consent, client, readPolicy, readDeclarations, policyFailure, declarationFailure, exportAssets, now }: {
+      now: DocumentState['now']; consent: SiteCookieConsentDeps; client: () => DocumentState['client'];
+      readPolicy: () => Promise<ConsentConfig>; readDeclarations: () => Promise<{ scripts: readonly DeclaredScript[] }>;
+      policyFailure: (error: unknown) => void; declarationFailure: () => void; exportAssets: () => Promise<readonly string[]>;
+    }): DocumentState => {
+      const existing = documentStates.get(consent);
+      if (existing) return existing;
+      const state: DocumentState = { client: client(), scripts: Promise.resolve([]), nextReadAt: Infinity, now, schedule: required.schedule };
+      documentStates.set(consent, state);
+      const refresh = () => refreshDocumentState({ state, readPolicy, readDeclarations, policyFailure, declarationFailure });
+      consent.refresh = refresh;
+      state.refresh = refresh;
+      consent.embedConsentOff = () => Boolean(state.policy && siteBannerMode({ config: state.policy }) === 'off');
+      consent.exportAssets = exportAssets;
+      // Answered for one export run, before it renders. A good policy is never cleared, so no later page
+      // can lose its banner when this finds one; a run starts from a fresh read, as it always has.
+      consent.exportWarning = async () => {
+        // The refresh logs its own failure; the export uses the last good policy or its warning.
+        void refresh().catch(() => undefined);
+        await briefPendingRead({ state });
+        return state.policy ? undefined : required.exportUnavailableWarning;
+      };
+      // The refresh logs its own failure; startup continues without an unavailable policy.
+      void refresh().catch(() => undefined);
+      return state;
+    },
+  };
+}

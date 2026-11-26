@@ -19,7 +19,6 @@ import { prepareSharePluginTables, refuseUnknownShareTables, copyPortableTables 
 import { documentReferences, archiveMediaSources, rewriteMediaRows } from "./projection.media.js";
 export { prepareSharePluginTables, refuseUnknownShareTables } from "./projection.tables.js";
 export type Row = Record<string, unknown>;
-type Tables = Record<string, Row>;
 
 /** Raw SQL statement built by the host's injected {@link ShareSqlTag}; `R` is the row type it yields. */
 export interface RawStatement<R> { readonly isRawBuilder: true; readonly $rowType?: R }
@@ -65,7 +64,7 @@ export interface ShareQueryHandle {
   deleteFrom(table: string): ShareMutationQuery;
 }
 
-export interface Kernel extends StorageKernel<ShareQueryHandle, Tables> {
+export interface Kernel extends StorageKernel<ShareQueryHandle, unknown> {
   readonly transport: "better-sqlite3" | "pglite" | "node-postgres" | "pglite-socket";
   query<R>(statement: RawStatement<R>): Promise<R[]>;
   execute(statement: RawStatement<unknown>): Promise<void>;

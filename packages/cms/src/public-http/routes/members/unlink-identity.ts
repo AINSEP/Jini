@@ -1,3 +1,4 @@
+import { runMemberOidcPreflight } from "./oidc-shared.js";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import { memberClientAddress, memberRequestLimitReply, type MemberRequestLimiter, type PublicMemberRawRoute } from "./shared.js";
 
@@ -87,3 +88,13 @@ export const memberUnlinkIdentityRoute: PublicMemberRawRoute<MemberUnlinkIdentit
     }
   },
 };
+
+export function bindMemberUnlinkIdentityRoute<TRequest>(required: {
+  deps: MemberUnlinkIdentityRouteDeps;
+  writeHeaders: (request: TRequest) => void; observe: (request: TRequest) => void; check: (request: TRequest) => boolean;
+}, _optional = {}) {
+  return { spec: memberUnlinkIdentityRoute, deps: required.deps,
+    preflight: (request: TRequest, run: () => unknown) => runMemberOidcPreflight({ writeHeaders: () => required.writeHeaders(request),
+      observe: () => required.observe(request), check: () => required.check(request), run }),
+  };
+}

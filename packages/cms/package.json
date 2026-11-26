@@ -802,6 +802,7 @@
       "./public-http/routes/site/pages/handlers/marketing": "universal",
       "./public-http/routes/site/pages/handlers/post": "universal",
       "./public-http/routes/site/pages/handlers/post-not-found": "universal",
+      "./public-http/routes/site/pages/handlers/home": "universal",
       "./public-http/routes/site/pages/handlers/slug-routes": "universal",
       "./admin-http/routes/external-mcp/route-helpers": "universal",
       "./react/media/ExternalProvidersPanel": "browser",
@@ -1345,6 +1346,7 @@
         "./public-http/routes/site/pages/handlers/marketing": "presentation",
         "./public-http/routes/site/pages/handlers/post": "presentation",
         "./public-http/routes/site/pages/handlers/post-not-found": "presentation",
+        "./public-http/routes/site/pages/handlers/home": "presentation",
         "./public-http/routes/site/pages/handlers/slug-routes": "presentation",
         "./html/site/safe-url": "media",
         "./admin-http/routes/media/provider-catalog": "media",
@@ -5324,6 +5326,11 @@
       "types": "./dist/public-http/routes/site/pages/handlers/slug-routes.d.ts",
       "import": "./dist/public-http/routes/site/pages/handlers/slug-routes.js",
       "default": "./dist/public-http/routes/site/pages/handlers/slug-routes.js"
+    },
+    "./public-http/routes/site/pages/handlers/home": {
+      "types": "./dist/public-http/routes/site/pages/handlers/home.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/home.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/home.js"
     },
     "./admin-http/routes/external-mcp/route-helpers": {
       "types": "./dist/admin-http/routes/external-mcp/route-helpers.d.ts",

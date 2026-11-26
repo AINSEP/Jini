@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { mediaOriginalVideoRoute, mediaRenditionRoute } from '../../media-rendition.js';
+import { createPublicMediaHandlers, mediaOriginalVideoRoute, mediaRenditionRoute } from '../../media-rendition.js';
 
 it('makes denied and missing replies identical and reads neither validators nor bytes after denial', async () => {
   for (const original of [false, true]) {
@@ -36,4 +36,26 @@ it('makes denied and missing replies identical and reads neither validators nor 
     }
     expect(replies[0]).toEqual(replies[1]);
   }
+});
+
+it('uses the same normalized original handler for both URL variants without eager entitlement or cache capture', async () => {
+  let cacheReads = 0;
+  const resolveContext = vi.fn();
+  const access = { decide: vi.fn(async () => ({ allowed: false, gated: true, record: null })) };
+  const createRenditionAccess = vi.fn(() => access);
+  const accessDeps = { get cache() { cacheReads++; return new Map(); } } as unknown as Parameters<typeof createPublicMediaHandlers>[0]['accessDeps'];
+  const handlers = createPublicMediaHandlers({ deps: {} as Parameters<typeof createPublicMediaHandlers>[0]['deps'], accessDeps, createRenditionAccess,
+    createMemberAccessResolver: () => ({ resolveContext, decide: () => ({ allowed: false }) }), readSessionToken: vi.fn(), nowIso: vi.fn(), resolvePostMemberAccess: vi.fn(),
+    writer: { status: ({ response, code }: { response: Parameters<typeof mediaRenditionRoute>[0]['res']; code: number }) => { response.status(code); }, set: ({ response, name, value }) => { response.set(name, value); },
+      json: ({ response, body }) => { response.json(body); }, end: ({ response }) => { response.end(); }, send: ({ response, bytes }) => { response.send(bytes); } },
+    sendMediaOriginalTrashed: vi.fn(), writeMediaOriginalReply: vi.fn() });
+  expect(cacheReads).toBe(0); expect(createRenditionAccess).not.toHaveBeenCalled();
+  expect(handlers.original.path).toEqual(['/m/:assetId/original', '/m/:assetId/original.:ext']);
+  const replies: unknown[] = [];
+  for (const params of [{ assetId: 'asset' }, { assetId: 'asset', ext: 'svg' }]) {
+    const res: Parameters<typeof mediaRenditionRoute>[0]['res'] = { status: code => { replies.push(code); return res; }, set: (name, value) => { replies.push([name, value]); return res; }, json: body => { replies.push(body); }, end: vi.fn(), send: vi.fn() };
+    await handlers.original.handle({ request: {}, params, ifNoneMatch: () => undefined, range: () => undefined, response: res });
+  }
+  expect(replies.slice(0, 3)).toEqual(replies.slice(3));
+  expect(resolveContext).not.toHaveBeenCalled();
 });

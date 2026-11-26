@@ -92,3 +92,14 @@ export function staticConsentLoaderScript({ head, body, exporting }: { head: str
         script.async=false;document.body.append(script);}
     })();`;
 }
+
+export async function documentPlugins(required: {
+  live: boolean;
+  adapters: () => readonly RawContribution[];
+  browserPlugins: () => Promise<readonly RawContribution[]>;
+  diagnosticsEnabled: () => Promise<boolean>;
+  diagnostics: () => RawContribution;
+}, _optional = {}): Promise<readonly RawContribution[]> {
+  if (!required.live) return [];
+  return [...required.adapters(), ...await required.browserPlugins(), ...(await required.diagnosticsEnabled() ? [required.diagnostics()] : [])];
+}

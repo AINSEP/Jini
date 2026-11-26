@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
-import { memberOidcVerifyEmailRoute, type MemberOidcEmailProof, type MemberOidcVerifyEmailRouteDeps } from "../oidc-verify-email.js";
+import { verifyMemberOidcRouteOutcome, bindMemberOidcVerifyEmailRoute, memberOidcVerifyEmailRoute, type MemberOidcEmailProof, type MemberOidcVerifyEmailRouteDeps } from "../oidc-verify-email.js";
 
 /** @file The public member OIDC email-proof spec: the shared per-IP counter before the host's strict body
  * parser, the host's verification (proof cookie, sealed continuation, emailed code) before any cookie, the proof
@@ -146,4 +146,19 @@ describe("memberOidcVerifyEmailRoute", () => {
     deps.verify = async (input) => ({ ...(await verify(input)), member: () => { throw new Error("projection failed"); } }) as Awaited<ReturnType<typeof verify>>;
     await expectRefusal(await call(deps), { cookies: [PROOF_CLEAR, SESSION] });
   });
+});
+
+it("binds proof preflight before the spec and lazily maps its signed-in outcome", async () => {
+  const calls: string[] = [];
+  const outcome = await verifyMemberOidcRouteOutcome({ readContext: async () => ({}), readBrowserBinding: () => "binding", verify: async () => ({ kind: "signed_in", result: { id: "member" } }),
+    sessionCookie: () => { calls.push("session"); return SESSION; }, announce: () => { calls.push("announce"); }, member: result => { calls.push("member"); return result; } });
+  expect(calls).toEqual([]);
+  const { deps } = harness({ verify: async () => outcome });
+  const binding = bindMemberOidcVerifyEmailRoute({ deps, requestDeps: () => deps,
+    writeHeaders: () => { calls.push("headers"); }, observe: () => { calls.push("observe"); }, check: () => { calls.push("check"); return true; } });
+  binding.preflight({}, () => { calls.push("raw"); });
+  expect(calls).toEqual(["headers", "observe", "check", "raw"]);
+  const response = await binding.spec.handle({ raw: raw(), deps: binding.requestDeps({ request: {}, deps: binding.deps }) }, { signal });
+  expect(response.headers.getSetCookie()).toEqual([PROOF_CLEAR, SESSION]);
+  expect(calls.slice(-3)).toEqual(["session", "announce", "member"]);
 });
