@@ -122,6 +122,7 @@ interface SidecarRecord {
 /** The attachment's metadata and bytes must come from the same opened descriptor. */
 interface ChatAttachmentReadHandle {
   stat(): Promise<{ isFile(): boolean; dev: number; ino: number; size: number; mtimeMs: number; ctimeMs: number }>;
+  read(required: { buffer: Uint8Array; position: number; length: number }): Promise<{ bytesRead: number }>;
   readFile(): Promise<Uint8Array>;
   close(): Promise<void>;
 }
@@ -291,7 +292,7 @@ function exceedsPreviewCap({ size, maxBytes }: { size: number; maxBytes?: number
  */
 async function readUnchangedAttachment(
   { loaded, io }: { loaded: { record: SidecarRecord; filePath: string }; io: AttachmentReadPorts },
-  _optional = {},
+  { selectRead, maxFullBytes }: { selectRead?: (required: { prefix: Uint8Array }, optional: Record<string, never>) => "prefix" | "full"; maxFullBytes?: number } = {},
 ): Promise<ChatAttachmentReadResult> {
   const observed = await observeAttachment({ filePath: loaded.filePath, io });
   if (observed === undefined) return refuse("integrity");
@@ -313,6 +314,13 @@ async function readUnchangedAttachment(
       recorded: { ...observed, filePath: loaded.filePath },
       observed: opened,
     })) return refuse("integrity");
+    if (selectRead) {
+      const buffer = new Uint8Array(Math.min(info.size, 64 * 1024));
+      const { bytesRead } = await handle.read({ buffer, position: 0, length: buffer.byteLength });
+      const prefix = buffer.subarray(0, bytesRead);
+      if (selectRead({ prefix }, {}) === "prefix") return { ok: true, bytes: prefix };
+      if (exceedsPreviewCap({ size: info.size, ...(maxFullBytes === undefined ? {} : { maxBytes: maxFullBytes }) })) return refuse("too-large");
+    }
     const bytes = await handle.readFile();
     return bytes.byteLength === observed.size ? { ok: true, bytes } : refuse("integrity");
   } finally {
@@ -334,7 +342,10 @@ async function readUnchangedAttachment(
  */
 export async function readChatAttachmentForOwner(
   { uploadDirectory, ref, ownerId, io }: { readonly uploadDirectory: string; readonly ref: string; readonly ownerId: string; readonly io: AttachmentReadPorts },
-  { maxBytes }: { readonly maxBytes?: number } = {}
+  { maxBytes, ...delivery }: { readonly maxBytes?: number } & (
+    | { readonly selectRead: (required: { prefix: Uint8Array }, optional: Record<string, never>) => "prefix" | "full"; readonly maxFullBytes: number }
+    | { readonly selectRead?: never; readonly maxFullBytes?: never }
+  ) = {}
 ): Promise<ChatAttachmentReadResult> {
   if (!CHAT_ATTACHMENT_REF_PATTERN.test(ref)) return refuse("malformed-ref");
 
@@ -359,5 +370,5 @@ export async function readChatAttachmentForOwner(
   // the identity gate below also proves that the current file still has this recorded size.
   if (exceedsPreviewCap({ size: loaded.record.size, ...(maxBytes === undefined ? {} : { maxBytes }) })) return refuse("too-large");
 
-  return readUnchangedAttachment({ loaded, io });
+  return readUnchangedAttachment({ loaded, io }, delivery);
 }

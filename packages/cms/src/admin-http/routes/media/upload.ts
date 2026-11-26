@@ -9,7 +9,7 @@ import { parseOptionalStringField } from "../../../media/metadata-fields.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
 import { MediaConflictError, MediaUploadSizeError, MediaValidationError, type MediaKind, type MediaRecord } from "../../../media/types.js";
 import type { MediaStoredDescriber } from "./replace.js";
-import { authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
+import { assertBase64UploadSize, authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
 
 /** An upload request's fields after {@link parseUploadRequestFields}. */
 export interface UploadRequestFields {
@@ -26,6 +26,7 @@ export interface MediaUploadInput {
 /** The deps this route reads; every I/O step and the product event are host services. */
 export interface MediaUploadRouteDeps {
   workspaceId: string;
+  maxJsonUploadBytes: number;
   /** The host's upload pipeline (repositories, blob store, document archive reader, byte cap). */
   storeUpload: (required: MediaUploadInput) => Promise<MediaUploadResult<MediaRecord>>;
   /** Persists the sniffed type of a stored media blob (documents are typed by filename and skip it). */
@@ -97,7 +98,7 @@ function parseUploadOrRefuse({ rawBody }: { rawBody: unknown }, _optional: Recor
  * @complexity O(n) in the encoded payload length.
  */
 function decodeUploadPayload(
-  { kind, filename, contentType, dataBase64 }: Pick<UploadRequestFields, "kind" | "filename" | "contentType" | "dataBase64">,
+  { kind, filename, contentType, dataBase64, maxJsonUploadBytes }: Pick<UploadRequestFields, "kind" | "filename" | "contentType" | "dataBase64"> & { maxJsonUploadBytes: number },
   _optional: Record<string, never> = {},
 ): { bytes: Uint8Array; contentType: string } {
   // Refuse document base64 inflation before allocation, then let the shared ingress owner
@@ -107,6 +108,7 @@ function decodeUploadPayload(
     const fileBytes = Math.floor(dataBase64.length / 4) * 3 - (dataBase64.endsWith("==") ? 2 : dataBase64.endsWith("=") ? 1 : 0);
     throw new MediaUploadSizeError({ message: "document exceeds the 50 MiB limit", fileBytes, limitBytes: MAX_DOCUMENT_BYTES });
   }
+  assertBase64UploadSize({ value: dataBase64, limitBytes: maxJsonUploadBytes });
   // `decodeStrictBase64`, not `Buffer.from(x, "base64")`: the latter never throws (it skips
   // characters outside the alphabet instead of refusing them), so a bare try/catch around it can
   // never fire — see that function's own header.
@@ -125,7 +127,7 @@ async function persistUpload(
   _optional: Record<string, never> = {},
 ): Promise<MediaUploadResult<AdminMediaDto>> {
   const { kind, filename, alt, caption, credit } = fields;
-  const { bytes, contentType } = decodeUploadPayload(fields);
+  const { bytes, contentType } = decodeUploadPayload({ ...fields, maxJsonUploadBytes: deps.maxJsonUploadBytes });
   const result = await deps.storeUpload({ kind, bytes, filename, contentType, alt, caption, credit, createdByPrincipal: actorId });
   const { media } = result;
   // Only media uses the per-blob sniff cache; document type is its validated filename policy.

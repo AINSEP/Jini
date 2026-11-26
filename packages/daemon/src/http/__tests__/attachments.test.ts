@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import {
   appendFile,
+  copyFile,
   lstat,
   mkdir,
   mkdtemp,
@@ -1036,7 +1037,7 @@ describe('createDiskAttachmentStore', () => {
       const site = await tempDirectory();
       const { attachment, filePath } = await stage(store, 'batch-rfr-staged', 'a.txt', 'original');
       const claim = await store.claim({ attachments: [attachment], runId: 'run-A' });
-      const staged = await stageAttachmentClaim({ claim, filesystemRoot: site });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: site, deps: { copyFile } });
       cleanups.push(staged.cleanup);
       const ref = staged.claim.attachments[0]!.path;
 
@@ -1062,7 +1063,7 @@ describe('createDiskAttachmentStore', () => {
       const { store } = await diskStore();
       const { attachment, filePath } = await stage(store, 'batch-rfr-staged-2', 'b.txt', 'original');
       const claim = await store.claim({ attachments: [attachment], runId: 'run-A' });
-      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory() });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory(), deps: { copyFile } });
       cleanups.push(staged.cleanup);
       const ref = staged.claim.attachments[0]!.path;
 
@@ -1080,7 +1081,7 @@ describe('createDiskAttachmentStore', () => {
       const secondUpload = await stage(second.store, 'batch-rfr-isolation', 'same.txt', 'second');
       const claim = await first.store.claim({ attachments: [firstUpload.attachment], runId: 'run-A' });
       await second.store.claim({ attachments: [secondUpload.attachment], runId: 'run-A' });
-      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory() });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory(), deps: { copyFile } });
       cleanups.push(staged.cleanup);
       const ref = staged.claim.attachments[0]!.path;
 

@@ -10,7 +10,7 @@ import type { MediaRepoPort } from "../../../media/ports.js";
 import { resolveUploadCap, type UploadCaps } from "../../../media/upload-cap.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
 import { MediaUploadSizeError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
-import { authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
+import { assertBase64UploadSize, authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
 
 /** The `{ media }` body for an asset just stored under the type verified from its bytes (host: public URL, stored size). */
 export type MediaStoredDescriber = (required: { media: MediaRecord; contentType: string; byteLength: number }) => Promise<AdminMediaEnvelope>;
@@ -27,6 +27,7 @@ export interface MediaReplaceRouteDeps {
   mediaRepo: Pick<MediaRepoPort, "findById"> & { replaceFileIfVersion?: unknown; saveRenditionIfSource?: unknown };
   /** The host's upload byte cap (owner policy), also bound into `replaceFile`. */
   maxUploadBytes: number;
+  maxJsonUploadBytes: number;
   /** The host's larger cap for `video/*` files, when it has one (see `media/upload-cap.ts`). */
   maxVideoUploadBytes?: number | undefined;
   /** The host's file switch; `null` when the asset's version moved meanwhile. */
@@ -53,8 +54,9 @@ function readReplacementFields({ body }: { body: unknown }, _optional: Record<st
  *  allowed type as sniffed from the bytes (not the declared label). A non-empty strict-base64
  *  payload always decodes to at least one byte, and `replaceMediaFile` refuses empty bytes too.
  *  @complexity O(n) in the payload length. */
-function parseReplacement({ body, caps }: { body: unknown; caps: UploadCaps }, _optional: Record<string, never> = {}) {
+function parseReplacement({ body, caps, maxJsonUploadBytes }: { body: unknown; caps: UploadCaps; maxJsonUploadBytes: number }, _optional: Record<string, never> = {}) {
   const { filename, contentType, dataBase64 } = readReplacementFields({ body });
+  assertBase64UploadSize({ value: dataBase64, limitBytes: maxJsonUploadBytes });
   const bytes = decodeStrictBase64({ value: dataBase64 });
   if (!bytes) throw new MediaValidationError({ message: "dataBase64 is not valid base64" });
   const verified = resolveUploadContentType({ bytes, declaredContentType: contentType });
@@ -88,7 +90,7 @@ async function replaceFromBody(
   { deps, media, body, principalId }: { deps: MediaReplaceRouteDeps; media: MediaRecord; body: unknown; principalId: string },
   _optional: Record<string, never> = {},
 ): Promise<AdminMediaEnvelope> {
-  const upload = parseReplacement({ body, caps: { maxUploadBytes: deps.maxUploadBytes, maxVideoUploadBytes: deps.maxVideoUploadBytes } });
+  const upload = parseReplacement({ body, caps: { maxUploadBytes: deps.maxUploadBytes, maxVideoUploadBytes: deps.maxVideoUploadBytes }, maxJsonUploadBytes: deps.maxJsonUploadBytes });
   const saved = await deps.replaceFile({ media, ...upload, principalId });
   if (!saved) rejectRoute({ status: 409, error: "media changed while replacing its file", code: "MEDIA_REPLACE_CONFLICT" });
   return deps.describeStored({ media: saved, contentType: upload.contentType, byteLength: upload.bytes.byteLength });

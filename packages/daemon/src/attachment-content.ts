@@ -17,6 +17,10 @@ export interface MessageAttachmentReader {
 /** MIME types a runtime with image access receives as native image input; any other type is a file. */
 const NATIVE_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
+export function isNativeMessageImage({ mimeType }: { mimeType: string }, _optional = {}): boolean {
+  return NATIVE_IMAGE_MIME_TYPES.has(mimeType);
+}
+
 /** The notice for an attachment that is not delivered as a native image. */
 function fileNotice({ source, fileAccess }: { source: MessageAttachmentSource; fileAccess: boolean }): string {
   const video = source.mimeType.startsWith('video/');
@@ -38,7 +42,7 @@ export async function prepareMessageAttachments(
   const imagePaths: string[] = [];
   for (const ref of refs) {
     const source = await read({ ref }, {});
-    if (!NATIVE_IMAGE_MIME_TYPES.has(source.mimeType)) {
+    if (!isNativeMessageImage({ mimeType: source.mimeType })) {
       notices.push(fileNotice({ source, fileAccess }));
     } else if (!imageAccess) {
       notices.push(`${source.name}: image attachments are unsupported by this runtime.`);

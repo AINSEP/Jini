@@ -24,6 +24,7 @@ export interface AssetBatchApproval {
 
 export interface FilesCopyToolDeps<Theme extends AssetTheme> {
   destination: AssetDestinationDeps<Theme>;
+  mediaVideoMaxBytes: number;
   readonly refuseUnexpectedKeys: (input: Record<string, unknown>, allowed: readonly string[]) => void;
   source: {
     readAsset(required: { ctx: ToolExecutionContext; input: unknown; maxBytes: number }, optional?: Record<string, never>): Promise<AssetFile<Buffer>>;
@@ -60,7 +61,7 @@ const catalog: AgentToolDefinition = {
     "overwrite:'skip' (default), 'overwrite' or 'rename' for site/theme paths; media and Library documents are always added as new items. " +
     "Returns written/skipped paths, private documents, media URLs or theme status. Theme/media/Library edits use their existing permissions; site files use fs_write_files batch approval. Never writes to picked folders: use fs_write_files. " +
     "All sources are checked before writing; secrets, symlinks, escapes and truncated folder listings are refused. URLs use the existing SSRF-guarded image/font fetch. " +
-    `Caps: ${FILES_COPY_LIMITS.maxFiles} files, ${FILES_COPY_LIMITS.maxFileBytes} bytes/asset, ${FILES_COPY_LIMITS.maxTotalBytes} bytes total (Library: 50 MiB/file and 50 MiB/batch); site writer additionally caps 2 MiB/file and 10 MiB/batch.`,
+    `Caps: ${FILES_COPY_LIMITS.maxFiles} files, ${FILES_COPY_LIMITS.maxFileBytes} bytes/asset, ${FILES_COPY_LIMITS.maxTotalBytes} bytes total (Library: 50 MiB/file and 50 MiB/batch); one non-glob video copied into Media may use the host video byte cap; site writer additionally caps 2 MiB/file and 10 MiB/batch.`,
   sideEffects: "mutates-durable-state", authorization: { permission: fsReadPermission },
   inputSchema: { type: "object", additionalProperties: false, required: ["sources", "destination"], properties: {
     sources: { type: "array", minItems: 1, maxItems: FILES_COPY_LIMITS.maxFiles, items: { type: "object", additionalProperties: false, required: ["root"], properties: {
@@ -79,10 +80,10 @@ const callerError = <Theme extends AssetTheme>({ error, deps }: { error: unknown
 };
 
 /** URL sources reuse fetchImage and its safe egress port, with the existing theme font sniffer. */
-async function readUrl<Theme extends AssetTheme>({ deps, source, media }: { deps: FilesCopyToolDeps<Theme>; source: Record<string, unknown>; media: boolean }): Promise<AssetFile<Buffer>> {
+async function readUrl<Theme extends AssetTheme>({ deps, source, media, maxBytes }: { deps: FilesCopyToolDeps<Theme>; source: Record<string, unknown>; media: boolean; maxBytes: number }): Promise<AssetFile<Buffer>> {
   if (source.glob !== undefined) throw new ToolInputError({ message: "URL sources do not accept glob" });
   const url = requireString({ input: source, key: "url" });
-  const fetched = await deps.source.fetchUrl({ url, media, maxBytes: FILES_COPY_LIMITS.maxFileBytes }, {});
+  const fetched = await deps.source.fetchUrl({ url, media, maxBytes }, {});
   return { bytes: Buffer.from(fetched.bytes), path: source.path === undefined ? basename(fetched.url.pathname) : requireString({ input: source, key: "path" }), sourceUrl: fetched.url.href };
 }
 
@@ -124,7 +125,7 @@ async function prepare<Theme extends AssetTheme>({ deps, ctx }: { deps: FilesCop
   deps.refuseUnexpectedKeys(input, ["sources", "destination", "overwrite"]);
   if (!Array.isArray(input.sources) || !input.sources.length || input.sources.length > FILES_COPY_LIMITS.maxFiles) throw new ToolInputError({ message: "sources must list 1..50 entries" });
   const { destination, prefix } = await requireCopyDestination({ deps, ctx, input: input.destination });
-  const maxFileBytes = destination.kind === "library" ? deps.documents.maxBytes : FILES_COPY_LIMITS.maxFileBytes;
+  const maxFileBytes = destination.kind === "library" ? deps.documents.maxBytes : destination.kind === "media" && input.sources.length === 1 ? deps.mediaVideoMaxBytes : FILES_COPY_LIMITS.maxFileBytes;
   let policy: OverwritePolicy;
   switch (input.overwrite ?? "skip") {
     case "skip": policy = "skip"; break;
@@ -166,8 +167,14 @@ async function readGroup<Theme extends AssetTheme>({ deps, ctx, raw, kind, maxFi
   deps.refuseUnexpectedKeys(source, ["root", "path", "url", "themeId", "glob"]);
   if (source.root !== "url" && source.url !== undefined) throw new ToolInputError({ message: "url is only valid for root url" });
   if (source.root === "url" && kind === "library") throw new ToolInputError({ message: "Library copies need an allowed picked/site/theme file source, not an image URL" });
-  if (source.root === "url") return [await readUrl({ deps, source, media: kind === "media" })];
-  return readLocal({ deps, ctx, source, maxBytes: maxFileBytes });
+  const readLimit = kind === "media" && source.glob !== undefined ? FILES_COPY_LIMITS.maxFileBytes : maxFileBytes;
+  const files = source.root === "url"
+    ? [await readUrl({ deps, source, media: kind === "media", maxBytes: maxFileBytes })]
+    : await readLocal({ deps, ctx, source, maxBytes: readLimit });
+  if (kind === "media" && files.some(file => file.bytes.length > FILES_COPY_LIMITS.maxFileBytes && !deps.destination.media.validateBytes({ source: file.path, bytes: file.bytes, bytesTruncated: false }, {}).startsWith("video/"))) {
+    throw new ToolInputError({ message: "Copy exceeds the byte cap for non-video assets" });
+  }
+  return files;
 }
 
 /** Aggregate caps count all sources together; failure occurs before destination persistence. */

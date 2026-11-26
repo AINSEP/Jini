@@ -114,6 +114,7 @@ export function prepareAssetWrites<Theme extends AssetTheme>({ deps, destination
 
 /** Site and picked-folder writes become one fs_write_files batch (and its card); others need none. */
 function approvalBatch<Theme extends AssetTheme>({ deps, destination, files }: { deps: AssetDestinationDeps<Theme>; destination: AssetDestination; files: AssetFile<Buffer>[] }): PreparedAssetBatch<Buffer> | undefined {
+  if (destination.kind !== "site" && destination.kind !== "picked") return undefined;
   const encoded = files.map(({ path, bytes }) => ({ path, content: bytes.toString("base64"), encoding: "base64" as const }));
   if (!encoded.length) return undefined;
   if (destination.kind === "picked") return deps.fs.preparePicked({ files: encoded }, {});
