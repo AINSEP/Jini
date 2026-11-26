@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRef } from "react";
 import { useZipDrop } from "../use-zip-drop.hooks.js";
 import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
@@ -43,7 +45,7 @@ describe("InstallTabCard", () => {
 });
 
 it("a drag changes the dropzone outline without changing its accessible name", () => {
-  const css = readFileSync(new URL("../install-tab-card.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../install-tab-card.css"), "utf8");
   function Card() {
     const drop = useZipDrop({ onDropFiles: vi.fn(), isLocked: () => false });
     return <div className="page"><InstallTabCard titleId="install-title" title="Install">

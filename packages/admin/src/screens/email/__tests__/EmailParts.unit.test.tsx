@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { EmailSenderTab } from "../EmailSenderTab.js";
 import type { EmailSenderController } from "../hooks/use-email-sender.hooks.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -60,8 +62,8 @@ describe("EmailParts", () => {
 });
 
 it("email form spacing and provider loading paint survive the selector cutover", () => {
-  const css = readFileSync(new URL("../email.css", import.meta.url), "utf8");
-  const providerCss = readFileSync(new URL("../../plugins/provider-settings-dialog.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../email.css"), "utf8");
+  const providerCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../plugins/provider-settings-dialog.css"), "utf8");
   const controller: EmailSenderController = {
     sender: { kind: "loaded", data: { name: "Site", email: "site@example.com" } },
     draft: { name: "Site", email: "site@example.com" }, setDraft: vi.fn(), dirty: true,

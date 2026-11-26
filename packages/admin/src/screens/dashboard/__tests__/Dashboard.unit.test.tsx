@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { screen, within } from "@testing-library/react";
 import { renderWithAdminKit } from "../../../react/__tests__/render-with-admin-kit.js";
 import userEvent from "@testing-library/user-event";
@@ -167,7 +169,7 @@ describe("header, banners and appearance", () => {
 });
 
 it("collapsed and error dashboard states match the shipped selectors", () => {
-  const css = readFileSync(new URL("../dashboard.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../dashboard.css"), "utf8");
   const { container } = renderDashboard({ media: { value: null, error: "media unavailable" } }, {
     useRecentActivityDisclosureHook: () => ({ open: false, toggle: () => {}, panelId: "recent-panel" }),
   });
