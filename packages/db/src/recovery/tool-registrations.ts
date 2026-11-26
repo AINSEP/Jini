@@ -1,4 +1,6 @@
 import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolMetadataById, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
+import type { plan as gatewayPlan, confirm as gatewayConfirm, execute as gatewayExecute } from "@jini-ai/core/gated-mutations";
+import type { buildRestoreHooks, BuildRestoreHooksInput, toRecoveryResult } from "./restore-hooks.js";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -19,19 +21,20 @@ export interface RecoveryToolDeps {
   siteStatusRepo: Pick<SiteStatusPort, "get">;
   disclosureWatermarkSource: DisclosureWatermarkSourcePort;
   deepLinkRestorePointLookup: DeepLinkRestorePointLookupPort;
-  readonly refuseUnexpectedKeys: (input: Record<string, unknown>, allowed: readonly string[]) => void;
 }
 
 type RestorePreparation = { restorePointId: string; plan: { planId: string; planHash: string }; createdAt: string | undefined };
 
 export interface RecoveryToolHost<D extends RecoveryToolDeps> {
+  refuseUnexpectedKeys(required: { input: Record<string, unknown>; allowed: readonly string[] }): void;
+  buildRestoreHooks(required: { deps: D; actorId: string; restorePointId: string }): ReturnType<typeof buildRestoreHooks>;
   catalog: readonly AgentToolDefinition[]; metadata: ToolMetadataById; catalogModule: string;
   readPermission: string; restorePermission: string; coveredCategories: readonly string[];
   capabilityGuidance: { fullSiteBackup: { discoveryTool: string; planTool: string; pushTool: string; guidance: string }; portableExport: { href: string; guidance: string } };
   authorize(required: { deps: D; ctx: ToolExecutionContext; permission: string; entityType: string }, optional?: Record<string, never>): Promise<void>;
   plan(required: { deps: D; actorId: string; restorePointId: string; principalKind: Parameters<PlanRestoreGatewayPort["plan"]>[0]["principalKind"] }, optional?: Record<string, never>): ReturnType<PlanRestoreGatewayPort["plan"]>;
-  confirm(required: { deps: D; actorId: string; restorePointId: string; confirmer: { id: string; kind: "user" }; planId: string; planHash: string; signal: AbortSignal }, optional?: Record<string, never>): ReturnType<ConfirmRestoreGatewayPort["confirm"]>;
-  execute(required: { deps: D; actorId: string; restorePointId: string; confirmationToken: string; signal: AbortSignal }, optional?: Record<string, never>): ReturnType<ExecuteRestoreGatewayPort["execute"]>;
+  confirm(required: { deps: D; actorId: string; restorePointId: string; confirmer: { id: string; kind: "user" }; hooks: ReturnType<typeof buildRestoreHooks>; planId: string; planHash: string; signal: AbortSignal }, optional?: Record<string, never>): ReturnType<ConfirmRestoreGatewayPort["confirm"]>;
+  execute(required: { deps: D; actorId: string; restorePointId: string; confirmationToken: string; hooks: ReturnType<typeof buildRestoreHooks>; signal: AbortSignal }, optional?: Record<string, never>): ReturnType<ExecuteRestoreGatewayPort["execute"]>;
   operationLock: ExecuteRestoreOperationLockPort;
   isOperationInFlight(required: { siteId: string }, optional?: Record<string, never>): boolean;
   describe(required: RestorePreparation): { toolId: string; errorCode: string; title: string; details: readonly { label: string; value: string }[]; warning: string; danger: boolean; confirmLabel: string };
@@ -201,9 +204,10 @@ async function resolveRecoveryDeepLink<D extends RecoveryToolDeps>(routeDeps: D,
     }
 function createRecoveryRestoreRun<D extends RecoveryToolDeps>(routeDeps: D, host: RecoveryToolHost<D>): Parameters<RecoveryToolHost<D>["confirmedRestore"]>[0]["run"] {
   return async ({ ctx, prepared: { restorePointId, plan }, confirmer }) => {
+        const hooks = host.buildRestoreHooks({ deps: routeDeps, actorId: ctx.principal.id, restorePointId });
         const confirmed = await confirmRestore({
           deps: {
-            gateway: { confirm: params => host.confirm({ deps: routeDeps, actorId: ctx.principal.id, restorePointId, confirmer, planId: params.planId, planHash: params.planHash, signal: ctx.signal }) },
+            gateway: { confirm: params => host.confirm({ deps: routeDeps, actorId: ctx.principal.id, restorePointId, confirmer, hooks, planId: params.planId, planHash: params.planHash, signal: ctx.signal }) },
           },
           input: { principalId: confirmer.id, principalKind: confirmer.kind, planId: plan.planId, planHash: plan.planHash, disclosureAcknowledged: true },
         });
@@ -213,7 +217,7 @@ function createRecoveryRestoreRun<D extends RecoveryToolDeps>(routeDeps: D, host
         const executed = await executeRestore({
           deps: {
             gateway: {
-              execute: params => host.execute({ deps: routeDeps, actorId: ctx.principal.id, restorePointId, confirmationToken: params.confirmationToken, signal: ctx.signal }),
+              execute: params => host.execute({ deps: routeDeps, actorId: ctx.principal.id, restorePointId, hooks, confirmationToken: params.confirmationToken, signal: ctx.signal }),
             },
             operationLock: host.operationLock,
             clock: routeDeps.clock,
@@ -243,7 +247,7 @@ function createRecoveryRestoreHandler<D extends RecoveryToolDeps>(routeDeps: D, 
   return host.confirmedRestore({ surfaces,
       prepare: async ({ ctx }) => {
         const input = requireInputRecord({ input: ctx.input });
-        routeDeps.refuseUnexpectedKeys(input, ["restorePointId"]);
+        host.refuseUnexpectedKeys({ input: input, allowed: ["restorePointId"] });
         const restorePointId = requireString({ input: input, key: "restorePointId" });
         await host.authorize({ deps: routeDeps, ctx, permission: host.restorePermission, entityType: RESTORE_POINT_ENTITY });
         const { plan } = await planRestoreWithDisclosure({ actorId: ctx.principal.id, restorePointId });
@@ -319,4 +323,46 @@ export function buildRecoveryRegistrations<D extends RecoveryToolDeps>({ deps: r
 
 export function contributeRecoveryTools<D extends RecoveryToolDeps>({ host }: { host: RecoveryToolHost<D> }, _optional: Record<string, never> = {}): ToolContributor<D, AssistantSurfaceDeps> {
   return { domain: "recovery", build: (deps, surfaces) => buildRecoveryRegistrations({ deps, surfaces, host }), risk: recoveryDerivedRisk };
+}
+
+export function bindRecoveryTools<D extends RecoveryToolDeps & Pick<BuildRestoreHooksInput, "idGen" | "databaseLedgerRepo" | "migrationRunsRepo"> & {
+  siteStatusRepo: BuildRestoreHooksInput["siteStatus"]; dbOps: RecoveryToolDeps["dbOps"] & BuildRestoreHooksInput["dbOps"]; gatedMutations: { gatewayDeps: Parameters<typeof gatewayPlan>[0]["deps"] };
+}>(required: Omit<RecoveryToolHost<D>, "plan" | "confirm" | "execute" | "describe" | "confirmedRestore" | "buildRestoreHooks"> & {
+  buildRestoreHooks(input: Omit<BuildRestoreHooksInput, "planHashOf" | "resolveActorClassIdentity">): ReturnType<typeof buildRestoreHooks>;
+  gatewayPlan: typeof gatewayPlan; gatewayConfirm: typeof gatewayConfirm;
+  gatewayExecute(input: Omit<Parameters<typeof gatewayExecute>[0], "hooks"> & { hooks: ReturnType<typeof buildRestoreHooks> }): ReturnType<ReturnType<typeof buildRestoreHooks>["executeMutation"]>;
+  toRecoveryResult: typeof toRecoveryResult;
+  dialog: { errorCode: string; title: string; restorePointLabel: string; warning: string; confirmLabel: string };
+  humanConfirmedToolHandler(surfaces: AssistantSurfaceDeps, spec: Omit<Parameters<RecoveryToolHost<D>["confirmedRestore"]>[0], "surfaces" | "describe"> & { flag: string; dialog: RecoveryToolHost<D>["describe"] }): ToolHandler;
+}, _optional: Record<string, never> = {}) {
+  const host: RecoveryToolHost<D> = { ...required,
+    buildRestoreHooks: ({ deps: routeDeps, actorId, restorePointId }) => required.buildRestoreHooks({
+      workspaceId: routeDeps.workspaceId, actorId,
+      // Assistant tool path (P10-H2): the restore ledger records the agent kind.
+      actor: { id: actorId, kind: "agent" }, restorePointId, clock: routeDeps.clock, idGen: routeDeps.idGen,
+      restorePointsRepo: routeDeps.restorePointsRepo, databaseLedgerRepo: routeDeps.databaseLedgerRepo,
+      dbOps: routeDeps.dbOps, migrationRunsRepo: routeDeps.migrationRunsRepo, siteStatus: routeDeps.siteStatusRepo,
+    }),
+    plan: ({ deps: routeDeps, actorId, restorePointId, principalKind }) => required.toRecoveryResult({ run: () => required.gatewayPlan({
+      deps: routeDeps.gatedMutations.gatewayDeps, principalId: actorId, principalKind,
+      hooks: host.buildRestoreHooks({ deps: routeDeps, actorId, restorePointId }),
+    }) }, {}),
+    confirm: ({ deps: routeDeps, confirmer, hooks, planId, planHash, signal }) => required.toRecoveryResult({ run: async () => {
+      const record = await required.gatewayConfirm({ deps: routeDeps.gatedMutations.gatewayDeps,
+        principalId: confirmer.id, principalKind: confirmer.kind, signal, hooks, planId, planHash });
+      return { confirmationToken: record.confirmationToken };
+    } }, {}),
+    execute: ({ deps: routeDeps, actorId, hooks, confirmationToken, signal }) => required.toRecoveryResult({ run: () => required.gatewayExecute({
+      deps: routeDeps.gatedMutations.gatewayDeps, principalId: actorId, principalKind: AGENT_TOOL_PRINCIPAL_KIND, hooks, confirmationToken, signal,
+    }) }, {}),
+    describe: ({ restorePointId, createdAt }) => ({
+      toolId: RESTORE_TOOL_ID, errorCode: required.dialog.errorCode, title: required.dialog.title,
+      details: [{ label: required.dialog.restorePointLabel, value: createdAt ? `${restorePointId} (${createdAt})` : restorePointId }],
+      warning: required.dialog.warning, danger: true, confirmLabel: required.dialog.confirmLabel,
+    }),
+    confirmedRestore: ({ surfaces, prepare, describe, run }) => required.humanConfirmedToolHandler(surfaces, { flag: "restored", prepare, dialog: describe, run }),
+  };
+  return { buildRecoveryRegistrations: (deps: D, surfaces: AssistantSurfaceDeps) => buildRecoveryRegistrations({ deps, surfaces, host }),
+    contributeRecoveryTools: () => contributeRecoveryTools({ host }),
+  };
 }

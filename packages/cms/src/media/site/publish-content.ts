@@ -300,3 +300,15 @@ export const contributeMediaPublish = (): PublishContentContributor<MediaBag> =>
       },
     }),
   });
+
+export function bindMediaPublishContributor(required: Pick<MediaPorts, "createBlobWriteBindings" | "uploadCaps">, _optional: Record<string, never> = {}) {
+  return {
+    contributeMediaPublish: (): PublishContentContributor<Pick<CmsPublishPorts, "media">> => {
+      const contributor = contributeMediaPublish();
+      return { ...contributor, build: deps => {
+        const { media, ...ports } = deps.ports;
+        return contributor.build({ ...deps, ports: { ...ports, ...(media ? { media: { ...media, ...required } } : {}) } });
+      } };
+    },
+  };
+}

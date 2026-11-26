@@ -116,3 +116,11 @@ export function postCommandDeps(routeDeps: PostToolDeps) {
     authorize: routeDeps.authorize,
   };
 }
+
+export function createPostFeaturedImageRefusals({ mediaAssetReadToolId }: { mediaAssetReadToolId: string }, _optional: Record<string, never> = {}) {
+  return {
+    missing: ({ ref }: { ref: string }, _optional = {}) => `featuredImage: no media asset has the id or slug '${ref}'. Find one with ${mediaAssetReadToolId}, or upload one first.`,
+    trashed: ({ ref }: { ref: string }, _optional = {}) => `featuredImage: media asset '${ref}' is in Trash. Restore it first, or pick another image.`,
+    "not-image": ({ ref }: { ref: string }, { contentType }: { contentType?: string } = {}) => `featuredImage: media asset '${ref}' is ${contentType ?? "not an image"}, not an image. A featured image must be an image.`,
+  };
+}

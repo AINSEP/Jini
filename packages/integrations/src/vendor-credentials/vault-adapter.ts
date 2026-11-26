@@ -187,3 +187,26 @@ export class VendorCredentialSetVaultRepo extends CredentialSetVaultAdapter<Vend
     return this.listByProvider({ workspaceId: input.workspaceId, providerId: input.vendorId });
   }
 }
+
+export function bindCredentialVaultAdapters({ policy }: { policy: CredentialVaultAdapterPolicy }, _optional: Record<string, never> = {}): {
+  credentialVault: CredentialVaultBinding["open"];
+  credentialScope: CredentialVaultBinding["scope"];
+  SourceControlCredentialSetVaultAdapter: new (required: { vault: VaultRepoPort; kind: "source-control" }, optional?: Record<string, never>) => CredentialSetVaultAdapter<SourceControlCredentialSetRecord>;
+  VendorCredentialSetVaultRepo: new (required: { vault: VaultRepoPort; kind?: Kind; vendor?: boolean }, optional?: { project?: VendorCredentialProjectScope }) => VendorCredentialSetVaultRepo;
+} {
+  const binding = createCredentialVaultBinding({ policy });
+  return {
+    credentialVault: binding.open,
+    credentialScope: binding.scope,
+    SourceControlCredentialSetVaultAdapter: class extends CredentialSetVaultAdapter<SourceControlCredentialSetRecord> {
+      constructor(required: { vault: VaultRepoPort; kind: "source-control" }, _optional: Record<string, never> = {}) {
+        super({ vault: required.vault, kind: "source-control", policy, projectRecord: toSourceControlCredentialRecord });
+      }
+    },
+    VendorCredentialSetVaultRepo: class extends VendorCredentialSetVaultRepo {
+      constructor(required: { vault: VaultRepoPort; kind?: Kind; vendor?: boolean }, optional: { project?: VendorCredentialProjectScope } = {}) {
+        super({ vault: required.vault, policy }, optional);
+      }
+    },
+  };
+}

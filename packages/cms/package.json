@@ -13,6 +13,11 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./posts/sql/repo": "node",
+      "./posts/sql/repo.rows": "node",
+      "./posts/repo.memory": "universal",
+      "./media/site-import/bindings": "universal",
+      "./entries/site/publish-content": "universal",
       "./posts/email-template-store": "node",
       "./forms/site/publish-content": "universal",
       "./forms/site/protect-existing-files": "universal",
@@ -1377,6 +1382,31 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./posts/sql/repo": {
+      "types": "./dist/posts/sql/repo.d.ts",
+      "import": "./dist/posts/sql/repo.js",
+      "default": "./dist/posts/sql/repo.js"
+    },
+    "./posts/sql/repo.rows": {
+      "types": "./dist/posts/sql/repo.rows.d.ts",
+      "import": "./dist/posts/sql/repo.rows.js",
+      "default": "./dist/posts/sql/repo.rows.js"
+    },
+    "./posts/repo.memory": {
+      "types": "./dist/posts/repo.memory.d.ts",
+      "import": "./dist/posts/repo.memory.js",
+      "default": "./dist/posts/repo.memory.js"
+    },
+    "./media/site-import/bindings": {
+      "types": "./dist/media/site-import/bindings.d.ts",
+      "import": "./dist/media/site-import/bindings.js",
+      "default": "./dist/media/site-import/bindings.js"
+    },
+    "./entries/site/publish-content": {
+      "types": "./dist/entries/site/publish-content.d.ts",
+      "import": "./dist/entries/site/publish-content.js",
+      "default": "./dist/entries/site/publish-content.js"
+    },
     "./posts/email-template-store": {
       "types": "./dist/posts/email-template-store.d.ts",
       "import": "./dist/posts/email-template-store.js",

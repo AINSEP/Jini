@@ -150,6 +150,7 @@ export {
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   taxonomyAgentToolCatalog,
+  createTaxonomyAgentToolCatalog,
 } from "./agent-tools.js";
 
 export { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "./tool-registrations.js";

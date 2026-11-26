@@ -5,7 +5,7 @@ import { humanConfirmedHandler, ToolInputError, ToolPermissionDeniedError, type 
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 import { MERGE_TOOL_ID } from "../tool-handlers.js";
 import type { TaxonomyMergePrepared, TaxonomyPackageToolDeps } from "../tool-handlers.types.js";
-import { taxonomyAgentToolCatalog } from "../agent-tools.js";
+import { createTaxonomyAgentToolCatalog, taxonomyAgentToolCatalog } from "../agent-tools.js";
 import { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "../tool-registrations.js";
 import { InMemoryContentLookup, InMemoryEntryTermRepo, InMemoryTaxonomyRepo, InMemoryTaxonomyRevisionRepo, InMemoryTermRepo } from "../repo.memory.js";
 
@@ -209,4 +209,12 @@ test(`${MERGE_TOOL_ID}: a stray input key is refused by the injected guard befor
   const { fromTermId, intoTermId } = await seedTerms(fixture);
   await assert.rejects(() => fixture.call(MERGE_TOOL_ID, { fromTermId, intoTermId, confirm: true }), /'confirm' is not an input of this tool/);
   assert.deepEqual(fixture.calls, []);
+});
+
+test("the full catalog covers every handler with the shared assignment/read schema", () => {
+  const catalog = createTaxonomyAgentToolCatalog({ termListToolId: "content_read.taxonomy" });
+  const tools = buildTaxonomyToolRegistrations({ deps: makeFixture().deps, surfaces: { surfaceExchanges: {} as never }, catalog });
+  assert.deepEqual(tools.map(tool => tool.descriptor.id).sort(), catalog.map(tool => tool.name).sort());
+  assert.deepEqual((tools.find(tool => tool.descriptor.id === "taxonomy_get_assigned_terms")!.descriptor.inputSchema as { properties: Record<string, unknown> }).properties.contentType,
+    (tools.find(tool => tool.descriptor.id === "taxonomy_assign_terms")!.descriptor.inputSchema as { properties: Record<string, unknown> }).properties.contentType);
 });

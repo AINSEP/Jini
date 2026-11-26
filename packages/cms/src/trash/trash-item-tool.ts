@@ -54,6 +54,10 @@ import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { ToolInputError } from "@jini-ai/core";
 import type { TrashActor, TrashEntityType } from "./ports.js";
 import type { TrashEntry, TrashRegistry } from "./registry-types.js";
+import type { TrashPort } from "./ports.js";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { readLiveSnapshot } from "./sql/entry-sql.js";
+import type { moveToTrash } from "./site/move-to-trash.js";
 
 export const TRASH_ITEM_TOOL_ID = "trash_item";
 
@@ -371,4 +375,55 @@ export function deriveTrashItemRegistrations(
     handlers,
     derivedRisk: trashItemDerivedRisk,
   });
+}
+
+export function bindTrashItemTool(required: {
+  kinds: Record<"post" | "comment" | "media" | "redirect" | "widget" | "theme" | "user", string>; delegates: ReadonlyMap<string, Omit<TrashItemDelegate, "toDelegateInput">>;
+  actorPluginId: string; presentation: TrashItemToolDeps["presentation"]; metadata: ToolMetadataById; moveToTrash: typeof moveToTrash;
+  readLiveSnapshot(input: Parameters<typeof readLiveSnapshot>[0], deps: { kernel: StorageKernel<unknown, unknown>; registry: TrashRegistry }): ReturnType<typeof readLiveSnapshot>;
+}, _optional: Record<string, never> = {}) {
+  const inputFactories = new Map<string, (required: { deps: { workspaceId: string; postRepo: { findById(required: { workspaceId: string; id: string }): Promise<{ kind: string } | null> }; commentRepo: { findById(required: { workspaceId: string; id: string }): Promise<{ version: number } | null> }; commentsReady: Promise<unknown> }; entityId: string }) => Promise<Record<string, unknown> | null>>([
+    [required.kinds.post, async ({ deps, entityId }) => {
+      // The row's own `kind`, so a page is deleted as a page and the delegate's kind guard applies.
+      const row = await deps.postRepo.findById({ workspaceId: deps.workspaceId, id: entityId });
+      // Templates use the Post storage/trash owner; never hand an unsupported editor kind to its tool.
+      return row ? { id: entityId, kind: row.kind === "email-template" ? "post" : row.kind } : null;
+    }],
+    // The delegate requires `expectedVersion`. The version read here is the one the dialog is shown
+    // against; if the comment moves before the human confirms, `applyModeration` refuses.
+    [required.kinds.comment, async ({ deps, entityId }) => {
+      await deps.commentsReady;
+      const row = await deps.commentRepo.findById({ workspaceId: deps.workspaceId, id: entityId });
+      return row ? { commentId: entityId, expectedVersion: row.version } : null;
+    }],
+    // The delegate reads the row itself (after its own permission check), so there is nothing to
+    // resolve here.
+    [required.kinds.media, async ({ deps: _deps, entityId }) => { return { mediaId: entityId }; }],
+    [required.kinds.redirect, async ({ deps: _deps, entityId }) => { return { id: entityId }; }],
+    // No resolve needed, same as media/redirect above — `widgets_trash_instance`'s own read
+    // (a raw `entryRepo.findById`, no payload parse) resolves not-found itself.
+    [required.kinds.widget, async ({ deps: _deps, entityId }) => { return { widgetInstanceId: entityId }; }],
+    // The theme id IS the entity id; `theme_trash` resolves it against the live registry and owns
+    // the active-theme refusal, so nothing is read here.
+    [required.kinds.theme, async ({ deps: _deps, entityId }) => { return { themeId: entityId }; }],
+  ]);
+  const TRASH_ITEM_DELEGATES = new Map([...required.delegates].map(([entityType, delegate]) => [entityType, { ...delegate, toDelegateInput: inputFactories.get(entityType)! }]));
+  return { TRASH_ITEM_DELEGATES,
+    getTrashItemAgentToolCatalog: () => buildTrashItemAgentToolCatalog({ kinds: [...TRASH_ITEM_DELEGATES.keys(), required.kinds.user], presentation: required.presentation }),
+    deriveTrashItemRegistrations: (input: { registrations: readonly ToolRegistration[]; routeDeps: Omit<TrashItemToolDeps, "delegates" | "readLiveVersion" | "moveToTrash" | "actorPluginId" | "userKind" | "presentation" | "metadata"> & Parameters<NonNullable<ReturnType<typeof TRASH_ITEM_DELEGATES.get>>["toDelegateInput"]>[0]["deps"] & { db: StorageKernel<unknown, unknown>; trash: TrashPort; clock: { nowIso(): string } } }, optional: { delegates?: ReadonlyMap<TrashEntityType, NonNullable<ReturnType<typeof TRASH_ITEM_DELEGATES.get>>>; trashUser?: TrashUserPort } = {}) => {
+      const { routeDeps } = input;
+      // `?? []`: `registry` is typed as required, but plenty of existing test fixtures build a
+      // `RouteDeps` double with `as unknown as RouteDeps` and never set it — same "many compositions
+      // build a catalog without every domain" reality the comment above already accepts for
+      // `isTrashableEntityType`. A missing registry degrades to "no generic kinds," not a crash that
+      // takes the whole assistant catalog down with it.
+      return deriveTrashItemRegistrations({ registrations: input.registrations, deps: { ...routeDeps, registry: routeDeps.registry ?? new Map(),
+        delegates: new Map([...(optional.delegates ?? TRASH_ITEM_DELEGATES)].map(([entityType, delegate]) => [entityType, { ...delegate, toDelegateInput: ({ entityId }: { entityId: string }) => delegate.toDelegateInput({ deps: routeDeps, entityId }) }])),
+        // The snapshot's `version` is optional (entries without one); the port wants it explicit.
+        readLiveVersion: async (input) => { const row = await required.readLiveSnapshot(input, { kernel: routeDeps.db, registry: routeDeps.registry }); return row && { version: row.version ?? null }; },
+        moveToTrash: (input) => required.moveToTrash(input, { registry: routeDeps.registry, trash: routeDeps.trash, authorize: routeDeps.authorize, clock: routeDeps.clock, readLiveSnapshot: input => required.readLiveSnapshot(input, { kernel: routeDeps.db, registry: routeDeps.registry }) }),
+        actorPluginId: required.actorPluginId, userKind: required.kinds.user, presentation: required.presentation, metadata: required.metadata,
+      } }, { trashUser: optional.trashUser });
+    },
+  };
 }

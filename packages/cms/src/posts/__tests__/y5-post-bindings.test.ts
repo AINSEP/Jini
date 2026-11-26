@@ -1,0 +1,85 @@
+import { createHash } from "node:crypto";
+import { expect, test, vi } from "vitest";
+import { bindInMemoryPostRepo } from "../repo.memory.js";
+import { createMediaAccessEvidence } from "../../media/site/access-evidence.js";
+import { createPostFeaturedImageRefusals } from "../post-tool-policy.js";
+import { bindPostPreviewTools, createPostPreviewAgentToolCatalog } from "../preview-tool.js";
+import type { PostRecord } from "../post.js";
+import type { ToolExecutionContext } from "@jini-ai/core";
+
+const row: PostRecord = { id: "post", workspaceId: "site", title: "Post", slug: "post", kind: "post", status: "draft",
+  bodyJson: { type: "doc", content: [] }, bodyFormat: "doc", bodyHtml: null, updatedAt: "2026-11-25T00:00:00.000Z", version: 1 };
+const hashJsonText = (text: string) => createHash("sha256").update(text).digest("hex");
+const InMemoryPostRepo = bindInMemoryPostRepo({ nowIso: () => "2026-11-25T00:00:00.000Z", newId: () => "revision", hashJsonText, createEvidence: createMediaAccessEvidence });
+
+test("bound memory repos keep independent rows and hash the exact revision JSON text", async () => {
+  const a = new InMemoryPostRepo({});
+  const b = new InMemoryPostRepo({});
+  await a.save(row);
+  await a.appendRevision({ workspaceId: "site", postId: "post", seq: 1, op: "create", stateJson: row, actorId: "human", recordedAt: row.updatedAt });
+  expect(await b.list({ workspaceId: "site" })).toEqual([]);
+  expect(await a.listRevisions({ workspaceId: "site", postId: "post" })).toMatchObject([{ id: "revision", contentHash: hashJsonText(JSON.stringify(row)), stateJson: row }]);
+});
+
+test("rollback restores rows, revisions and autosaves and invalidates access evidence on either outcome", async () => {
+  const evidence = createMediaAccessEvidence();
+  const invalidate = vi.spyOn(evidence, "invalidate");
+  const repo = new InMemoryPostRepo({}, { initialRows: [row], mediaAccessEvidence: evidence });
+  await expect(repo.transaction({ fn: async () => {
+    await repo.writeAutosave({ workspaceId: "site", id: "post", snapshot: { baseVersion: 1 } as never });
+    await repo.appendRevision({ workspaceId: "site", postId: "post", seq: 2, op: "update", stateJson: { ...row, version: 2 }, actorId: "human", recordedAt: row.updatedAt });
+    await repo.save({ ...row, version: 2 });
+    throw new Error("rollback");
+  } })).rejects.toThrow("rollback");
+  expect(await repo.findById({ workspaceId: "site", id: "post" })).toEqual(row);
+  expect(await repo.listRevisions({ workspaceId: "site", postId: "post" })).toEqual([]);
+  expect(await repo.readAutosave({ workspaceId: "site", id: "post" })).toBeNull();
+  expect(invalidate).toHaveBeenLastCalledWith({ owner: repo });
+  invalidate.mockClear();
+  await repo.transaction({ fn: async () => {} });
+  expect(invalidate).toHaveBeenCalledExactlyOnceWith({ owner: repo });
+});
+
+test("memory save and autosave CAS refuse stale versions", async () => {
+  const repo = new InMemoryPostRepo({}, { initialRows: [row] });
+  expect(await repo.saveIfVersion({ record: { ...row, version: 3 }, ifVersion: 2 })).toEqual({ applied: false });
+  expect(await repo.writeAutosave({ workspaceId: "site", id: "post", snapshot: { baseVersion: 2 } as never })).toEqual({ applied: false });
+  expect(await repo.findById({ workspaceId: "site", id: "post" })).toEqual(row);
+  expect(await repo.readAutosave({ workspaceId: "site", id: "post" })).toBeNull();
+});
+
+test("HTML keysets have stable equal-date ordering", async () => {
+  const repo = new InMemoryPostRepo({}, { initialRows: ["c", "a", "b"].map(id => ({ ...row, id, bodyFormat: "html", bodyHtml: "<p>Body</p>" })) });
+  const first = await repo.listHtmlByKind({ workspaceId: "site", kind: "post", limit: 2 });
+  expect(first.map(post => post.id)).toEqual(["a", "b"]);
+  expect((await repo.listHtmlByKind({ workspaceId: "site", kind: "post", limit: 2, before: { updatedAt: row.updatedAt, id: "b" } })).map(post => post.id)).toEqual(["c"]);
+});
+
+test("featured-image refusals preserve the copy and bind the media read guidance ID", () => {
+  const refusals = createPostFeaturedImageRefusals({ mediaAssetReadToolId: "read_media" });
+  expect(refusals.missing({ ref: "asset" })).toBe("featuredImage: no media asset has the id or slug 'asset'. Find one with read_media, or upload one first.");
+  expect(refusals.trashed({ ref: "asset" })).toBe("featuredImage: media asset 'asset' is in Trash. Restore it first, or pick another image.");
+  expect(refusals["not-image"]({ ref: "asset" }, { contentType: "video/mp4" })).toBe("featuredImage: media asset 'asset' is video/mp4, not an image. A featured image must be an image.");
+});
+
+test("preview preserves the original host bag for the renderer and template reader", async () => {
+  const deps = { workspaceId: "site", authorize: vi.fn(async () => ({ allowed: true, reason: "grant" })),
+    postRepo: new InMemoryPostRepo({}, { initialRows: [row] }), hostValue: "kept" };
+  const readPostTemplateOptions = vi.fn(async (_input: { deps: typeof deps; kind: PostRecord["kind"] }) => ["template"]);
+  const renderer = { renderPostPreview: vi.fn(async (_input: { deps: typeof deps; input: unknown }) => ({ html: "<p>Preview</p>", templateChoice: null })) };
+  const binding = bindPostPreviewTools({ catalog: createPostPreviewAgentToolCatalog({ fetchPublishedPageToolId: "local_page", fetchLiveUrlToolId: "live_page" }),
+    readPageBodyOptions: () => ({}), shapePageBody: ({ body }) => ({ body, bodyBytes: body.length, truncated: false }), readPostTemplateOptions, readPermission: "content.read", contentPostReadToolId: "content_read.content_post" });
+  const [tool] = binding.buildPostPreviewRegistrations({ deps, renderer });
+  const ctx: ToolExecutionContext = { executionId: "e", run: { id: "run" }, principal: { id: "human" }, signal: new AbortController().signal, input: { postId: "post" } };
+  expect(await tool!.handler(ctx)).toMatchObject({ postId: "post", availableTemplates: ["template"], body: "<p>Preview</p>" });
+  expect(renderer.renderPostPreview.mock.calls[0]?.[0].deps).toBe(deps);
+  expect(readPostTemplateOptions.mock.calls[0]?.[0]).toEqual({ deps, kind: "post" });
+  expect(readPostTemplateOptions.mock.calls[0]?.[0].deps).toBe(deps);
+  await expect(tool!.handler({ ...ctx, input: { id: "post", bodyHtml: 8 } })).rejects.toThrow("bodyHtml must be a string");
+  expect(renderer.renderPostPreview).toHaveBeenCalledTimes(1);
+  await expect(tool!.handler({ ...ctx, input: { id: "missing" } })).rejects.toThrow("content_read.content_post");
+  deps.authorize.mockResolvedValue({ allowed: false, reason: "denied" });
+  const find = vi.spyOn(deps.postRepo, "findById");
+  await expect(tool!.handler(ctx)).rejects.toThrow("not authorized");
+  expect(find).not.toHaveBeenCalled();
+});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { taxonomyAgentToolCatalog } from "../index.js";
+import { createTaxonomyAgentToolCatalog, taxonomyAgentToolCatalog } from "../index.js";
 
 /**
  * @file The taxonomy agent-tool catalog's published contract: which tools exist, which are reads,
@@ -57,4 +57,21 @@ test("both merge tools describe their two term ids distinctly while sharing the 
     assert.deepEqual([fromTermId!.type, fromTermId!.minLength, intoTermId!.type, intoTermId!.minLength], ["string", 1, "string", 1]);
     assert.notEqual(fromTermId!.description, intoTermId!.description);
   }
+});
+
+test("the full catalog appends both reads without changing the base catalog", () => {
+  const full = createTaxonomyAgentToolCatalog({ termListToolId: "content_read.taxonomy" });
+  assert.deepEqual(full.slice(0, -2), taxonomyAgentToolCatalog);
+  assert.deepEqual(full.slice(-2).map(tool => tool.name), ["taxonomy_get_term", "taxonomy_get_assigned_terms"]);
+  assert.equal(taxonomyAgentToolCatalog.length, 8);
+  const assignment = full.find(tool => tool.name === "taxonomy_assign_terms")!.inputSchema as Schema;
+  const read = full.find(tool => tool.name === "taxonomy_get_assigned_terms")!.inputSchema as Schema;
+  assert.deepEqual(read.properties.contentType, assignment.properties.contentType);
+});
+
+test("read descriptions preserve the host copy and inject only the term discovery ID", () => {
+  const reads = createTaxonomyAgentToolCatalog({ termListToolId: "content_read.taxonomy" }).slice(-2);
+  assert.equal(reads[0]!.description, "Reads one live term by termId, including its taxonomyId, parentId, name, status and version. Use for a tag or category's details before renaming or assigning it. Returns {term}; missing or trashed terms are refused. Requires admin.taxonomy.manage. Use content_read.taxonomy to list available terms.");
+  assert.equal(reads[1]!.description, "Reads which tags, categories or taxonomy terms are assigned to a post, page or live collection entry. Use to show the tags on this post or categories on this page before changing them. Returns {contentType, contentId, terms:[{termId,name,slug,taxonomyId,taxonomyName}]} sorted by taxonomy then term name; untagged content returns an empty terms array. Slugs are derived from term names, since terms have no stored slug. Does not change assignments. Requires admin.taxonomy.manage and the content's edit permission; unknown content types are refused. Use taxonomy_list for all available terms, taxonomy_assign_terms to add them.");
+  assert.equal(createTaxonomyAgentToolCatalog({ termListToolId: "terms_read" }).at(-2)!.description, reads[0]!.description.replace("content_read.taxonomy", "terms_read"));
 });
