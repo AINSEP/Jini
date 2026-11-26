@@ -102,7 +102,7 @@ test('archive generation and derived-key mismatches omit the pair', () => {
 
 test('expiry sweep uses the observed revision and ignores only conflicts', async () => {
   const service = vault();
-  const row = await service.put({ ...policy.scope({ workspaceId: 'ws' }), id: 'expired', expectedRevision: null, provider: null, label: 'expired', meta: { credentialFormat: policy.attemptFormat, expiresAtMs: 0 } });
+  const row = await service.put({ ...policy.scope({ workspaceId: 'ws' }), id: 'expired', expectedRevision: null, provider: null, label: 'expired', meta: { credentialFormat: policy.attemptFormat, expiresAtMs: 0 }, payload: { attempt: { state: 'expired', expiresAt: '1970-01-01T00:00:00.000Z' } } });
   let deleted = false;
   const store = createApiConnectionVaultRecordStore({ vault: { get: service.get.bind(service), put: service.put.bind(service), list: service.list.bind(service), delete: async input => { assert.equal(input.expectedRevision, row.revision); deleted = true; throw new VaultError({ code: 'conflict' }); } }, workspaceId: 'ws', clock: { nowMs: () => 1 }, policy });
   const attempt = { state: 'new', expiresAt: '2026-01-02' } as ApiConnectionAttempt;
