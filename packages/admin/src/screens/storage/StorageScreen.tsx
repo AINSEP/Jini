@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ComponentProps, ElementType } from "react";
+import { useEffect, type ButtonHTMLAttributes, type ComponentProps, type ElementType } from "react";
 import { StoragePanel } from "./StoragePanel.js";
 import type { StorageClient } from "./api/storage-api.js";
 import type { ScreenshotCleanupClient } from "./api/screenshot-cleanup-api.js";
@@ -28,13 +28,15 @@ export interface StorageScreenProps {
   reportErrors: (required: { error: unknown }) => string;
   now: () => number;
   locale: string;
+  setDocumentTitle: (required: { title: string }, _optional?: Record<string, never>) => () => void;
   /** Required hooks (no default real hooks): the composition passes `useWiredStorage` and `useScreenshotCleanup`. */
   useWiredStorageHook: typeof useWiredStorage;
   useScreenshotCleanupHook: typeof useScreenshotCleanup;
 }
 
 /** The Storage screen over injected clients, clock and locale; {@link Storage} binds the live ones. */
-export function StorageScreen({ client, screenshotClient, reportErrors, now, locale, useWiredStorageHook, useScreenshotCleanupHook, kit: { Button: KitButton }, links, copy, t, categoryLabels, kindLabels, screenshotAgeDays, screenshotsAnchor, screenshotHeading }: StorageScreenProps, _optional: Record<string, never> = {}) {
+export function StorageScreen({ client, screenshotClient, reportErrors, now, locale, setDocumentTitle, useWiredStorageHook, useScreenshotCleanupHook, kit: { Button: KitButton }, links, copy, t, categoryLabels, kindLabels, screenshotAgeDays, screenshotsAnchor, screenshotHeading }: StorageScreenProps, _optional: Record<string, never> = {}) {
+  useEffect(() => setDocumentTitle({ title: t({ locale, key: "Storage" }) }, {}), [setDocumentTitle, t, locale]);
   const useStorage = () => useWiredStorageHook({ client, reportErrors, locale, links, t, categoryLabels, kindLabels }, {});
   // The same `.jini-page` / `.jini-page-header` / `.jini-page-title` frame as Trash and Media: without it the
   // page opened on bare section headings with no title (live-found 2026-11-25).

@@ -170,6 +170,7 @@ export type { FakeMcpIntegrationsPortOptions } from './features/integrations/dep
 
 // --- language ---
 export type { LocaleOption } from './features/language/types.js';
+export { resolveSystemLocale } from './features/i18n/locale.js';
 
 // --- media-providers ---
 export type {

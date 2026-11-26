@@ -56,7 +56,8 @@ export interface MediaGridRequest {
  * `hasUntypedActive` describe every matching row in the workspace, never just this page.
  */
 export interface MediaGridPage {
-  media: AdminMedia[];
+  media: (AdminMedia & { trashDaysRemaining?: number })[];
+  retentionDays?: number;
   nextCursor: string | null;
   counts: Record<MediaGridTab, number>;
   hasUntypedActive: boolean;

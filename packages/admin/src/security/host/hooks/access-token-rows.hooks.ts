@@ -10,11 +10,11 @@ export function useAccessTokenRows({ args, queries, stores }: { args: AccessToke
   const { providers, publishTargetsSettled } = queries;
   const { publishCredentials, sourceControlCredentials, customCredentials } = stores;
   const rows = useMemo<AccessTokenRow[] | undefined>(() => {
-    if (publishCredentials === undefined || sourceControlCredentials === undefined || customCredentials === undefined || !publishTargetsSettled) return undefined;
+    if (publishCredentials.status === "pending" || sourceControlCredentials.status === "pending" || customCredentials.status === "pending" || !publishTargetsSettled) return undefined;
     return [
-      ...buildAccessTokenRows({ kind: "publish", raws: publishCredentials, providerLabel: ({ ref }) => accessTokenProviderInfo({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, ref }).label, sentinelLabels: LEGACY_SENTINEL_LABELS }),
-      ...buildAccessTokenRows({ kind: "source-control", raws: sourceControlCredentials, providerLabel: ({ ref }) => accessTokenProviderInfo({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, ref }).label, sentinelLabels: LEGACY_SENTINEL_LABELS }),
-      ...buildCustomCredentialRows({ raws: customCredentials }),
+      ...buildAccessTokenRows({ kind: "publish", raws: publishCredentials.rows ?? [], providerLabel: ({ ref }) => accessTokenProviderInfo({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, ref }).label, sentinelLabels: LEGACY_SENTINEL_LABELS }),
+      ...buildAccessTokenRows({ kind: "source-control", raws: sourceControlCredentials.rows ?? [], providerLabel: ({ ref }) => accessTokenProviderInfo({ providers, copy: ACCESS_TOKEN_PROVIDER_COPY, ref }).label, sentinelLabels: LEGACY_SENTINEL_LABELS }),
+      ...buildCustomCredentialRows({ raws: customCredentials.rows ?? [] }),
     ];
   }, [publishCredentials, sourceControlCredentials, customCredentials, publishTargetsSettled, providers]);
   return rows;

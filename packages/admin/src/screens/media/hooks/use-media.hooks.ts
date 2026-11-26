@@ -63,7 +63,7 @@ export interface MediaDependencies {
   hooks: Pick<FetchQueryAdapter, "useFetchQuery" | "useFetchMutation" | "useInvalidate"> & {
     useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
     useGridPages: (required: { port: MediaDependencies["port"]; tab: MediaGridTab; orderBy: MediaOrderBy; useFetchQuery: FetchQueryAdapter["useFetchQuery"]; listKey: QueryKey }, optional?: { itemId?: string | null | undefined }) => {
-      items: AdminMedia[] | null; exactItem: AdminMedia | null; counts: MediaGridPage["counts"] | null;
+      items: AdminMedia[] | null; exactItem: AdminMedia | null; counts: MediaGridPage["counts"] | null; retentionDays: number | null;
       hasUntypedActive: boolean; error: Error | null; hasMore: boolean; loadingMore: boolean;
       loadMoreError: Error | null; loadMore: () => Promise<void>; retryLoadMore: () => Promise<void>;
     };
@@ -117,6 +117,7 @@ export interface MediaController {
   lookupMedia: AdminMedia[] | null;
   /** Workspace-wide tab counts from the server; `null` until the first page settles. */
   counts: MediaGridPage["counts"] | null;
+  retentionDays: number | null;
   /** Some untrashed asset has no recorded content type (server-counted over the whole workspace). */
   hasUntypedActive: boolean;
   hasMore: boolean;
@@ -266,7 +267,7 @@ export function useMedia({ port, locale, t, tab, itemId, hooks, deps }: MediaDep
     openUpload: event => openUpload({ event, setReadError, uploadMutation, setUploadOpen }), closeUpload: () => setUploadOpen(false),
     uploadError, conversionNotice, canUpload: selectedFileName !== "" && !uploading, altDraft, setAltDraft, fileInputRef, selectedFileName, onFileChange,
     upload: event => upload({ event, uploadInFlight, fileInputRef, setUploading, setReadError, setConversionNotice, clearOtherWriteErrors, uploadMutation, altDraft, setAltDraft, setSelectedFileName, setUploadOpen, deps }),
-    editingId, setEditingId, lookupMedia, counts: list.counts, hasUntypedActive: list.hasUntypedActive,
+    editingId, setEditingId, lookupMedia, counts: list.counts, retentionDays: list.retentionDays, hasUntypedActive: list.hasUntypedActive,
     hasMore: list.hasMore, loadingMore: list.loadingMore, loadMoreError: list.loadMoreError ? deps.translate({ locale, key: "more media could not be loaded" }) : null,
     loadMore: list.loadMore, editingItem: findEditingItem({ media: lookupMedia, editingId }),
     toggleEditing: item => setEditingId((id) => (id === item.id ? null : item.id)), onMetadataSaved: () => setEditingId(null),

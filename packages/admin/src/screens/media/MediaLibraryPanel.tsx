@@ -97,6 +97,8 @@ function MediaLibraryEdit({ props, editingItem, onMetadataSaved, setEditingId, t
 
 function MediaLibraryGrid({ props, activeTab, visibleMedia, mediaExpandHandles, gridSize, editingId, locale, viewerTimeZone, t, setLightboxIndex, toggleEditing, trash, restore, rowSavingId, setPendingPurge, kit, deps }: { props: Parameters<typeof MediaLibraryBody>[0]; activeTab: MediaContentTabId; visibleMedia: AdminMedia[]; mediaExpandHandles: string[]; gridSize: MediaGridSize; editingId: MediaController["editingId"]; locale: MediaController["locale"]; viewerTimeZone: string; t: MediaController["t"]; setLightboxIndex: MediaController["setLightboxIndex"]; toggleEditing: MediaController["toggleEditing"]; trash: MediaController["trash"]; restore: MediaController["restore"]; rowSavingId: MediaController["rowSavingId"]; setPendingPurge: MediaController["setPendingPurge"] } & Pick<MediaProps, "kit" | "deps">, _optional = {}) {
   return (
+<>
+      {activeTab === "trash" && props.retentionDays !== null ? <p className="page-description">{t("Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row.").replace("{days}", String(props.retentionDays))}</p> : null}
 <MediaGridOrEmpty kit={kit} deps={deps}
         useMediaCardDetailsHook={props.useMediaCardDetailsHook}
         useMediaPreviewHook={props.useMediaPreviewHook}
@@ -116,6 +118,7 @@ function MediaLibraryGrid({ props, activeTab, visibleMedia, mediaExpandHandles, 
         rowSavingId={rowSavingId}
         onRequestPurge={setPendingPurge}
       />
+</>
   );
 }
 

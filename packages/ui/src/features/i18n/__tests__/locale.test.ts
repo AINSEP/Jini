@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultDetectSystemLocale, detectInitialLocale, resolveSystemLocale } from '../locale.js';
 import type { LocalePersistencePort } from '../locale.js';
+import { resolveSystemLocale as resolveCoreSystemLocale } from '../../../core.js';
 
 describe('defaultDetectSystemLocale', () => {
   afterEach(() => {
@@ -25,6 +26,10 @@ describe('defaultDetectSystemLocale', () => {
 
 describe('resolveSystemLocale', () => {
   const supported = ['en', 'fr', 'zh-CN', 'zh-TW', 'pt-BR'];
+
+  it('pt-PT uses the available Portuguese dictionary through the framework-free entry point', () => {
+    expect(resolveCoreSystemLocale({ languages: ['pt-PT'], supportedLocales: supported }, {})).toBe('pt-BR');
+  });
 
   it('returns an exact case-insensitive match', () => {
     expect(resolveSystemLocale({ languages: ['FR'], supportedLocales: supported })).toBe('fr');

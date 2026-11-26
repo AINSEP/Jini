@@ -116,7 +116,7 @@ export async function createCustomCredential({ context }: { context: AccessToken
         additionalHosts: buildAdditionalHostsInput({ raw: fields.additionalHosts }),
         connection: buildCustomProviderConnectionInput(fields),
       });
-      setCustomCredentials((prev) => mergeRaw({ list: prev ?? [], result, isNew: true }));
+      setCustomCredentials((prev) => ({ status: "ok", rows: mergeRaw({ list: prev.rows ?? [], result, isNew: true }) }));
       resetCustomAddForm({ context });
       return true;
     } catch (err) {
