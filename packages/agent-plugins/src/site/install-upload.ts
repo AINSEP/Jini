@@ -127,6 +127,12 @@ export interface InstallUploadedAgentPluginRequired {
   readonly update?: { readonly pluginId: string; readonly expectedOldDigest: string };
 }
 
+type EngineLifecycle = ReturnType<typeof createAgentPluginLifecycle>;
+/** This module always hands the lifecycle the host's full layout (`optional.layout`), so a host lifecycle
+ * may require it instead of the engine's narrower layout port. */
+type WithHostLayout<TInput> = Omit<TInput, 'layout'> & { readonly layout: AgentPluginLayout };
+type TailParams<TFn> = TFn extends (first: never, ...rest: infer TRest) => unknown ? TRest : never;
+
 export interface InstallUploadedAgentPluginOptional {
   readonly pluginHost?: PluginHostPort;
   readonly mcpProvisioning?: AgentPluginMcpProvisioningPort;
@@ -135,8 +141,12 @@ export interface InstallUploadedAgentPluginOptional {
   readonly readInstallIdentity: typeof readInstalledAgentPluginIdentity;
   readonly sha256: (archive: Uint8Array) => string;
   readonly archiveReader: AgentPluginArchiveReaderPort;
-  readonly lifecycle: Pick<ReturnType<typeof createAgentPluginLifecycle>, 'installAgentPlugin' | 'listInstalledPlugins' | 'stageForRemoval' | 'restoreStagedTrees' | 'removeFrozenPackageTree' | 'setAgentPluginActivation' | 'isAgentPluginRecordedAsBundled' | 'resolveAgentPluginActivation'>;
-  readonly createLifecycle: (required: { layout: AgentPluginLayout }, optional: Partial<Pick<AgentPluginLifecyclePorts, 'mcpProvisioning'>> & Pick<AgentPluginLifecyclePorts, 'identityAdmission'>) => Pick<ReturnType<typeof createAgentPluginLifecycle>, 'updateAgentPlugin'>;
+  readonly lifecycle: Pick<EngineLifecycle, 'listInstalledPlugins' | 'stageForRemoval' | 'restoreStagedTrees' | 'removeFrozenPackageTree' | 'setAgentPluginActivation' | 'isAgentPluginRecordedAsBundled' | 'resolveAgentPluginActivation'> & {
+    installAgentPlugin(input: WithHostLayout<Parameters<EngineLifecycle['installAgentPlugin']>[0]>, ...rest: TailParams<EngineLifecycle['installAgentPlugin']>): ReturnType<EngineLifecycle['installAgentPlugin']>;
+  };
+  readonly createLifecycle: (required: { layout: AgentPluginLayout }, optional: Partial<Pick<AgentPluginLifecyclePorts, 'mcpProvisioning'>> & Pick<AgentPluginLifecyclePorts, 'identityAdmission'>) => {
+    updateAgentPlugin(input: WithHostLayout<Parameters<EngineLifecycle['updateAgentPlugin']>[0]>, ...rest: TailParams<EngineLifecycle['updateAgentPlugin']>): ReturnType<EngineLifecycle['updateAgentPlugin']>;
+  };
   readonly maxAgentPluginInstallArchiveBytes: () => number;
   readonly contain: PluginStateEffects['contain'];
   readonly assertOwnedPluginPath: (input: { contain: PluginStateEffects['contain']; workspaceRoot: string; entryPath: string }) => Promise<string>;

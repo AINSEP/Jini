@@ -1,6 +1,7 @@
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 import type { ConnectDeps } from "./contracts.js";
 import type { AgentPluginMcpProjectionPorts } from "./ports.js";
+import type { AgentPluginMcpContext } from "../site/service-ports.js";
 
 export function resolveAgentPluginConnectRedirectUri({ configuredOrigin, derivedOrigin, serverId, callbackPath }: { configuredOrigin: string | undefined; derivedOrigin: string | undefined; serverId: string; callbackPath: string }, _optional = {}): string | undefined {
   const configured = configuredOrigin?.trim();
@@ -26,13 +27,13 @@ export function createAgentPluginConnectDeps(required: {
   host: ConnectDeps["host"];
   isPluginEnabled: (required: { workspaceRoot: string; pluginId: string }) => Promise<boolean>;
   resolveInstalledPlugin: (required: { workspaceId: string; pluginId: string; agentPluginLayout: AgentPluginLayout }) => ReturnType<ConnectDeps["resolveInstalledPlugin"]>;
-  projectMcp(context: Omit<ConnectDeps["mcp"], keyof AgentPluginMcpProjectionPorts> & Partial<AgentPluginMcpProjectionPorts>): ConnectDeps["mcp"];
+  projectMcp(context: Omit<ConnectDeps["mcp"], keyof AgentPluginMcpProjectionPorts> & AgentPluginMcpContext): ConnectDeps["mcp"];
 }, _optional = {}) {
   return (routeDeps: Omit<ConnectDeps, "host" | "isPluginEnabled" | "resolveInstalledPlugin" | "mcp"> & {
     agentPluginLayout: AgentPluginLayout;
     isPluginEnabled?: ConnectDeps["isPluginEnabled"];
     resolveInstalledPlugin?: ConnectDeps["resolveInstalledPlugin"];
-    mcp: Omit<ConnectDeps["mcp"], keyof AgentPluginMcpProjectionPorts> & Partial<AgentPluginMcpProjectionPorts>;
+    mcp: Omit<ConnectDeps["mcp"], keyof AgentPluginMcpProjectionPorts> & AgentPluginMcpContext;
   }, _optional = {}): ConnectDeps => {
     let mcp: ConnectDeps["mcp"] | undefined;
     const deps = Object.assign(Object.defineProperties({}, Object.getOwnPropertyDescriptors(routeDeps)), {

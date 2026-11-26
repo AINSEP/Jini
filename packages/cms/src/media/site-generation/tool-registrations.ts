@@ -317,22 +317,22 @@ export function contributeMediaGenerationTools<D>(
   return { domain: DOMAIN, build: (deps) => buildMediaGenerationRegistrations(bind({ deps }, {})), risk: mediaGenerationDerivedRisk };
 }
 
-export function bindMediaGenerationTools(required: {
+export function bindMediaGenerationTools<TRegistry extends object = object>(required: {
   imageModelIds: readonly string[]; defaultModelId: string; mediaAssetReadToolId: string;
-  imageModelIdsFrom(required: { catalog: object }): readonly string[];
-  findModel(required: { registry: object; id: string }): { provider: string } | undefined;
+  imageModelIdsFrom(required: { catalog: TRegistry }): readonly string[];
+  findModel(required: { registry: TRegistry; id: string }): { provider: string } | undefined;
   uploadMedia: typeof uploadMedia; uploadCaps: Parameters<typeof uploadMedia>[1];
   credentialBindings: Omit<MediaProviderCredentialResolveDeps, "repo" | "sealer">;
   getMediaProviderCredentials: typeof getMediaProviderCredentials; resolveMediaProviderCredential: typeof resolveMediaProviderCredential;
   resolveProviderCredentialsFromEnv(required: { providerId: string; env: Record<string, string | undefined> }, optional: { envVars: Readonly<Record<string, readonly string[]>>; aliases: Readonly<Record<string, string>> }): ImageGenerationCredential;
   readEnvironment(): Record<string, string | undefined>; envVars: Readonly<Record<string, readonly string[]>>; aliases: Readonly<Record<string, string>>;
-  buildNoCredentialError(required: { providerId: string; registry: object }): { message: string };
+  buildNoCredentialError(required: { providerId: string; registry: TRegistry }): { message: string };
   issueCredentialSetup(required: { setupToolId: string; prefill: { kind: string; target: string } }, optional: Record<string, never>): ToolFailureDiagnostic;
-  defaultGenerateMedia(required: { request: { surface: "image"; model: string; prompt: string }; credentials: ImageGenerationCredential; options: { providerId: string; allowStubFallback: boolean; httpClient: HttpClientPort; registry: object } }, optional: { signal: AbortSignal }): Promise<GeneratedImageBytes>;
+  defaultGenerateMedia(required: { request: { surface: "image"; model: string; prompt: string }; credentials: ImageGenerationCredential; options: { providerId: string; allowStubFallback: boolean; httpClient: HttpClientPort; registry: TRegistry } }, optional: { signal: AbortSignal }): Promise<GeneratedImageBytes>;
 }, _optional: Record<string, never> = {}) {
   const bind = ({ deps: routeDeps, resolvePublicUrls }: { deps: Omit<UploadMediaDeps, "blobRepo" | "renditionRepo"> & {
     authorize: AuthorizeFn; tracker?: Tracker; imageCodec?: ImageCodecPort; mediaGenerationHttpClient: HttpClientPort;
-    mediaProviderRegistry: object | undefined; assetBlobRepo: UploadMediaDeps["blobRepo"]; assetRenditionRepo: UploadMediaDeps["renditionRepo"];
+    mediaProviderRegistry: TRegistry | undefined; assetBlobRepo: UploadMediaDeps["blobRepo"]; assetRenditionRepo: UploadMediaDeps["renditionRepo"];
     mediaContentTypeStore: MediaContentTypeStorePort; mediaProviderCredentialRepo: MediaProviderCredentialRepoPort; siteAssistantSecretSealer: MediaProviderCredentialResolveDeps["sealer"];
     workspaceId: string; env?: Record<string, string | undefined>;
     generateMedia?(input: Parameters<typeof required.defaultGenerateMedia>[0], optional: { signal: AbortSignal }): Promise<GeneratedImageBytes>;
