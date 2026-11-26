@@ -1,36 +1,46 @@
 import { expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import type { DefinedPlugin } from "@jini-ai/core/contracts/plugin-sdk";
 
-it("absent description and renderer-style anchors preserve the six-field patch", () => {
-  const entry = new URL("../../../../dist/seo/content-analyzer-plugin/plugin.js", import.meta.url);
-  const resolver = new URL("../../../../../plugins/dist/runtime/sdk-resolver.js", import.meta.url);
-  const fixture = new URL("./fixtures/sdk.mjs", import.meta.url);
-  const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
-    import { registerPluginSdkResolver } from ${JSON.stringify(resolver.href)};
-    registerPluginSdkResolver({ sdkModulePath: ${JSON.stringify(fileURLToPath(fixture))}, sdkSpecifiers: ["@jini-ai/plugin-sdk"] });
-    const { default: plugin, buildContentAnalyzerPatch } = await import(${JSON.stringify(entry.href)});
-    const analysis = await import("@jini-ai/cms/seo/content-analysis");
-    let hook, filter;
-    plugin.definition.setup({ addFilter(name, callback) { if (filter) throw new Error("duplicate filter"); hook = name; filter = callback; } });
-    const draft = { workspaceId: "w", title: "A title that is long enough to pass the check", ext: {}, bodyJson: { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Café Münster" }] }] } };
-    const patch = await filter(draft, { workspaceId: "w", pluginId: "analyzer" });
-    const direct = buildContentAnalyzerPatch({ entry: draft, analysis });
-    console.log(JSON.stringify({ hook, patch, same: JSON.stringify(patch) === JSON.stringify(direct) }));
-  `], { cwd: fileURLToPath(new URL("../../../..", import.meta.url)), encoding: "utf8" });
-  expect(result.stderr).toBe("");
-  expect(result.status).toBe(0);
-  const resultValue = JSON.parse(result.stdout);
-  expect(resultValue.hook).toBe("injected.before-save");
-  expect(resultValue.same).toBe(true);
-  expect(Object.keys(resultValue.patch)).toEqual(["score", "wordCount", "readingTimeMinutes", "readability", "summary", "report"]);
-  const report = JSON.parse(resultValue.patch.report);
+import * as analysis from "../../content-analysis/index.js";
+import { buildContentAnalyzerPatch, createContentAnalyzerPlugin } from "../plugin.js";
+
+type Filter = (entry: unknown, ctx: { workspaceId: string; pluginId: string }) => unknown;
+
+/** Runs the plugin's `setup()` against a recording SDK and returns the single registered filter. */
+function registerFilter({ beforeSaveHook }: { beforeSaveHook: string }): { hook: string; filter: Filter } {
+  const definePlugin = (definition: DefinedPlugin["definition"]): DefinedPlugin => ({ definition });
+  const plugin = createContentAnalyzerPlugin({ definePlugin, beforeSaveHook });
+  const seen: { hook: string; filter: Filter }[] = [];
+  void plugin.definition.setup({ addFilter: (hook: string, filter: Filter) => { seen.push({ hook, filter }); } } as never);
+  expect(seen).toHaveLength(1);
+  return seen[0]!;
+}
+
+it("registers its filter on the host-injected before-save hook, never a built-in name", () => {
+  expect(registerFilter({ beforeSaveHook: "injected.before-save" }).hook).toBe("injected.before-save");
+  expect(registerFilter({ beforeSaveHook: "other.hook" }).hook).toBe("other.hook");
+});
+
+it("absent description and renderer-style anchors preserve the six-field patch", async () => {
+  const { filter } = registerFilter({ beforeSaveHook: "injected.before-save" });
+  const draft = { workspaceId: "w", title: "A title that is long enough to pass the check", ext: {}, bodyJson: { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Café Münster" }] }] } };
+  const patch = await filter(draft, { workspaceId: "w", pluginId: "analyzer" }) as Record<string, unknown>;
+  expect(JSON.stringify(patch)).toBe(JSON.stringify(buildContentAnalyzerPatch({ entry: draft, analysis })));
+  expect(Object.keys(patch)).toEqual(["score", "wordCount", "readingTimeMinutes", "readability", "summary", "report"]);
+  const report = JSON.parse(String(patch.report));
   expect(report.toc).toEqual([{ level: 2, text: "Café Münster", anchor: "cafe-muenster" }]);
   expect(report.checks.find((c: { id: string }) => c.id === "meta-description-length")?.status).toBe("skip");
 });
-it("built worker output contains exactly the two approved bare specifiers", () => {
+
+it("a draft without a string title scores as untitled instead of throwing", async () => {
+  const { filter } = registerFilter({ beforeSaveHook: "h" });
+  const patch = await filter({ workspaceId: "w", ext: {}, bodyJson: null }, { workspaceId: "w", pluginId: "analyzer" }) as Record<string, unknown>;
+  expect(Object.keys(patch)).toHaveLength(6);
+});
+
+it("built output imports no plugin SDK module: the host binds definePlugin and the hook", () => {
   const output = readFileSync(new URL("../../../../dist/seo/content-analyzer-plugin/plugin.js", import.meta.url), "utf8");
   const specifiers = Array.from(output.matchAll(/from\s+["']([^"']+)["']/g), match => match[1]);
-  expect(specifiers).toEqual(["@jini-ai/plugin-sdk", "@jini-ai/cms/seo/content-analysis"]);
+  expect(specifiers).toEqual(["@jini-ai/cms/seo/content-analysis"]);
 });
