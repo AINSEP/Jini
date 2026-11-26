@@ -58,6 +58,9 @@ describe("media grid cursor paging", () => {
     await waitFor(() => expect(waiting.length).toBe(3));
     expect(result.current.retentionDays).toBeNull();
     expect(result.current.items).toEqual([]);
+    await act(async () => waiting[2]!.resolve({ ...answer(["image"], null), retentionDays: 90 }));
+    await waitFor(() => expect(result.current.items?.map((item) => item.id)).toEqual(["image"]));
+    expect(result.current.retentionDays).toBeNull();
   });
 
   it("changing tabs during load more drops the stale response and keeps exact counts", async () => {

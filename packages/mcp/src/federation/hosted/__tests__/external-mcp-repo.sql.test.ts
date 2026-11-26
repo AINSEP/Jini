@@ -20,7 +20,12 @@ function fixture() {
   vi.spyOn(driver, "acquireConnection").mockResolvedValue({
     async executeQuery<R>(query: CompiledQuery) {
       queries.push(query);
-      const rows = /^\s*select/i.test(query.sql) ? [toRow({ record, pointers: { env_secret_id: null, oauth_secret_id: null } })] : [];
+      const row = toRow({ record, pointers: { env_secret_id: null, oauth_secret_id: null } });
+      const projection = /^select ("[^"]+"(?:, "[^"]+")*) from "servers"/.exec(query.sql)?.[1];
+      const columns = projection?.split(", ").map(column => column.slice(1, -1));
+      const rows = /^\s*select/i.test(query.sql)
+        ? [columns ? Object.fromEntries(Object.entries(row).filter(([column]) => columns.includes(column))) : row]
+        : [];
       return { rows: rows as unknown as R[], numAffectedRows: affected };
     },
     async *streamQuery<R>() { yield { rows: [] as R[] }; },
@@ -74,6 +79,8 @@ it("guarded OAuth SQL compares configuration in the write", async () => {
     expectedConfig: { createdAt: f.record.createdAt, version: f.record.version },
     patch: { sealedOAuth: sealed, oauthStatus: "connected", oauthExpiresAt: null, oauthRefreshLeaseUntil: null,
       oauthAadVersion: 1, updatedAt: "later" } })).toBe(false);
+  const pointers = f.queries.find(query => query.sql.startsWith('select "env_secret_id"'));
+  expect(pointers?.sql.split(' from "servers"')[0]).toContain('"created_at"');
   const runtime = f.queries.find(query => query.sql.startsWith("update"))!;
   const where = runtime.sql.split(" where ")[1];
   expect(where).toMatch(/"oauth_secret_id" is null/);

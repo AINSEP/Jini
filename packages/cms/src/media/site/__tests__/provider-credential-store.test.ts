@@ -1,12 +1,12 @@
 import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
-import { SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { describe, expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRepoPort } from "../provider-credential-contracts.js";
 import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps } from "../provider-credential-store.js";
 import { mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError } from "../provider-credential-store.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
-import { mediaProviderVault, mediaVaultRecord } from "../provider-credential-vault.js";
+import { MediaProviderCredentialVaultRepo, mediaProviderVault, mediaVaultRecord, mediaVaultScope } from "../provider-credential-vault.js";
 
 const vaultPolicy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: { canonical: ["legacy"] },
   parseMeta: ({ meta }) => { const m = meta as Record<string, unknown>; return {
@@ -15,6 +15,7 @@ const row = (provider: string): VaultRecord => ({ workspaceId: "w", id: provider
   principalId: null, binding: null, provider, label: provider, meta: { baseUrl: null, model: null }, sealed: { keyId: "k", ciphertext: provider, nonce: "n", alg: "a" },
   last4: null, tokenLength: null, isDefault: false, revision: 1, createdAt: "old", updatedAt: "old" });
 const sha256Hex = ({ text }: { text: string }) => text;
+const legacy = { ...row("legacy"), sealed: { keyId: "k", alg: "aes-256-gcm", nonce: "AwMDAwMDAwMDAwMD", ciphertext: "XtzCczNjOztYemE6gi+LeZ9ZzYTR7LYNg0DFHYCtNywiYNqJ21DCqQ==" } };
 
 function setup(rows: VaultRecord[]) {
   const prepare = vi.fn(async () => row("canonical"));
@@ -50,17 +51,26 @@ describe("media credential set", () => {
     expect(s.findOne).toHaveBeenCalledWith(expect.objectContaining({ provider: "canonical" }));
   });
   it("metadata-only canonicalization reseals under the new identity", async () => {
-    const s = setup([row("legacy")]);
-    await saveMediaProviderCredentials({ deps: s.deps, input: { workspaceId: "w", providers: { canonical: { model: "next" } } } });
-    expect(s.findOne).toHaveBeenCalledWith(expect.objectContaining({ provider: "legacy" }));
-    expect(s.prepare).toHaveBeenCalledWith(expect.objectContaining({ id: "fresh-canonical", provider: "canonical", payload: { apiKey: "secret" }, expectedRevision: null }));
-    expect(s.records()[0]?.sealed?.ciphertext).toBe("canonical");
+    const vault = new InMemoryVaultRepo({});
+    await vault.put({ record: legacy, expectedRevision: null });
+    const repo = new MediaProviderCredentialVaultRepo({ vault, policy: vaultPolicy, idGen: { newId: () => "repo-fallback" } });
+    const keyring = { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(32).fill(7), deriveSigningSecret: async () => new Uint8Array(32) };
+    const sealer = new AesGcmSecretSealer({ keyring }, { randomBytesFn: ({ byteLength }) => new Uint8Array(byteLength).fill(4) });
+    const deps: MediaProviderCredentialSaveDeps = { ...setup([]).deps, repo, keyring, sealer,
+      createVault: ({ repo }) => new SecretsVaultService({
+        repo: repo.vault!, keyring, sealer, metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => "now", newId: () => "id",
+      }),
+    };
+    await saveMediaProviderCredentials({ deps, input: { workspaceId: "w", providers: { canonical: { model: "next" } } } });
+    const [canonical] = await vault.list(mediaVaultScope({ workspaceId: "w", providerId: "canonical", policy: vaultPolicy }));
+    expect(canonical).toMatchObject({ id: "fresh-canonical", provider: "canonical", revision: 1, meta: { baseUrl: null, model: "next" } });
+    expect(canonical?.sealed?.ciphertext).not.toBe(legacy.sealed.ciphertext);
+    expect(await resolveMediaProviderCredential({ deps, workspaceId: "w", providerId: "canonical" })).toEqual({ apiKey: "fixture-key", baseUrl: null, model: "next" });
   });
 });
 
 
 it("opens a legacy credential under its stored identity and existing AAD", async () => {
-  const legacy = { ...row("legacy"), sealed: { keyId: "k", alg: "aes-256-gcm", nonce: "AwMDAwMDAwMDAwMD", ciphertext: "XtzCczNjOztYemE6gi+LeZ9ZzYTR7LYNg0DFHYCtNywiYNqJ21DCqQ==" } };
   const s = setup([legacy]);
   const keyring = { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(32).fill(7), deriveSigningSecret: async () => new Uint8Array(32) };
   const sealer = new AesGcmSecretSealer({ keyring });

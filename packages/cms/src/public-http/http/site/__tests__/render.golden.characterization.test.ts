@@ -17,7 +17,9 @@ it('transforms managed bodies before collecting assets and bypasses the shell fo
     transformBody: async ({ html }) => { order.push('transform'); return html + ' transformed'; },
     renderAssets: async () => { order.push('assets'); return { head: '<meta name="asset">', body: '' }; },
   };
-  expect(await renderSite(required)).toContain('body');
+  const managed = await renderSite(required);
+  expect(managed).toContain('body');
+  expect(managed).toMatch(/ transformed<meta name="asset">$/);
   expect(order).toEqual(['transform', 'assets', 'shell']);
   order.length = 0;
   required.theme = { manifest: { name: 'Static', tier: 'static' }, templates: {}, liquidTemplates: {}, handlebarsTemplates: {} };

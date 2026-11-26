@@ -1,11 +1,14 @@
 import { checkSiteRelativeTarget } from "../../../../../../routing/site/reserved-paths.js";
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { serveSlugPage, nestedPageRoute } from '../slug-routes.js';
 
 it('keeps nested redirect phases in order before fallthrough', async () => {
   const phases: string[] = [];
   expect(await nestedPageRoute({ checkSiteRelativeTarget, path: '/nested/path', tryRedirectPhase: async ({ phase }) => { phases.push(phase); return false; } })).toEqual({ kind: 'next' });
   expect(phases).toEqual(['pre_content', 'post_content']);
+  const tryRedirectPhase = vi.fn(async () => true);
+  expect(await nestedPageRoute({ checkSiteRelativeTarget, path: '/admin/settings', tryRedirectPhase })).toEqual({ kind: 'next' });
+  expect(tryRedirectPhase).not.toHaveBeenCalled();
 });
 
 it('slug-gate-before-template: a denied post reaches the identical missing path without any render call', async () => {

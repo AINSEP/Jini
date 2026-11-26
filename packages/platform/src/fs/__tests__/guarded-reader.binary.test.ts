@@ -226,18 +226,23 @@ for (const outcome of ["success", "shrinkage", "early exit", "abort"] as const) 
             return stat;
         }) as typeof fstat);
         const controller = new AbortController();
+        const abortReason = new Error("fixture abort");
+        const successChunks: Uint8Array[] = [];
         const guarded = createGuardedFileReader({ rootPath, denyRules, limits, filesystem }, { descriptorRead: {} });
         const pending = guarded.withGuardedBinaryStream({ relativePath: "clip.mov", maxBytes: 256 * 1024,
             consume: async ({ chunks }) => {
                 for await (const chunk of chunks) {
                     assert.ok(chunk.byteLength <= 64 * 1024);
                     if (outcome === "early exit") return;
-                    if (outcome === "abort") controller.abort();
+                    if (outcome === "abort") controller.abort(abortReason);
+                    if (outcome === "success") successChunks.push(chunk);
                 }
             },
         }, { signal: controller.signal });
-        if (outcome === "early exit" || outcome === "success") await pending;
-        else await assert.rejects(() => pending);
+        if (outcome === "shrinkage") await assert.rejects(() => pending, refused("file 'clip.mov' ended before its 131072-byte descriptor length"));
+        else if (outcome === "abort") await assert.rejects(() => pending, error => error === abortReason);
+        else await pending;
+        if (outcome === "success") assert.deepEqual(Buffer.concat(successChunks), Buffer.alloc(128 * 1024, 9));
         assert.equal(close.mock.calls.length, 1);
     });
 }

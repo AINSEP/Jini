@@ -29,14 +29,31 @@ function fixture() {
   return deps;
 }
 
-it("the destination public URL overrides an explicit base path and reports warning order", async () => {
+it("the destination public URL overrides an explicit base path, reports warning order, and uses host fetch", async () => {
   const outputDir = await mkdtemp(path.join(tmpdir(), "wmz-export-"));
+  const routeDeps = fixture();
+  const bytes = Buffer.from("fixture");
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(bytes, { headers: { "content-type": "application/octet-stream" } }));
+  const globalFetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected global fetch"));
   try {
-    const result = await exportHostSite({ routeDeps: fixture(), outputDir, publicUrl: "https://destination.example/copy", basePath: "/ignored" });
-    expect(runner.run.mock.calls.at(-1)?.[1]).toEqual({ basePath: "/copy" });
+    const result = await exportHostSite({ routeDeps: { ...routeDeps, fetch,
+      bindExportMediaUrls: () => ({ workspaceId: routeDeps.workspaceId, originRegistry: routeDeps.originRegistry,
+        findMedia: vi.fn(), resolveContentTypes: vi.fn(), mediaPublicPath: vi.fn() }),
+    }, outputDir, publicUrl: "https://destination.example/copy", basePath: "/ignored" });
+    const [args, options] = runner.run.mock.calls.at(-1)! as [ExportSiteArgs, ExportSiteOptions];
+    expect(options).toEqual({ basePath: "/copy" });
     expect(result.basePathRewriteWarning).toBe("The base path was ignored because the public URL sets the path. Rewrite limit.");
     expect(result.consentWarning).toBe("Consent first. Placeholder second. Scripts third.");
-  } finally { await rm(outputDir, { recursive: true, force: true }); }
+    const url = "http://localhost:1234/assets/fixture.bin";
+    const init = { headers: { "x-export-fixture": "route" } };
+    const response = await args.fetch({ url }, { init });
+    expect(fetch.mock.calls).toEqual([[url, init]]);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(globalFetch).not.toHaveBeenCalled();
+  } finally {
+    globalFetch.mockRestore();
+    await rm(outputDir, { recursive: true, force: true });
+  }
 });
 
 it("without public origin omits discovery routes and removes their stale output", async () => {
