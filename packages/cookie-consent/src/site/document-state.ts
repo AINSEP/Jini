@@ -9,7 +9,7 @@ export type DocumentState = {
   policy?: ConsentConfig;
   pending?: Promise<void> | undefined;
   scripts: Promise<readonly DeclaredScript[]>;
-  client?: { body: Uint8Array; src: string };
+  client?: { body: Uint8Array; src: string } | undefined;
   nextReadAt: number;
   now: () => number;
   schedule: (run: () => void, delayMs: number) => () => void;

@@ -26,7 +26,7 @@ export function matchConsentPluginHttp({ plugins, full }: {
  * the strictest. @complexity O(cookie header) plus one policy read. */
 export async function collectorDecision({ origin, siteOrigin, adapter, readState, rateAllowed }: {
   origin: string | undefined; siteOrigin: (required: Record<string, never>) => string;
-  adapter: { category?: unknown; supportsAnonymous?: unknown };
+  adapter: Readonly<Record<string, unknown>>;
   readState: (required: Record<string, never>) => Promise<ConsentState>;
   rateAllowed: (required: Record<string, never>) => Promise<boolean>;
 }, _optional = {}): Promise<{ status: 403 | 429 | null; analyticsLevel: ConsentState['analyticsLevel'] }> {
