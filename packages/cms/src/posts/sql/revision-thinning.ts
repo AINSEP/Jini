@@ -6,12 +6,13 @@ import { requireInputRecord, ToolInputError, type ApprovalSteps, type ToolExecut
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 
-type ContentKernel = StorageKernel<Kysely<{
+type ContentKernel = StorageKernel<Kysely<unknown>, unknown>;
+type ContentTables = {
   posts: { workspace_id: string; id: string; status: string; version: number };
   post_revisions: { workspace_id: string; post_id: string; id: string; seq: number; recorded_at: string; restored_from: string | null; state_json: string };
   change_sets: { id: string; workspace_id: string; status: string };
   change_set_items: { id: string; change_set_id: string; entity_id: string; before_revision_id: string | null; after_revision_id: string | null; inverse_payload_json: string | null };
-}>, unknown>;
+};
 /**
  * @file Host adapter for Jini's revision-thinning engine over `post_revisions`: a date-only
  * preview of ONE post or page, then an owner-confirmed apply that deletes at most the contiguous,
@@ -67,26 +68,26 @@ const toRevision = (row: Row): ThinnedRevision => ({ id: row.id, seq: row.seq, r
  *  or after the cutoff, so the run is contiguous even if a clock went backwards. */
 function revisionsPort({ kernel, postRevisionLockKey }: Pick<RevisionThinningRequired, "kernel" | "postRevisionLockKey">, _optional = {}) {
   type Db = Parameters<Parameters<ContentKernel["run"]>[0]>[0];
-  const rows = (db: Db, scope: RevisionThinningScope) => db.selectFrom("post_revisions").select(["id", "seq", "recorded_at", "restored_from"])
+  const rows = (db: Db, scope: RevisionThinningScope) => db.withTables<ContentTables>().selectFrom("post_revisions").select(["id", "seq", "recorded_at", "restored_from"])
     .where("workspace_id", "=", scope.workspaceId).where("post_id", "=", scope.postId);
   return {
     withPostLock: ({ scope, run }: { scope: RevisionThinningScope; run: () => Promise<void> }) =>
       kernel.transaction(async () => { await kernel.lockKey(postRevisionLockKey(scope, {})); await run(); }),
     listOldest: async ({ scope, olderThan, limit }: { scope: RevisionThinningScope; olderThan: number; limit: number }) => {
-      const oldest = await kernel.run((db) => db.selectFrom("post_revisions").select(["id", "recorded_at"])
+      const oldest = await kernel.run((db) => db.withTables<ContentTables>().selectFrom("post_revisions").select(["id", "recorded_at"])
         .where("workspace_id", "=", scope.workspaceId).where("post_id", "=", scope.postId)
         .orderBy("seq", "asc").orderBy("recorded_at", "asc").orderBy("id", "asc").limit(limit).execute());
       const end = oldest.findIndex((row) => !(Date.parse(row.recorded_at) < olderThan));
       return (end === -1 ? oldest : oldest.slice(0, end)).map((row) => ({ id: row.id }));
     },
     newestId: async ({ scope }: { scope: RevisionThinningScope }) => {
-      const newest = await kernel.run((db) => db.selectFrom("post_revisions").select("id")
+      const newest = await kernel.run((db) => db.withTables<ContentTables>().selectFrom("post_revisions").select("id")
         .where("workspace_id", "=", scope.workspaceId).where("post_id", "=", scope.postId)
         .orderBy("seq", "desc").orderBy("recorded_at", "desc").orderBy("id", "desc").limit(1).executeTakeFirst());
       return newest?.id ?? null;
     },
     deleteIds: async ({ scope, ids }: { scope: RevisionThinningScope; ids: readonly string[] }) => {
-      await kernel.run((db) => db.deleteFrom("post_revisions").where("workspace_id", "=", scope.workspaceId)
+      await kernel.run((db) => db.withTables<ContentTables>().deleteFrom("post_revisions").where("workspace_id", "=", scope.workspaceId)
         .where("post_id", "=", scope.postId).where("id", "in", [...ids]).execute());
     },
     readRow: async ({ scope, id }: { scope: RevisionThinningScope; id: string }) => {
@@ -102,7 +103,7 @@ function revisionsPort({ kernel, postRevisionLockKey }: Pick<RevisionThinningReq
 /** The scope's kind must match the newest snapshot's own `kind`, so a page is never thinned as a post. */
 async function requireScope({ kernel, scope }: { kernel: ContentKernel; scope: Partial<RevisionThinningScope> | undefined }): Promise<RevisionThinningScope> {
   if (!scope?.workspaceId || !scope.postId || (scope.kind !== "post" && scope.kind !== "page")) throw new Error(SCOPE_ERROR);
-  const newest = await kernel.run((db) => db.selectFrom("post_revisions").select("state_json").where("workspace_id", "=", scope.workspaceId!)
+  const newest = await kernel.run((db) => db.withTables<ContentTables>().selectFrom("post_revisions").select("state_json").where("workspace_id", "=", scope.workspaceId!)
     .where("post_id", "=", scope.postId!).orderBy("seq", "desc").limit(1).executeTakeFirst());
   const kind = newest ? (JSON.parse(newest.state_json) as { kind?: string }).kind ?? "post" : undefined;
   if (kind !== scope.kind) throw new Error(SCOPE_ERROR);
@@ -171,3 +172,11 @@ export function revisionThinningApprovalHandler(
     run: async ({ ctx, prepared }) => ({ thinned: true, ...await binding.apply({ principal: ctx.principal.id, scope: prepared.scope, previewToken: prepared.previewToken, confirm: true }, {}) }),
   }, { flag: "thinned", ask: ({ prepared }) => prepared.count > 0 });
 }
+
+export function thinningCard({ prepared }: { prepared: Prepared }, _optional: Record<string, never> = {}): HumanConfirmSpec {
+  return { toolId: "post_thin_revisions", errorCode: "POST", title: `Delete up to ${prepared.count} old revision${prepared.count === 1 ? "" : "s"} of this ${prepared.scope.kind}?`,
+    details: [{ label: "Revisions in preview", value: String(prepared.count) }],
+    warning: "This cannot be undone. The newest revision and any revision that is published, restorable or needed for undo is kept, and thinning stops there.",
+    confirmLabel: "Delete old revisions" };
+}
+

@@ -13,6 +13,7 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./source-control/site/agent-tools": "universal",
       "./source-control/site/bundled-provider-registry": "universal",
       "./static-export/site/route-manifest": "universal",
       ".": "node",
@@ -190,6 +191,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./source-control/site/agent-tools": {
+      "types": "./dist/source-control/site/agent-tools.d.ts",
+      "import": "./dist/source-control/site/agent-tools.js",
+      "default": "./dist/source-control/site/agent-tools.js"
+    },
     "./source-control/site/bundled-provider-registry": {
       "types": "./dist/source-control/site/bundled-provider-registry.d.ts",
       "import": "./dist/source-control/site/bundled-provider-registry.js",

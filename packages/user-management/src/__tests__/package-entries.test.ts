@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { bindKernelUserTrashAdapter } from '../identity/sql/user-trash-adapter.js';
 
 const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 // Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel,
@@ -10,6 +11,8 @@ const nodeEntries = new Set(['./server/sql', './identity/repo', './identity/repo
   './newsletter/send-pipeline', './members/write-service', './admin-http/auth', './identity/boot-session-token', './identity/api-key-secret', './identity/api-key-service']);
 
 test('every published entry has matching runtime metadata and a source module', () => {
+  expect(typeof bindKernelUserTrashAdapter).toBe('function');
+  expect(manifest.jini.entries['./identity/sql/user-trash-adapter']).toBe('universal');
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {
     const paths = value as { types: string; import: string; default: string };

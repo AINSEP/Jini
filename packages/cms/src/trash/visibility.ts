@@ -83,3 +83,15 @@ export function trashDaysRemaining({ now, until }: { now: string; until: string 
   const ms = new Date(until).getTime() - new Date(now).getTime();
   return ms <= 0 ? 0 : Math.ceil(ms / (24 * 60 * 60 * 1000));
 }
+
+export function bindTrashVisibility({ permissions }: { permissions: ReadonlyMap<string, string> }, _optional: Record<string, never> = {}) {
+  return {
+    trashPermissionFor: (required: Omit<Parameters<typeof trashPermissionFor>[0], "permissions">, _optional: Record<string, never> = {}) => trashPermissionFor({ ...required, permissions }),
+    mayActOnEntityType: (required: Omit<Parameters<typeof mayActOnEntityType>[0], "deps"> & {
+      deps: Omit<Parameters<typeof mayActOnEntityType>[0]["deps"], "permissions">;
+    }, _optional: Record<string, never> = {}) => mayActOnEntityType({ ...required, deps: { ...required.deps, permissions } }),
+    filterVisibleTrashItems: (required: Omit<Parameters<typeof filterVisibleTrashItems>[0], "deps"> & {
+      deps: Omit<Parameters<typeof filterVisibleTrashItems>[0]["deps"], "permissions">;
+    }, _optional: Record<string, never> = {}) => filterVisibleTrashItems({ ...required, deps: { ...required.deps, permissions } }),
+  };
+}

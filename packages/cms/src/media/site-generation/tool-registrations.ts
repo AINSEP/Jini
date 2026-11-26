@@ -8,6 +8,14 @@ import type { ToolFailureDiagnostic } from "@jini-ai/core/contracts/site/daemon-
 import { toolMetadata } from "@jini-ai/core/tool-metadata/media-generation";
 import { buildDomainRegistrations, indexCatalogById, optionalBoolean, optionalString, requireInputRecord, requireString, requireToolPermission, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolHandler, type ToolPermissionAuthorizationPort, type ToolRegistration } from "@jini-ai/core";
 import { buildMediaGenerationAgentToolCatalog } from "./agent-tools.js";
+import { adaptLegacyAuthorize } from "@jini-ai/core";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
+import type { HttpClientPort } from "@jini-ai/core/primitives";
+import type { uploadMedia, UploadMediaDeps } from "../media-service.js";
+import type { getMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialResolveDeps } from "../site/provider-credential-store.js";
+import type { MediaProviderCredentialRepoPort } from "../site/provider-credential-contracts.js";
+import type { MediaContentTypeStorePort } from "../site/content-type-store.js";
+import type { MediaPublicUrlDeps } from "../site/contracts.js";
 
 export interface MediaGenerationToolDeps {
   workspaceId: string;
@@ -307,4 +315,46 @@ export function contributeMediaGenerationTools<D>(
   _optional: Record<string, never> = {},
 ): ToolContributor<D, unknown> {
   return { domain: DOMAIN, build: (deps) => buildMediaGenerationRegistrations(bind({ deps }, {})), risk: mediaGenerationDerivedRisk };
+}
+
+export function bindMediaGenerationTools(required: {
+  imageModelIds: readonly string[]; defaultModelId: string; mediaAssetReadToolId: string;
+  imageModelIdsFrom(required: { catalog: object }): readonly string[];
+  findModel(required: { registry: object; id: string }): { provider: string } | undefined;
+  uploadMedia: typeof uploadMedia; uploadCaps: Parameters<typeof uploadMedia>[1];
+  credentialBindings: Omit<MediaProviderCredentialResolveDeps, "repo" | "sealer">;
+  getMediaProviderCredentials: typeof getMediaProviderCredentials; resolveMediaProviderCredential: typeof resolveMediaProviderCredential;
+  resolveProviderCredentialsFromEnv(required: { providerId: string; env: Record<string, string | undefined> }, optional: { envVars: Readonly<Record<string, readonly string[]>>; aliases: Readonly<Record<string, string>> }): ImageGenerationCredential;
+  readEnvironment(): Record<string, string | undefined>; envVars: Readonly<Record<string, readonly string[]>>; aliases: Readonly<Record<string, string>>;
+  buildNoCredentialError(required: { providerId: string; registry: object }): { message: string };
+  issueCredentialSetup(required: { setupToolId: string; prefill: { kind: string; target: string } }, optional: Record<string, never>): ToolFailureDiagnostic;
+  defaultGenerateMedia(required: { request: { surface: "image"; model: string; prompt: string }; credentials: ImageGenerationCredential; options: { providerId: string; allowStubFallback: boolean; httpClient: HttpClientPort; registry: object } }, optional: { signal: AbortSignal }): Promise<GeneratedImageBytes>;
+}, _optional: Record<string, never> = {}) {
+  const bind = ({ deps: routeDeps, resolvePublicUrls }: { deps: Omit<UploadMediaDeps, "blobRepo" | "renditionRepo"> & {
+    authorize: AuthorizeFn; tracker?: Tracker; imageCodec?: ImageCodecPort; mediaGenerationHttpClient: HttpClientPort;
+    mediaProviderRegistry: object | undefined; assetBlobRepo: UploadMediaDeps["blobRepo"]; assetRenditionRepo: UploadMediaDeps["renditionRepo"];
+    mediaContentTypeStore: MediaContentTypeStorePort; mediaProviderCredentialRepo: MediaProviderCredentialRepoPort; siteAssistantSecretSealer: MediaProviderCredentialResolveDeps["sealer"];
+    workspaceId: string; env?: Record<string, string | undefined>;
+    generateMedia?(input: Parameters<typeof required.defaultGenerateMedia>[0], optional: { signal: AbortSignal }): Promise<GeneratedImageBytes>;
+  }; resolvePublicUrls: (required: { deps: MediaPublicUrlDeps & { workspaceId: string }; assets: readonly MediaRecord[] }, optional?: Record<string, never>) => Promise<Map<string, string | null>> }): { deps: MediaGenerationToolDeps; catalogInput: MediaGenerationCatalogInput } => {
+    const registry = routeDeps.mediaProviderRegistry;
+    return { catalogInput: { imageModelIds: registry === undefined ? required.imageModelIds : required.imageModelIdsFrom({ catalog: registry }), defaultModelId: required.defaultModelId, mediaAssetReadToolId: required.mediaAssetReadToolId }, deps: {
+      get workspaceId() { return routeDeps.workspaceId; }, get authorize() { return adaptLegacyAuthorize({ authorize: routeDeps.authorize }); },
+      get tracker() { return routeDeps.tracker; }, get imageCodec() { return routeDeps.imageCodec; },
+      findModel: ({ id }) => required.findModel({ registry: registry!, id }),
+      missingCredential: ({ providerId }) => ({ generated: false, message: required.buildNoCredentialError({ providerId, registry: registry! }).message,
+        credentialSetup: required.issueCredentialSetup({ setupToolId: "credential_save", prefill: { kind: "media-provider", target: providerId } }, {}) }),
+      storage: { upload: ({ input }) => required.uploadMedia({ deps: { clock: routeDeps.clock, idGen: routeDeps.idGen, mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo, renditionRepo: routeDeps.assetRenditionRepo, blobStore: routeDeps.blobStore }, input }, required.uploadCaps),
+        recordContentType: input => routeDeps.mediaContentTypeStore.set(input), resolvePublicUrls: input => resolvePublicUrls({ deps: routeDeps, ...input }) },
+      providers: { readSavedSelections: input => required.getMediaProviderCredentials({ deps: { ...required.credentialBindings, repo: routeDeps.mediaProviderCredentialRepo }, ...input }),
+        readSavedCredential: ({ workspaceId, providerId }) => required.resolveMediaProviderCredential({ deps: { ...required.credentialBindings, repo: routeDeps.mediaProviderCredentialRepo, sealer: routeDeps.siteAssistantSecretSealer }, workspaceId, providerId }).then(saved => saved ? { apiKey: saved.apiKey, ...(saved.baseUrl ? { baseUrl: saved.baseUrl } : {}) } : null),
+        readEnvCredential: ({ providerId }) => (fromEnv => fromEnv.apiKey ? fromEnv : null)(required.resolveProviderCredentialsFromEnv({ providerId, env: routeDeps.env ?? required.readEnvironment() }, { envVars: required.envVars, aliases: required.aliases })),
+        generateImage: ({ model, prompt, providerId, credentials, allowStubFallback }, optional) => (routeDeps.generateMedia ?? required.defaultGenerateMedia)({ request: { surface: "image", model, prompt }, credentials, options: { providerId, allowStubFallback, httpClient: routeDeps.mediaGenerationHttpClient, registry: registry! } }, optional),
+      },
+    } };
+  };
+  return {
+    buildMediaGenerationRegistrations: (routeDeps: Parameters<typeof bind>[0]["deps"], { resolvePublicUrls }: Pick<Parameters<typeof bind>[0], "resolvePublicUrls">) => buildMediaGenerationRegistrations(bind({ deps: routeDeps, resolvePublicUrls })),
+    contributeMediaGenerationTools: ({ resolvePublicUrls }: Pick<Parameters<typeof bind>[0], "resolvePublicUrls">, _optional: Record<string, never> = {}) => contributeMediaGenerationTools({ bind: ({ deps }: Pick<Parameters<typeof bind>[0], "deps">) => bind({ deps, resolvePublicUrls }) }),
+  };
 }

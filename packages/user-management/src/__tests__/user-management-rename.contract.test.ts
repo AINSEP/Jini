@@ -72,6 +72,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './identity/owner-reset-env': 'universal',
     './identity/repo.memory': 'universal',
     './identity/user-purge-types': 'universal',
+    './identity/sql/user-trash-adapter': 'universal',
     './identity/username-change-ports': 'universal',
     './identity/delete-user-service': 'universal',
     './react/auth/owner-mfa-api': 'browser',

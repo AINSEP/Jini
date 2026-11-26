@@ -1,6 +1,7 @@
 import type { TrashAdapter, TrashMarkerResult, TrashPurgeOutcome } from "@jini-ai/core/contracts/site/cms-trash";
 import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { PurgeCounts, UserPurgePort, UserPurgeReason } from "../user-purge-types.js";
+export { bindKernelUserTrashAdapter } from "./kernel-user-trash-store.js";
 
 /**
  * @file `TrashAdapter` for users (delete-user plan v2, decision 4) — bespoke rather than a

@@ -13,6 +13,11 @@ import { withSecurityMeta } from "./static-security-headers.js";
 import { rewriteExportMediaResponse, type ExportMediaUrlDeps } from "./media-original-urls.js";
 import { exportPublicOrigin, rewriteExportOriginResponse } from "./public-origin-policy.js";
 
+export function selectDeclaredThemeScripts({ themes, activeThemeId }: { themes: readonly { manifest: { id: string; scripts?: readonly { src: string }[] } }[]; activeThemeId: string | undefined }, _optional: Record<string, never> = {}): string[] {
+  const theme = themes.find(item => item.manifest.id === activeThemeId);
+  return (theme?.manifest.scripts ?? []).map(script => script.src).filter(src => src.startsWith('/') && !src.startsWith('//'));
+}
+
 export interface ExportSiteRouteDeps {
   readonly workspaceId: string;
   readonly clock: { nowIso(): string };

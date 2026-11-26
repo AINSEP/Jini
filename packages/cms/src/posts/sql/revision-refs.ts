@@ -1,12 +1,13 @@
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Kysely } from "kysely";
 
-type ContentKernel = StorageKernel<Kysely<{
+type ContentKernel = StorageKernel<Kysely<unknown>, unknown>;
+type ContentTables = {
   posts: { workspace_id: string; id: string; status: string; version: number };
   post_revisions: { workspace_id: string; post_id: string; id: string; seq: number; recorded_at: string; restored_from: string | null; state_json: string };
   change_sets: { id: string; workspace_id: string; status: string };
   change_set_items: { id: string; change_set_id: string; entity_id: string; before_revision_id: string | null; after_revision_id: string | null; inverse_payload_json: string | null };
-}>, unknown>;
+};
 
 import type { RevisionRefProbe, RevisionThinningScope } from "./revision-thinning.js";
 
@@ -25,7 +26,7 @@ type Db = Parameters<Parameters<ContentKernel["run"]>[0]>[0];
 
 /** This post's change-set items in this workspace (an item's entity id is only unique per site). */
 function postItems(db: Db, scope: RevisionThinningScope) {
-  return db.selectFrom("change_set_items").innerJoin("change_sets", "change_sets.id", "change_set_items.change_set_id")
+  return db.withTables<ContentTables>().selectFrom("change_set_items").innerJoin("change_sets", "change_sets.id", "change_set_items.change_set_id")
     .where("change_sets.workspace_id", "=", scope.workspaceId).where("change_set_items.entity_id", "=", scope.postId);
 }
 
@@ -56,7 +57,7 @@ export function postRevisionRefProbes(required: { kernel: ContentKernel }, _opti
   undoRefs: RevisionRefProbe; restoreRefs: RevisionRefProbe; publishedRefs: RevisionRefProbe;
 } {
   const { kernel } = required;
-  const livePost = (scope: RevisionThinningScope) => kernel.run((db) => db.selectFrom("posts").select(["status", "version"])
+  const livePost = (scope: RevisionThinningScope) => kernel.run((db) => db.withTables<ContentTables>().selectFrom("posts").select(["status", "version"])
     .where("workspace_id", "=", scope.workspaceId).where("id", "=", scope.postId).executeTakeFirst());
   return {
     undoRefs: async ({ scope, revision }) => {
