@@ -10,7 +10,9 @@ import type { ToolFailureDiagnostic } from '@jini-ai/core/contracts/site/daemon-
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { UIResource } from '@jini-ai/core/contracts/site/protocol-mcp-ui';
 import type { LoadInstalledDeployTargets } from "@jini-ai/devops/deploy/site/deploy-targets/types";
-import type { GatewayDeps } from '@jini-ai/core/gated-mutations';
+/** The host's own gateway deps, opaque to Jini. */
+export type HostGatewayDeps = object;
+type WithHostGatewayDeps<T> = Omit<T, 'deps'> & { deps: HostGatewayDeps };
 import type { OperatorLocaleDeps } from '@jini-ai/core/contracts/headless/plugin-host';
 import type { Clock } from "@jini-ai/core/primitives";
 import type { ExportReport as BaseExportReport } from '../../static-export/contracts.js';
@@ -51,9 +53,11 @@ export interface StaticPublishToolDeps extends OperatorLocaleDeps {
   readonly verificationPorts: Pick<VerifyPublishCredentialDeps, 'assertCredentialToken' | 'CredentialInputError' | 'credentialText' | 'createDeployHostKit'>;
   readonly requireToolPermission: typeof requireToolPermission;
   readonly resolveOperatorLocale: typeof resolveOperatorLocale;
-  readonly gatewayPlan: typeof plan;
-  readonly gatewayConfirm: typeof confirm;
-  readonly gatewayExecute: typeof execute;
+  /** The host's gateway over its own deps (method syntax: the host's functions take its own, narrower
+   *  deps type; Jini only passes back `gatedMutations.gatewayDeps`). */
+  gatewayPlan(required: WithHostGatewayDeps<Parameters<typeof plan>[0]>, optional?: Record<string, never>): ReturnType<typeof plan>;
+  gatewayConfirm(required: WithHostGatewayDeps<Parameters<typeof confirm>[0]>, optional?: Record<string, never>): ReturnType<typeof confirm>;
+  gatewayExecute<TResult>(required: WithHostGatewayDeps<Parameters<typeof execute<TResult>>[0]>, optional?: Record<string, never>): ReturnType<typeof execute<TResult>>;
   readonly resolveActorClassIdentity: GatedMutationHooks<unknown, unknown>['resolveActorClassIdentity'];
   readonly planHashOf: (required: { details: unknown }) => string;
   readonly checkToolPublishConsent: (required: { deps: StaticPublishToolDeps; principalId: string }) => Promise<Record<string, unknown> | null>;
@@ -83,7 +87,7 @@ export interface StaticPublishToolDeps extends OperatorLocaleDeps {
   }, optional: { flag: string }) => ToolHandler;
   readonly loadPluginCredentialCards?: (workspaceId: string) => Promise<readonly PluginCredentialCard[]>;
   /** Existing shared gateway; required when publishing with infrastructure changes. */
-  readonly gatedMutations?: { readonly gatewayDeps: GatewayDeps };
+  readonly gatedMutations?: { readonly gatewayDeps: HostGatewayDeps };
   readonly hostKit?: StaticPublishDeps["hostKit"];
   readonly publicPageSecurityHeaders?: StaticPublishDeps["publicPageSecurityHeaders"];
   readonly pluginExportHosts?: StaticPublishDeps["pluginExportHosts"];

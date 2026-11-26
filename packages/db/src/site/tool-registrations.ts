@@ -51,7 +51,11 @@ import type { LedgerReadPort } from "@jini-ai/db/tools";
  * previously required), so `server/routes/*` satisfies this interface structurally by passing its
  * existing `RouteDeps` object; nothing there changes.
  */
-export interface DatabaseToolDeps {
+/** A core gateway call's input with the host's own deps type in place of core's. */
+type HostDeps<T, G> = Omit<T, 'deps'> & { deps: G };
+
+/** `G` is the host's own gateway deps: Jini only hands them back to the host's gateway functions. */
+export interface DatabaseToolDeps<G = GatewayDeps> {
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;
@@ -60,10 +64,12 @@ export interface DatabaseToolDeps {
   restorePointsRepo: RestorePointListPort & RestorePointSavePort;
   databaseIntrospection: DatabaseIntrospectionPort;
   dbOps: DbOpsPort;
-  gatedMutations: { gatewayDeps: GatewayDeps };
+  gatedMutations: { gatewayDeps: G };
   catalog: readonly import('@jini-ai/core').AgentToolDefinition[]; messages: DbMessages;
   surfaces: AssistantSurfaceDeps; migrateForwardDialog: Omit<HumanConfirmSpec, 'toolId'>;
-  gatewayPlan: typeof gatewayPlan; gatewayConfirm: typeof gatewayConfirm; gatewayExecute: typeof gatewayExecute;
+  gatewayPlan: (required: HostDeps<Parameters<typeof gatewayPlan>[0], G>, optional?: Record<string, never>) => ReturnType<typeof gatewayPlan>;
+  gatewayConfirm: (required: HostDeps<Parameters<typeof gatewayConfirm>[0], G>, optional?: Record<string, never>) => ReturnType<typeof gatewayConfirm>;
+  gatewayExecute: <TResult>(required: HostDeps<Parameters<typeof gatewayExecute<TResult>>[0], G>, optional?: Record<string, never>) => ReturnType<typeof gatewayExecute<TResult>>;
   buildMigrateForwardHooks(input: Omit<BuildMigrateForwardHooksInput, 'planHashOf' | 'resolveActorClassIdentity'>): ReturnType<typeof buildMigrateForwardHooks>;
   operationLock: OperationLockPort; mutationActor: DatabaseMutationActorBinding;
   adaptLegacyAuthorize(input: { authorize: AuthorizeFn }): ToolPermissionAuthorizationPort;
@@ -72,7 +78,7 @@ export interface DatabaseToolDeps {
     flag: string;
     prepare(input: { ctx: ToolExecutionContext }): Promise<{ hooks: GatedMutationHooks<unknown, { migrated: true }>; plan: Awaited<ReturnType<typeof gatewayPlan>>; costClass: 'cheap' | 'expensive' | 'unavailable' }>;
     dialog(): HumanConfirmSpec;
-    run(input: { ctx: ToolExecutionContext; prepared: Awaited<ReturnType<Parameters<DatabaseToolDeps['humanConfirmedToolHandler']>[1]['prepare']>>; confirmer: { id: string; kind: 'user' } }): Promise<unknown>;
+    run(input: { ctx: ToolExecutionContext; prepared: Awaited<ReturnType<Parameters<DatabaseToolDeps<G>['humanConfirmedToolHandler']>[1]['prepare']>>; confirmer: { id: string; kind: 'user' } }): Promise<unknown>;
   }): ToolHandler;
 }
 
@@ -130,7 +136,7 @@ const UNWIRED_DATABASE_TOOL_IDS = new Set([
 ]);
 
 
-    async function planDatabaseMigrateForward(routeDeps: DatabaseToolDeps, ctx: Parameters<ToolHandler>[0], mutationActor: DatabaseMutationActorBinding) {
+    async function planDatabaseMigrateForward<G>(routeDeps: DatabaseToolDeps<G>, ctx: Parameters<ToolHandler>[0], mutationActor: DatabaseMutationActorBinding) {
       const { buildMigrateForwardHooks, gatewayPlan } = routeDeps;
       requireNoInput({ input: ctx.input });
       // No explicit pre-check here: `gateway.ts`'s plan() calls authorize() unconditionally,
@@ -154,7 +160,7 @@ const UNWIRED_DATABASE_TOOL_IDS = new Set([
         hooks: hooks as unknown as GatedMutationHooks<unknown, unknown>,
       });
     }
-function createMigrateHooks(routeDeps: DatabaseToolDeps, mutationActor: DatabaseMutationActorBinding) {
+function createMigrateHooks<G>(routeDeps: DatabaseToolDeps<G>, mutationActor: DatabaseMutationActorBinding) {
   const { buildMigrateForwardHooks } = routeDeps;
   return ({ actorId }: { actorId: string }, _options = {}) =>
     buildMigrateForwardHooks({
@@ -169,7 +175,7 @@ function createMigrateHooks(routeDeps: DatabaseToolDeps, mutationActor: Database
 }
 
 
-function createMigrateForwardHandler(routeDeps: DatabaseToolDeps, surfaces: AssistantSurfaceDeps, mutationActor: DatabaseMutationActorBinding): ToolHandler {
+function createMigrateForwardHandler<G>(routeDeps: DatabaseToolDeps<G>, surfaces: AssistantSurfaceDeps, mutationActor: DatabaseMutationActorBinding): ToolHandler {
 const migrateHooks = createMigrateHooks(routeDeps, mutationActor);
   const { humanConfirmedToolHandler, refuseUnexpectedKeys, adaptLegacyAuthorize, gatewayPlan, gatewayConfirm, gatewayExecute } = routeDeps;
   return humanConfirmedToolHandler(surfaces, {
@@ -222,8 +228,8 @@ const migrateHooks = createMigrateHooks(routeDeps, mutationActor);
 
 
 
-export function buildDatabaseRegistrations(
-  routeDeps: DatabaseToolDeps,
+export function buildDatabaseRegistrations<G = GatewayDeps>(
+  routeDeps: DatabaseToolDeps<G>,
   _optional = {},
 ): ToolRegistration[] {
   const { surfaces, mutationActor, adaptLegacyAuthorize } = routeDeps;

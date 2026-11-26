@@ -1,5 +1,5 @@
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, adaptLegacyAuthorize, requireToolPermission, ToolInputError, type AgentToolDefinition, type ToolExecutionContext, type ToolHandler, type ToolRegistration, type ToolContributor, type HumanConfirmer, type ToolExecutionOptions } from "@jini-ai/core";
-import { plan as gatewayPlan, confirm as gatewayConfirm, execute as gatewayExecute, ForbiddenError, PlanStaleError, type GatewayDeps } from "@jini-ai/core/gated-mutations";
+import { ForbiddenError, PlanStaleError, type plan as corePlan, type confirm as coreConfirm, type execute as coreExecute } from "@jini-ai/core/gated-mutations";
 import { nowIso } from "@jini-ai/core/primitives";
 import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -31,6 +31,16 @@ import type { PublishContentDeps, PublishContentContributor } from "./type-regis
 // rejection 400 rather than redacting it into a message-stripped 500. Same import, same reason, as
 // `features/site-evidence/tool-registrations.ts`.
 
+type WithHostDeps<T> = Omit<T, "deps"> & { deps: unknown };
+
+/** The host's gateway over its own deps. Method syntax on purpose: the host's functions take its own,
+ *  narrower deps type, and Jini only ever passes back `gatedMutations.gatewayDeps`. */
+export interface HostGatewayPort {
+  plan(required: WithHostDeps<Parameters<typeof corePlan>[0]>, optional?: Record<string, never>): ReturnType<typeof corePlan>;
+  confirm(required: WithHostDeps<Parameters<typeof coreConfirm>[0]>, optional?: Record<string, never>): ReturnType<typeof coreConfirm>;
+  execute<TResult>(required: WithHostDeps<Parameters<typeof coreExecute<TResult>>[0]>, optional?: Record<string, never>): ReturnType<typeof coreExecute<TResult>>;
+}
+
 export interface PublishContentToolDeps extends PublishContentPullDeps {
   authorize: NonNullable<PublishContentDeps<Record<string, unknown>>["authorize"]>;
   catalog: readonly AgentToolDefinition[];
@@ -39,7 +49,10 @@ export interface PublishContentToolDeps extends PublishContentPullDeps {
   buildPublishContentCatalog: BuildPublishContentImportHooksInput<Record<string, unknown>>["catalog"]["build"];
   planHashOf: BuildPublishContentImportHooksInput<Record<string, unknown>>["planHashOf"];
   resolveActorClassIdentity: BuildPublishContentImportHooksInput<Record<string, unknown>>["resolveActorClassIdentity"];
-  gatedMutations: { gatewayDeps: GatewayDeps };
+  /** The host's own gateway deps; handed back untouched to {@link HostGatewayPort}. */
+  gatedMutations: { gatewayDeps: unknown };
+  /** The host's gated-mutation gateway (plan/confirm/execute over its own token store and TTL). */
+  gateway: HostGatewayPort;
   publishContentPeerRepo: PublishContentPeerRepoPort;
   publishContentRunRepo: PublishContentRunRepoPort;
   publishContentBaselineRepo: BuildPublishContentImportHooksInput<Record<string, unknown>>["baselineRepo"];
@@ -230,7 +243,7 @@ async function connectWithTrust(
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: PUBLISH_CONTENT_APPLY_PERMISSION });
       const peerId = await selectPullPeer({ deps: routeDeps, supplied: input.peerId });
       const staged = await routeDeps.pullAndStageFromPeer({ deps: routeDeps, input: { peerId, principalId: ctx.principal.id } });
-      const planned = await gatewayPlan({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks: pullHooks({ deps: routeDeps, bundleId: staged.bundleId, actorId: ctx.principal.id }) });
+      const planned = await routeDeps.gateway.plan({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks: pullHooks({ deps: routeDeps, bundleId: staged.bundleId, actorId: ctx.principal.id }) });
       const report = acceptedPullReport({ report: planned.details as PublishContentReport });
       // The bundle table has no source-label column. An existing audit row retains this display
       // metadata across tool calls/restarts; no cached plan is trusted at execute time.
@@ -262,7 +275,7 @@ async function connectWithTrust(
         const audit = await routeDeps.publishContentRunRepo.findById({ workspaceId: routeDeps.workspaceId, id: bundleId });
         if (!audit || audit.phase !== "planned" || audit.actorId !== ctx.principal.id) throw new ToolInputError({ message: "This pull plan was not found or has expired. Run publish_content_plan_pull again." });
         const hooks = pullHooks({ deps: routeDeps, bundleId, actorId: ctx.principal.id }, { forcedEntityKeys: overwriteKeys });
-        const planned = await gatewayPlan({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks });
+        const planned = await routeDeps.gateway.plan({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks });
         const report = acceptedPullReport({ report: planned.details as PublishContentReport });
         const knownKeys = new Set(report.rows.map(row => entityKey({ entityType: row.entityType, entityId: row.entityId })));
         for (const key of overwriteKeys) if (!knownKeys.has(key)) throw new ToolInputError({ message: `'${key}' is not in this pull plan. Use entity keys returned by publish_content_plan_pull.` });
@@ -281,13 +294,13 @@ async function connectWithTrust(
         danger: true, confirmLabel: "Apply pull",
       }),
       run: ({ ctx, prepared: { hooks, planned }, confirmer }) => pullToolBoundary({ deps: routeDeps, run: async () => {
-        const token = await gatewayConfirm({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: confirmer.id, principalKind: confirmer.kind, hooks, planId: planned.planId, planHash: planned.planHash, signal: ctx.signal });
+        const token = await routeDeps.gateway.confirm({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: confirmer.id, principalKind: confirmer.kind, hooks, planId: planned.planId, planHash: planned.planHash, signal: ctx.signal });
         // As on /import/execute, check restore capability outside the shared gateway; it still
         // re-authorizes, checks the human-bound token and re-derives the plan before any write.
         await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: PUBLISH_CONTENT_APPLY_PERMISSION });
         const capabilities = await routeDeps.dbOps.getCapabilities();
         const applied = await executePublishContentImport({ workspaceId: routeDeps.workspaceId, costClass: capabilities.restorePoint.costClass,
-          gatewayExecute: () => gatewayExecute({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks, confirmationToken: token.confirmationToken, signal: ctx.signal }),
+          gatewayExecute: () => routeDeps.gateway.execute({ deps: routeDeps.gatedMutations.gatewayDeps, principalId: ctx.principal.id, principalKind: "agent", hooks, confirmationToken: token.confirmationToken, signal: ctx.signal }),
         });
         const status = await getPublishContentRunStatus<PublishContentReport>({ repo: routeDeps.publishContentRunRepo, input: { workspaceId: routeDeps.workspaceId, runId: applied.runId } });
         if (!status?.report) throw new ToolInputError({ message: "The pull ran, but its report could not be loaded. Check import history before retrying." });

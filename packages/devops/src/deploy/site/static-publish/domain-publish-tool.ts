@@ -4,10 +4,10 @@ import { ToolInputError, type ToolHandler } from "@jini-ai/core";
 import { nowIso } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
-import { PlanStaleError, ForbiddenError, type GatewayDeps } from "@jini-ai/core/gated-mutations";
+import { PlanStaleError, ForbiddenError } from "@jini-ai/core/gated-mutations";
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 
-import type { StaticPublishToolDeps } from "../publish-tool-deps.js";
+import type { HostGatewayDeps, StaticPublishToolDeps } from "../publish-tool-deps.js";
 import type { StaticPublishConfig, PublishCredentialSource } from "@jini-ai/devops/deploy/site/static-publish/types";
 import { inspectStaticPublish, type StaticPublishInspection } from "./inspection.js";
 import { getPublishRunSnapshot, startPublishRun, type PublishRunSnapshot } from "./publish-run.js";
@@ -70,7 +70,7 @@ export function domainPublishTool(required: {
 
 /** Preserve typed gateway refusals through the tool transport's caller-safe error channel. */
 async function executeDomainPublish(required: {
-  deps: StaticPublishToolDeps; gateway: GatewayDeps; principalId: string; hooks: GatedMutationHooks<DomainPublishDetails, PublishRunSnapshot>; confirmationToken: string;
+  deps: StaticPublishToolDeps; gateway: HostGatewayDeps; principalId: string; hooks: GatedMutationHooks<DomainPublishDetails, PublishRunSnapshot>; confirmationToken: string;
 }, _options = {}): Promise<PublishRunSnapshot> {
   try { return await required.deps.gatewayExecute({ deps: required.gateway, principalId: required.principalId, principalKind: 'agent', hooks: required.hooks, confirmationToken: required.confirmationToken }); }
   catch (error) {
@@ -83,7 +83,7 @@ async function executeDomainPublish(required: {
 }
 
 function makeHooks(required: {
-  deps: StaticPublishToolDeps; gateway: GatewayDeps; surfaces: AssistantSurfaceDeps;
+  deps: StaticPublishToolDeps; gateway: HostGatewayDeps; surfaces: AssistantSurfaceDeps;
   credentialSource: PublishCredentialSource; historyStore: PublishHistoryStore;
   config: StaticPublishConfig; projectName: string; credentialId?: string; onSettled?: () => void; actorId: string; signal: AbortSignal; requestId: string;
 }, _options = {}): GatedMutationHooks<DomainPublishDetails, PublishRunSnapshot> {
