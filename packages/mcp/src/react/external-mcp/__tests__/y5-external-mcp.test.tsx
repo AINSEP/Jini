@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import { bindExternalMcpAdmissions } from "../hooks/use-external-mcp-admissions.hooks.js";
 import { useExternalMcp } from "../hooks/use-external-mcp.hooks.js";
 
 afterEach(cleanup);
@@ -36,4 +37,30 @@ test("saved updates carry the saved version and conflicts retain the last known 
   expect(updated).toEqual({ ...items[0], statusMessage: "This server changed elsewhere." });
   expect(result.current.restartRequired).toBe(false);
   expect(probeExternalMcpServer).not.toHaveBeenCalled();
+});
+
+test("admissions binding retains transient classification and resolves wired copy inside the hook", () => {
+  const useCopyHook = vi.fn(() => (key: string) => `copy:${key}`);
+  const bound = bindExternalMcpAdmissions({
+    hooks: {
+      useCopyHook,
+      useFetchQuery: () => ({ data: undefined, error: null, status: "loading", isFetching: true, refetch: () => {} }),
+      useFetchMutation: ({ run }) => ({ status: "idle", error: null, mutate: ({ input }) => run({ input }), reset: () => {} }),
+    },
+    deps: {
+      port: { getAdmissions: vi.fn(), me: vi.fn(), restartAssistantDaemon: vi.fn() },
+      hasPermission: () => false, describeAdmissionDrift: () => [], admissionRestartHelps: () => false,
+      driftCopy: {}, describeApiError: ({ fallback }) => fallback,
+      isApiError: (error): error is import("@jini-ai/core/admin-runtime").AdminHttpError => error instanceof Error && "status" in error && "code" in error,
+      apiUnreachableCode: "UNREACHABLE", requestTimeoutCode: "TIMEOUT", setTimeout, clearTimeout,
+      reportRestartFailure: vi.fn(),
+    },
+  });
+  expect(useCopyHook).not.toHaveBeenCalled();
+  expect(bound.isAssistantStartingError({ error: Object.assign(new Error("booting"), { status: 503, code: "AGENT_DAEMON_UNAVAILABLE" }) })).toBe(true);
+  expect(bound.isAssistantStartingError({ error: Object.assign(new Error("denied"), { status: 403, code: "DENIED" }) })).toBe(false);
+  const { result } = renderHook(() => bound.useWiredExternalMcpAdmissions({}));
+  expect(useCopyHook).toHaveBeenCalledOnce();
+  expect(result.current.canRestart).toBe(false);
+  expect(result.current.restartAccepted).toBe(false);
 });

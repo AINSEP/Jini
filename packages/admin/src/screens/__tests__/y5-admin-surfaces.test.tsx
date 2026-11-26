@@ -1,3 +1,5 @@
+import { bindProviders } from "../providers/Providers.js";
+import { TabBar } from "@jini-ai/ui/tab-strip";
 import { cleanup, act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { EmailStatusFacts } from "../email/EmailSenderTab.js";
@@ -34,4 +36,33 @@ test("screenshot retention previews before cleanup and applies only the preview 
   expect(apply).not.toHaveBeenCalled();
   await act(() => result.current.confirm());
   expect(apply).toHaveBeenCalledExactlyOnceWith({ previewToken: "shown" });
+});
+
+test("providers localize labels, fall back to External MCP, and keep Soon bodies inert", () => {
+  const useIntegrationsHook = vi.fn(() => { throw new Error("unmounted webhook controller"); });
+  const kit: Parameters<typeof bindProviders>[0]["kit"] = {
+    TabBar,
+    I18nProvider: ({ children }) => <>{children}</>,
+    ExternalMcpSettingsPanel: ({ saveStatusLabel }) => <div>{saveStatusLabel ?? "external"}</div>,
+    AlwaysAllowPanel: () => <div>allow</div>,
+    McpServer: () => <button>demo command</button>,
+    Webhooks: () => <button>demo webhook</button>,
+    ComingSoonPanel: ({ children, label, note }) => <section><p>{label}</p><p>{note}</p><div inert>{children}</div></section>,
+  };
+  const Bound = bindProviders({ kit, hooks: {
+    useProvidersHook: () => ({ externalMcp: { dependencies: { port: { fetchSources: async () => [], addSource: async () => ({ ok: true }), removeSource: async () => true } }, restartRequired: true } }),
+    useAdminLocale: () => "fr", useAdminThemeBoundary: () => ({ "data-theme": "light" }), useIntegrationsHook,
+  }, deps: {
+    dictionaries: {}, t: ({ locale, key }) => `${locale}:${key}`, tIntegrations: ({ locale, key }) => `${locale}:${key}`,
+    restartLabel: ({ locale }) => `${locale}:restart`, mcpServerHandleLabel: "host MCP", onTabChange: vi.fn(),
+  } });
+  const mounted = render(<Bound tabId="retired" />);
+  expect(screen.getByText("fr:restart")).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "fr:Integrations" })).toBeTruthy();
+  mounted.rerender(<Bound tabId="mcp-server" />);
+  expect(screen.getByText("demo command").closest("[inert]")).toBeTruthy();
+  expect(screen.getByText("fr:Nothing below is connected to anything yet.")).toBeTruthy();
+  mounted.rerender(<Bound tabId="webhooks" />);
+  expect(screen.getByText("demo webhook").closest("[inert]")).toBeTruthy();
+  expect(useIntegrationsHook).not.toHaveBeenCalled();
 });
