@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 
 const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-// Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel.
-const nodeEntries = new Set(['./server', './member-login/oidc-login', './member-login/link-service', './members/access-resolver', './members/member-challenge',
+// Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel,
+// and SQL repositories that load kysely (a universal entry must not reach the query builder).
+const nodeEntries = new Set(['./server/sql', './identity/repo', './identity/repo.authentication', './identity/repo.authorization',
+  './project-keys/sql/attachments', './member-login/unlink-identity', './member-login/oidc-request','./server', './member-login/oidc-login', './member-login/link-service', './members/access-resolver', './members/member-challenge',
   './members/member-challenge-request', './members/member-credentials', './members/member-sign-in', './members/password-auth', './newsletter/unsubscribe',
   './newsletter/send-pipeline', './members/write-service', './admin-http/auth', './identity/boot-session-token', './identity/api-key-secret', './identity/api-key-service']);
 
