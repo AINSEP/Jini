@@ -853,7 +853,13 @@
       "./posts/publish-content": "universal",
       "./posts/tool-registrations": "universal",
       "./media/site-generation/generation-credentials": "universal",
-      "./site/keep-off-content-store": "node"
+      "./site/keep-off-content-store": "node",
+      "./public-http/routes/site/pages/render-context/media-metadata": "universal",
+      "./public-http/routes/site/pages/render-context/post-previews": "universal",
+      "./public-http/routes/site/pages/static-tier": "universal",
+      "./public-http/routes/site/pages/template-render": "universal",
+      "./public-http/routes/site/pages/handlers/virtual-page": "universal",
+      "./admin-http/routes/posts/template-preview-render": "universal"
     },
     "isolation": {
       "domains": {
@@ -1345,7 +1351,13 @@
         "./admin-http/routes/media/provider-catalog": "media",
         "./admin-http/routes/system/publish-credentials/list": "admin-http",
         "./public-http/http/site/render-site": "presentation",
-        "./admin-http/routes/external-mcp/route-helpers": "admin-http"
+        "./admin-http/routes/external-mcp/route-helpers": "admin-http",
+        "./public-http/routes/site/pages/render-context/media-metadata": "media",
+        "./public-http/routes/site/pages/render-context/post-previews": "widgets",
+        "./public-http/routes/site/pages/static-tier": "presentation",
+        "./public-http/routes/site/pages/template-render": "presentation",
+        "./public-http/routes/site/pages/handlers/virtual-page": "presentation",
+        "./admin-http/routes/posts/template-preview-render": "presentation"
       }
     },
     "optionalPeers": {
@@ -5548,6 +5560,36 @@
     "./site/keep-off-content-store": {
       "types": "./dist/site/keep-off-content-store.d.ts",
       "import": "./dist/site/keep-off-content-store.js"
+    },
+    "./public-http/routes/site/pages/render-context/media-metadata": {
+      "types": "./dist/public-http/routes/site/pages/render-context/media-metadata.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/media-metadata.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/media-metadata.js"
+    },
+    "./public-http/routes/site/pages/render-context/post-previews": {
+      "types": "./dist/public-http/routes/site/pages/render-context/post-previews.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/post-previews.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/post-previews.js"
+    },
+    "./public-http/routes/site/pages/static-tier": {
+      "types": "./dist/public-http/routes/site/pages/static-tier.d.ts",
+      "import": "./dist/public-http/routes/site/pages/static-tier.js",
+      "default": "./dist/public-http/routes/site/pages/static-tier.js"
+    },
+    "./public-http/routes/site/pages/template-render": {
+      "types": "./dist/public-http/routes/site/pages/template-render.d.ts",
+      "import": "./dist/public-http/routes/site/pages/template-render.js",
+      "default": "./dist/public-http/routes/site/pages/template-render.js"
+    },
+    "./public-http/routes/site/pages/handlers/virtual-page": {
+      "types": "./dist/public-http/routes/site/pages/handlers/virtual-page.d.ts",
+      "import": "./dist/public-http/routes/site/pages/handlers/virtual-page.js",
+      "default": "./dist/public-http/routes/site/pages/handlers/virtual-page.js"
+    },
+    "./admin-http/routes/posts/template-preview-render": {
+      "types": "./dist/admin-http/routes/posts/template-preview-render.d.ts",
+      "import": "./dist/admin-http/routes/posts/template-preview-render.js",
+      "default": "./dist/admin-http/routes/posts/template-preview-render.js"
     }
   },
   "files": [

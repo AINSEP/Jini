@@ -1,3 +1,9 @@
+import type { RenderBareEntryDocumentRequired } from "../../../../http/site/bare-page.js";
+import type { RenderSiteRequired } from "../../../../http/site/render-site.js";
+import type { ResolvePageWidgetsResult } from "../../../../../widgets/page-widget-resolution.js";
+import type { ResolveHtmlPageEmbedsResult } from "../../../../../widgets/html/resolve-html-page-embeds.js";
+import type { MediaAssetRenderMeta } from "@jini-ai/core/contracts/site/cms-media";
+import type { AssignedTermView } from "../../../../../taxonomy/read-ports.js";
 import type { PublicPostRecord as PostRecord } from '../../../../../posts/post.js';
 
 export function withPageShellChoice({ post, branch }: {
@@ -83,3 +89,93 @@ export async function renderTemplateBranchIfEligible({ post, theme, isBarePageCh
   return renderViaTemplate({ post: renderedPost }, { pendingBodyJson: undefined, pendingBodyHtml: undefined, extraHead });
 }
 
+/**
+ * Bare-page render (owner ruling 2026-09-23, `no-template-bare-plan-2026-09-23.md` S4) — resolves
+ * every input `renderBareEntryDocument` (`http/site/bare-page.ts`) needs and calls it. Mirrors
+ * {@link renderGenericPostPage}'s own "route resolves I/O, render.ts/bare-page.ts stays pure" split,
+ * with two deliberate differences: `resolveWidgetsForRender` is called with `theme: null` (a bare
+ * Page gets no theme-declared REGION widgets — only inline `widgetEmbed` nodes in its own body,
+ * which resolve from `pageBodyJson` regardless of the theme argument), and `assignedTerms`/`posts`
+ * are never resolved at all, since {@link renderBareEntryDocument} never appends a terms block or
+ * reads the sibling-posts list (plan §3, point 2).
+ *
+ * `extraHead` is built via `buildExtraHead(deps, "post", ...)` — the SAME SEO/og fold every other
+ * post/page route gets. This is the ONE thing this function adds beyond the Page's own HTML; see
+ * `bare-page.ts`'s own file header for why that's not a contradiction of "no theme chrome".
+ */
+export async function renderBarePostPage({ deps, post }: { deps: {
+  resolveSiteTitleForRender(): Promise<string>;
+  resolveWidgetsForRender(required: { theme: null }, optional: { post: PostRecord }): Promise<ResolvePageWidgetsResult>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult>;
+  resolveMediaTransformVersionsForRender(): Promise<ReadonlyMap<string, number>>;
+  resolveMediaAssetMetadataForRender(required: { post: PostRecord }): Promise<ReadonlyMap<string, MediaAssetRenderMeta>>;
+  buildExtraHead(required: { route: "post"; siteTitle: string; post: PostRecord }): Promise<string>;
+  documentAssets: RenderSiteRequired["renderAssets"];
+  renderBareEntryDocument(required: Omit<RenderBareEntryDocumentRequired, "documentAssets"> & { documentAssets: RenderBareEntryDocumentRequired["documentAssets"] }): string;
+}; post: PostRecord }, _optional = {}): Promise<string> {
+  const siteTitle = await deps.resolveSiteTitleForRender();
+  const [widgets, pageHtmlEmbeds, mediaTransformVersions, mediaAssetMetadata, extraHead] = await Promise.all([
+    deps.resolveWidgetsForRender({ theme: null }, { post }),
+    deps.resolveHtmlEmbedsForRender({ post }),
+    deps.resolveMediaTransformVersionsForRender(),
+    deps.resolveMediaAssetMetadataForRender({ post }),
+    deps.buildExtraHead({ route: "post", siteTitle, post }),
+  ]);
+  return deps.renderBareEntryDocument({
+    documentAssets: await deps.documentAssets?.({ scripts: [] }),
+    post,
+    siteTitle,
+    extraHead,
+    pageHtmlEmbeds,
+    widgetInlineResolved: widgets.inlineResolved,
+    mediaTransformVersions,
+    mediaAssetMetadata,
+  });
+}
+
+/** The generic (non-template) dynamic post render: resolves every widget/embed/media input
+ *  `renderSite`'s `"post"` route needs and renders through it. This is the fallback path for any
+ *  post that isn't eligible for {@link renderTemplateBranchIfEligible}'s template branch. */
+export async function renderGenericPostPage({ deps, post, posts, siteAssistantEnabled }: { deps: {
+  resolveSiteTitleForRender(): Promise<string>;
+  resolveWidgetsForRender(required: { post: PostRecord }): Promise<ResolvePageWidgetsResult>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult>;
+  resolveMediaTransformVersionsForRender(): Promise<ReadonlyMap<string, number>>;
+  resolveMediaAssetMetadataForRender(required: { post: PostRecord }, optional: { listed: readonly PostRecord[] }): Promise<ReadonlyMap<string, MediaAssetRenderMeta>>;
+  buildExtraHead(required: { route: "post"; siteTitle: string; post: PostRecord }): Promise<string>;
+  resolveAssignedTermsForRender(required: { post: PostRecord }): Promise<readonly AssignedTermView[]>;
+  resolveSiteTimeZoneForRender(): Promise<string>;
+  documentAssets: RenderSiteRequired["renderAssets"];
+  renderCommentsMarkers(required: { html: string }): Promise<string>;
+  renderSite(required: Pick<RenderSiteRequired, "transformBody" | "route" | "siteTitle" | "timeZone" | "posts" | "post" | "widgets" | "pageHtmlEmbeds" | "mediaTransformVersions" | "mediaAssetMetadata" | "assignedTerms" | "extraHead"> & { renderAssets: RenderSiteRequired["renderAssets"]; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }): Promise<string>;
+}; post: PostRecord; posts: PostRecord[]; siteAssistantEnabled: RenderSiteRequired["siteAssistantEnabled"] }, _optional = {}): Promise<string> {
+  const siteTitle = await deps.resolveSiteTitleForRender();
+  const [widgets, pageHtmlEmbeds, mediaTransformVersions, mediaAssetMetadata, extraHead, assignedTerms] = await Promise.all([
+    deps.resolveWidgetsForRender({ post }),
+    deps.resolveHtmlEmbedsForRender({ post }),
+    deps.resolveMediaTransformVersionsForRender(),
+    deps.resolveMediaAssetMetadataForRender({ post }, { listed: posts }),
+    deps.buildExtraHead({ route: "post", siteTitle, post }),
+    // Taxonomy render-surface gap fix (2026-09-03) — this is the generic (non-template) render path;
+    // `renderTemplateBranchIfEligible`/`renderViaTemplate` above already resolves this same input for
+    // the static-tier template branch. See `SiteRenderContext.assignedTerms`'s own doc for where this
+    // lands (`render.ts`'s `renderPostBody`, shared by the declarative/templated/handlebars tiers).
+    deps.resolveAssignedTermsForRender({ post }),
+  ]);
+  return deps.renderSite({
+    renderAssets: deps.documentAssets,
+    transformBody: ({ html }) => deps.renderCommentsMarkers({ html }),
+    route: "post",
+    siteTitle,
+    timeZone: await deps.resolveSiteTimeZoneForRender(),
+    posts,
+    post,
+    widgets,
+    pageHtmlEmbeds,
+    mediaTransformVersions,
+    mediaAssetMetadata,
+    assignedTerms,
+    extraHead,
+    siteAssistantEnabled,
+  });
+}
