@@ -1,9 +1,10 @@
+import { PublishTrustHandshakeError } from "../handshake-error.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 
-import { fetchDestinationIdentity, PublishTrustHandshakeError, type PublishTrustWire } from "../handshake-client.js";
+import { fetchDestinationIdentity, type PublishTrustWire } from "../handshake-client.js";
 
 /** A non-default peer vocabulary: proves the host's words, not a baked-in product name, reach the owner. */
 const PROTOCOL: PublishTrustWire = {

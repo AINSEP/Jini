@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
@@ -17,7 +18,7 @@ function deps(): MediaToolDeps {
   return {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: WORKSPACE_ID,
-    clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
+    createHash, clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
     idGen: { newId: () => `id-${++counter}` },
     mediaRepo: new InMemoryMediaRepo({}),
     assetBlobRepo: new InMemoryAssetBlobRepo({}),

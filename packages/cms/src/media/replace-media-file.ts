@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import type { createHash as CreateHash } from "node:crypto";
 import type { BlobJournalEligibility } from "@jini-ai/core/contracts/blob-gc";
 import { nowIso, type Clock, type IdGenerator } from '@jini-ai/core/primitives';
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
@@ -59,6 +59,7 @@ export interface MediaFileReplacementRepoPort extends MediaRepoPort {
 }
 
 export interface ReplaceMediaFileDeps {
+  createHash: typeof CreateHash;
   workspaceId: string;
   clock: Clock;
   idGen: IdGenerator;
@@ -112,7 +113,7 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   if (media.kind === 'document') throw new MediaValidationError({ message: 'document file replacement is unavailable' });
   if (media.source.private) throw new MediaValidationError({ message: 'Private submitted file replacement is unavailable. Keep the original submission file and upload a separate public media item if needed.' });
   const safeBytes = await validatedReplacementBytes({ bytes, contentType, maxUploadBytes: resolveUploadCap({ contentType: sniffContentType({ bytes }) ?? contentType }, { maxUploadBytes, maxVideoUploadBytes }) });
-  const sha256 = createHash('sha256').update(safeBytes).digest('hex');
+  const sha256 = deps.createHash('sha256').update(safeBytes).digest('hex');
   if (expectedSha256 !== undefined && expectedSha256 !== sha256) {
     throw new MediaValidationError({ message: 'Replacement bytes do not match the reviewed sha256 after sanitizing. Re-import the file and plan publishing again.' });
   }

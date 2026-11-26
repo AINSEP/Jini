@@ -3,7 +3,7 @@ import { type CriteriaSelection, type PublishContentPhase } from "../../../publi
 import { buildCriteriaPublishResult } from "./criteria-publish-result.js";
 import type { usePublishContentConfirm } from "./use-publish-content-confirm.hooks.js";
 import { peerSelectionOpen, publishReportSelection, publishOverwriteSelection, publishOverwriteNotices } from "./publish-confirm-view.js";
-import { isChosenPeerId } from "./publish-plan.hooks.js";
+import { isChosenPeerId } from "./publish-selection.rules.js";
 import type { usePublishPeers } from "./publish-peers.hooks.js";
 import type { usePublishPlanState, usePublishPlan, usePublishOverwrite } from "./publish-plan.hooks.js";
 

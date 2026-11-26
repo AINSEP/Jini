@@ -1,6 +1,6 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { Translate } from "@jini-ai/core/text";
-import { PublishContentReportRow } from "./PublishContentDialog.hooks.js";
+import { PublishContentReportRow } from "@jini-ai/cms/publish/content/ui/PublishContentReportRow";
 import type { PublishContentConfirmView } from "./hooks/publish-confirm-view.js";
 
 interface PublishContentSectionProps {

@@ -44,7 +44,7 @@ const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
  */
 
 /**
- * TM-TOVU-2026-08-12-A round 2 (two auditors, chased empirically — see
+ * URL audit 2026-08-12-A round 2 (two auditors, chased empirically — see
  * `tiptap-render-contract.test.ts`'s image-security rows for the probe evidence this fix is
  * built from): the admin-media rejection above used to test the RAW string. `[^/]+` cannot span a
  * `/`, so an interposed dot-segment defeats it while a real browser resolves the segment away

@@ -25,7 +25,7 @@ function fixture() {
   });
   const blobStore = new InMemoryBlobStore();
   const assetBlobRepo = new InMemoryAssetBlobRepo({});
-  const base = { clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore };
+  const base = { createHash, clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore };
   return {
     uploadDeps: { ...base, mediaRepo, blobRepo: assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}) },
     replaceDeps: { ...base, workspaceId: "ws", mediaRepo, assetBlobRepo },

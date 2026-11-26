@@ -42,7 +42,7 @@ function makeDeps() {
   let counter = 0;
   let currentNow = "2026-07-10T00:00:00.000Z";
   const deps = {
-    clock: { nowMs: () => Date.parse(currentNow)},
+    createHash, clock: { nowMs: () => Date.parse(currentNow)},
     idGen: { newId: () => `id-${(counter += 1)}` },
     mediaRepo: new InMemoryMediaRepo({}),
     blobRepo: new InMemoryAssetBlobRepo({}),

@@ -1,6 +1,6 @@
-import type { PublishReportRow } from "../../publish/content/ui/index.js";
+import type { PublishReportRow } from "./index.js";
 
-import { overwriteTooltipFor, reportRowNote, reportRowPillClass } from "./hooks/publish-content-confirm.rules.js";
+import { overwriteTooltipFor, reportRowNote, reportRowPillClass } from "../../../react/publish-content/hooks/publish-content-confirm.rules.js";
 
 import { type Translate } from '@jini-ai/core/text';
 type PublishContentConfirmView = {

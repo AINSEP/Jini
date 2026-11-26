@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
@@ -9,7 +10,7 @@ import { InMemoryBlobStore } from '../blob-store.memory.js';
 function fixture(optional: Pick<MediaToolDeps, 'listContentTypes'> = {}) {
   let id = 0;
   const deps: MediaToolDeps = { workspaceId: 'site', authorize: async () => ({ allowed: true, reason: 'matched' }),
-    clock: { nowMs: () => Date.parse('2026-10-28T00:00:00Z') }, idGen: { newId: () => `id-${++id}` },
+    createHash, clock: { nowMs: () => Date.parse('2026-10-28T00:00:00Z') }, idGen: { newId: () => `id-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}),
     assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore() };
   const tools = buildMediaRegistrations(deps, optional);

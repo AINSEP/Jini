@@ -1,10 +1,11 @@
 import type { PublicPostRecord } from "../../../../../posts/post.js";
 import type { RenderSiteRequired } from "../../../../http/site/render-site.js";
 import { preparePageRouteContext, resolvePageRouteTheme } from "../page-route-context.js";
-import { checkSiteRelativeTarget } from '../../../../../routing/site/reserved-paths.js';
+import type { checkSiteRelativeTarget as CheckSiteRelativeTarget } from '../../../../../routing/site/reserved-paths.js';
 
 /** Nested public paths: redirect rules, then the normal 404. */
-export async function nestedPageRoute({ path, tryRedirectPhase }: {
+export async function nestedPageRoute({ path, tryRedirectPhase, checkSiteRelativeTarget }: {
+  checkSiteRelativeTarget: typeof CheckSiteRelativeTarget;
   path: string;
   tryRedirectPhase: (required: { phase: 'pre_content' | 'post_content'; path: string }) => Promise<boolean>;
 }, _optional = {}): Promise<{ kind: 'next' } | { kind: 'handled' }> {

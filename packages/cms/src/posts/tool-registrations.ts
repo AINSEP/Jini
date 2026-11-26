@@ -237,7 +237,7 @@ export async function deletePostToolPost({ routeDeps, ctx }: { routeDeps: PostTo
  * handler below), because a domain with no store at all could never wire this tool's gate.
  */
 export function buildPostRegistrations(routeDeps: PostToolDeps, surfaces: AssistantSurfaceDeps): ToolRegistration[] {
-  const handlers = buildPostHandlers({ routeDeps });
+  const handlers = buildPostHandlers({ routeDeps, listPostToolPosts, createPostToolPost, deletePostToolPost });
 
   // No `unwiredToolIds`: Posts/Pages wires its ENTIRE catalog, same tripwire discipline as
   // Forms/Entries/Widgets — a 7th catalog entry added without a handler fails the build.

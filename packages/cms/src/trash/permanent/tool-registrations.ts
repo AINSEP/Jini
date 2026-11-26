@@ -1,3 +1,4 @@
+import type { AgentToolSideEffect } from "@jini-ai/core";
 import type { ChatDeleteSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/permanent-delete';
 import { adaptLegacyAuthorize } from "@jini-ai/core";
@@ -7,7 +8,6 @@ import {
   indexCatalogById,
   requireInputRecord,
   requireString,
-  type DerivedRiskByToolId,
   type ToolHandler,
   type ToolRegistration,
 } from "@jini-ai/core";
@@ -45,7 +45,7 @@ export interface PermanentDeleteToolDeps {
   prepare(toolId: PermanentDeleteToolId, id: string | null, principalId: string): Promise<PermanentDeletePlan>;
 }
 
-export const permanentDeleteDerivedRisk: DerivedRiskByToolId = new Map([
+export const permanentDeleteDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // -> TrashPort.purgeSelected on the confirmed snapshot; per-row auth and compare-delete retained.
   ["trash_empty", MUTATES_DURABLE_STATE],
   // -> TrashPort.purgeSelected for one confirmed Trash row.

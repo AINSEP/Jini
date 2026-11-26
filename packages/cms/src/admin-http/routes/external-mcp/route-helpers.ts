@@ -1,5 +1,5 @@
 import type { RateLimitResult } from '@jini-ai/core/contracts/server';
-import { externalMcpProviderRefusal } from './oauth.js';
+import { externalMcpProviderRefusal } from './provider-refusal.js';
 
 /** Answers the shared limiter check, writing the 429 itself. `Retry-After` is set so a client can
  *  back off correctly instead of hammering. */

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * @file Decision-core tests for `original-response.ts`: the framework-neutral `{ status, headers, body }`
  * a host writes when serving a media asset's original bytes (status, header and byte decisions for full,
@@ -67,7 +68,7 @@ test("types: SVG gets the SVG CSP; sniffed HTML/XHTML is forced to an octet-stre
 function makeDeps() {
   let n = 0;
   return {
-    clock: { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") }, idGen: { newId: () => `id-${(n += 1)}` },
+    createHash, clock: { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") }, idGen: { newId: () => `id-${(n += 1)}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
   };

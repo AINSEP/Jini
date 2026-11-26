@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { PublishContentPeerTransportError } from '../../../../publish/content/peer-transport.js';
+import { PublishContentPeerTransportError } from '../../../../publish/content/peer-transport-error.js';
 import { knownPeerActionRefusal } from '../peer-transport.js';
 
 it('keeps typed peer transport codes and leaves unknown failures to the incident writer', () => {

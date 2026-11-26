@@ -1,8 +1,5 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import type {
-  StandingDraftAutosaveInput,
-  StandingDraftAutosaveSnapshot,
-} from "../hooks/use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot } from "@jini-ai/core/contracts/standing-draft";
 
 /**
  * @file Last-resort per-tab mirror for a standing draft the SERVER REFUSED (2026-09-06 stale-basis

@@ -47,10 +47,12 @@ export type DuplicatePagesHtmlStoreFactory = (scope: { workspaceId: string; post
  * structurally by passing its existing `RouteDeps` object; nothing there changes.
  */
 export interface PostToolDeps {
+  copyBodyJsonWithFreshEmbedPlacements: typeof import("../widgets/duplicate-embeds.js").copyBodyJsonWithFreshEmbedPlacements;
   reservedSegments: ReadonlySet<string>;
   postPublicPath: import("./post-slugs.js").PostPublicPathResolver;
   isDeepStrictEqual: typeof isDeepStrictEqual;
   contentReadPermission: string;
+  contentPostReadToolId: string;
   contentWritePermission: string;
   assistantActorPluginId: string;
   catalog: ReadonlyMap<string, AgentToolDefinition>;
@@ -108,6 +110,6 @@ export interface PostToolDeps {
   mediaRepo?: FeaturedImageDeps["mediaRepo"];
   mediaContentTypeStore?: FeaturedImageDeps["mediaContentTypeStore"];
   /** OPTIONAL — whether this instance is the live site, for {@link publishedWhereView}. Defaults to
-   *  `resolveRuntimeMode()` (`TOVU_RUNTIME_MODE`); tests pass a fake. */
+   *  `resolveRuntimeMode()` (the host runtime setting); tests pass a fake. */
   runtimeMode?: () => RuntimeMode;
 }

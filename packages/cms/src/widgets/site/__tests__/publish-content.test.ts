@@ -1,10 +1,12 @@
+import { applyRunActor, createRepoPublishHandler, gatewayDeps } from "../../../publish/content/repo-handler.js";
+import { ContentTypeNotActiveError, EntryFieldValidationError, EntrySlugConflictError, VersionConflictError } from "../../../entries/index.js";
 import { expect, it, vi } from "vitest";
 import * as widgets from "../../index.js";
 import type { EntryRecord } from "../../../entries/index.js";
 import { contributeWidgetPublish, contributeWidgetAreaPublish } from "../publish-content.js";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
 
-const policy: Parameters<typeof contributeWidgetPublish>[0] = { bindingTable: "widget_bindings", buildWidgetHostPorts: () => ({}) as never,
+const policy: Parameters<typeof contributeWidgetPublish>[0] = { applyRunActor, createRepoPublishHandler, gatewayDeps, ContentTypeNotActiveError, EntryFieldValidationError, EntrySlugConflictError, VersionConflictError, bindingTable: "widget_bindings", buildWidgetHostPorts: () => ({}) as never,
   findWidgetTypeRegistration: widgets.findWidgetTypeRegistration, configReferences: { formDefinitionId: "form", menuRef: "menu", categoryTermId: "term" }, formReference: { field: "formDefinitionId", widgetType: "contact-form" } };
 
 it("repeated areas pack one last-wins region", async () => {

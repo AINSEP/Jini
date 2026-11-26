@@ -1,4 +1,4 @@
-import { useState } from "react";
+import type { useState as UseState } from "react";
 
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import type { FetchQueryAdapter, QueryKey } from "@jini-ai/core/fetch";
@@ -14,6 +14,7 @@ import type { MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
 
 /** What {@link useMediaWrites} needs; the mutation hook is injected like every other hook. */
 export interface MediaWritesDeps {
+  useState: typeof UseState;
   port: {
     uploadMedia: (input: { filename: string; contentType: string; dataBase64: string }, options?: { alt?: string | undefined }) => Promise<MediaUploadResult<AdminMedia>>;
     trashMedia: (id: string) => Promise<{ media: AdminMedia }>;
@@ -68,6 +69,7 @@ function useWriteMutations({ port, locale, useFetchMutation, deps }: MediaWrites
  * @complexity O(1) per call; each write is one request plus one grid re-read.
  */
 export function useMediaWrites(required: MediaWritesDeps, _optional: Record<string, never> = {}): MediaWrites {
+  const { useState } = required;
   const mutations = useWriteMutations(required);
   const { uploadMutation, trashMutation, purgeMutation, restoreMutation } = mutations;
   const [pendingPurge, setPendingPurge] = useState<AdminMedia | null>(null);

@@ -2,11 +2,10 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   useStandingDraftAutosave,
-  type StandingDraftAutosaveInput,
   type StandingDraftAutosaveOptions,
   type StandingDraftAutosavePort,
-  type StandingDraftAutosaveSnapshot,
 } from '../use-standing-draft-autosave.hooks.js';
+import type { StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot } from "@jini-ai/core/contracts/standing-draft";
 import { createStandingDraftLocalBackup } from '../../helpers/standing-draft-local-backup.js';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });

@@ -1,5 +1,5 @@
 import type { MutationActor } from "@jini-ai/core/contracts/events";
-import { type AgentToolSideEffect, type DerivedRiskByToolId } from "@jini-ai/core";
+import { type AgentToolSideEffect } from "@jini-ai/core";
 import type { PostToolDeps } from "./post-tool-deps.js";
 
 /**
@@ -53,7 +53,7 @@ import type { PostToolDeps } from "./post-tool-deps.js";
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const postDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const postDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> searchAdminPosts (search.ts) -> PostSearchPort.search(): a SELECT against the FTS5 index
   //    joined back to `posts`. Read-only in both adapters — the durable one runs one prepared
   //    query, and the in-memory one's per-query mirror writes only to its own private `:memory:`

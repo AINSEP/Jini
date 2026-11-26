@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from "react";
+import type { useEffect as UseEffect, useMemo as UseMemo, useRef as UseRef, useState as UseState, RefObject, UIEvent } from "react";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
-import { acceptedMediaItems, type MediaPickerPort } from "../../media/MediaPickerDialog/MediaPickerDialog.hooks.js";
+import type { acceptedMediaItems as AcceptedMediaItems, MediaPickerPort } from "../../media/MediaPickerDialog/MediaPickerDialog.hooks.js";
 import {
   appendMediaSlugs,
   inactiveTabWillBeDropped,
@@ -114,9 +114,14 @@ export interface MediaContentEditorController {
 
 /** Required inputs: the config being edited, where edits go, and which widget type owns it. */
 export interface MediaContentEditorInput {
+  useEffect: typeof UseEffect;
+  useMemo: typeof UseMemo;
+  useRef: typeof UseRef;
+  useState: typeof UseState;
+  acceptedMediaItems: typeof AcceptedMediaItems;
   port: MediaPickerPort; locale: string;
   useMediaPickerItems: (required: { port: MediaPickerPort }, optional: { locale: string }) => { items: AdminMedia[] | null; error: string | null };
-  acceptsMedia: Parameters<typeof acceptedMediaItems>[0]["acceptsMedia"];
+  acceptsMedia: Parameters<typeof AcceptedMediaItems>[0]["acceptsMedia"];
   config: Record<string, unknown>;
   onChange: (config: Record<string, unknown>) => void;
   /** `media`, `gallery` (no Single layout), or `media` for a placement override. */
@@ -136,7 +141,8 @@ type MediaEditorEmit = (next: MediaContentState) => void;
 type MediaEditorLibrary = AdminMedia[] | null;
 
 /** The raw-HTML tab: textarea/gutter refs, caret restoration after an insert, and the snippet inserter. */
-function useMediaHtmlEditor({ state, emit }: { state: MediaContentState; emit: MediaEditorEmit }) {
+function useMediaHtmlEditor({ state, emit, hooks }: { state: MediaContentState; emit: MediaEditorEmit; hooks: Pick<MediaContentEditorInput, "useEffect" | "useRef"> }) {
+  const { useEffect, useRef } = hooks;
   const htmlRef = useRef<HTMLTextAreaElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
   const pendingCaret = useRef<number | null>(null);
@@ -173,7 +179,7 @@ function useMediaHtmlEditor({ state, emit }: { state: MediaContentState; emit: M
 }
 
 /** The typed-slug field and its validation. */
-function useMediaSlugDraft({ state, library, setItems }: { state: MediaContentState; library: MediaEditorLibrary; setItems: (required: { items: MediaItem[] }) => void }) {
+function useMediaSlugDraft({ state, library, setItems, useState }: { state: MediaContentState; library: MediaEditorLibrary; setItems: (required: { items: MediaItem[] }) => void; useState: typeof UseState }) {
   const [slugDraft, setSlugDraftState] = useState("");
   const [slugProblem, setSlugProblem] = useState<MediaContentEditorController["slugProblem"]>(null);
 
@@ -195,7 +201,7 @@ function useMediaSlugDraft({ state, library, setItems }: { state: MediaContentSt
 }
 
 /** The library picker dialog: which target opened it, what is ticked, and how a confirm lands. */
-function useMediaPicker({ state, assetsBySlug, setItems, insertHtml }: { state: MediaContentState; assetsBySlug: Map<string, AdminMedia>; setItems: (required: { items: MediaItem[] }) => void; insertHtml: (required: { snippet: string }) => void }) {
+function useMediaPicker({ state, assetsBySlug, setItems, insertHtml, useState }: { state: MediaContentState; assetsBySlug: Map<string, AdminMedia>; setItems: (required: { items: MediaItem[] }) => void; insertHtml: (required: { snippet: string }) => void; useState: typeof UseState }) {
   const [picker, setPicker] = useState<"items" | "html" | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
 
@@ -279,7 +285,7 @@ export function useMediaContentEditor(
   required: MediaContentEditorInput,
   _optional: Record<string, never> = {},
 ): MediaContentEditorController {
-  const { config, onChange, widgetType, port, locale, useMediaPickerItems, acceptsMedia } = required;
+  const { config, onChange, widgetType, port, locale, useMediaPickerItems, acceptsMedia, acceptedMediaItems, useMemo, useState } = required;
   const { items: library, error: libraryError } = useMediaPickerItems({ port }, { locale });
   const stored = useMemo(() => readMediaContent({ config, widgetType }, { library }), [config, widgetType, library]);
   const [stash, setStash] = useState<MediaContentStash>({});
@@ -290,9 +296,9 @@ export function useMediaContentEditor(
   const emitMedia = (patch: Partial<MediaDraft>) => emit({ ...state, media: { ...state.media, ...patch } });
   const setItems = ({ items }: { items: MediaItem[] }, _options: Record<string, never> = {}) => emitMedia({ items });
   const assetsBySlug = new Map((library ?? []).map((asset) => [asset.slug, asset]));
-  const htmlEditor = useMediaHtmlEditor({ state, emit });
-  const slugs = useMediaSlugDraft({ state, library, setItems });
-  const picker = useMediaPicker({ state, assetsBySlug, setItems, insertHtml: htmlEditor.insertHtml });
+  const htmlEditor = useMediaHtmlEditor({ state, emit, hooks: required });
+  const slugs = useMediaSlugDraft({ state, library, setItems, useState });
+  const picker = useMediaPicker({ state, assetsBySlug, setItems, useState, insertHtml: htmlEditor.insertHtml });
 
   return {
     mode: state.mode,

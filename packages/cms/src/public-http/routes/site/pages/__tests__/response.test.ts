@@ -1,3 +1,4 @@
+import { injectFormAttemptTokens } from "../../../../../forms/form-controls.js";
 import { expect, it, vi } from "vitest";
 import { finalizePublicPageHtml, publicPageCache, resolveVisitorPagePolicy, sendPublicPage } from "../response.js";
 
@@ -27,7 +28,7 @@ it("writes cache and HTML type before finalization and overrides JSON batch type
     await sendPublicPage({ html: "page", perVisitor: { result: undefined, cacheControl: "public" },
       preConsentCacheControl: ({ cacheControl }) => cacheControl, hasConsentGatedScripts: () => true,
       writer: { vary: name => { order.push(`vary:${name}`); }, set: (name, value) => { order.push(`${name}:${value}`); }, type: value => { order.push(`type:${value}`); }, send: html => { order.push(`send:${html}`); } },
-      ports: { listingBatchBody: () => { order.push("batch"); return { format, body: "batch-body" }; }, assertListingPageServed: unreachable,
+      ports: { injectFormAttemptTokens, listingBatchBody: () => { order.push("batch"); return { format, body: "batch-body" }; }, assertListingPageServed: unreachable,
         pluginHead: unreachable, addPluginHosts: unreachable, widgetPartials: unreachable, hasWidgetPartials: unreachable,
         finishFormResult: unreachable, staticExport: unreachable, memberAuthScript: unreachable,
         workspaceId: "w", randomUUID: unreachable, nowMs: unreachable, formSubmissionAttempts: unreachable },
@@ -46,7 +47,7 @@ it("assembles assets, conditionally expands widgets and issues tokens only for l
     await sendPublicPage({ html: '<html><head></head><body><form data-form-slug="contact"></form></body></html>', perVisitor: { result: undefined, cacheControl: "private, no-store" },
       preConsentCacheControl: ({ cacheControl }) => cacheControl, hasConsentGatedScripts: () => false,
       writer: { vary: vi.fn(), set: vi.fn(), type: vi.fn(), send: html => { order.push("send"); sent = html; } },
-      ports: { listingBatchBody: () => undefined, assertListingPageServed: () => { order.push("assert"); },
+      ports: { injectFormAttemptTokens, listingBatchBody: () => undefined, assertListingPageServed: () => { order.push("assert"); },
         pluginHead: () => { order.push("head"); return '<meta name="plugin">'; }, addPluginHosts: () => { order.push("hosts"); },
         hasWidgetPartials: () => !staticExport, widgetPartials,
         finishFormResult: ({ html }) => { order.push("form"); return html; }, staticExport: () => staticExport,

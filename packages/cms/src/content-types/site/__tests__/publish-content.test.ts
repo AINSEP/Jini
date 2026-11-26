@@ -1,3 +1,4 @@
+import { createRepoPublishHandler, gatewayDeps, okOrThrow } from "../../../publish/content/repo-handler.js";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { InMemoryContentTypeRepo, NoopContentTypeIndexProvisioner, registerContentType, type ContentTypeRecord } from '../../index.js';
@@ -8,7 +9,7 @@ const policy = { seededKeys: new Set(['widget', 'widget_area']), permission: 'ad
   seededKeyRefusal: ({ key }: { key: string }) => ['widget', 'widget_area'].includes(key) ? `content-type '${key}' is seeded on every instance and is never published` : null };
 const row: ContentTypeRecord = { workspaceId: 'ws', key: 'recipe', label: 'Recipes', fields: [{ name: 'servings', kind: 'integer', required: false, queryable: true }], status: 'active', version: 3, tombstonedAt: null };
 function handler(repo: InMemoryContentTypeRepo) {
-  return contributeContentTypePublish(policy).build({ workspaceId: 'ws', clock: { nowMs: () => 0 }, idGen: { newId: () => 'id' },
+  return contributeContentTypePublish({ ...policy, createRepoPublishHandler, gatewayDeps, okOrThrow }).build({ workspaceId: 'ws', clock: { nowMs: () => 0 }, idGen: { newId: () => 'id' },
     ports: { 'content-type': { repo, indexProvisioner: new NoopContentTypeIndexProvisioner() } },
     authorize: async () => ({ allowed: true, reason: 'fixture' }), changeSets: new InMemoryChangeSetRepo(),
     outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} },

@@ -1,6 +1,6 @@
 import { derivePostSlugBase, isAutomaticPostSlug } from "../../posts/slug.js";
 import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
-import type { StandingDraftAutosaveInput, StandingDraftStaleBasis } from "@jini-ai/ui/panel-kit";
+import type { StandingDraftAutosaveInput, StandingDraftStaleBasis } from "@jini-ai/core/contracts/standing-draft";
 
 
 /**

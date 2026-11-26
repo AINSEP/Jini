@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -44,7 +45,7 @@ function makeDeps() {
         throw new Error("Stored blob failed verification");
       }
     },
-    clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
+    createHash, clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
     idGen: { newId: () => `generated-${++n}` },
     sha256: { isValidSha256Hex, bytesMatchSha256 },
     outwardErrorMessage: ({ error }: { error: Error }) => error.message,

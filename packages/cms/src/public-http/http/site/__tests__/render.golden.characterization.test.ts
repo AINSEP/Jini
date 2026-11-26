@@ -1,9 +1,12 @@
+import { siteHeader, siteFooter } from "../render/components/layout.js";
+import { EMPTY_INLINE_RESOLVED, EMPTY_MEDIA_TRANSFORM_VERSIONS, EMPTY_MEDIA_ASSET_METADATA } from "../render/doc/doc-nodes.js";
 import { expect, it } from 'vitest';
 import { renderSite, type RenderSiteRequired } from '../render-site.js';
 
 it('transforms managed bodies before collecting assets and bypasses the shell for complete static home', async () => {
   const order: string[] = [];
   const required: RenderSiteRequired = {
+    siteHeader, siteFooter, EMPTY_INLINE_RESOLVED, EMPTY_MEDIA_TRANSFORM_VERSIONS, EMPTY_MEDIA_ASSET_METADATA,
     theme: null, route: 'home', siteTitle: 'Site', posts: [], footerCredit: 'credit', renderScriptAssets: () => '',
     resolveTemplateId: () => null, resolveLiquidTemplateId: () => null, resolveHandlebarsTemplateId: () => null,
     loadLiquidSandbox: async () => ({ renderLiquidInSandbox: async () => '' }), loadHandlebarsSandbox: async () => ({ renderHandlebarsInSandbox: async () => '' }), renderBlock: () => '',

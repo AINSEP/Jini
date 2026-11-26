@@ -1,9 +1,9 @@
 import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 
-import { PublishContentApplyRowError } from "@jini-ai/cms/publish/transfer";
+import { PublishContentApplyRowError } from "../../publish/transfer/apply-errors.js";
 import { tombstonedAtDestination } from "@jini-ai/cms/publish/content/precheck-reasons";
-import { createRepoPublishHandler, gatewayDeps, okOrThrow } from "@jini-ai/cms/publish/content/repo-handler";
+import type { createRepoPublishHandler, gatewayDeps, okOrThrow } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 
@@ -31,11 +31,12 @@ type ContentTypeBag = Pick<CmsPublishPorts, "content-type">;
  * not pack, and a tombstoned destination type refuses: tombstone is terminal (INV-06).
  */
 export const contributeContentTypePublish = (required: {
+  createRepoPublishHandler: typeof createRepoPublishHandler; gatewayDeps: typeof gatewayDeps; okOrThrow: typeof okOrThrow;
   seededKeys: ReadonlySet<string>; seededKeyRefusal(input: { key: string }): string | null;
   permission: string; registerContentType: typeof registerContentType;
 }, _optional = {}): PublishContentContributor<ContentTypeBag> => {
   const { seededKeys: SEEDED_KEYS, seededKeyRefusal, permission, registerContentType } = required;
-  return createRepoPublishHandler<ContentTypeRecord, ContentTypeBag["content-type"], ContentTypeBag>({
+  return required.createRepoPublishHandler<ContentTypeRecord, ContentTypeBag["content-type"], ContentTypeBag>({
     entityType: "content-type",
     coversTables: ["content_types"],
     permission,
@@ -61,7 +62,7 @@ export const contributeContentTypePublish = (required: {
     write: async ({ ports, deps, workspaceId, id: key, state, existing, principalId: actorId }) => {
       const seeded = seededKeyRefusal({ key });
       if (seeded) throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: seeded });
-      const gateway = gatewayDeps({ deps, entityType: "content-type" });
+      const gateway = required.gatewayDeps({ deps, entityType: "content-type" });
       const outbox = toContentTypeOutbox({ outbox: gateway.outbox, clock: deps.clock, idGen: deps.idGen, workspaceId });
       // Preserve Jini's content-type scope along with the gateway's publish-type stamp.
       const writeDeps = { repo: ports.repo, clock: deps.clock, ids: deps.idGen, authorize: adaptLegacyAuthorize({ authorize: gateway.authorize }), indexProvisioner: ports.indexProvisioner, outbox };
@@ -69,16 +70,16 @@ export const contributeContentTypePublish = (required: {
       const fields = state.fields as ContentTypeFieldDef[];
       let current = existing
         ? existing
-        : okOrThrow({ result: await registerContentType({ deps: writeDeps, input: { workspaceId, actorId, key, label, fields } }) }).contentType;
+        : required.okOrThrow({ result: await registerContentType({ deps: writeDeps, input: { workspaceId, actorId, key, label, fields } }) }).contentType;
       if (existing && (existing.label !== label || JSON.stringify(existing.fields) !== JSON.stringify(fields))) {
         const input = { workspaceId, actorId, key, label, fields, expectedVersion: existing.version };
-        current = okOrThrow({ result: await updateContentTypeFields({ deps: writeDeps, input }) }).contentType;
+        current = required.okOrThrow({ result: await updateContentTypeFields({ deps: writeDeps, input }) }).contentType;
       }
       const status = state.status as ContentTypeStatus;
       if (current.status !== status) {
         const input = { workspaceId, actorId, key, expectedVersion: current.version };
         const transition = status === "deprecated" ? deprecateContentType : reactivateContentType;
-        current = okOrThrow({ result: await transition({ deps: writeDeps, input }) }).contentType;
+        current = required.okOrThrow({ result: await transition({ deps: writeDeps, input }) }).contentType;
       }
       return { version: current.version };
     },

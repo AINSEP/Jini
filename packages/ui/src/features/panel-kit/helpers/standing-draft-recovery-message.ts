@@ -1,4 +1,4 @@
-import type { StandingDraftAutosaveSnapshot } from "../hooks/use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveSnapshot } from "@jini-ai/core/contracts/standing-draft";
 
 import { formatTimestamp } from '@jini-ai/core/text';
 import { detectLocalTimezone } from "../../../utils/timezone.js";

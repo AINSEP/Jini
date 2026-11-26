@@ -16,7 +16,7 @@ async function fixture() {
     saveRenditionIfSource: async () => ({ applied: true }),
   });
   const deps = {
-    workspaceId: 'workspace', clock: { nowMs: () => Date.parse('2026-10-17T00:00:00Z') },
+    workspaceId: 'workspace', createHash, clock: { nowMs: () => Date.parse('2026-10-17T00:00:00Z') },
     idGen: { newId: () => `id-${++ids}` }, mediaRepo, assetBlobRepo: new InMemoryAssetBlobRepo({}),
     blobStore: new InMemoryBlobStore(), mediaContentTypeStore: { set: async (_input: unknown) => {} },
   };

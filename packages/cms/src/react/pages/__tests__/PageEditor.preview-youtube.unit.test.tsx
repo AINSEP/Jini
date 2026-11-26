@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useEffect, useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { usePreviewEmbedIds, type LoadPreviewEmbedIds } from "../hooks/use-preview-embed-ids.hooks.js";
@@ -10,7 +11,7 @@ it("keeps the current embed IDs when two pending lookups settle out of order", a
   const reads: Array<(answer: { youtubeIds: string[] }) => void> = [];
   const load: LoadPreviewEmbedIds = () => new Promise((resolve) => reads.push(resolve));
   const { result, rerender } = renderHook(({ templateChoice }) => usePreviewEmbedIds({
-    id: "page", templateChoice, version: 1, previewRevision: 1, pendingHtml: null, load,
+    useEffect, useState, id: "page", templateChoice, version: 1, previewRevision: 1, pendingHtml: null, load,
   }), { initialProps: { templateChoice: "old" } });
   act(() => vi.advanceTimersByTime(500));
   rerender({ templateChoice: "new" });

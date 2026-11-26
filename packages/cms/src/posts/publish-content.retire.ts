@@ -2,9 +2,8 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import { executeCommand } from "@jini-ai/cms/core";
 
-import { contentHash } from "@jini-ai/cms/publish/content/content-hash";
+import type { contentHash as ContentHash } from "@jini-ai/cms/publish/content/content-hash";
 
-import { applyRunActor } from "@jini-ai/cms/publish/content/repo-handler";
 
 import type { RetireTarget } from "@jini-ai/cms/publish/content/type-registry";
 import type { PackedEntity } from "@jini-ai/cms/publish/transfer";
@@ -13,7 +12,7 @@ import { restorePostForward } from "./post-trash.js";
 import { retirePostForReplacement } from "./post-retire.js";
 import { PostConflictError, PostNotFoundError, ROOT_SLUG, type PostRecord } from "@jini-ai/cms/posts/post";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
-import { packedStateOf, type PublishContentDeps, type PostPorts } from "./publish-content.js";
+import type { packedStateOf as PackedStateOf, contributePostPublish, PublishContentDeps, PostPorts } from "./publish-content.js";
 
   /**
    * S4's read half (`publish-overwrite-live-plan-2026-09-24.md` §4/§5) — reports the live row a
@@ -29,9 +28,10 @@ import { packedStateOf, type PublishContentDeps, type PostPorts } from "./publis
    *
    * @complexity O(1) — two indexed repo reads, same as precheck.
    */
-  async function planRetire({ deps, postRepo, stateOf, entity }: {
+  async function planRetire({ deps, postRepo, stateOf, entity, contentHash }: {
+    contentHash: typeof ContentHash;
     deps: PublishContentDeps; postRepo: PostPorts["repo"] | undefined;
-    stateOf: (row: PostRecord) => ReturnType<typeof packedStateOf>; entity: PackedEntity;
+    stateOf: (row: PostRecord) => ReturnType<typeof PackedStateOf>; entity: PackedEntity;
   }): Promise<RetireTarget | null> {
     if (!postRepo) return null;
     const slug = entity.state.slug;
@@ -76,9 +76,10 @@ import { packedStateOf, type PublishContentDeps, type PostPorts } from "./publis
    *
    * @complexity O(1) plus `executeCommand`'s own cost, same as `apply()`.
    */
-  async function retire({ deps, entityType, postRepo, stateOf, input }: {
+  async function retire({ deps, entityType, postRepo, stateOf, input, policy }: {
+    policy: Parameters<typeof contributePostPublish>[0];
     deps: PublishContentDeps; entityType: PostKind; postRepo: PostPorts["repo"] | undefined;
-    stateOf: (row: PostRecord) => ReturnType<typeof packedStateOf>;
+    stateOf: (row: PostRecord) => ReturnType<typeof PackedStateOf>;
     input: { target: RetireTarget; principalId: string; idempotencyKey: string };
   }): Promise<{ changeSetId: string; undo(): Promise<void> }> {
     const { changeSets, authorize, outbox } = deps;
@@ -94,7 +95,7 @@ import { packedStateOf, type PublishContentDeps, type PostPorts } from "./publis
     }
     const gatewayDeps = { clock: deps.clock, idGen: deps.idGen, changeSets, outbox, authorize };
     // The apply run's vouched actor (admin user or assistant agent), refused when absent — never an invented user.
-    const actor = applyRunActor({ deps, principalId: input.principalId });
+    const actor = policy.applyRunActor({ deps, principalId: input.principalId });
     const { target } = input;
 
     let holder: PostRecord | null = null;
@@ -118,7 +119,7 @@ import { packedStateOf, type PublishContentDeps, type PostPorts } from "./publis
         operation: "delete",
         captureInverse: async () => {
           holder = await postRepo.findById({ workspaceId: deps.workspaceId, id: target.entityId });
-          return captureRetiredPostInverse({ holder, target, stateOf });
+          return captureRetiredPostInverse({ holder, target, stateOf, contentHash: policy.contentHash });
         },
         execute: () => executePostRetire({ holder, deps, postRepo, outbox, removePost, target, input }),
         captureEntityVersion: ({ result }) => result.post.version,
@@ -140,8 +141,9 @@ async function undoRetiredPost({ holder, postRepo, deps, outbox, forgetRemovedPo
       });
 }
 
-async function captureRetiredPostInverse({ holder, target, stateOf }: {
-  holder: PostRecord | null; target: RetireTarget; stateOf: (row: PostRecord) => ReturnType<typeof packedStateOf>;
+async function captureRetiredPostInverse({ holder, target, stateOf, contentHash }: {
+  contentHash: typeof ContentHash;
+  holder: PostRecord | null; target: RetireTarget; stateOf: (row: PostRecord) => ReturnType<typeof PackedStateOf>;
 }) {
           if (!holder) {
             throw new PostNotFoundError(`${target.entityType} '${target.entityId}' was not found`);
@@ -174,14 +176,14 @@ function executePostRetire({ holder, deps, postRepo, outbox, removePost, target,
 }
 
 /** S4 (`publish-overwrite-live-plan-2026-09-24.md`): retire the live row a slug-clash overwrite replaces. */
-export function postRetireMethods(deps: PublishContentDeps, kind: PostKind) {
+export function postRetireMethods({ deps, kind, packedStateOf, policy }: { deps: PublishContentDeps; kind: PostKind; packedStateOf: typeof PackedStateOf; policy: Parameters<typeof contributePostPublish>[0] }, _optional = {}) {
   const entityType = kind;
   const postRepo = deps.ports.post?.repo;
-  const stateOf = (row: PostRecord) => packedStateOf({ termPorts: deps.ports.term, row });
+  const stateOf = (row: PostRecord) => packedStateOf({ termPorts: deps.ports.term, row, readTermIds: policy.readTermIds, withTermIds: policy.withTermIds });
 
   return {
-    planRetire: ({ entity }: { entity: PackedEntity }, _optional = {}) => planRetire({ deps, postRepo, stateOf, entity }),
-    retire: (input: Parameters<typeof retire>[0]["input"]) => retire({ deps, entityType, postRepo, stateOf, input }),
+    planRetire: ({ entity }: { entity: PackedEntity }, _optional = {}) => planRetire({ deps, postRepo, stateOf, entity, contentHash: policy.contentHash }),
+    retire: (input: Parameters<typeof retire>[0]["input"]) => retire({ deps, entityType, postRepo, stateOf, input, policy }),
   };
 }
 

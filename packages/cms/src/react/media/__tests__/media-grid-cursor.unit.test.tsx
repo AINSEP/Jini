@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useCallback, useState } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -39,7 +40,7 @@ const answer = (ids: string[], nextCursor: string | null): MediaGridPage => ({ m
 describe("media grid cursor paging", () => {
   it("Trash policy comes from the current first page, even when that page is empty", async () => {
     const { port, waiting } = deferredPort();
-    const { result, rerender } = renderHook(({ tab }) => useGridPages({ port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "trash" as const } as { tab: "trash" | "images" } });
+    const { result, rerender } = renderHook(({ tab }) => useGridPages({ useCallback, useState, port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "trash" as const } as { tab: "trash" | "images" } });
     await waitFor(() => expect(waiting.length).toBe(1));
     await act(async () => waiting[0]!.resolve({ ...answer([], "cursor-1"), retentionDays: 30 }));
     await waitFor(() => expect(result.current.retentionDays).toBe(30));
@@ -61,7 +62,7 @@ describe("media grid cursor paging", () => {
 
   it("changing tabs during load more drops the stale response and keeps exact counts", async () => {
     const { port, waiting } = deferredPort();
-    const { result, rerender } = renderHook(({ tab }) => useGridPages({ port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "all" as const } as { tab: "all" | "videos" } });
+    const { result, rerender } = renderHook(({ tab }) => useGridPages({ useCallback, useState, port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "all" as const } as { tab: "all" | "videos" } });
     await waitFor(() => expect(waiting.length).toBe(1));
     await act(async () => waiting[0]!.resolve(answer(["a1", "a2"], "cursor-1")));
     await waitFor(() => expect(result.current.items?.map((item) => item.id)).toEqual(["a1", "a2"]));

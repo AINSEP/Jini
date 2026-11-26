@@ -1,3 +1,4 @@
+import { bytesMatchSha256 } from "../../../publish/transfer/blob-staging.js";
 import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { createHostBlobWriteBindings, createProcessBlobFence } from "../blob-write-bindings.js";
@@ -22,7 +23,7 @@ it("sorts and deduplicates unordered fence keys before entering shared locks", a
 
 it("refuses stored bytes with matching length but a different digest", async () => {
   const get = vi.fn(async () => new Uint8Array([2]));
-  const bindings = createHostBlobWriteBindings({ blobStore: { get } });
+  const bindings = createHostBlobWriteBindings({ bytesMatchSha256, blobStore: { get } });
   const sha256 = createHash("sha256").update(new Uint8Array([1])).digest("hex");
   await expect(bindings.verifyStoredBlob({ storageKey: "key", sha256, byteLength: 1 })).rejects.toThrow("Stored blob 'key' failed verification");
 });

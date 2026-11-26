@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { buildMediaViewVideoRegistrations, createMediaViewVideoCatalog, type MediaViewVideoToolDeps } from "../view-video-tool.js";
 import type { ToolExecutionContext } from "@jini-ai/core";
@@ -18,7 +19,7 @@ function setup() {
 it("shared blob does not make another creator’s video readable", async () => {
   const s = setup();
   let id = 0;
-  const uploadDeps = { ...s.deps, blobRepo: s.deps.assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}), clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) } };
+  const uploadDeps = { ...s.deps, blobRepo: s.deps.assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}), createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) } };
   await uploadMedia({ deps: uploadDeps, input: { workspaceId: "w", bytes, filename: "owner.webm", contentType: "video/webm", createdByPrincipal: "owner" } });
   const { media } = await uploadMedia({ deps: uploadDeps, input: { workspaceId: "w", bytes, filename: "other.webm", contentType: "video/webm", createdByPrincipal: "other" } });
   const tool = buildMediaViewVideoRegistrations({ deps: s.deps, catalog: s.catalog })[0];

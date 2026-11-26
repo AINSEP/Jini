@@ -6,7 +6,7 @@ import type { MediaGridOrder, MediaGridPage, MediaGridTab } from "@jini-ai/core/
 
 import type { MediaRecord } from "../../../media/types.js";
 import { toAdminMediaListResponse } from "../../http/media.js";
-import { daysRemaining } from "../../http/trash.js";
+import { daysRemaining } from "../../../core/days-remaining.js";
 import { authorizeMedia, type MediaRoutePrincipal } from "./shared.js";
 
 /**

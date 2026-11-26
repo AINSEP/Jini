@@ -17,7 +17,7 @@ interface FetchLiveUrlDeps {
   observeFetch?: (event: { origin: string; status?: number; durationMs: number; outcome: "response" | "refused" | "failed" }) => void;
 }
 declare const fetchLiveUrl: (deps: FetchLiveUrlDeps, input: PageBodyOptions & { path: string; origin?: string | undefined }, optional?: Record<string, never>) => Promise<unknown>;
-import { buildDomainRegistrations, indexCatalogById, optionalNumber, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalNumber, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 
 import type { ToolContributor } from "@jini-ai/core";
@@ -86,7 +86,7 @@ function withReservedSegments({ routeDeps }: { routeDeps: Parameters<typeof buil
   return Object.create(routeDeps.publishedPageDeps(), { reservedSegments: { value: routeDeps.reservedSegments }, trackFetch: { value: routeDeps.trackFetch } }) as FetchPublishedPageDeps;
 }
 
-export const siteInspectionDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const siteInspectionDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> buildSiteProfile(): five concurrent reads (posts, in-memory themes, presentation settings,
   //    plugin discovery + activations, settings, content types). No writes anywhere on the path.
   ["site_get_profile", "none"],

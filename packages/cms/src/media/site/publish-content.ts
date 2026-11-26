@@ -1,7 +1,7 @@
-import { createRepoPublishHandler, type FieldDisposition } from "@jini-ai/cms/publish/content/repo-handler";
-import { PublishContentApplyRowError } from "@jini-ai/cms/publish/transfer";
+import type { createRepoPublishHandler, FieldDisposition } from "@jini-ai/cms/publish/content/repo-handler";
+import { PublishContentApplyRowError } from "../../publish/transfer/apply-errors.js";
 import { collectMediaUrlKeys } from "@jini-ai/cms/publish/content/media-references";
-import { bytesMatchSha256, isValidSha256Hex } from "@jini-ai/cms/publish/transfer/blob-staging";
+import type { isValidSha256Hex as IsValidSha256Hex } from "@jini-ai/cms/publish/transfer/blob-staging";
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
@@ -18,6 +18,8 @@ import { orFallback } from "@jini-ai/core/errors/idioms";
 /** The slice of the host's publish bag this file reads. The host registry (`features/publish-content/type-registry.ts`) is
  *  instantiated with the full product bag, which satisfies this slice, so this file names no other feature. */
 type MediaBag = { media: CmsPublishPorts["media"] & {
+  sha256: import("./import-media-entity.js").ImportMediaEntityDeps["sha256"];
+  createHash: import("../replace-media-file.js").ReplaceMediaFileDeps["createHash"];
   createBlobWriteBindings: typeof createHostBlobWriteBindings;
   uploadCaps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
 } };
@@ -168,7 +170,7 @@ async function assertPublishableMedia(
  * workspace's blob folder: every hash is shape-checked before any blob store call.
  * @returns The refusal, or null when every given hash is a sha256. @complexity O(b) required blobs.
  */
-function malformedHashRefusal({ sourceSha256, requiredBlobs }: { sourceSha256: string | undefined; requiredBlobs: readonly string[] }, _options = {}): string | null {
+function malformedHashRefusal({ sourceSha256, requiredBlobs, isValidSha256Hex }: { sourceSha256: string | undefined; requiredBlobs: readonly string[]; isValidSha256Hex: typeof IsValidSha256Hex }, _options = {}): string | null {
   if (sourceSha256 && !isValidSha256Hex({ value: sourceSha256 })) return `malformed source sha256 '${sourceSha256}'`;
   const malformed = requiredBlobs.find(sha256 => !isValidSha256Hex({ value: sha256 }));
   return malformed === undefined ? null : `required blob '${malformed}' is not a sha256 hash`;
@@ -203,11 +205,11 @@ const writePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRecor
       const record = state as unknown as MediaRecord; // this handler's own pack() produced it
       // Same shape check as `validate`, again here: apply must not trust that precheck ran.
       const sha256 = record.source?.sha256;
-      if (sha256 && !isValidSha256Hex({ value: sha256 })) throw new MediaApplyBlockedError({ code: "blocked:precondition", message: `media '${id}' cannot be applied — malformed source sha256 '${sha256}'` });
+      if (sha256 && !ports.sha256.isValidSha256Hex({ value: sha256 })) throw new MediaApplyBlockedError({ code: "blocked:precondition", message: `media '${id}' cannot be applied — malformed source sha256 '${sha256}'` });
       const bytes = await stagedBytes({ blobStore, workspaceId, record });
       const outcome = importedOrThrow({ id, outcome: await importMediaEntity({
-        deps: { mediaRepo, assetBlobRepo, blobStore, ...ports.createBlobWriteBindings({ blobStore }), clock: { nowIso: () => clockNowIso({ clock: deps.clock }) }, idGen: deps.idGen,
-          sha256: { isValidSha256Hex, bytesMatchSha256 }, outwardErrorMessage: ({ error }) => error.message, ...ports.uploadCaps },
+        deps: { createHash: ports.createHash, mediaRepo, assetBlobRepo, blobStore, ...ports.createBlobWriteBindings({ blobStore, bytesMatchSha256: ports.sha256.bytesMatchSha256 }), clock: { nowIso: () => clockNowIso({ clock: deps.clock }) }, idGen: deps.idGen,
+          sha256: ports.sha256, outwardErrorMessage: ({ error }) => error.message, ...ports.uploadCaps },
         input: {
           workspaceId,
           record,
@@ -231,7 +233,7 @@ const writePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRecor
 const validatePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRecord, MediaBag["media"], MediaBag>>[0]['validate'] = async ({ ports, workspaceId, entity, existing }) => {
       if (isLibraryDocument({ kind: entity.state.kind, existing })) return LIBRARY_DOCUMENT_REFUSAL;
       const source = entity.state.source as { sha256?: string } | undefined;
-      const malformed = malformedHashRefusal({ sourceSha256: source?.sha256, requiredBlobs: entity.requiredBlobs });
+      const malformed = malformedHashRefusal({ sourceSha256: source?.sha256, requiredBlobs: entity.requiredBlobs, isValidSha256Hex: ports.sha256.isValidSha256Hex });
       if (malformed) return malformed;
       if (source?.sha256 && await isDocumentOnlyBlob({ deps: { mediaRepo: ports.repo, blobRepo: ports.assetBlobRepo }, input: { workspaceId, sha256: source.sha256 } })) return LIBRARY_DOCUMENT_REFUSAL;
       for (const sha256 of entity.requiredBlobs) {
@@ -243,8 +245,8 @@ const validatePublishedMedia: Parameters<typeof createRepoPublishHandler<MediaRe
     };
 
 /** Called from a composition root (`server/runtime/composition/publish-content-manifest.ts`). */
-export const contributeMediaPublish = (): PublishContentContributor<MediaBag> =>
-  createRepoPublishHandler<MediaRecord, MediaBag["media"], MediaBag>({
+export const contributeMediaPublish = (required: { createRepoPublishHandler: typeof createRepoPublishHandler }, _optional = {}): PublishContentContributor<MediaBag> =>
+  required.createRepoPublishHandler<MediaRecord, MediaBag["media"], MediaBag>({
     entityType: "media",
     // Operational sidecars are also media-owned; raw-row fallback must not export a private
     // document's slug history or original-rendition storage key after typed pack excluded it.
@@ -279,9 +281,9 @@ export const contributeMediaPublish = (): PublishContentContributor<MediaBag> =>
     undo: {
       // An update restores the prior record verbatim; a create removes its row. The blob row and bytes
       // stay: they are append-only and content-addressed, and an orphan is reclaimable by GC.
-      restore: ({ ctx: { ports, deps }, prior }, _optional = {}) => restoreImportedMedia({ deps: { mediaRepo: ports.repo,
-        assetBlobRepo: ports.assetBlobRepo, blobStore: ports.blobStore, ...ports.createBlobWriteBindings({ blobStore: ports.blobStore }), idGen: deps.idGen,
-        clock: { nowIso: () => clockNowIso({ clock: deps.clock }) }, sha256: { isValidSha256Hex, bytesMatchSha256 },
+      restore: ({ ctx: { ports, deps }, prior }, _optional = {}) => restoreImportedMedia({ deps: { createHash: ports.createHash, mediaRepo: ports.repo,
+        assetBlobRepo: ports.assetBlobRepo, blobStore: ports.blobStore, ...ports.createBlobWriteBindings({ blobStore: ports.blobStore, bytesMatchSha256: ports.sha256.bytesMatchSha256 }), idGen: deps.idGen,
+        clock: { nowIso: () => clockNowIso({ clock: deps.clock }) }, sha256: ports.sha256,
         outwardErrorMessage: ({ error }) => error.message }, prior }),
       remove: ({ ports, workspaceId, id }) => ports.repo.remove({ workspaceId, id }),
       summary: async ({ ports, workspaceId, id, state }) => {
@@ -301,13 +303,14 @@ export const contributeMediaPublish = (): PublishContentContributor<MediaBag> =>
     }),
   });
 
-export function bindMediaPublishContributor(required: Pick<MediaPorts, "createBlobWriteBindings" | "uploadCaps">, _optional: Record<string, never> = {}) {
+export function bindMediaPublishContributor(required: Pick<MediaPorts, "sha256" | "createHash" | "createBlobWriteBindings" | "uploadCaps"> & Parameters<typeof contributeMediaPublish>[0], _optional: Record<string, never> = {}) {
+  const { createRepoPublishHandler, ...bindings } = required;
   return {
     contributeMediaPublish: (): PublishContentContributor<Pick<CmsPublishPorts, "media">> => {
-      const contributor = contributeMediaPublish();
+      const contributor = contributeMediaPublish({ createRepoPublishHandler });
       return { ...contributor, build: deps => {
         const { media, ...ports } = deps.ports;
-        return contributor.build({ ...deps, ports: { ...ports, ...(media ? { media: { ...media, ...required } } : {}) } });
+        return contributor.build({ ...deps, ports: { ...ports, ...(media ? { media: { ...media, ...bindings } } : {}) } });
       } };
     },
   };

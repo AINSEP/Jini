@@ -77,6 +77,7 @@ interface MediaSourceReplacement {
  *  threading real deps through (e.g. the host's media `publish-content.ts` `apply()`) has nothing to
  *  rename. */
 export interface ImportMediaEntityDeps {
+  readonly createHash: import("../replace-media-file.js").ReplaceMediaFileDeps["createHash"];
   readonly mediaRepo: VersionedMediaRepoPort;
   readonly assetBlobRepo: AssetBlobRepoPort;
   readonly blobStore: BlobStorePort;

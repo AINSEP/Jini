@@ -1,3 +1,5 @@
+import { createRepoPublishHandler } from "../../../publish/content/repo-handler.js";
+import { bytesMatchSha256, isValidSha256Hex } from "../../../publish/transfer/blob-staging.js";
 import { expect, it, vi } from "vitest";
 import { contributeMediaPublish } from "../publish-content.js";
 import { bindMediaPublishContributor, MediaApplyBlockedError } from "../publish-content.js";
@@ -11,8 +13,8 @@ import { InMemoryOutbox } from "../../../redirects/__tests__/support/events.fixt
 it("refuses a missing staged blob without writing media", async () => {
   const save = vi.fn();
   const sha256 = "a".repeat(64);
-  const handler = contributeMediaPublish().build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "id" },
-    ports: { media: { repo: { findById: async () => null, findBySlug: async () => null, list: async () => [], save },
+  const handler = contributeMediaPublish({ createRepoPublishHandler }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "id" },
+    ports: { media: { createHash, sha256: { bytesMatchSha256, isValidSha256Hex }, repo: { findById: async () => null, findBySlug: async () => null, list: async () => [], save },
       assetBlobRepo: { findByHash: async () => null }, blobStore: { exists: async () => false } } } } as unknown as Parameters<ReturnType<typeof contributeMediaPublish>["build"]>[0]);
   const entity = { entityType: "media", id: "id", schemaVersion: 1, contentHash: "hash", hashVersion: 1, requiredBlobs: [sha256],
     state: { kind: "media", slug: "image", source: { sha256 } } };
@@ -35,14 +37,14 @@ async function boundFixture() {
   const record: MediaRecord = { id: "video", workspaceId: "site", kind: "media", title: "Video", slug: "video", alt: "", caption: "", credit: "",
     source: { sha256 }, status: "active", createdAt: "now", updatedAt: "now", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null };
   const entity = { entityType: "media", id: "video", schemaVersion: 1, hashVersion: 1, contentHash: "hash", requiredBlobs: [sha256], state: { ...record } };
-  const { contributeMediaPublish: bound } = bindMediaPublishContributor({ createBlobWriteBindings, uploadCaps });
+  const { contributeMediaPublish: bound } = bindMediaPublishContributor({ createRepoPublishHandler, sha256: { bytesMatchSha256, isValidSha256Hex }, createHash, createBlobWriteBindings, uploadCaps });
   const handler = bound().build(deps);
   return { deps, media, repo, blobStore, contentTypeStore, record, entity, handler, createBlobWriteBindings, uploadCaps };
 }
 
 it("bound ports match the existing contributor without adding writer fields to the bag", async () => {
   const f = await boundFixture();
-  const direct = contributeMediaPublish().build({ ...f.deps, ports: { media: { ...f.media, createBlobWriteBindings: f.createBlobWriteBindings, uploadCaps: f.uploadCaps } } });
+  const direct = contributeMediaPublish({ createRepoPublishHandler }).build({ ...f.deps, ports: { media: { ...f.media, createHash, sha256: { bytesMatchSha256, isValidSha256Hex }, createBlobWriteBindings: f.createBlobWriteBindings, uploadCaps: f.uploadCaps } } });
   expect(await f.handler.precheck({ entity: f.entity })).toBe(await direct.precheck({ entity: f.entity }));
   expect(f.handler.permission).toBe(direct.permission);
   expect(f.media).not.toHaveProperty("uploadCaps");
@@ -54,7 +56,7 @@ it("the bound contributor records the normalized video's sniffed content type", 
   await f.handler.apply({ entity: f.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "video" });
   expect(await f.contentTypeStore.getMany({ workspaceId: "site", sha256s: [f.record.source.sha256] })).toEqual(new Map([[f.record.source.sha256, "video/mp4"]]));
   expect((await f.repo.findById({ workspaceId: "site", id: "video" }))?.source.sha256).toBe(f.record.source.sha256);
-  expect(f.createBlobWriteBindings).toHaveBeenCalledWith({ blobStore: f.blobStore });
+  expect(f.createBlobWriteBindings).toHaveBeenCalledWith({ blobStore: f.blobStore, bytesMatchSha256 });
 });
 
 it("the bound contributor refuses Library documents and missing blobs without writes", async () => {

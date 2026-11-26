@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { uploadMedia, updateMediaMetadata, trashMedia } from "../media-service.js";
@@ -10,7 +11,7 @@ import type { MediaRecord } from "../types.js";
 test("createdBy stamps each acting principal despite sharing a blob, and survives editorial/status edits", async () => {
   let id = 0;
   const deps = {
-    clock: { nowMs: () => Date.parse("2026-10-04T00:00:00Z") },
+    createHash, clock: { nowMs: () => Date.parse("2026-10-04T00:00:00Z") },
     idGen: { newId: () => `creator-test-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),

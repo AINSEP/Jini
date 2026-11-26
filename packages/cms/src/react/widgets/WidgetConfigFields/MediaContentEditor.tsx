@@ -2,7 +2,7 @@ import { useId, type AriaAttributes, type ComponentType, type KeyboardEvent, typ
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import { interpolate, type Translate } from "@jini-ai/core/text";
-import { useMediaContentEditor, type MediaContentEditorController, type MediaItemRow } from "./MediaContentEditor.hooks.js";
+import type { useMediaContentEditor, MediaContentEditorController, MediaItemRow } from "./MediaContentEditor.hooks.js";
 import type { MediaContentMode, MediaLayout, MediaSlugProblem } from "./media-content-rules.js";
 import type { MediaPickerPort } from "../../media/MediaPickerDialog/MediaPickerDialog.hooks.js";
 
@@ -58,7 +58,7 @@ export interface MediaContentEditorProps {
   t?: Translate;
   agentHandle?: string;
   port?: MediaPickerPort;
-  hooks: {
+  hooks: Pick<Parameters<typeof useMediaContentEditor>[0], "useEffect" | "useMemo" | "useRef" | "useState"> & {
     useEditor: typeof useMediaContentEditor;
     usePreview: (required: { widgetType: string; config: Record<string, unknown> }) => { loading: boolean; error: string | null; document: string; paneWidth: number; frameRef: (node: HTMLDivElement | null) => void };
     useMediaPickerItems: Parameters<typeof useMediaContentEditor>[0]["useMediaPickerItems"];
@@ -73,6 +73,7 @@ export interface MediaContentEditorProps {
     HtmlAttributeRows: ComponentType<{ value: string; onChange: (value: string) => void; t: Translate; agentHandle: string | undefined }>;
   };
   deps: {
+    acceptedMediaItems: Parameters<typeof useMediaContentEditor>[0]["acceptedMediaItems"];
     port: MediaPickerPort; locale: string;
     acceptsMedia: Parameters<typeof useMediaContentEditor>[0]["acceptsMedia"];
     resolveTabBarTabIndex: (required: { tabs: readonly { id: MediaContentMode; label: string }[]; activeId: string; tab: { id: MediaContentMode; label: string } }) => number;
@@ -80,7 +81,7 @@ export interface MediaContentEditorProps {
 }
 
 export function MediaContentEditor({ widgetType, config, onChange, t = (key) => key, agentHandle: base, port, hooks, kit, deps }: MediaContentEditorProps) {
-  const vm = hooks.useEditor({ config, onChange, widgetType, port: port ?? deps.port, locale: deps.locale, useMediaPickerItems: hooks.useMediaPickerItems, acceptsMedia: deps.acceptsMedia });
+  const vm = hooks.useEditor({ config, onChange, widgetType, port: port ?? deps.port, locale: deps.locale, useMediaPickerItems: hooks.useMediaPickerItems, acceptsMedia: deps.acceptsMedia, useEffect: hooks.useEffect, useMemo: hooks.useMemo, useRef: hooks.useRef, useState: hooks.useState, acceptedMediaItems: deps.acceptedMediaItems });
   const preview = hooks.usePreview({ widgetType, config });
   const panelId = useId();
   return (

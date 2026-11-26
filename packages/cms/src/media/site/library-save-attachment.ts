@@ -15,7 +15,7 @@ import { resolveChatAttachmentBytes, type ChatAttachmentLookup } from './promote
 export async function saveLibraryDocument({ deps, bytes, name, principalId }: {
   deps: MediaToolDeps & { tracker?: Tracker }; bytes: Uint8Array; name: string; principalId: string;
 }, { archiveReader }: { archiveReader?: DocumentArchiveReaderPort } = {}) {
-  const { media } = await uploadMedia({ deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo,
+  const { media } = await uploadMedia({ deps: { createHash: deps.createHash, clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo,
     blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, ...(archiveReader ? { documentArchiveReader: archiveReader } : {}) },
     input: { workspaceId: deps.workspaceId, kind: 'document', bytes, filename: name,
       contentType: 'application/octet-stream', createdByPrincipal: principalId } }).catch(error => {

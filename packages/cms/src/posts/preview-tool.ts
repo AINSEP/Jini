@@ -1,6 +1,7 @@
+import type { AgentToolSideEffect } from "@jini-ai/core";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/post';
 import { adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition } from "@jini-ai/core";
-import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type DerivedRiskByToolId, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
+import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
 import { type JsonObject } from "@jini-ai/core/primitives";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { getAdminPostById } from "@jini-ai/cms/posts/post-read";
@@ -27,7 +28,7 @@ export interface PostPreviewInput { post: PostRecord; templateChoice?: string | 
 export interface PostPreviewRenderer {
   renderPostPreview({ deps, input }: { deps: PostPreviewToolDeps; input: PostPreviewInput }, optional?: Record<string, never>): Promise<{ html: string; templateChoice: string | null }>;
 }
-export const postPreviewDerivedRisk: DerivedRiskByToolId = new Map([
+export const postPreviewDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // -> getAdminPostByIdOrSlug + injected renderer: reads and in-memory clones only, no saves.
   ["content_post_preview", "none"],
 ]);

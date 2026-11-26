@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStandingDraftLocalBackup, LOCAL_BACKUP_PRINCIPAL_ID } from "../standing-draft-local-backup.js";
-import type { StandingDraftAutosaveInput } from "../../hooks/use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveInput } from "@jini-ai/core/contracts/standing-draft";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

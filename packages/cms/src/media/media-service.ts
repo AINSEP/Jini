@@ -62,7 +62,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  * See `types.ts`'s file header for the other disclosed scope adjustment: the
  * bespoke `MediaRecord` table in place of a generic-entries model.
  */
-import { createHash } from "node:crypto";
+import type { createHash as CreateHash } from "node:crypto";
 
 import { assertEntityLive } from "../core/entity-liveness.js";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
@@ -284,6 +284,7 @@ export interface UploadMediaInput {
 }
 
 export interface UploadMediaDeps {
+  createHash: typeof CreateHash;
   clock: Clock;
   idGen: IdGenerator;
   mediaRepo: MediaRepoPort;
@@ -477,7 +478,7 @@ export async function uploadMedia(
 
   const bytes = await storedUploadBytes({ input, kind });
   assertWithinUploadCap(bytes.byteLength, maxUploadBytes);
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const sha256 = deps.createHash("sha256").update(bytes).digest("hex");
   const nowIso = kernelNowIso({ clock: deps.clock });
 
   const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, nowIso,

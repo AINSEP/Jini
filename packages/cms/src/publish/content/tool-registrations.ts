@@ -6,15 +6,15 @@ import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-s
 import { loadActiveBundle } from "../transfer/bundle-staging.js";
 import { publishContentDerivedRisk, plainSentence, acceptedPullReport, pullCounts, pullTitle, requiredPullBundleId, pullOverwriteKeys } from "./tool-helpers.js";
 import { toolMetadata } from "./tool-metadata.js";
-import { buildPublishContentImportHooks, PublishContentBundleNotFoundError, type BuildPublishContentImportHooksInput } from "./gated-hooks.js";
+import type { buildPublishContentImportHooks, PublishContentBundleNotFoundError, BuildPublishContentImportHooksInput } from "./gated-hooks.js";
 import { executePublishContentImport, RestorePointUnavailableError } from "./execute-import.js";
 import { getPublishContentRunStatus, type PublishContentRunRepoPort } from "./run-repo.js";
 import { entityKey, type PublishContentReport } from "./plan-rows.js";
 import type { PublishContentPullDeps, StagedPeerPull } from "./pull.js";
 import { PublishContentPeerNotFoundError, PublishContentPeerCredentialMissingError, PublishContentPeerSecretStoreUnconfiguredError } from "./peers.js";
-import { PublishContentPeerTransportError } from "./peer-transport.js";
-import { connectDestination, disconnectDestination, PublishTrustConnectError, type ConnectDeps } from "../trust/connect.js";
-import { PublishTrustHandshakeError } from "../trust/handshake-client.js";
+import { PublishContentPeerTransportError } from "./peer-transport-error.js";
+import type { connectDestination, disconnectDestination, PublishTrustConnectError, ConnectDeps } from "../trust/connect.js";
+import { PublishTrustHandshakeError } from "../trust/handshake-error.js";
 import type { PublishTrustProvisioningPort } from "../trust/provisioning.js";
 import { PUBLISH_CONTENT_PUBLISH_TOOL_ID, PUBLISH_CONTENT_CONNECT_TOOL_ID, PUBLISH_CONTENT_PLAN_PULL_TOOL_ID, PUBLISH_CONTENT_EXECUTE_PULL_TOOL_ID, PUBLISH_CONTENT_STATUS_TOOL_ID, PUBLISH_BACKSTOP_GAPS_TOOL_ID } from "./agent-tools.js";
 import { connectAndRecordDestination } from "./connect-destination.js";
@@ -42,6 +42,11 @@ export interface HostGatewayPort {
 }
 
 export interface PublishContentToolDeps extends PublishContentPullDeps {
+  buildPublishContentImportHooks: typeof buildPublishContentImportHooks;
+  PublishContentBundleNotFoundError: typeof PublishContentBundleNotFoundError;
+  connectDestination: typeof connectDestination;
+  disconnectDestination: typeof disconnectDestination;
+  PublishTrustConnectError: typeof PublishTrustConnectError;
   authorize: NonNullable<PublishContentDeps<Record<string, unknown>>["authorize"]>;
   catalog: readonly AgentToolDefinition[];
   readinessCopy: PublishReadinessCopy;
@@ -205,8 +210,8 @@ async function connectWithTrust(
           repo: routeDeps.publishContentPeerRepo,
           clock: routeDeps.clock,
           idGen: routeDeps.idGen,
-          connectGrant: (connectInput, _options: Record<string, never> = {}) => connectDestination({ deps: trustDeps, input: connectInput }),
-          reverseGrant: () => disconnectDestination({ deps: trustDeps }),
+          connectGrant: (connectInput, _options: Record<string, never> = {}) => routeDeps.connectDestination({ deps: trustDeps, input: connectInput }),
+          reverseGrant: () => routeDeps.disconnectDestination({ deps: trustDeps }),
         },
         input: { workspaceId: routeDeps.workspaceId, baseUrl: baseUrl, entityTypes }
       }
@@ -225,7 +230,7 @@ async function connectWithTrust(
         nextStep: "Check the address and that the site is online, then try connecting again.",
       };
     }
-    if (err instanceof PublishTrustConnectError) {
+    if (err instanceof routeDeps.PublishTrustConnectError) {
       return {
         connected: false,
         message: "This site's publishing settings could not be saved on this computer.",
@@ -429,7 +434,7 @@ function pullHooks({ deps, bundleId, actorId }: { deps: PublishContentToolDeps; 
     ports: { ...(deps.publishContentPorts ?? {}), hooks: { beforeSave: deps.pluginBeforeSaveHook } },
     ...(deps.outbox === undefined ? {} : { outbox: deps.outbox }),
   };
-  return buildPublishContentImportHooks({
+  return deps.buildPublishContentImportHooks({
     workspaceId: deps.workspaceId, bundleId, actorId,
     // Assistant tool path (P10-H2): every write this import applies is the agent's.
     actor: { id: actorId, kind: "agent" }, clock: deps.clock, idGen: deps.idGen,
@@ -451,7 +456,7 @@ async function pullToolBoundary<T>({ run, deps }: { run: () => Promise<T>; deps:
 
 function modelFacingPullError({ error, deps }: { error: unknown; deps: PublishContentToolDeps }, _options: Record<string, never> = {}): unknown {
   if (error instanceof PlanStaleError) return new ToolInputError({ message: "The local content changed after the dialog was shown. Run publish_content_execute_pull again to review a fresh plan." });
-  if (error instanceof PublishContentBundleNotFoundError) return new ToolInputError({ message: "This pull plan was not found or has expired. Run publish_content_plan_pull again." });
+  if (error instanceof deps.PublishContentBundleNotFoundError) return new ToolInputError({ message: "This pull plan was not found or has expired. Run publish_content_plan_pull again." });
   // The apply writes row by row, so the refusal names the item and says earlier items stay saved.
   if (deps.isPluginHookFailedError(error)) return deps.toModelFacingPluginHookError({ err: error });
   if (error instanceof RestorePointUnavailableError) return new ToolInputError({ message: "This computer cannot capture a restore point. Pulling content is refused until backups are available." });

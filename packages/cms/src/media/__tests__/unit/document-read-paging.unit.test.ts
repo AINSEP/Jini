@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, test, vi } from 'vitest';
 import { createDocumentTextReader } from '../../document-read.js';
 import { uploadMedia } from '../../media-service.js';
@@ -10,7 +11,7 @@ async function fixture(extractor?: DocumentTextExtractorPort) {
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
-    clock: { nowMs: () => 0 }, idGen: { newId: () => `document-${++id}` },
+    createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => `document-${++id}` },
     documentTextExtractors: extractor ? [extractor] : [] };
   const text = 'é'.repeat(40_000);
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: extractor ? 'guide.pdf' : 'guide.txt',

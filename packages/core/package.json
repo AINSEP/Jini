@@ -367,6 +367,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./contracts/standing-draft": {
+      "types": "./dist/contracts/standing-draft.d.ts",
+      "import": "./dist/contracts/standing-draft.js",
+      "default": "./dist/contracts/standing-draft.js"
+    },
     "./contracts/site/public-origin": {
       "types": "./dist/contracts/site/public-origin.d.ts",
       "import": "./dist/contracts/site/public-origin.js",

@@ -31,7 +31,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  *  - Origin-isolated serving (a second listener/process for the `/m/` route).
  *  - The real `entry_refs` "referenced by published content" check.
  */
-import { createHash } from "node:crypto";
+import type { createHash as CreateHash } from "node:crypto";
 
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { BlobJournalEligibility } from "@jini-ai/core/contracts/blob-gc";
@@ -45,6 +45,7 @@ import { withSha256Lock } from "./blob-gc-lock.js";
 import type { ImageTransformerPort } from "./image-transformer.js";
 
 export interface ResolveMediaRenditionDeps {
+  createHash: typeof CreateHash;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
@@ -131,7 +132,7 @@ function generateMediaRendition(
       bytes: sourceBytes,
       params: definition.params,
     });
-    const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
+    const outputSha256 = deps.createHash("sha256").update(outputBytes).digest("hex");
     // Cleanup and uploads address these bytes by their output hash. Keep the ownership row
     // inside that same lock so cleanup cannot delete a file between its write and row save.
     return withSha256Lock({ key: outputSha256, criticalSection: async () => {

@@ -1,17 +1,17 @@
 import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 import { resolveCreatorKind } from "@jini-ai/core/primitives";
 
-import { collectBodyReferences } from "@jini-ai/cms/publish/content/content-references";
-import { PublishContentApplyRowError } from "@jini-ai/cms/publish/transfer";
+import type { collectBodyReferences as CollectBodyReferences } from "@jini-ai/cms/publish/content/content-references";
+import { PublishContentApplyRowError } from "../publish/transfer/apply-errors.js";
 import { addressHeldByOther, trashedAtDestination } from "@jini-ai/cms/publish/content/precheck-reasons";
-import { createRepoPublishHandler, gatewayDeps } from "@jini-ai/cms/publish/content/repo-handler";
+import type { createRepoPublishHandler as CreateRepoPublishHandler, gatewayDeps } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor, PublishContentDeps as EnginePublishContentDeps } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 import type { RemovePostFn } from "./post-trash.js";
 import type { PublishContentReference } from "@jini-ai/cms/publish/content/type-registry";
 
 import type { TaxonomyPublishPorts } from "@jini-ai/cms/taxonomy/publish-ports";
-import { prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, withTermIds } from "@jini-ai/cms/taxonomy/site/publish-term-ids";
+import type { prepareTermSync, readTermIds as ReadTermIds, TERM_SYNC_PERMISSION as TermSyncPermission, withTermIds as WithTermIds } from "@jini-ai/cms/taxonomy/site/publish-term-ids";
 
 import { importPostEntity } from "@jini-ai/cms/posts/post-import";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
@@ -277,7 +277,7 @@ function toImportableRecord(
 }
 
 /** {@link collectBodyReferences} plus the featured image, so a scoped publish carries that media too. */
-function postReferences(state: Readonly<Record<string, unknown>>): readonly PublishContentReference[] {
+function postReferences(state: Readonly<Record<string, unknown>>, collectBodyReferences: typeof CollectBodyReferences): readonly PublishContentReference[] {
   const refs = collectBodyReferences({ state });
   const featured = state.featuredMediaId;
   if (typeof featured !== "string" || featured.length === 0) return refs;
@@ -302,7 +302,7 @@ function omitBylineDefaults({ row }: { row: PostRecord }, _optional: Record<stri
   return { ...rest, ...(author == null ? {} : { author }), ...(showAuthor ? { showAuthor } : {}) };
 }
 
-async function withTerms({ termPorts, row }: { termPorts: TaxonomyPublishPorts | undefined; row: PostRecord }, _optional: Record<string, never> = {}): Promise<PostRow> {
+async function withTerms({ termPorts, row, readTermIds }: { termPorts: TaxonomyPublishPorts | undefined; row: PostRecord; readTermIds: typeof ReadTermIds }, _optional: Record<string, never> = {}): Promise<PostRow> {
   const termIds = await readTermIds({ ports: termPorts, contentType: row.kind, contentId: row.id });
   // The gateway captures this row as its inverse: preserve the stored byline defaults too.
   const publishRow = { ...row };
@@ -310,12 +310,12 @@ async function withTerms({ termPorts, row }: { termPorts: TaxonomyPublishPorts |
 }
 
 /** The packed state of `row` (what `pack` ships and hashes), for `planRetire`/`retire`'s hashes. */
-export async function packedStateOf({ termPorts, row }: { termPorts: TaxonomyPublishPorts | undefined; row: PostRecord }, _optional: Record<string, never> = {}): Promise<Record<string, unknown>> {
+export async function packedStateOf({ termPorts, row, readTermIds, withTermIds }: { termPorts: TaxonomyPublishPorts | undefined; row: PostRecord; readTermIds: typeof ReadTermIds; withTermIds: typeof WithTermIds }, _optional: Record<string, never> = {}): Promise<Record<string, unknown>> {
   return withTermIds({ state: toPublishableState(row), termIds: await readTermIds({ ports: termPorts, contentType: row.kind, contentId: row.id }) });
 }
 
 /** The apply-time ports, or the error that names what is missing. */
-function applyPorts({ ports, deps, kind }: { ports: PostPorts; deps: PublishContentDeps; kind: PostKind }, _optional: Record<string, never> = {}) {
+function applyPorts({ ports, deps, kind, policy }: { ports: PostPorts; deps: PublishContentDeps; kind: PostKind; policy: Parameters<typeof contributePostPublish>[0] }, _optional: Record<string, never> = {}) {
   const { forgetRemoved } = ports;
   if (!forgetRemoved) {
     throw new Error(
@@ -324,7 +324,7 @@ function applyPorts({ ports, deps, kind }: { ports: PostPorts; deps: PublishCont
         "root (features/publish-content/apply-loop.ts)."
     );
   }
-  return { repo: ports.repo, clock: deps.clock, outbox: gatewayDeps({ deps, entityType: kind }).outbox, forgetRemoved };
+  return { repo: ports.repo, clock: deps.clock, outbox: policy.gatewayDeps({ deps, entityType: kind }).outbox, forgetRemoved };
 }
 
 /**
@@ -335,13 +335,14 @@ function applyPorts({ ports, deps, kind }: { ports: PostPorts; deps: PublishCont
  * @complexity O(1): one read plus one restore or delete.
  */
 async function undoPostImport(
-  { ports, deps, kind, workspaceId, id, prior, principalId }: {
+  { ports, deps, kind, workspaceId, id, prior, principalId, policy }: {
+    policy: Parameters<typeof contributePostPublish>[0];
     ports: PostPorts; deps: PublishContentDeps; kind: PostKind; workspaceId: string; id: string; prior: PostRow | null; principalId: string;
   },
   _options: Record<string, never> = {}
 ): Promise<void> {
   if (prior) {
-    await restorePostForward({ deps: applyPorts({ ports, deps, kind }), input: { prior, actorId: principalId } });
+    await restorePostForward({ deps: applyPorts({ ports, deps, kind, policy }), input: { prior, actorId: principalId } });
     return;
   }
   if (await ports.repo.findById({ workspaceId, id })) await ports.repo.hardDelete({ workspaceId, id });
@@ -354,11 +355,11 @@ function packedKindMismatch({ kind, id, state }: { kind: PostKind; id: string; s
   return state.kind === kind ? null : `${kind} entity '${id}' is packed as a '${String(state.kind)}' — a ${kind} publish writes only ${kind}s`;
 }
 
-async function writePublishedPost({ kind, ports, deps, workspaceId, id, state, existing, expectedVersion, principalId, onRollback }: Parameters<Parameters<typeof createRepoPublishHandler<PostRow, PostPorts, PostBag>>[0]["write"]>[0] & { kind: PostKind }) {
+async function writePublishedPost({ kind, ports, deps, workspaceId, id, state, existing, expectedVersion, principalId, onRollback, policy }: Parameters<Parameters<typeof CreateRepoPublishHandler<PostRow, PostPorts, PostBag>>[0]["write"]>[0] & { kind: PostKind; policy: Parameters<typeof contributePostPublish>[0] }) {
       const wrongKind = packedKindMismatch({ kind, id, state });
       if (wrongKind) throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: wrongKind });
-      const { repo, outbox } = applyPorts({ ports, deps, kind });
-      const terms = await prepareTermSync({ ports: ports.term, deps, entityType: kind, entityId: id, principalId, contentType: kind, wanted: state.termIds });
+      const { repo, outbox } = applyPorts({ ports, deps, kind, policy });
+      const terms = await policy.prepareTermSync({ ports: ports.term, deps, entityType: kind, entityId: id, principalId, contentType: kind, wanted: state.termIds });
       // Terms first on rollback: Jini resolves the post to (un)assign, and a create's undo deletes it.
       onRollback({ undo: terms.revert });
       const imported = await importPostEntity({
@@ -373,7 +374,7 @@ async function writePublishedPost({ kind, ports, deps, workspaceId, id, state, e
         // the import above is already committed: undo it here (terms first, as on rollback) and
         // rethrow. A revert failure must not hide the original error or skip the post's undo.
         await terms.revert().catch((rollbackError: unknown) => ports.reportRollbackError("[publish-content] Could not revert imported terms", describeErrorForLog({ err: rollbackError })));
-        await undoPostImport({ ports, deps, kind, workspaceId, id, prior: existing, principalId });
+        await undoPostImport({ ports, deps, kind, workspaceId, id, prior: existing, principalId, policy });
         throw error;
       }
       return { version: imported.post.version };
@@ -381,7 +382,7 @@ async function writePublishedPost({ kind, ports, deps, workspaceId, id, state, e
 
     // Not the factory's `address`: a slug held by a trashed row keeps this sentence, and the slug
     // checks run before the kind check on an unfiltered read, as before the migration.
-async function validatePublishedPost({ kind, ports, workspaceId, entity }: Omit<Parameters<NonNullable<Parameters<typeof createRepoPublishHandler<PostRow, PostPorts, PostBag>>[0]["validate"]>>[0], "existing"> & { kind: PostKind }) {
+async function validatePublishedPost({ kind, ports, workspaceId, entity }: Omit<Parameters<NonNullable<Parameters<typeof CreateRepoPublishHandler<PostRow, PostPorts, PostBag>>[0]["validate"]>>[0], "existing"> & { kind: PostKind }) {
       const wrongKind = packedKindMismatch({ kind, id: entity.id, state: entity.state });
       if (wrongKind) return wrongKind;
       const slug = entity.state.slug;
@@ -396,7 +397,14 @@ async function validatePublishedPost({ kind, ports, workspaceId, entity }: Omit<
       return null;
 }
 
-function contributePostKind(kind: PostKind): PublishContentContributor<PostBag> {
+function contributePostKind(required: {
+  kind: PostKind; createRepoPublishHandler: typeof CreateRepoPublishHandler; TERM_SYNC_PERMISSION: typeof TermSyncPermission;
+  withTermIds: typeof WithTermIds; collectBodyReferences: typeof CollectBodyReferences;
+  gatewayDeps: typeof gatewayDeps; prepareTermSync: typeof prepareTermSync; readTermIds: typeof ReadTermIds;
+  contentHash: typeof import("../publish/content/content-hash.js").contentHash;
+  applyRunActor: typeof import("../publish/content/repo-handler.js").applyRunActor;
+}, _optional = {}): PublishContentContributor<PostBag> {
+  const { kind, createRepoPublishHandler, TERM_SYNC_PERMISSION, withTermIds, collectBodyReferences } = required;
   return createRepoPublishHandler<PostRow, PostPorts, PostBag>({
     entityType: kind, // PostKind's two values are exactly this feature's two entityTypes
     coversTables: ["posts", "post_versions"],
@@ -412,33 +420,33 @@ function contributePostKind(kind: PostKind): PublishContentContributor<PostBag> 
       const rows = (await p.repo.list({ workspaceId })).filter((row) => row.kind === kind && !isTrashed(row));
       // SQL supplies null/false defaults for older rows. Omit those defaults from the wire/hash;
       // import still clears a destination's old byline when the source leaves these fields absent.
-      return Promise.all(rows.map((row) => withTerms({ termPorts: p.term, row: omitBylineDefaults({ row }) })));
+      return Promise.all(rows.map((row) => withTerms({ termPorts: p.term, row: omitBylineDefaults({ row }), readTermIds: required.readTermIds })));
     },
     find: async ({ ports: p, workspaceId, id }, _optional = {}) => {
       const row = await p.repo.findById({ workspaceId, id });
-      return row && row.kind === kind ? withTerms({ termPorts: p.term, row }) : null;
+      return row && row.kind === kind ? withTerms({ termPorts: p.term, row, readTermIds: required.readTermIds }) : null;
     },
     isTrashed: ({ row }) => isTrashed(row),
     fields: { ...POST_FIELD_DISPOSITIONS, termIds: "transferred" },
     omitWhenAbsent: ["termIds", ...OMIT_WHEN_ABSENT],
     // Hash the established transport projection while find() retains the full compensation row.
     legacyHashState: ({ row }) => withTermIds({ state: toPublishableState(row), termIds: row.termIds }),
-    references: ({ entity }) => postReferences(entity.state),
+    references: ({ entity }) => postReferences(entity.state, collectBodyReferences),
     validate: async ({ ports, workspaceId, entity }) => validatePublishedPost({ kind, ports, workspaceId, entity }),
     write: async ({ ports, deps, workspaceId, id, state, existing, expectedVersion, principalId, onRollback }) =>
-      writePublishedPost({ kind, ports, deps, workspaceId, id, state, existing, expectedVersion, principalId, onRollback }),
+      writePublishedPost({ kind, ports, deps, workspaceId, id, state, existing, expectedVersion, principalId, onRollback, policy: required }),
     undo: {
       // Forward, not verbatim: see `restorePostForward`'s doc. A create's undo removes the row.
       restore: async ({ ctx: { ports, deps, workspaceId, id, principalId }, prior }, _optional = {}) => {
-        await undoPostImport({ ports, deps, kind, workspaceId, id, prior, principalId });
+        await undoPostImport({ ports, deps, kind, workspaceId, id, prior, principalId, policy: required });
       },
       remove: async ({ ports, deps, workspaceId, id, principalId }) => {
-        await undoPostImport({ ports, deps, kind, workspaceId, id, prior: null, principalId });
+        await undoPostImport({ ports, deps, kind, workspaceId, id, prior: null, principalId, policy: required });
       },
     },
     errors: { conflict: [PostConflictError, PostNotFoundError] },
     extend: ({ deps }) => ({
-      ...postRetireMethods(deps, kind),
+      ...postRetireMethods({ deps, kind, packedStateOf, policy: required }),
       // `retire()`'s own conflicts reach the apply loop raw. `PostVersionConflictError` extends
       // `PostConflictError`.
       isApplyConflict: (error): error is Error => error instanceof PostConflictError || error instanceof PostNotFoundError,
@@ -447,7 +455,7 @@ function contributePostKind(kind: PostKind): PublishContentContributor<PostBag> 
 }
 
 /** `post`'s publish-content contribution. */
-export const contributePostPublish = (): PublishContentContributor<PostBag> => contributePostKind("post");
+export const contributePostPublish = (required: Omit<Parameters<typeof contributePostKind>[0], "kind">, _optional = {}): PublishContentContributor<PostBag> => contributePostKind({ ...required, kind: "post" });
 
 /** `page`'s publish-content contribution: same table, same repo, same config as {@link contributePostPublish}. */
-export const contributePagePublish = (): PublishContentContributor<PostBag> => contributePostKind("page");
+export const contributePagePublish = (required: Parameters<typeof contributePostPublish>[0], _optional = {}): PublishContentContributor<PostBag> => contributePostKind({ ...required, kind: "page" });

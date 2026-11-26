@@ -1,7 +1,7 @@
 import { DEFAULT_POST_LIST_LIMIT, MAX_POST_LIST_LIMIT } from "@jini-ai/cms/posts/post-read";
 import { ToolInputError } from "@jini-ai/core";
 import type { PostStatus } from "@jini-ai/cms/core";
-import { extractPlainTextFromHtml } from "@jini-ai/cms/seo";
+import { extractPlainTextFromHtml } from "../seo/html-plain-text.js";
 import { type PostRecord } from "@jini-ai/cms/posts/post";
 import { POST_LIST_FIELDS } from "@jini-ai/cms/posts/post-tool-schemas";
 import { extractPostPlainText } from "@jini-ai/cms/posts/search";

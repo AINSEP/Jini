@@ -1,3 +1,7 @@
+import { applyRunActor, createRepoPublishHandler, gatewayDeps, okOrThrow } from "../../../publish/content/repo-handler.js";
+import { collectBodyReferences } from "../../../publish/content/content-references.js";
+import { prepareTermSync, readTermIds, TERM_SYNC_PERMISSION } from "../../../taxonomy/site/publish-term-ids.js";
+import { ContentRecordNotFoundError, TaxonomyNotApplicableError, TermRecordNotFoundError } from "../../../taxonomy/index.js";
 import { expect, test, vi } from "vitest";
 import { InMemoryEntryRepo, type EntryRecord } from "../../index.js";
 import { InMemoryContentTypeRepo } from "../../../content-types/index.js";
@@ -21,7 +25,7 @@ async function fixture() {
   }), contentTypes, terms };
   const deps = { workspaceId: "site", clock: { nowMs: () => 0 }, idGen: { newId: () => "id" }, mutationActor: { id: "human", kind: "user" },
     authorize, changeSets: {}, outbox: { enqueue: vi.fn() }, ports: { "collection-entry": ports } };
-  const handler = contributeCollectionEntryPublish({ excludedTypes: ["widget", "widget_area"] }).build(deps as unknown as Parameters<ReturnType<typeof contributeCollectionEntryPublish>["build"]>[0]);
+  const handler = contributeCollectionEntryPublish({ applyRunActor, createRepoPublishHandler, gatewayDeps, okOrThrow, collectBodyReferences, prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, ContentRecordNotFoundError, TaxonomyNotApplicableError, TermRecordNotFoundError, excludedTypes: ["widget", "widget_area"] }).build(deps as unknown as Parameters<ReturnType<typeof contributeCollectionEntryPublish>["build"]>[0]);
   return { entries, contentTypes, ports, terms, save, authorize, handler };
 }
 

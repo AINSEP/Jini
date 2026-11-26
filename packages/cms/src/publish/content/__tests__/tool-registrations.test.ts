@@ -1,3 +1,5 @@
+import { buildPublishContentImportHooks, PublishContentBundleNotFoundError } from "../gated-hooks.js";
+import { connectDestination, disconnectDestination, PublishTrustConnectError } from "../../trust/connect.js";
 import { expect, it, vi } from "vitest";
 import { publishContentAgentToolCatalog } from "../agent-tools.js";
 import { ToolInputError } from "@jini-ai/core";
@@ -24,6 +26,7 @@ function fixture() {
   gateway.execute.mockClear();
   const pullAndStageFromPeer = vi.fn(async (_required: { input: { peerId: string } }) => ({ bundleId: "bundle", expiresAt: "later", peerLabel: "Live", blobsUnavailable: [], blobsDeferred: [] }));
   const deps = {
+    buildPublishContentImportHooks, PublishContentBundleNotFoundError, connectDestination, disconnectDestination, PublishTrustConnectError,
     workspaceId: "w", authorize: async () => ({ allowed: true }), clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => "id" },
     catalog: publishContentAgentToolCatalog, listPublishContentContributors: () => [{ entityType: "post" }],
     readinessCopy: { noLiveSite: { summary: "No destination", missing: "No site", nextStep: "Deploy" }, nothingPublishable: { summary: "Empty", missing: "Empty", nextStep: "Add" }, publishesTo: () => "Ready", notConnected: () => ({ summary: "Connect", missing: "Link", nextStep: "Connect" }) },

@@ -1,4 +1,4 @@
-import { useCallback as useQueryFetchCallback, useEffect, useId, useRef, useState } from "react";
+import type { useCallback as UseQueryFetchCallback, useEffect as UseEffect, useId as UseId, useRef as UseRef, useState as UseState } from "react";
 import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import type { WidgetTypeKey as AdminWidgetType } from "../../../widgets/types.js";
 import { type Translate, interpolate } from "@jini-ai/core/text";
@@ -64,10 +64,10 @@ type WidgetAddControlProps = { triggerLabel: string; onResolved: (id: string) =>
  * const { instances, error } = useExistingInstances({ widgetType: "text" });
  */
 export function useExistingInstances(
-  { widgetType, deps }: { widgetType: AdminWidgetType; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useFetchQuery" | "describeApiError" | "sharedComponentsT"> & { locale: string } },
+  { widgetType, deps }: { widgetType: AdminWidgetType; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useFetchQuery" | "describeApiError" | "sharedComponentsT" | "useQueryFetchCallback"> & { locale: string } },
   _optional = {},
 ) {
-  const { port, locale, useFetchQuery, describeApiError, sharedComponentsT } = deps;
+  const { port, locale, useFetchQuery, describeApiError, sharedComponentsT, useQueryFetchCallback } = deps;
   const queryFetch = useQueryFetchCallback(async () => {
     try { return (await port.listWidgets({ widgetType })).widgets; }
     catch (error) { throw new Error(describeApiError({ e: error, fallback: sharedComponentsT({ locale, key: "failed to load existing widgets" }) })); }
@@ -84,9 +84,9 @@ export function useExistingInstances(
 export function useWidgetPickerDraft({ props, instances, deps }: {
   props: WidgetPickerDialogProps;
   instances: AdminWidget[] | null;
-  deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "defaultWidgetConfig" | "widgetTypeLabel" | "WIDGET_TYPE_OPTIONS" | "translateWidgets"> & { locale: string };
+  deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "defaultWidgetConfig" | "widgetTypeLabel" | "WIDGET_TYPE_OPTIONS" | "translateWidgets" | "useEffect" | "useId" | "useRef" | "useState"> & { locale: string };
 }, _optional = {}) {
-  const { locale, defaultWidgetConfig, widgetTypeLabel, WIDGET_TYPE_OPTIONS, translateWidgets } = deps;
+  const { locale, defaultWidgetConfig, widgetTypeLabel, WIDGET_TYPE_OPTIONS, translateWidgets, useEffect, useId, useRef, useState } = deps;
   const [selectedExistingId, setSelectedExistingId] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newConfig, setNewConfig] = useState<Record<string, unknown>>(() => defaultWidgetConfig({ widgetType: props.widgetType }));
@@ -144,6 +144,11 @@ export function useWidgetPickerDraft({ props, instances, deps }: {
  */
 export function useWidgetPickerDialog(
   { props, deps }: { props: WidgetPickerDialogProps; deps: {
+    useQueryFetchCallback: typeof UseQueryFetchCallback;
+    useEffect: typeof UseEffect;
+    useId: typeof UseId;
+    useRef: typeof UseRef;
+    useState: typeof UseState;
     port: WidgetPickerPort; useAdminLocaleHook: () => string; useFetchQuery: FetchQueryAdapter["useFetchQuery"];
     defaultWidgetConfig: (required: { widgetType: AdminWidgetType }) => Record<string, unknown>;
     WIDGET_TYPE_OPTIONS: readonly { value: AdminWidgetType; label: string }[];
@@ -219,11 +224,11 @@ export function useWidgetPickerDialog(
  * const { pickerType, handleCreateNew } = useWidgetAddControl({ triggerLabel: "+ Add widget", onResolved });
  */
 export function useWidgetAddControl(
-  { props, deps }: { props: WidgetAddControlProps; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useAdminLocaleHook" | "sharedComponentsT" | "describeApiError"> },
+  { props, deps }: { props: WidgetAddControlProps; deps: Pick<Parameters<typeof useWidgetPickerDialog>[0]["deps"], "port" | "useAdminLocaleHook" | "sharedComponentsT" | "describeApiError" | "useState"> },
   _optional = {},
 ) {
   const locale = deps.useAdminLocaleHook();
-  const { port, sharedComponentsT, describeApiError } = deps;
+  const { port, sharedComponentsT, describeApiError, useState } = deps;
   const t: Translate = (key) => sharedComponentsT({ locale: locale, key: key });
   const [pickerType, setPickerTypeRaw] = useState<AdminWidgetType | null>(props.initialWidgetType ?? null);
   const [selectedType, setSelectedType] = useState<AdminWidgetType>(props.initialWidgetType ?? "text");

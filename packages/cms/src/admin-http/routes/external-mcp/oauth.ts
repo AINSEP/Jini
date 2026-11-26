@@ -1,19 +1,9 @@
 import { runWithExternalMcpRateLimit, externalMcpErrorStatus } from "./route-helpers.js";
 import type { ExternalMcpOAuthService } from '@jini-ai/core/contracts/site/api-connections-hosted-mcp';
-import { defineJsonRoute, ok, routeReply, type RouteReply, type RouteInputContext, type JsonRouteAuthorize, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, ok, type RouteReply, type RouteInputContext, type JsonRouteAuthorize, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
 import { authorizeExternalMcp, externalMcpActorId, type ExternalMcpRoutePrincipal } from './shared.js';
 
 const BASE = '/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId/oauth';
-
-export function externalMcpProviderRefusal({ error }: { error: { code: string; message: string; retryable: boolean; operatorAction: string; retryAfterSeconds?: number } }, _optional = {}): RouteReply {
-  // 502 for "we could not reach them", 400 for "they refused us or we asked wrongly" — the two
-  // demand different things of the operator (wait/check network vs. check configuration), and
-  // collapsing them would tell someone behind a flaky network that their client id is wrong.
-  const status = error.code === 'OAUTH_PROVIDER_UNREACHABLE' ? 502 : 400;
-  return routeReply({ status, body: { error: error.message, code: error.code, details: { retryable: error.retryable, operatorAction: error.operatorAction,
-    ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
-  } } });
-}
 
 /** Where a connect request saves its sign-in: this browser (undefined) or the shared Mac connection. */
 function connectDestination({ body, invalidDestination }: { body: unknown; invalidDestination: (required: Record<string, never>) => Error }, _options = {}): 'shared' | undefined {

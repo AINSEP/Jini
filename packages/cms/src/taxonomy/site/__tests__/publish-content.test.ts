@@ -1,3 +1,4 @@
+import { createRepoPublishHandler, gatewayDeps } from "../../../publish/content/repo-handler.js";
 import { expect, it } from "vitest";
 import type { Term } from "../../index.js";
 import type { TaxonomyPublishPorts } from "../../publish-ports.js";
@@ -16,7 +17,7 @@ it("packs child-first input parent-first and applies the parent before its child
       getParentId: ({ termId }: { termId: string }) => destination.get(termId)?.parentId ?? null,
       insert: async (term: Term) => { writes.push(term.id); destination.set(term.id, term); } },
     revisions: { insert: async () => {} }, stampWatermark: () => {} } as unknown as TaxonomyPublishPorts;
-  const handler = contributeTermPublish().build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "event" }, ports: { term: ports },
+  const handler = contributeTermPublish({ createRepoPublishHandler, gatewayDeps }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "event" }, ports: { term: ports },
     authorize: async () => ({ allowed: true, reason: "grant" }), outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort, mutationActor: { id: "owner", kind: "user" } });
   const packed: PackedEntity[] = [];
   for await (const entity of handler.pack()) packed.push(entity);

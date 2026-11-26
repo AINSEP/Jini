@@ -10,7 +10,7 @@ import {
 } from "@jini-ai/cms/posts/post";
 import { comparePostsByDisplayDate, isLiveAt } from "@jini-ai/core/scheduled-publish";
 import { withoutHeldAgentSchedule, type AgentHoldReader } from "@jini-ai/cms/posts/agent-hold";
-import { wentLiveSinceSave, type GoLiveCandidatesPort } from "@jini-ai/cms/entries";
+import { wentLiveSinceSave, type GoLiveCandidatesPort } from "../entries/go-live.js";
 
 /**
  * SPEC-005 (T021): `ext` needs no special handling here. Unlike `repo.sqlite.ts` — which has to

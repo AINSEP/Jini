@@ -166,7 +166,7 @@ async function executePostToolUpdateCommand({ routeDeps, ctx, id, kind, patch, p
           basisVersion = existing.version;
         }
         // S3 — see assertHtmlBodyUnchanged's doc for why an html Page refuses a changed bodyJson.
-        assertHtmlBodyUnchanged({ id, existing, bodyJson: merged.bodyJson, isDeepStrictEqual: routeDeps.isDeepStrictEqual });
+        assertHtmlBodyUnchanged({ id, existing, bodyJson: merged.bodyJson, isDeepStrictEqual: routeDeps.isDeepStrictEqual, contentPostReadToolId: routeDeps.contentPostReadToolId });
         priorPost = existing;
         return updateInverse({ existing, templateChoice });
       },

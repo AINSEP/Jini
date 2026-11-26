@@ -3,7 +3,7 @@ import { mergeFormFlashIntoResult, type FormFlashPayload } from '../../../../for
 import type { FormSubmissionRedirectResult } from '../../../../forms/types.js';
 import { injectListingScript } from '../../../../listing/index.js';
 import { injectExtraHeadIntoStaticPage } from '../../../../presentation/html.js';
-import { injectFormAttemptTokens } from '../../../../forms/form-controls.js';
+import type { injectFormAttemptTokens as InjectFormAttemptTokens } from '../../../../forms/form-controls.js';
 import type { SubmissionAttempts } from '../../../../forms/submission-attempts.js';
 
 /** {@link resolvePerVisitorResponse}'s two outputs: the form result to splice into the HTML (if
@@ -124,6 +124,7 @@ export async function sendPublicPage(required: {
   hasConsentGatedScripts: Parameters<typeof publicPageCache>[0]['hasConsentGatedScripts'];
   writer: { vary(name: string): void; set(name: string, value: string): void; type(value: string): void; send(html: string): void };
   ports: Omit<Parameters<typeof finalizePublicPageHtml>[0]['ports'], 'formAttemptTokens'> & {
+    injectFormAttemptTokens: typeof InjectFormAttemptTokens;
     hasWidgetPartials(): boolean;
     workspaceId: string; randomUUID(): string; nowMs(): number;
     formSubmissionAttempts(): Pick<SubmissionAttempts, 'issue'> | undefined;
@@ -145,7 +146,7 @@ export async function sendPublicPage(required: {
     staticExport: input => ports.staticExport(input),
     memberAuthScript: input => ports.memberAuthScript(input),
     widgetPartials: async ({ html }) => ports.hasWidgetPartials() ? ports.widgetPartials({ html }) : html,
-    formAttemptTokens: ({ html }) => injectFormAttemptTokens({ html, newToken: ({ slug }) => {
+    formAttemptTokens: ({ html }) => ports.injectFormAttemptTokens({ html, newToken: ({ slug }) => {
       const attemptToken = ports.randomUUID();
       // The composition supplies this same process-lifetime owner to submission. Static exports
       // returned above never issue tokens; rendering observes time without claiming a submission.

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /** Library L1 steps 2–4: documents extend media's lifecycle; no second storage owner. */
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -11,7 +12,7 @@ import { runBlobGcCycle } from '../blob-gc.js';
 
 function fixture() {
   let id = 0;
-  return { clock: { nowMs: () => Date.parse('2026-10-18T00:00:00Z') }, idGen: { newId: () => `doc-${++id}` },
+  return { createHash, clock: { nowMs: () => Date.parse('2026-10-18T00:00:00Z') }, idGen: { newId: () => `doc-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
     journalRepo: new InMemoryBlobGcJournalRepo({}), referenceCheck: { findReferences: async () => [] } };

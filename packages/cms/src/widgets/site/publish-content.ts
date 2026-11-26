@@ -1,13 +1,13 @@
 import type { WidgetHostPorts } from "../host-ports.js";
 import { collectPlacementReferences } from "@jini-ai/cms/publish/content/content-references";
 import { collectMediaConfigKeys, collectMediaUrlKeys } from "@jini-ai/cms/publish/content/media-references";
-import { applyRunActor, createRepoPublishHandler, gatewayDeps, type RepoWriteContext } from "@jini-ai/cms/publish/content/repo-handler";
+import type { applyRunActor, createRepoPublishHandler, gatewayDeps, RepoWriteContext } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 import type { PublishContentReference } from "@jini-ai/cms/publish/content/type-registry";
 import type { WidgetPublishPorts } from "@jini-ai/cms/widgets/publish-ports";
 
-import { ContentTypeNotActiveError, EntryFieldValidationError, EntrySlugConflictError, VersionConflictError, type EntryRecord } from "@jini-ai/cms/entries";
+import type { ContentTypeNotActiveError, EntryFieldValidationError, EntrySlugConflictError, VersionConflictError, EntryRecord } from "@jini-ai/cms/entries";
 import { getEntryLockState, collectWidgetConfigStrings, validateWidgetConfig } from "@jini-ai/cms/widgets";
 import { parseWidgetAreaPayload, parseWidgetInstancePayload } from "@jini-ai/cms/widgets";
 import { WidgetAreaConflictError, WidgetAreaNotFoundError, WidgetConfigValidationError, WidgetForbiddenError, WidgetInstanceNotFoundError, WidgetTypeUnregisteredError, WidgetVersionConflictError } from "@jini-ai/cms/widgets";
@@ -45,7 +45,7 @@ function serviceDeps(
   _optional = {}
 ) {
   const { deps, ports } = ctx;
-  const gateway = gatewayDeps({ deps, entityType });
+  const gateway = policy.gatewayDeps({ deps, entityType });
   return {
     host: policy.buildWidgetHostPorts(),
     entryLocks: getEntryLockState({ owner: ports.entries }),
@@ -128,13 +128,16 @@ async function portableRow(
 }
 
 export const contributeWidgetPublish = (policy: {
+  applyRunActor: typeof applyRunActor; createRepoPublishHandler: typeof createRepoPublishHandler; gatewayDeps: typeof gatewayDeps;
+  ContentTypeNotActiveError: typeof ContentTypeNotActiveError; EntryFieldValidationError: typeof EntryFieldValidationError;
+  EntrySlugConflictError: typeof EntrySlugConflictError; VersionConflictError: typeof VersionConflictError;
   bindingTable: string;
   buildWidgetHostPorts: () => WidgetHostPorts;
   findWidgetTypeRegistration: typeof findWidgetTypeRegistration;
   configReferences: Readonly<Record<string, string>>;
   formReference: { field: string; widgetType: string };
 }, _optional: Record<string, never> = {}): PublishContentContributor<WidgetBag> =>
-  createRepoPublishHandler<WidgetRow, WidgetPublishPorts, WidgetBag>({
+  policy.createRepoPublishHandler<WidgetRow, WidgetPublishPorts, WidgetBag>({
     entityType: "widget",
     coversTables: ["entries", "entry_refs", policy.bindingTable],
     permission: "widgets.update",
@@ -172,8 +175,8 @@ export const contributeWidgetPublish = (policy: {
     validate: ({ entity }) => validateWidgetPublish({ entity, policy }),
     write: ctx => writePublishedWidget(ctx, policy),
     errors: {
-      conflict: [VersionConflictError, WidgetVersionConflictError],
-      blocked: [WidgetForbiddenError, WidgetTypeUnregisteredError, WidgetConfigValidationError, EntrySlugConflictError, EntryFieldValidationError, ContentTypeNotActiveError],
+      conflict: [policy.VersionConflictError, WidgetVersionConflictError],
+      blocked: [WidgetForbiddenError, WidgetTypeUnregisteredError, WidgetConfigValidationError, policy.EntrySlugConflictError, policy.EntryFieldValidationError, policy.ContentTypeNotActiveError],
     },
   });
 
@@ -196,7 +199,7 @@ async function listAreas({ ports: p, workspaceId }: { ports: WidgetPublishPorts;
 }
 
 export const contributeWidgetAreaPublish = (policy: Parameters<typeof contributeWidgetPublish>[0], _optional: Record<string, never> = {}): PublishContentContributor<WidgetBag> =>
-  createRepoPublishHandler<WidgetAreaRow, WidgetPublishPorts, WidgetBag>({
+  policy.createRepoPublishHandler<WidgetAreaRow, WidgetPublishPorts, WidgetBag>({
     entityType: "widget-area",
     coversTables: ["entries", "entry_refs", policy.bindingTable],
     permission: "widgets.place",
@@ -226,14 +229,14 @@ export const contributeWidgetAreaPublish = (policy: Parameters<typeof contribute
         : (await bindWidgetArea({ deps, input: { workspaceId, regionKey } })).areaEntry;
       const { areaEntry } = await mutateWidgetAreaPlacements({
         deps,
-        input: { workspaceId, actor: { principalId, kind: applyRunActor({ deps: ctx.deps, principalId }).kind }, areaEntryId: area.id, baseVersion: area.version, placements },
+        input: { workspaceId, actor: { principalId, kind: policy.applyRunActor({ deps: ctx.deps, principalId }).kind }, areaEntryId: area.id, baseVersion: area.version, placements },
       });
       await reconcileWidgetRegionBindings({ deps, input: { workspaceId } });
       return { version: areaEntry.version };
     },
     errors: {
-      conflict: [VersionConflictError, WidgetAreaConflictError],
-      blocked: [WidgetForbiddenError, WidgetInstanceNotFoundError, WidgetAreaNotFoundError, EntrySlugConflictError],
+      conflict: [policy.VersionConflictError, WidgetAreaConflictError],
+      blocked: [WidgetForbiddenError, WidgetInstanceNotFoundError, WidgetAreaNotFoundError, policy.EntrySlugConflictError],
     },
   });
 
@@ -263,7 +266,7 @@ async function writePublishedWidget(ctx: Parameters<NonNullable<Parameters<typeo
         input: {
           workspaceId,
           // The import origin's actor kind, merged in by the apply port (FIX 19 / H2).
-          actor: { principalId, kind: applyRunActor({ deps: ctx.deps, principalId }).kind },
+          actor: { principalId, kind: policy.applyRunActor({ deps: ctx.deps, principalId }).kind },
           id,
           slug: state.slug as string,
           title: state.title as string,

@@ -52,6 +52,7 @@ const CATALOG_BY_ID = indexCatalogById({ catalog: mediaAgentToolCatalog });
  * object after binding the kernel clock/ID contracts.
  */
 export interface MediaToolDeps {
+  createHash: import("./media-service.js").UploadMediaDeps["createHash"];
   /** Existing host MIME lookup for pre-provenance rows; new uploads carry their sniffed type. */
   listContentTypes?: MediaListTypeStore | undefined;
   authorize: AuthorizeFn;
@@ -272,6 +273,7 @@ function mediaListHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler
 
 function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
   const mediaWriteDeps = () => ({
+    createHash: routeDeps.createHash,
     clock: routeDeps.clock,
     idGen: routeDeps.idGen,
     mediaRepo: routeDeps.mediaRepo,

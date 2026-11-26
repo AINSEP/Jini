@@ -41,7 +41,7 @@ function fakeDeps(
   const deps: MediaToolDeps = {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: WORKSPACE_ID,
-    clock: { nowMs: () => Date.parse(NOW)},
+    createHash, clock: { nowMs: () => Date.parse(NOW)},
     idGen: { newId: () => `id-${++counter}` },
     mediaRepo,
     assetBlobRepo,
@@ -350,7 +350,7 @@ test("m1: a legacy document without provenance keeps its metadata without invent
 
 async function seedDocument(deps: MediaToolDeps, filename: string, body: string): Promise<MediaRecord> {
   const { media } = await uploadMedia({
-    deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
+    deps: { createHash, clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
     input: { workspaceId: WORKSPACE_ID, kind: "document", filename, contentType: "application/octet-stream", bytes: Buffer.from(body), createdByPrincipal: "uploader" },
   });
   return media;

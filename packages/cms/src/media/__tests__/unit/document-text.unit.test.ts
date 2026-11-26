@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from 'node:assert/strict';
 import { test, expect, vi } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
@@ -12,7 +13,7 @@ import { InMemoryBlobStore } from '../../blob-store.memory.js';
 
 async function fixture(extractors: readonly DocumentTextExtractorPort[] = []) {
   let id = 0;
-  const deps = { clock: { nowMs: () => 0 }, idGen: { newId: () => `doc-${++id}` },
+  const deps = { createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => `doc-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), documentTextExtractors: extractors };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.pdf', kind: 'document',

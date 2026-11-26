@@ -7,8 +7,8 @@ import type { usePublishPeers, usePublishConnect } from "./publish-peers.hooks.j
 import type { usePublishLifecycle, usePublishReport, usePublishSelection } from "./publish-lifecycle.hooks.js";
 import type { usePublishConfirmFailure, usePublishPreparedPlan, usePublishConfirmPlan, usePublishPrimary } from "./publish-execution.hooks.js";
 import type { usePublishPlanState, usePublishPlan, usePublishOverwrite } from "./publish-plan.hooks.js";
-import { canConfirmSelection, isChosenPeerId } from "./publish-plan.hooks.js";
-import { completionMessagesFor } from "./publish-execution.hooks.js";
+import { canConfirmSelection, isChosenPeerId } from "./publish-selection.rules.js";
+import { completionMessagesFor } from "./publish-completion.rules.js";
 
 /** The empty state's offer to connect — what replaces the old "configure a peer in Settings" dead
  *  end (`destination.ts`'s header: the connect action lives here, behind Publish, rather than on a

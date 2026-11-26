@@ -36,7 +36,7 @@ import { adaptLegacyAuthorize } from "@jini-ai/core";
  * `build(...)` time — once per real composition, after boot registration has finished — is what makes
  * the registry's contents visible here at all.
  */
-import { buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireString, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { ToolInputError } from "@jini-ai/core";
@@ -46,7 +46,7 @@ import type { ToolContributor } from "@jini-ai/core";
 
 import { type AgentToolDefinition as ContentDuplicationAgentToolDefinition } from "@jini-ai/core";
 
-const contentDuplicationDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+const contentDuplicationDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> whichever resource's own DuplicateResourceHandler.duplicate() the resource named — for
   // post/page that is executeCommand -> createPost (see features/post/tool-registrations.ts's own
   // duplicatePostOrPage). Classified at the WORST case across every currently-registered resource

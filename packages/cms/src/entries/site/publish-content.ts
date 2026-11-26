@@ -1,14 +1,14 @@
 import { adaptLegacyAuthorize } from "@jini-ai/cms/core";
 
-import { PublishContentApplyRowError } from "@jini-ai/cms/publish/transfer";
-import { collectBodyReferences } from "@jini-ai/cms/publish/content/content-references";
+import { PublishContentApplyRowError } from "../../publish/transfer/apply-errors.js";
+import type { collectBodyReferences } from "@jini-ai/cms/publish/content/content-references";
 import { tombstonedAtDestination } from "@jini-ai/cms/publish/content/precheck-reasons";
-import { applyRunActor, createRepoPublishHandler, gatewayDeps, okOrThrow } from "@jini-ai/cms/publish/content/repo-handler";
+import type { applyRunActor, createRepoPublishHandler, gatewayDeps, okOrThrow } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 import type { EntryPublishPorts } from "@jini-ai/cms/entries/publish-ports";
-import { prepareTermSync, readTermIds, TERM_SYNC_PERMISSION } from "@jini-ai/cms/taxonomy/site/publish-term-ids";
-import { ContentRecordNotFoundError, TaxonomyNotApplicableError, TermRecordNotFoundError } from "@jini-ai/cms/taxonomy";
+import type { prepareTermSync, readTermIds as ReadTermIds, TERM_SYNC_PERMISSION } from "@jini-ai/cms/taxonomy/site/publish-term-ids";
+import type { ContentRecordNotFoundError, TaxonomyNotApplicableError, TermRecordNotFoundError } from "@jini-ai/cms/taxonomy";
 
 import {
   ContentTypeNotActiveError,
@@ -31,7 +31,7 @@ type EntryBag = Pick<CmsPublishPorts, "collection-entry">;
  * @file `collection-entry` on the publish factory: every entry except widgets and widget areas
  * (their own types). Keeps the source's id (Jini's `importEntry`), addressed by `(type, slug)`.
  *
- * `fieldsJson` travels whole: Tovu only ever writes the `ext.site` namespace, so there is nothing
+ * `fieldsJson` travels whole: The host only ever writes the `ext.site` namespace, so there is nothing
  * else in it to leave behind. Term assignments (categories/tags) travel as `termIds`
  * (`@jini-ai/cms/taxonomy/site/publish-term-ids`); the publish ports' `contentTypeTaxonomyPolicy` admits them for
  * any live collection.
@@ -49,20 +49,20 @@ function widgetTypeRefusal({ id, state, excludedTypes }: { id: string; state: Re
 /** An entry row plus its sorted term ids (`undefined` when it has none). */
 type EntryRow = TrashableEntryRecord & { termIds?: string[] };
 
-const withTerms = async (p: EntryPublishPorts, row: TrashableEntryRecord): Promise<EntryRow> => {
+const withTerms = async (p: EntryPublishPorts, row: TrashableEntryRecord, readTermIds: typeof ReadTermIds): Promise<EntryRow> => {
   const termIds = await readTermIds({ ports: p.terms, contentType: row.type, contentId: row.id });
   return { ...row, ...(termIds !== undefined && { termIds }) };
 };
 
-type EntryWriteInput = { ports: EntryPublishPorts; deps: Parameters<typeof gatewayDeps>[0]["deps"]; workspaceId: string; id: string; state: Record<string, unknown>; expectedVersion: number | undefined; principalId: string; excludedTypes: readonly string[] };
+type EntryWriteInput = { policy: Parameters<typeof contributeCollectionEntryPublish>[0]; ports: EntryPublishPorts; deps: Parameters<typeof gatewayDeps>[0]["deps"]; workspaceId: string; id: string; state: Record<string, unknown>; expectedVersion: number | undefined; principalId: string; excludedTypes: readonly string[] };
 
 /** Checks the widget guard, term permissions and term sync first, then imports the entry and applies terms. */
-async function writeCollectionEntry({ ports, deps, workspaceId, id, state, expectedVersion, principalId, excludedTypes }: EntryWriteInput) {
+async function writeCollectionEntry({ ports, deps, workspaceId, id, state, expectedVersion, principalId, excludedTypes, policy }: EntryWriteInput) {
   const widgetType = widgetTypeRefusal({ id, state, excludedTypes });
   if (widgetType) throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: widgetType });
-  const gateway = gatewayDeps({ deps, entityType: "collection-entry" });
+  const gateway = policy.gatewayDeps({ deps, entityType: "collection-entry" });
   // Checked before the entry is written, so a missing term or permission blocks the row whole.
-  const terms = await prepareTermSync({
+  const terms = await policy.prepareTermSync({
     ports: ports.terms,
     deps,
     entityType: "collection-entry",
@@ -71,7 +71,7 @@ async function writeCollectionEntry({ ports, deps, workspaceId, id, state, expec
     contentType: state.type as string,
     wanted: state.termIds,
   });
-  const saved = okOrThrow(
+  const saved = policy.okOrThrow(
     {
       result: await importEntry({
         deps: {
@@ -85,7 +85,7 @@ async function writeCollectionEntry({ ports, deps, workspaceId, id, state, expec
         input: {
           actorId: principalId,
           // The import origin's actor, merged in by the apply port — never a guessed kind (FIX 19 / H2).
-          actor: applyRunActor({ deps, principalId }),
+          actor: policy.applyRunActor({ deps, principalId }),
           workspaceId,
           id,
           type: state.type as string,
@@ -129,6 +129,16 @@ const ENTRY_FIELD_POLICY = {
     deletedAt: "local",
 } as const;
 
+export const contributeCollectionEntryPublish = (required: {
+  excludedTypes: readonly string[];
+  collectBodyReferences: typeof collectBodyReferences;
+  applyRunActor: typeof applyRunActor; createRepoPublishHandler: typeof createRepoPublishHandler;
+  gatewayDeps: typeof gatewayDeps; okOrThrow: typeof okOrThrow;
+  prepareTermSync: typeof prepareTermSync; readTermIds: typeof ReadTermIds; TERM_SYNC_PERMISSION: typeof TERM_SYNC_PERMISSION;
+  ContentRecordNotFoundError: typeof ContentRecordNotFoundError; TaxonomyNotApplicableError: typeof TaxonomyNotApplicableError;
+  TermRecordNotFoundError: typeof TermRecordNotFoundError;
+}, _optional: Record<string, never> = {}): PublishContentContributor<EntryBag> => {
+  const { excludedTypes, TERM_SYNC_PERMISSION, ContentRecordNotFoundError, TaxonomyNotApplicableError, TermRecordNotFoundError } = required;
 const ENTRY_PUBLISH_ERRORS = {
     conflict: [VersionConflictError],
     blocked: [
@@ -144,8 +154,7 @@ const ENTRY_PUBLISH_ERRORS = {
     ],
 };
 
-export const contributeCollectionEntryPublish = ({ excludedTypes }: { excludedTypes: readonly string[] }, _optional: Record<string, never> = {}): PublishContentContributor<EntryBag> =>
-  createRepoPublishHandler<EntryRow, EntryPublishPorts, EntryBag>({
+  return required.createRepoPublishHandler<EntryRow, EntryPublishPorts, EntryBag>({
     entityType: "collection-entry",
     coversTables: ["entries", "entry_refs"],
     // 2 = the state may carry `termIds`. Exact-match, so an instance built before this refuses.
@@ -158,11 +167,11 @@ export const contributeCollectionEntryPublish = ({ excludedTypes }: { excludedTy
     ports: ({ deps }, _optional = {}) => deps.ports["collection-entry"],
     list: async ({ ports: p, workspaceId }) => {
       const rows = await p.entries.listByWorkspaceExcludingTypes({ workspaceId, excludeTypes: excludedTypes });
-      return Promise.all(rows.map((row) => withTerms(p, { ...row, deletedAt: null })));
+      return Promise.all(rows.map((row) => withTerms(p, { ...row, deletedAt: null }, required.readTermIds)));
     },
     find: async ({ ports: p, workspaceId, id }) => {
       const row = await p.entries.findAnyById({ workspaceId, id });
-      return row ? withTerms(p, row) : null;
+      return row ? withTerms(p, row, required.readTermIds) : null;
     },
     isTrashed: ({ row }) => row.deletedAt !== null,
     fields: ENTRY_FIELD_POLICY,
@@ -175,8 +184,9 @@ export const contributeCollectionEntryPublish = ({ excludedTypes }: { excludedTy
     // A tombstone is terminal, so nothing in the bundle can fix it. A missing type is left to apply:
     // the same bundle may carry it.
     // Its collection, plus whatever its body embeds and its categories/tags.
-    references: ({ entity }) => [{ entityType: "content-type", key: String(entity.state.type) }, ...collectBodyReferences({ state: entity.state })],
+    references: ({ entity }) => [{ entityType: "content-type", key: String(entity.state.type) }, ...required.collectBodyReferences({ state: entity.state })],
     validate: (required) => validateCollectionEntry({ ...required, excludedTypes }),
-    write: (required) => writeCollectionEntry({ ...required, excludedTypes }),
+    write: (input) => writeCollectionEntry({ ...input, excludedTypes, policy: required }),
     errors: ENTRY_PUBLISH_ERRORS,
   });
+};

@@ -1,6 +1,6 @@
 import type { BlobFence, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
 import { computeBlobStorageKey, withSha256Lock, type BlobStorePort } from "../index.js";
-import { bytesMatchSha256 } from "../../publish/transfer/blob-staging.js";
+import type { bytesMatchSha256 as BytesMatchSha256 } from "../../publish/transfer/blob-staging.js";
 
 /**
  * @file The host's bindings for `@jini-ai/cms`'s fenced blob writes (`importMediaEntity`, the blob PUT
@@ -41,7 +41,7 @@ export function createProcessBlobFence(_optional: Record<string, never> = {}): B
 
 /** Builds the fence, key and verification bindings over one blob store. */
 export function createHostBlobWriteBindings(
-  { blobStore }: { blobStore: Pick<BlobStorePort, "get"> },
+  { blobStore, bytesMatchSha256 }: { blobStore: Pick<BlobStorePort, "get">; bytesMatchSha256: typeof BytesMatchSha256 },
   { blobFence = createProcessBlobFence() }: { blobFence?: BlobFence } = {},
 ): HostBlobWriteBindings {
   return {

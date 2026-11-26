@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { uploadMedia } from "../media-service.js";
@@ -19,7 +20,7 @@ function fixture() {
     saveRenditionIfSource: async () => ({ applied: true }),
   });
   const assetBlobRepo = new InMemoryAssetBlobRepo({});
-  const base = { clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore: new InMemoryBlobStore() };
+  const base = { createHash, clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore: new InMemoryBlobStore() };
   return {
     uploadDeps: { ...base, mediaRepo, blobRepo: assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}) },
     replaceDeps: { ...base, workspaceId: "ws", mediaRepo, assetBlobRepo },

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, test } from 'vitest';
 import { readDocumentText } from '../document-read.js';
 import { uploadMedia } from '../media-service.js';
@@ -8,7 +9,7 @@ test('a host without size probing can read an empty text page at EOF with exact 
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
-    clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
+    createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.md', kind: 'document',
     contentType: 'text/markdown', bytes: Buffer.from('é'), createdByPrincipal: 'owner' } });
   // sizeOf is an optional host capability; byte validation still belongs to the reader.
@@ -25,7 +26,7 @@ test('document text reads limit concurrent byte loads and release capacity after
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
-    clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
+    createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.md', kind: 'document',
     contentType: 'text/markdown', bytes: Buffer.from('hello'), createdByPrincipal: 'owner' } });
   const get = blobStore.get.bind(blobStore);

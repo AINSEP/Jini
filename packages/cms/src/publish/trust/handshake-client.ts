@@ -1,3 +1,4 @@
+import { PublishTrustHandshakeError } from "./handshake-error.js";
 import type { KeyringPort } from "@jini-ai/core/contracts/vault";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 
@@ -63,29 +64,6 @@ export const HANDSHAKE_TIMEOUT_MS = 15_000;
  *  process's output. Only ever used for the "this is not a peer site" diagnosis, never for a
  *  refusal — a refusal's wording is this file's, so it cannot leak the destination's vocabulary. */
 const MAX_QUOTED_BODY = 200;
-
-/** What went wrong, as a class an admin surface can act on differently. */
-export type PublishTrustHandshakeFailure =
-  /** The host did not answer at all, or egress refused the address. */
-  | "unreachable"
-  /** Something answered, but not a peer site's handshake routes. */
-  | PublishTrustWire["notPeerFailure"]
-  /** The site answered correctly and does not accept publishes from this computer (yet). */
-  | "not-connected"
-  /** The site answered, but not in a way this source can use. */
-  | "refused";
-
-/** A handshake failure. `message` is written for the owner and contains no key material, no
- *  identifier and no error code — see this file's header. */
-export class PublishTrustHandshakeError extends Error {
-  readonly failure: PublishTrustHandshakeFailure;
-
-  constructor({ message, failure }: { message: string; failure: PublishTrustHandshakeFailure }) {
-    super(message);
-    this.name = "PublishTrustHandshakeError";
-    this.failure = failure;
-  }
-}
 
 /** What a destination says about itself. Not secret — see `handshake.ts`'s header for the reasoning
  *  on each field. */

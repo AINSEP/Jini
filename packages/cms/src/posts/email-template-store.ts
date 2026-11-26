@@ -13,7 +13,7 @@ import { type PostRecord, type PostRepoPort } from "@jini-ai/cms/posts/post";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 // Not from the barrel: it re-exports a fixed list, and this kind is not part of the Post API.
 import { EMAIL_TEMPLATE_KIND } from "@jini-ai/cms/posts/post";
-import { PageConcurrentEditError } from "../pages/html-document-store.js";
+import type { PageConcurrentEditError as ConcurrentEditError } from "../pages/html-document-store.js";
 import type { PagesHtmlDocumentStoreFactory } from "@jini-ai/core/contracts/site/page-html-store";
 
 /**
@@ -31,6 +31,7 @@ import type { PagesHtmlDocumentStoreFactory } from "@jini-ai/core/contracts/site
  */
 
 export interface EmailTemplateDeps {
+  PageConcurrentEditError: typeof ConcurrentEditError;
   workspaceId: string;
   postRepo: PostRepoPort;
   pagesHtmlStore: PagesHtmlDocumentStoreFactory;
@@ -105,7 +106,7 @@ async function openTemplateHtml({ deps, id, actorId }: { deps: EmailTemplateDeps
         await store.write({ html });
         return true;
       } catch (err) {
-        if (err instanceof PageConcurrentEditError) return false;
+        if (err instanceof deps.PageConcurrentEditError) return false;
         throw err;
       }
     },

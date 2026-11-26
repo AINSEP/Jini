@@ -7,7 +7,6 @@ import type { JsonObject } from "@jini-ai/core/primitives";
 import type { DuplicateResourceHandlerContributor } from "@jini-ai/core/contracts/site/assistant-tool-contributions";
 import { PostNotFoundError, PostValidationError, type PostRecord, type PublicPostRecord } from "@jini-ai/cms/posts/post";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
-import { copyBodyJsonWithFreshEmbedPlacements } from "@jini-ai/cms/widgets";
 import type { DeriveDuplicateName } from "@jini-ai/cms/forms";
 import { assistantPostAttribution, postCommandDeps } from "./post-tool-policy.js";
 import { toPostWriteResultView } from "@jini-ai/cms/posts/post-tool-views";
@@ -197,7 +196,7 @@ async function readDuplicateBody(routeDeps: PostToolDeps, source: PostRecord, so
     // `placementId` and `widgetEntryId`. That schema is model-facing documentation, not a runtime
     // validator, and this tool never authors a `bodyJson` from scratch: it only copies one this
     // codebase already wrote.
-    bodyJsonForCreate = copyBodyJsonWithFreshEmbedPlacements({ bodyJson: source.bodyJson, newPlacementId: () => routeDeps.idGen.newId() });
+    bodyJsonForCreate = routeDeps.copyBodyJsonWithFreshEmbedPlacements({ bodyJson: source.bodyJson, newPlacementId: () => routeDeps.idGen.newId() });
   }
 
   return { sourceHtml, bodyJsonForCreate };

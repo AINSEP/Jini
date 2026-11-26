@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
-import type { StandingDraftAutosaveOptions, StandingDraftAutosaveInput, StandingDraftAutosavePort } from "./use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveOptions, StandingDraftAutosavePort } from "./use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveInput } from "@jini-ai/core/contracts/standing-draft";
 import type { useStandingDraftState, useStandingDraftTimer, useStandingDraftQueue } from "./use-standing-draft-state.hooks.js";
 import type { useStandingDraftStaleBasis, useStandingDraftFailedSave } from "./use-standing-draft-recovery.hooks.js";
 

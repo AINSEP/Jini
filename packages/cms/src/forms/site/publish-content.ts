@@ -1,6 +1,6 @@
 import type { executeCommand } from "../../core/index.js";
 import { trashedAtDestination } from "@jini-ai/cms/publish/content/precheck-reasons";
-import { createRepoPublishHandler, gatewayDeps } from "@jini-ai/cms/publish/content/repo-handler";
+import type { createRepoPublishHandler, gatewayDeps } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 
@@ -27,13 +27,14 @@ type FormBag = Pick<CmsPublishPorts, "form">;
  * @overallScore 98 — Minor: the factory's typed state is trusted until existing command validation. */
 
 export const contributeFormPublish = (required: {
+  createRepoPublishHandler: typeof createRepoPublishHandler; gatewayDeps: typeof gatewayDeps;
   tableKey: string; permission: string; executeCommand: typeof executeCommand;
   createFormDefinition(input: { deps: Omit<FormWriteServiceDeps, 'permission' | 'reservedSlugs'> & { outbox?: OutboxPort }; input: Parameters<typeof createFormDefinition>[0]['input'] & { notify?: NotifyConfig } }): ReturnType<typeof createFormDefinition>;
   updateFormDefinition(input: { deps: Omit<FormWriteServiceDeps, 'permission' | 'reservedSlugs'> & { outbox?: OutboxPort }; input: Parameters<typeof updateFormDefinition>[0]['input'] }): ReturnType<typeof updateFormDefinition>;
   setFormDefinitionStatus(input: { deps: Omit<FormWriteServiceDeps, 'permission' | 'reservedSlugs'> & { outbox?: OutboxPort }; input: Parameters<typeof setFormDefinitionStatus>[0]['input'] }): ReturnType<typeof setFormDefinitionStatus>;
 }, _optional = {}): PublishContentContributor<FormBag> => {
   const { executeCommand, createFormDefinition, updateFormDefinition, setFormDefinitionStatus } = required;
-  return createRepoPublishHandler<HtmlFormDefinitionRecord, FormBag["form"], FormBag>({
+  return required.createRepoPublishHandler<HtmlFormDefinitionRecord, FormBag["form"], FormBag>({
     entityType: "form",
     coversTables: [required.tableKey],
     permission: required.permission,
@@ -62,7 +63,7 @@ export const contributeFormPublish = (required: {
     validate: async ({ ports, workspaceId, entity, existing }) =>
       !existing && (await ports.repo.isSlugTaken({ workspaceId, slug: entity.id })) ? trashedAtDestination({ entityType: "form", id: entity.id }) : null,
     write: async ({ ports, deps, workspaceId, id, state, existing, principalId }) => {
-      const writeDeps = { ...gatewayDeps({ deps, entityType: "form" }), repo: ports.repo, executeCommand };
+      const writeDeps = { ...required.gatewayDeps({ deps, entityType: "form" }), repo: ports.repo, executeCommand };
       const actor = { id: principalId, kind: "user" as const };
       const name = state.name as string;
       const fields = state.fields as FieldDescriptor[];

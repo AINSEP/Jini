@@ -1,5 +1,5 @@
 import type { MediaProviderOption } from "@jini-ai/core";
-import { useEffect, useState } from "react";
+import type { useEffect as UseEffect, useState as UseState } from "react";
 
 
 /**
@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
  * @complexity O(1) per render plus one request per mount.
  */
 export function useMediaProviderCatalog(
-  { port }: { port: { fetchMediaProviderCatalog: () => Promise<readonly MediaProviderOption[] | null> } },
+  { port, useEffect, useState }: { useEffect: typeof UseEffect; useState: typeof UseState; port: { fetchMediaProviderCatalog: () => Promise<readonly MediaProviderOption[] | null> } },
   _optional: Record<string, never> = {},
 ): readonly MediaProviderOption[] | null {
   const [catalog, setCatalog] = useState<readonly MediaProviderOption[] | null>(null);

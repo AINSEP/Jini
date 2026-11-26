@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -34,7 +35,7 @@ function makeDeps() {
   let n = 0;
   return {
     authorize: () => undefined, workspaceId: WORKSPACE_ID,
-    clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z"), nowIso: () => "2026-11-25T00:00:00.000Z" },
+    createHash, clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z"), nowIso: () => "2026-11-25T00:00:00.000Z" },
     idGen: { newId: () => `id-${++n}` },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}),
     assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
@@ -45,7 +46,7 @@ function makeDeps() {
 async function seed({ bytes, contentType }: { bytes: Uint8Array; contentType: string }) {
   const deps = makeDeps();
   const { media } = await uploadMedia({
-    deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
+    deps: { createHash, clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
       renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
     input: { workspaceId: WORKSPACE_ID, bytes, filename: "source", contentType, alt: "", caption: "", credit: "", createdByPrincipal: "p" },
   }, { maxUploadBytes: VIDEO_CAP, maxVideoUploadBytes: VIDEO_CAP });

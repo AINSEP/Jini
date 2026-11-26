@@ -31,7 +31,7 @@ function makeDeps() {
   const cleared: Array<{ keys: readonly string[]; activeAtClear: boolean }> = [];
   const blobRepo = new InMemoryAssetBlobRepo({});
   const deps = {
-    clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z") },
+    createHash, clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z") },
     idGen: { newId: () => `id-${(counter += 1)}` },
     mediaRepo: new InMemoryMediaRepo({}),
     blobRepo,
@@ -185,7 +185,7 @@ test("an import claiming a key clears its journal eligibility after the row is a
     mediaRepo: new InMemoryVersionedMediaRepo({}), assetBlobRepo, blobStore: new InMemoryBlobStore(),
     blobFence: { withKeys: async <T>({ work }: { work: () => Promise<T> }) => work(), withAsset: async <T>({ work }: { work: () => Promise<T> }) => work() },
     storageKeyFor: keyFor, verifyStoredBlob: async () => {},
-    clock: { nowIso: () => "2026-09-18T00:00:00.000Z" }, idGen: { newId: () => `g-${++n}` },
+    createHash, clock: { nowIso: () => "2026-09-18T00:00:00.000Z" }, idGen: { newId: () => `g-${++n}` },
     sha256: { isValidSha256Hex, bytesMatchSha256 }, outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     journalEligibility: { clearForKeys: async ({ workspaceId, storageKeys }: { workspaceId: string; storageKeys: readonly string[] }) => {
       const row = await assetBlobRepo.findByHash({ workspaceId, sha256: media.source.sha256 });
@@ -204,7 +204,7 @@ test("a file replacement clears journal eligibility for the key it now owns", as
   });
   cleared.length = 0;
   const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
-  await replaceMediaFile({ deps: { workspaceId: WS, clock: deps.clock, idGen: deps.idGen, mediaRepo, assetBlobRepo: deps.blobRepo, blobStore: deps.blobStore,
+  await replaceMediaFile({ deps: { createHash, workspaceId: WS, clock: deps.clock, idGen: deps.idGen, mediaRepo, assetBlobRepo: deps.blobRepo, blobStore: deps.blobStore,
     journalEligibility: deps.journalEligibility }, media, bytes, contentType: "image/jpeg", principalId: "owner" });
   const newKey = keyFor({ workspaceId: WS, sha256: createHash("sha256").update(bytes).digest("hex") });
   assert.deepEqual(cleared, [{ keys: [newKey], activeAtClear: true }]);

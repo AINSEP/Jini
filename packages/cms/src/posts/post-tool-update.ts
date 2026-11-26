@@ -111,11 +111,11 @@ export async function assertTemplateAvailable(required: { routeDeps: PostToolDep
  * @throws {ToolInputError} `CONTENT_POST_HTML_BODY` with the editing alternatives.
  * @complexity O(n) for n JSON values compared.
  */
-export function assertHtmlBodyUnchanged(required: { id: string; existing: PostRecord; bodyJson: JsonObject; isDeepStrictEqual: typeof isDeepStrictEqual }): void {
+export function assertHtmlBodyUnchanged(required: { id: string; existing: PostRecord; bodyJson: JsonObject; isDeepStrictEqual: typeof isDeepStrictEqual; contentPostReadToolId: string }): void {
   const { id, existing, bodyJson } = required;
   if (existing.bodyFormat === "html" && !required.isDeepStrictEqual(bodyJson, existing.bodyJson)) {
     throw new ToolInputError({ message: `CONTENT_POST_HTML_BODY: page '${id}' is a bespoke-HTML page, so bodyJson can't change its body. ` +
-        `To edit its title, slug or status, send bodyJson back exactly as content_read returned it. ` +
+        `To edit its title, slug or status, send bodyJson back exactly as ${required.contentPostReadToolId} returned it. ` +
         `To change the body, use pages_write_html or pages_write_region.` });
   }
 }

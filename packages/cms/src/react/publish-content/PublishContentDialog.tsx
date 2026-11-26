@@ -29,11 +29,11 @@ import { PublishContentNotices, PublishContentReport } from "./PublishContentRep
  * That stays consistent with the paragraph above rather than contradicting it: unchecking is how an
  * operator publishes LESS, never more, and it is honoured by re-planning against a bundle narrowed to
  * the checked rows (see `hooks/use-publish-content-confirm.hooks.ts`'s `confirmPlan`), so a
- * deselected entity never reaches the live site at all. `@tovu/publish-content-ui`'s `report-rows.ts`
+ * deselected entity never reaches the live site at all. `host publish policy`'s `report-rows.ts`
  * owns which rows may carry a checkbox; this file only renders the answer.
  *
  * Every decision this file renders comes from `hooks/use-publish-content-confirm.hooks.ts`, and
- * every rule the hook applies comes from `@tovu/publish-content-ui` — the same module the server's
+ * every rule the hook applies comes from `host publish policy` — the same module the server's
  * own planner semantics are pinned against. This component contains no publish logic at all.
  *
  * Domain markup and actions retain the `settings-dialog`/`btn-secondary`/`btn-primary` styling.
@@ -49,7 +49,7 @@ import { PublishContentNotices, PublishContentReport } from "./PublishContentRep
  * ## "Overwrite on live" (publish-overwrite-live-plan-2026-09-24.md §4/S9)
  *
  * A skipped row whose planner said it COULD be resolved by overwriting live (`row.overwritable`,
- * `@tovu/publish-content-ui`'s `report-rows.ts`) gets its own checkbox in a column this file adds
+ * `host publish policy`'s `report-rows.ts`) gets its own checkbox in a column this file adds
  * only while there is at least one such row AND the peer this plan targets can actually honour it
  * (`view.liveCanOverwrite`). Ticking one is not itself what overwrites anything — it re-plans through
  * `hooks/use-publish-content-confirm.hooks.ts`'s `onToggleOverwrite`, and the row only leaves

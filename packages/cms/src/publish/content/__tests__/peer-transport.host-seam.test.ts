@@ -1,10 +1,10 @@
+import { PublishContentPeerTransportError } from "../peer-transport-error.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "vitest";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import {
   createPeerTransport,
-  PublishContentPeerTransportError,
   type PeerHttpClient,
   type PeerTransportCredential,
   type PeerTransportHost,

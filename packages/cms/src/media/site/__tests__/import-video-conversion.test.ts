@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryBlobStore, uploadMedia } from "../../index.js";
 import { withVideoConversionOnImport } from "../import-video-conversion.js";
@@ -5,7 +6,7 @@ import { withVideoConversionOnImport } from "../import-video-conversion.js";
 it("conversion failure after upload keeps and returns the persisted original", async () => {
   let id = 0;
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}), renditionRepo: new InMemoryAssetRenditionRepo({}),
-    blobStore: new InMemoryBlobStore(), clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) } };
+    blobStore: new InMemoryBlobStore(), createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) } };
   const reportNote = vi.fn();
   const transcode = vi.fn(async () => { expect((await deps.mediaRepo.list({ workspaceId: "w" })).length).toBe(1); throw new Error("private failure"); });
   const store = withVideoConversionOnImport({ storeUpload: (input: Parameters<typeof uploadMedia>[0]["input"]) => uploadMedia({ deps, input }), conversion: { deps: { ...deps, transcoder: { transcode }, linkDerivedMedia: async () => {} }, reportNote, thresholdBytes: 1 } });

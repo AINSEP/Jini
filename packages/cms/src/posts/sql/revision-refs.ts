@@ -20,7 +20,7 @@ import type { RevisionRefProbe, RevisionThinningScope } from "./revision-thinnin
 
 /** Change sets that can no longer be undone; every other status (including one this code does not
  *  know yet) still counts as pending, so its references keep their targets. */
-const SETTLED_CHANGE_SETS = new Set(["reverted", "discarded"]);
+const SETTLED_CHANGE_SETS: ReadonlySet<string> = new Set(["reverted", "discarded"]);
 
 type Db = Parameters<Parameters<ContentKernel["run"]>[0]>[0];
 

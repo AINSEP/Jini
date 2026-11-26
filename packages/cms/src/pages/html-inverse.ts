@@ -1,5 +1,5 @@
 import type { JsonObject } from "@jini-ai/core/primitives";
-import { extractEntryRefs, extractHtmlEntryRefs, type EntryRefRow } from "@jini-ai/cms/widgets";
+import { extractEntryRefs, extractHtmlEntryRefs, type EntryRefRow } from "../widgets/entry-refs-extractor.js";
 import type { PostRecord } from "@jini-ai/cms/posts/post";
 import type { PageHtmlInverse } from "@jini-ai/core/contracts/site/page-html-store";
 

@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/fs-files';
-import { ToolInputError, buildDomainRegistrations, indexCatalogById, optionalBoolean, optionalNumber, optionalString, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { ToolInputError, buildDomainRegistrations, indexCatalogById, optionalBoolean, optionalNumber, optionalString, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -63,7 +63,7 @@ function requireCurrentSite({ input }: { input: Record<string, unknown> }, _opti
  * See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own `sideEffects`
  * declaration.
  */
-export const fsFilesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const fsFilesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listFsFiles(): a bounded readdir walk under one allowed root, no writes.
   [FS_LIST_FILES_TOOL_ID, "none"],
   // -> readFsFile(): one readFileSync under one allowed root, no writes.

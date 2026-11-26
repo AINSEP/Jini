@@ -1,5 +1,6 @@
+import { externalMcpProviderRefusal } from "../provider-refusal.js";
 import { expect, it, vi } from "vitest";
-import { externalMcpOAuthConnectRoute, externalMcpOAuthPollRoute, externalMcpSharedListRoute, externalMcpSharedSelectRoute, createExternalMcpBrowserSignInRoute, externalMcpProviderRefusal } from "../oauth.js";
+import { externalMcpOAuthConnectRoute, externalMcpOAuthPollRoute, externalMcpSharedListRoute, externalMcpSharedSelectRoute, createExternalMcpBrowserSignInRoute } from "../oauth.js";
 
 it("shared connect and saved selection cannot reach an operation before the required session", async () => {
   const beginConnect = vi.fn(); const useSharedConnection = vi.fn();

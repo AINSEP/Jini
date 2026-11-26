@@ -10,8 +10,8 @@ import type { AssignedTermView } from '../../../taxonomy/index.js';
 import type { ResolvedNavItem as StaticMenuItem } from '../../../navigation/types.js';
 import { escapeHtml } from '@jini-ai/core/text';
 import { injectExtraHeadIntoStaticPage } from '../../../presentation/html.js';
-import { siteHeader, siteFooter } from './render/components/layout.js';
-import { EMPTY_INLINE_RESOLVED, EMPTY_MEDIA_TRANSFORM_VERSIONS, EMPTY_MEDIA_ASSET_METADATA } from './render/doc/doc-nodes.js';
+import type { siteHeader as SiteHeader, siteFooter as SiteFooter } from './render/components/layout.js';
+import type { EMPTY_INLINE_RESOLVED, EMPTY_MEDIA_TRANSFORM_VERSIONS, EMPTY_MEDIA_ASSET_METADATA } from './render/doc/doc-nodes.js';
 
 /** No-terms default for every `renderSite`/`renderPostBody` caller that doesn't pass one — same
  * "optional, defaults to empty, degrades to no block" convention as {@link EMPTY_MEDIA_ASSET_METADATA}
@@ -27,6 +27,11 @@ const EMPTY_ASSIGNED_TERMS: readonly AssignedTermView[] = [];
  *  {@link renderSite}'s own complexity, no change to the accepted call shape (an inline object type
  *  and a structurally-identical named interface are the same type to every existing caller). */
 export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
+  siteHeader: typeof SiteHeader;
+  siteFooter: typeof SiteFooter;
+  EMPTY_INLINE_RESOLVED: typeof EMPTY_INLINE_RESOLVED;
+  EMPTY_MEDIA_TRANSFORM_VERSIONS: typeof EMPTY_MEDIA_TRANSFORM_VERSIONS;
+  EMPTY_MEDIA_ASSET_METADATA: typeof EMPTY_MEDIA_ASSET_METADATA;
   renderAssets?: (required: { scripts: readonly DeclaredScript[]; static?: true }) => Promise<DocumentAssets>;
   transformBody?: (required: { html: string }) => Promise<string>;
   scripts?: readonly DeclaredScript[];
@@ -152,7 +157,7 @@ export interface RenderSiteRequired<TMenu = readonly StaticMenuItem[]> {
 /** {@link buildSiteRenderContext}'s widget fields: no regions and no inline widgets when the caller
  *  resolved none. Spread in place so `ctx`'s key order is unchanged. */
 function siteWidgetContext(
-  widgets: RenderSiteRequired["widgets"],
+  { widgets, EMPTY_INLINE_RESOLVED }: Pick<RenderSiteRequired, "widgets" | "EMPTY_INLINE_RESOLVED">,
 ): Pick<SiteRenderContext, "widgetRegions" | "widgetInlineResolved"> {
   return {
     widgetRegions: widgets?.regions ?? {},
@@ -172,9 +177,9 @@ function buildSiteRenderContext<TMenu = readonly StaticMenuItem[]>(required: Ren
     products: required.products ?? [],
     product: required.product,
     themeName: required.theme?.manifest.name ?? null,
-    ...siteWidgetContext(required.widgets),
-    mediaTransformVersions: required.mediaTransformVersions ?? EMPTY_MEDIA_TRANSFORM_VERSIONS,
-    mediaAssetMetadata: required.mediaAssetMetadata ?? EMPTY_MEDIA_ASSET_METADATA,
+    ...siteWidgetContext(required),
+    mediaTransformVersions: required.mediaTransformVersions ?? required.EMPTY_MEDIA_TRANSFORM_VERSIONS,
+    mediaAssetMetadata: required.mediaAssetMetadata ?? required.EMPTY_MEDIA_ASSET_METADATA,
     assignedTerms: required.assignedTerms ?? EMPTY_ASSIGNED_TERMS,
     pageHtmlEmbeds: required.pageHtmlEmbeds,
     ...(required.timeZone !== undefined ? { timeZone: required.timeZone } : {}),
@@ -207,7 +212,7 @@ function fallbackSiteBody<TMenu = readonly StaticMenuItem[]>(ctx: SiteRenderCont
     case "products": main = required.productEntryList(ctx); break;
     default: main = required.entryList(ctx, {});
   }
-  return `${siteHeader(ctx, {})}${main}${siteFooter(ctx, { creditText: required.footerCredit })}`;
+  return `${required.siteHeader(ctx, {})}${main}${required.siteFooter(ctx, { creditText: required.footerCredit })}`;
 }
 
 /**

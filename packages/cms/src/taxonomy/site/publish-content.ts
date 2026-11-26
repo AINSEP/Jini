@@ -1,6 +1,6 @@
 import { ForbiddenError } from "@jini-ai/cms/core";
 
-import { createRepoPublishHandler, gatewayDeps, type RepoWriteContext } from "@jini-ai/cms/publish/content/repo-handler";
+import type { createRepoPublishHandler, gatewayDeps as GatewayDeps, RepoWriteContext } from "@jini-ai/cms/publish/content/repo-handler";
 import type { PublishContentContributor } from "@jini-ai/cms/publish/content/type-registry";
 import type { CmsPublishPorts } from "@jini-ai/cms/publish/content/publish-ports";
 import type { TaxonomyPublishPorts } from "@jini-ai/cms/taxonomy/publish-ports";
@@ -33,7 +33,7 @@ type TaxonomyBag = Pick<CmsPublishPorts, "taxonomy" | "term">;
 const TRASH = "trash";
 
 /** The Jini write-service deps for one apply. */
-function writeDeps({ ctx, entityType }: { ctx: RepoWriteContext<unknown, TaxonomyPublishPorts, TaxonomyBag>; entityType: string }, _optional = {}) {
+function writeDeps({ ctx, entityType, gatewayDeps }: { ctx: RepoWriteContext<unknown, TaxonomyPublishPorts, TaxonomyBag>; entityType: string; gatewayDeps: typeof GatewayDeps }, _optional = {}) {
   const { deps, workspaceId, ports } = ctx;
   const gateway = gatewayDeps({ deps, entityType });
   return {
@@ -51,8 +51,8 @@ const errors = {
   blocked: [ForbiddenError, TaxonomyRecordNotFoundError, TermNotFoundError, HierarchyCycleDetectedError, ParentCrossTaxonomyError, TaxonomyNotHierarchicalError],
 };
 
-export const contributeTaxonomyPublish = (): PublishContentContributor<TaxonomyBag> =>
-  createRepoPublishHandler<Taxonomy, TaxonomyPublishPorts, TaxonomyBag>({
+export const contributeTaxonomyPublish = (required: { createRepoPublishHandler: typeof createRepoPublishHandler; gatewayDeps: typeof GatewayDeps }, _optional = {}): PublishContentContributor<TaxonomyBag> =>
+  required.createRepoPublishHandler<Taxonomy, TaxonomyPublishPorts, TaxonomyBag>({
     entityType: "taxonomy",
     coversTables: ["taxonomies", "terms", "entry_terms", "taxonomy_revisions"],
     permission: "admin.taxonomy.manage",
@@ -65,7 +65,7 @@ export const contributeTaxonomyPublish = (): PublishContentContributor<TaxonomyB
     address: { field: "name", holder: async ({ ports: p, workspaceId: _workspaceId, value: name }) => (await p.taxonomies.list()).find((t) => t.name === name) ?? null },
     write: async (ctx) => {
       const { id, state, expectedVersion, principalId } = ctx;
-      const deps = writeDeps({ ctx, entityType: "taxonomy" });
+      const deps = writeDeps({ ctx, gatewayDeps: required.gatewayDeps, entityType: "taxonomy" });
       const saved = await importTaxonomy({ deps, principalId, actor: ctx.deps.mutationActor, id, name: state.name as string, hierarchical: state.hierarchical as boolean, expectedVersion });
       return { version: saved.version };
     },
@@ -88,8 +88,8 @@ function parentFirst({ rows }: { rows: readonly Term[] }, _optional = {}): Term[
   return ordered;
 }
 
-export const contributeTermPublish = (): PublishContentContributor<TaxonomyBag> =>
-  createRepoPublishHandler<Term, TaxonomyPublishPorts, TaxonomyBag>({
+export const contributeTermPublish = (required: { createRepoPublishHandler: typeof createRepoPublishHandler; gatewayDeps: typeof GatewayDeps }, _optional = {}): PublishContentContributor<TaxonomyBag> =>
+  required.createRepoPublishHandler<Term, TaxonomyPublishPorts, TaxonomyBag>({
     entityType: "term",
     coversTables: ["taxonomies", "terms", "entry_terms", "taxonomy_revisions"],
     permission: "admin.taxonomy.manage",
@@ -113,7 +113,7 @@ export const contributeTermPublish = (): PublishContentContributor<TaxonomyBag> 
     },
     write: async (ctx) => {
       const { id, state, expectedVersion, principalId } = ctx;
-      const deps = writeDeps({ ctx, entityType: "term" });
+      const deps = writeDeps({ ctx, gatewayDeps: required.gatewayDeps, entityType: "term" });
       const parentId = (state.parentId ?? null) as string | null;
       const saved = await importTerm({ deps, principalId, actor: ctx.deps.mutationActor, id, taxonomyId: state.taxonomyId as string, name: state.name as string, expectedVersion }, { parentId });
       return { version: saved.version };

@@ -15,7 +15,7 @@ import { requirePostKind, optionalPostStatus } from "./post-tool-input.js";
 import { toPostToolViewWithPublicUrl } from "@jini-ai/cms/posts/post-tool-views";
 
 import type { PostToolDeps } from "./post-tool-deps.js";
-import { listPostToolPosts, createPostToolPost, deletePostToolPost } from "./tool-registrations.js";
+import type { listPostToolPosts as ListPostToolPosts, createPostToolPost as CreatePostToolPost, deletePostToolPost as DeletePostToolPost } from "./tool-registrations.js";
 import { updatePostToolPost } from "./tool-registrations.update.js";
 
     /**
@@ -30,7 +30,7 @@ import { updatePostToolPost } from "./tool-registrations.update.js";
      * `PostValidationError`s a different input would fix, so publishing the schema alongside saves
      * the model a turn.
      */
-export function buildPostHandlers({ routeDeps }: { routeDeps: PostToolDeps }, _optional = {}): Record<string, ToolHandler> {
+export function buildPostHandlers({ routeDeps, listPostToolPosts, createPostToolPost, deletePostToolPost }: { routeDeps: PostToolDeps; listPostToolPosts: typeof ListPostToolPosts; createPostToolPost: typeof CreatePostToolPost; deletePostToolPost: typeof DeletePostToolPost }, _optional = {}): Record<string, ToolHandler> {
   return {
     content_post_search: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });

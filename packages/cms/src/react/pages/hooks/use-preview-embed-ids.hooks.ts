@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import type { useEffect as UseEffect, useState as UseState } from "react";
 
 /**
  * @file Page Preview's template-rendered video links. The preview document is sandboxed in an opaque
@@ -24,6 +24,8 @@ export type LoadPreviewEmbedIds = (
 
 /** Everything that changes the rendered preview, plus the port. */
 export interface PreviewEmbedIdsArgs extends PreviewEmbedIdsRequest {
+  useEffect: typeof UseEffect;
+  useState: typeof UseState;
   /** Saved page version: an assistant save re-renders the GET preview. */
   version: number;
   /** `useThemePreviewFrame`'s `revision` — the same value that refreshes the iframe. */
@@ -32,7 +34,7 @@ export interface PreviewEmbedIdsArgs extends PreviewEmbedIdsRequest {
 }
 
 /** The hook as `PagePreview` receives it: the host has already bound `load`. */
-export type UsePreviewEmbedIds = (required: Omit<PreviewEmbedIdsArgs, "load">) => readonly string[];
+export type UsePreviewEmbedIds = (required: Omit<PreviewEmbedIdsArgs, "load" | "useEffect" | "useState">) => readonly string[];
 
 /** Same trailing-only cadence as the hidden form's debounced auto-submit (`usePageEditor`). */
 export const PREVIEW_EMBED_DEBOUNCE_MS = 500;
@@ -80,7 +82,7 @@ function idsOf({ answer }: { answer: unknown }, _optional: Record<string, never>
  * @complexity O(1) per input change, plus one request.
  */
 export function usePreviewEmbedIds(
-  { id, templateChoice, version, previewRevision, pendingHtml, load }: PreviewEmbedIdsArgs,
+  { id, templateChoice, version, previewRevision, pendingHtml, load, useEffect, useState }: PreviewEmbedIdsArgs,
   _optional: Record<string, never> = {},
 ): readonly string[] {
   // The answer carries the identity of the inputs it was asked for, so a render whose inputs have

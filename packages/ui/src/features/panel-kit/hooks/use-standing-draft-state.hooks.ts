@@ -1,6 +1,7 @@
 import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { useCallback, useRef, useState } from "react";
-import type { StandingDraftAutosaveOptions, StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "./use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveOptions} from "./use-standing-draft-autosave.hooks.js";
+import type { StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "@jini-ai/core/contracts/standing-draft";
 import { useSerialWrites as useSerialWritesDefault } from "./use-serial-writes.hooks.js";
 
 export function useStandingDraftState(deps: StandingDraftAutosaveOptions, { useSerialWrites = useSerialWritesDefault }: { useSerialWrites?: typeof useSerialWritesDefault } = {}) {

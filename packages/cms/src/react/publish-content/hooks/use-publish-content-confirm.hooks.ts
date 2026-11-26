@@ -32,8 +32,7 @@ export { CONFIRM_ARM_DELAY_MS, liveGapLinesFor, publishMismatchMessage } from ".
  * ## What is NOT here
  *
  * The ceremony's *rules* — which rows a run writes, what each outcome is called, and when a plan may
- * be confirmed or executed — live in `host publish policy` (`apps/website/src/features/
- * publish-content/ui/`), next to the planner whose behaviour they restate. This file is the React
+ * be confirmed or executed — live in `host publish policy` (`publish-content/ui/`), next to the planner whose behaviour they restate. This file is the React
  * shell around them: state, effects, and the three port calls. A rule that could drift from
  * `planner.ts` does not belong in this package.
  *

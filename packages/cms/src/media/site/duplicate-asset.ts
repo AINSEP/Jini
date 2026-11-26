@@ -167,6 +167,7 @@ async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, inp
   // collected out from under the new row. See this file's header.
   const { media: created } = await uploadMedia({
     deps: {
+      createHash: routeDeps.createHash,
       clock: routeDeps.clock,
       idGen: routeDeps.idGen,
       mediaRepo: routeDeps.mediaRepo,

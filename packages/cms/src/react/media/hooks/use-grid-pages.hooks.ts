@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import type { useCallback as UseCallback, useState as UseState } from "react";
 
 import type { AdminMedia, MediaGridOrder, MediaGridPage, MediaGridTab } from "@jini-ai/core/contracts/site/cms-admin-media";
-import type { useFetchQuery as UseFetchQuery } from "@jini-ai/ui/fetch-query";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 
 /**
  * @file The Media grid's server-paged read: page one through the shared query cache, further pages
@@ -26,9 +26,11 @@ export interface MediaGridPort {
 
 /** What {@link useGridPages} needs; the query hook is injected like every other hook. */
 export interface GridPagesDeps extends MediaGridView {
+  useCallback: typeof UseCallback;
+  useState: typeof UseState;
   port: MediaGridPort;
   listKey: readonly (string | number)[];
-  useFetchQuery: typeof UseFetchQuery;
+  useFetchQuery: FetchQueryAdapter["useFetchQuery"];
 }
 
 /** Everything the screen reads from the grid. */
@@ -118,7 +120,7 @@ function pageSummary({ shown }: { shown: MediaGridPage | undefined }, _optional:
  * @complexity O(n) in loaded rows per render; one request per page.
  */
 export function useGridPages(required: GridPagesDeps, optional: { itemId?: string | null | undefined } = {}): GridPages {
-  const { port, tab, orderBy, useFetchQuery, listKey } = required;
+  const { port, tab, orderBy, useFetchQuery, listKey, useCallback, useState } = required;
   const itemId = optional.itemId ?? null;
   const first = useFetchQuery({ key: [...listKey, "grid", tab, orderBy], fetch: () => port.listMediaGrid({ tab, orderBy }, { limit: GRID_PAGE_SIZE }) });
   const [state, setState] = useState<MorePages>(NO_MORE);

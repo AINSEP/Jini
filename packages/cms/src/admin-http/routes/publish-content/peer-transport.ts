@@ -1,6 +1,6 @@
-import { PublishContentPeerTransportError } from '../../../publish/content/peer-transport.js';
+import { PublishContentPeerTransportError } from '../../../publish/content/peer-transport-error.js';
 import { PublishContentPeerCredentialMissingError, PublishContentPeerNotFoundError, PublishContentPeerSecretStoreUnconfiguredError } from '../../../publish/content/peers.js';
-import { PublishTrustHandshakeError } from '../../../publish/trust/handshake-client.js';
+import { PublishTrustHandshakeError } from '../../../publish/trust/handshake-error.js';
 import { mappedErrorResponse, type MappedErrorClass, type RouteRefusal } from './route-helpers.js';
 import type { PeerCallDeps } from "../../../publish/content/peer-transport.js";
 import type { PublishScope } from "../../../publish/content/ui/contract.js";

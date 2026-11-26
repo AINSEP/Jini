@@ -117,6 +117,7 @@ async function sendMediaRenditionResult(
 
     const result = await deps.resolveMediaRendition({
       deps: {
+        createHash: deps.rendition.createHash,
         mediaRepo: deps.rendition.mediaRepo,
         blobRepo: deps.rendition.blobRepo,
         // The shared service assumes immutable sources. This host's explicit replace

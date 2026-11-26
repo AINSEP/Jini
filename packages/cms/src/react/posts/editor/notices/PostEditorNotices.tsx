@@ -1,14 +1,13 @@
-import type { StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "@jini-ai/ui/panel-kit";
+import type { StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "@jini-ai/core/contracts/standing-draft";
 import type { ComponentProps, ReactNode } from "react";
 import type { PageExternalChangeBanner as PageExternalChangeBannerType } from "../../../pages/PageExternalChangeBanner.js";
-import type { standingDraftRecoveryMessage as standingDraftRecoveryMessageType } from "@jini-ai/ui/panel-kit";
 import { type PostSaveConflict, postAutosaveStaleBasisMessage, postVersionConflictMessage } from "../../post-editor-rules.js";
 import { type Translate } from "@jini-ai/core/text";
 
 /** The host's injected notice components, typed by the props this composer passes them. */
 type PostAutosaveRecoveryBannerComponent = (props: {
   recoverableDraft: StandingDraftAutosaveSnapshot; serverUpdatedAt: string; onRestore: () => void; onDiscard: () => void;
-  t: Translate; standingDraftRecoveryMessage: typeof standingDraftRecoveryMessageType;
+  t: Translate; standingDraftRecoveryMessage: (required: { draft: StandingDraftAutosaveSnapshot; t: Translate; serverUpdatedAt?: string }, optional?: { formatSavedAt?: (iso: string) => string }) => string;
 }) => ReactNode;
 type PostAutosaveStaleBannerComponent = (props: { staleBasis: StandingDraftStaleBasis; staleBasisMessage: (staleBasis: StandingDraftStaleBasis) => string }) => ReactNode;
 type PostVersionConflictBannerComponent = (props: {
@@ -56,7 +55,7 @@ export function PostEditorNotices({
   PostAutosaveStaleBanner: PostAutosaveStaleBannerComponent;
   PostVersionConflictBanner: PostVersionConflictBannerComponent;
   PageExternalChangeBanner: typeof PageExternalChangeBannerType;
-  standingDraftRecoveryMessage: typeof standingDraftRecoveryMessageType;
+  standingDraftRecoveryMessage: (required: { draft: StandingDraftAutosaveSnapshot; t: Translate; serverUpdatedAt?: string }, optional?: { formatSavedAt?: (iso: string) => string }) => string;
   pageExternalChangeBindings: Pick<ComponentProps<typeof PageExternalChangeBannerType>, "agentHandle" | "copy">;
   recoverableDraft: StandingDraftAutosaveSnapshot | null;
   serverUpdatedAt: string;

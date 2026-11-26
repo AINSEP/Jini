@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
@@ -69,7 +70,7 @@ async function harness({ result, original = mp4Bytes({ marker: 1 }), onTranscode
     },
   };
   const deps: ConvertMediaVideoDeps = {
-    clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
+    createHash, clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
     idGen: { newId: () => `id-${++counter}` },
     mediaRepo, blobRepo, renditionRepo, blobStore, transcoder,
     linkDerivedMedia: async (link) => { links.push(link); },
