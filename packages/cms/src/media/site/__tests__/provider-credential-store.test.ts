@@ -1,3 +1,5 @@
+import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
+import { SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { describe, expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRepoPort } from "../provider-credential-contracts.js";
 import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps } from "../provider-credential-store.js";
@@ -53,4 +55,18 @@ describe("media credential set", () => {
     expect(s.prepare).toHaveBeenCalledWith(expect.objectContaining({ provider: "canonical", payload: { apiKey: "secret" }, expectedRevision: null }));
     expect(s.records()[0]?.sealed?.ciphertext).toBe("canonical");
   });
+});
+
+
+it("opens a legacy credential under its stored identity and existing AAD", async () => {
+  const legacy = { ...row("legacy"), sealed: { keyId: "k", alg: "aes-256-gcm", nonce: "AwMDAwMDAwMDAwMD", ciphertext: "XtzCczNjOztYemE6gi+LeZ9ZzYTR7LYNg0DFHYCtNywiYNqJ21DCqQ==" } };
+  const s = setup([legacy]);
+  const keyring = { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(32).fill(7), deriveSigningSecret: async () => new Uint8Array(32) };
+  const sealer = new AesGcmSecretSealer({ keyring });
+  const open = vi.spyOn(sealer, "open");
+  const deps = { ...s.deps, sealer, createVault: ({ repo }: Parameters<MediaProviderCredentialResolveDeps["createVault"]>[0]) => new SecretsVaultService({
+    repo: repo.vault!, keyring, sealer, metaParsers: createVaultMetaParsers({}), authorize: async () => {}, now: () => "now", newId: () => "id",
+  }) };
+  expect(await resolveMediaProviderCredential({ deps, workspaceId: "w", providerId: "canonical" })).toEqual({ apiKey: "fixture-key", baseUrl: null, model: null });
+  expect(open).toHaveBeenCalledWith({ sealed: legacy.sealed }, { aad: 'secrets-vault:v1:["w","legacy","media-provider","test",null,null]' });
 });

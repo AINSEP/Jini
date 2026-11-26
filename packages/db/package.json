@@ -75,7 +75,8 @@
       "./react/recovery/Recovery": "browser",
       "./site/repo.memory": "node",
       "./transfer/confirmation-ui": "node",
-      "./transfer/destination-store": "node"
+      "./transfer/destination-store": "node",
+      "./recovery/tool-registrations": "universal"
     }
   },
   "type": "module",
@@ -216,6 +217,11 @@
       "types": "./dist/react/recovery/Recovery.d.ts",
       "import": "./dist/react/recovery/Recovery.js",
       "default": "./dist/react/recovery/Recovery.js"
+    },
+    "./recovery/tool-registrations": {
+      "types": "./dist/recovery/tool-registrations.d.ts",
+      "import": "./dist/recovery/tool-registrations.js",
+      "default": "./dist/recovery/tool-registrations.js"
     }
   },
   "typesVersions": {

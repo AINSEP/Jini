@@ -98,3 +98,14 @@ test("a malformed internal confirm result must not proceed to execute", async ()
 test("Recovery never registers restore-point creation", () => {
   expect(buildRecoveryRegistrations(fixture()).map(row => row.descriptor.id)).not.toContain("backup_create_restore_point");
 });
+
+test("malformed deep-link input refuses before lookup and authorization precedes a valid lookup", async () => {
+  const f = fixture();
+  const registration = buildRecoveryRegistrations(f).find(row => row.descriptor.id === "recovery_resolve_deep_link")!;
+  await expect(registration.handler({ ...ctx, input: { envelope: { v: "invalid" } } })).rejects.toThrow();
+  expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
+  f.host.authorize = vi.fn(async () => { throw new Error("denied"); });
+  await expect(registration.handler({ ...ctx, input: { envelope: { v: 1, correlationId: "correlation", siteId: "site", restorePointId: "point", ledgerEventId: null, drift: "none", intent: "restore", issuedAt: "now" } } })).rejects.toThrow("denied");
+  expect(f.host.authorize).toHaveBeenCalled();
+  expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
+});

@@ -72,7 +72,7 @@ const UNIX_HOST_SYSTEM = 3;
  */
 const EXECUTABLE_MODE_MASK = 0o111;
 
-export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort {
+export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }, { rejectSpecialUnixEntry }: { rejectSpecialUnixEntry?: (required: { entry: YauzlEntry }) => void } = {}): AgentPluginArchiveReaderPort {
 return {
   async *entries({ archive }: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry> {
     /**
@@ -87,7 +87,7 @@ return {
     });
 
     try {
-      for await (const entry of zipfile.eachEntry()) yield archiveEntryFor(zipfile, entry);
+      for await (const entry of zipfile.eachEntry()) yield archiveEntryFor(zipfile, entry, { rejectSpecialUnixEntry });
     } finally {
       zipfile.close();
     }
@@ -106,13 +106,14 @@ function readUnixMode(entry: YauzlEntry): number | null {
   return (entry.externalFileAttributes >>> 16) & 0xffff;
 }
 
-function archiveEntryFor(zipfile: YauzlZipFile, entry: YauzlEntry): AgentPluginArchiveEntry {
+function archiveEntryFor(zipfile: YauzlZipFile, entry: YauzlEntry, { rejectSpecialUnixEntry }: { rejectSpecialUnixEntry: ((required: { entry: YauzlEntry }) => void) | undefined }): AgentPluginArchiveEntry {
   /**
    * The entry's content (the link target text) is deliberately never read — see this
    * module's header. `install.ts` rejects every symlink entry unconditionally.
    */
   const unixMode = readUnixMode(entry);
   const fileType = unixMode === null ? 0 : unixMode & S_IFMT;
+  if (fileType === S_IFLNK || ![0, S_IFREG, S_IFDIR].includes(fileType)) rejectSpecialUnixEntry?.({ entry });
   if (fileType === S_IFLNK) return { kind: "symlink", entryPath: entry.fileName };
   if (![0, S_IFREG, S_IFDIR].includes(fileType)) return { kind: fileType === S_IFIFO ? "fifo" : "device", entryPath: entry.fileName };
   // File mode defines links even when a hostile filename masquerades as a directory.

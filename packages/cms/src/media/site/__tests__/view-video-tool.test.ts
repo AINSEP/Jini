@@ -35,3 +35,15 @@ it("an oversized sheet never reaches image preparation", async () => {
   await expect(tool.handler(ctx({ attachmentRef: "attachment:12345678", layout: "sheet" }))).rejects.toThrow("sheet output limit");
   expect(s.prepareImages).not.toHaveBeenCalled();
 });
+
+it("returns the existing video summary and image result envelope", async () => {
+  const s = setup();
+  const metadata = { duration: 1, width: 1, height: 1, codec: "vp9", container: "webm", sizeBytes: 8, hasAudio: false };
+  Object.assign(s.deps, { extractor: { extract: async () => ({ ok: true, metadata, frames: [{ at: 0, mimeType: "image/jpeg", bytes: new Uint8Array([1]) }] }) },
+    prepareImages: async () => ({ images: [{ mimeType: "image/jpeg", data: "AQ==" }] }) });
+  const tool = buildMediaViewVideoRegistrations({ deps: s.deps, catalog: s.catalog })[0]!;
+  expect(await tool.handler(ctx({ attachmentRef: "attachment:12345678", layout: "frames" }))).toEqual({ content: [
+    { type: "text", text: JSON.stringify({ video: metadata, layout: "frames", frames: [{ at: 0, mimeType: "image/jpeg" }], sampling: "Still frames at requested times; events between samples and audio content are not analyzed." }) },
+    { type: "image", mimeType: "image/jpeg", data: "AQ==" },
+  ] });
+});

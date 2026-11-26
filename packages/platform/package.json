@@ -58,7 +58,9 @@
       "./retention/routes": "node",
       "./web/tool-registrations": "universal",
       "./object-store/site/artifact-provider": "universal",
-      "./secrets/root-key/reconcile": "node"
+      "./secrets/root-key/decide": "node",
+      "./secrets/root-key/files": "node",
+      "./secrets/root-key/material": "node"
     },
     "isolation": {
       "entries": {
@@ -317,10 +319,20 @@
       "import": "./dist/object-store/site/artifact-provider.js",
       "default": "./dist/object-store/site/artifact-provider.js"
     },
-    "./secrets/root-key/reconcile": {
-      "types": "./dist/secrets/root-key/reconcile.d.ts",
-      "import": "./dist/secrets/root-key/reconcile.js",
-      "default": "./dist/secrets/root-key/reconcile.js"
+    "./secrets/root-key/decide": {
+      "types": "./dist/secrets/root-key/decide.d.ts",
+      "import": "./dist/secrets/root-key/decide.js",
+      "default": "./dist/secrets/root-key/decide.js"
+    },
+    "./secrets/root-key/files": {
+      "types": "./dist/secrets/root-key/files.d.ts",
+      "import": "./dist/secrets/root-key/files.js",
+      "default": "./dist/secrets/root-key/files.js"
+    },
+    "./secrets/root-key/material": {
+      "types": "./dist/secrets/root-key/material.d.ts",
+      "import": "./dist/secrets/root-key/material.js",
+      "default": "./dist/secrets/root-key/material.js"
     }
   },
   "files": [

@@ -147,7 +147,15 @@
       "./project-keys/tools": "universal",
       "./identity/user-purge": "universal",
       "./project-keys/sql/attachments": "node",
-      "./identity/sql/user-trash-adapter": "node"
+      "./identity/sql/user-trash-adapter": "node",
+      "./project-keys/shared-oauth-disconnect": "node",
+      "./mail/status/provider-operations": "universal",
+      "./mail/status/provider-tool-registrations": "universal",
+      "./mail/status/delivery-tool-registrations": "universal",
+      "./mail/status/tool-registrations": "universal",
+      "./members/tool-registrations": "universal",
+      "./newsletter/tool-registrations": "universal",
+      "./newsletter/delivery/tool-registrations": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -869,6 +877,46 @@
       "types": "./dist/identity/sql/user-trash-adapter.d.ts",
       "import": "./dist/identity/sql/user-trash-adapter.js",
       "default": "./dist/identity/sql/user-trash-adapter.js"
+    },
+    "./project-keys/shared-oauth-disconnect": {
+      "types": "./dist/project-keys/shared-oauth-disconnect.d.ts",
+      "import": "./dist/project-keys/shared-oauth-disconnect.js",
+      "default": "./dist/project-keys/shared-oauth-disconnect.js"
+    },
+    "./mail/status/provider-operations": {
+      "types": "./dist/mail/status/provider-operations.d.ts",
+      "import": "./dist/mail/status/provider-operations.js",
+      "default": "./dist/mail/status/provider-operations.js"
+    },
+    "./mail/status/provider-tool-registrations": {
+      "types": "./dist/mail/status/provider-tool-registrations.d.ts",
+      "import": "./dist/mail/status/provider-tool-registrations.js",
+      "default": "./dist/mail/status/provider-tool-registrations.js"
+    },
+    "./mail/status/delivery-tool-registrations": {
+      "types": "./dist/mail/status/delivery-tool-registrations.d.ts",
+      "import": "./dist/mail/status/delivery-tool-registrations.js",
+      "default": "./dist/mail/status/delivery-tool-registrations.js"
+    },
+    "./mail/status/tool-registrations": {
+      "types": "./dist/mail/status/tool-registrations.d.ts",
+      "import": "./dist/mail/status/tool-registrations.js",
+      "default": "./dist/mail/status/tool-registrations.js"
+    },
+    "./members/tool-registrations": {
+      "types": "./dist/members/tool-registrations.d.ts",
+      "import": "./dist/members/tool-registrations.js",
+      "default": "./dist/members/tool-registrations.js"
+    },
+    "./newsletter/tool-registrations": {
+      "types": "./dist/newsletter/tool-registrations.d.ts",
+      "import": "./dist/newsletter/tool-registrations.js",
+      "default": "./dist/newsletter/tool-registrations.js"
+    },
+    "./newsletter/delivery/tool-registrations": {
+      "types": "./dist/newsletter/delivery/tool-registrations.d.ts",
+      "import": "./dist/newsletter/delivery/tool-registrations.js",
+      "default": "./dist/newsletter/delivery/tool-registrations.js"
     }
   },
   "files": [
@@ -893,7 +941,9 @@
     "@jini-ai/core": "workspace:^",
     "@simplewebauthn/browser": "14.0.0",
     "@simplewebauthn/server": "14.0.3",
-    "otplib": "13.6.0"
+    "otplib": "13.6.0",
+    "@jini-ai/integrations": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
     "@jini-ai/ui-kit": "^0.7.3-next.2",

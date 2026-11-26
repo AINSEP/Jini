@@ -1,3 +1,4 @@
+import { createCaptureRootFileLock, CAPTURE_LOCK_NAME } from "../capture-root-file-lock.js";
 import * as fs from "node:fs/promises";
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { afterEach, expect, test } from "vitest";
 import type { CleanupPreviewStore } from "@jini-ai/core/contracts/storage";
 
 import type { CaptureRootLock } from "../capture-files.js";
-import { createCaptureFilePorts, createCaptureRetention, type CaptureEntry } from "../capture-retention.js";
+import { bindCaptureRetention, createCaptureFilePorts, createCaptureRetention, type CaptureEntry } from "../capture-retention.js";
 
 /**
  * @file Manual screenshot cleanup: preview lists only older, completed, writer-named regular files;
@@ -181,4 +182,31 @@ test("preview offers at most `limit` captures, oldest first", async () => {
   const ports = createCaptureFilePorts({ fs }, {});
   const retention = createCaptureRetention({ root, ...ports, previewStore: memoryPreviewStore(), clock: () => NOW, lock: keyLock() }, { limit: 1 });
   expect((await retention.preview({ ...who, before: CUTOFF }, {})).items).toEqual(["2026-10-01/a.jpg"]);
+});
+
+test("owner refusal precedes every filesystem operation", async () => {
+  const reads: string[] = [];
+  const binding = bindCaptureRetention({ siteDir: "/site", captureRootFor: () => "/site/.captures", writerFence: keyLock(),
+    fs: { readdir: async file => { reads.push(file); return []; }, lstat: async file => { reads.push(file); throw new Error("unexpected stat"); }, unlink: async file => { reads.push(file); } },
+    clock: () => NOW, previewStore: memoryPreviewStore(), authorizeOwner: () => { throw new Error("owner only"); } });
+  await expect(binding.preview({ context: {}, before: CUTOFF })).rejects.toThrow("owner only");
+  expect(reads).toEqual([]);
+});
+
+test("preview tokens bind to one capture root and writer/cleanup use the same resolved lock path", async () => {
+  const first = await captureRoot();
+  const second = await captureRoot();
+  const paths: string[] = [];
+  const fence = createCaptureRootFileLock({ withFileLock: async ({ lockPath, run }, options) => { expect(options).toEqual({ createParent: true }); paths.push(lockPath); return run(); } });
+  await fence.withLock({ key: path.join(first, "."), run: () => put(first, "2026-10-01/shot.jpg", "image", OLD) });
+  const previewStore = memoryPreviewStore();
+  const binding = bindCaptureRetention({ siteDir: first, captureRootFor: ({ siteDir }) => path.join(siteDir, "."), writerFence: fence, fs,
+    clock: () => NOW, previewStore, authorizeOwner: () => ({ principal: "owner" }) });
+  const other = bindCaptureRetention({ siteDir: second, captureRootFor: ({ siteDir }) => siteDir, writerFence: fence, fs,
+    clock: () => NOW, previewStore, authorizeOwner: () => ({ principal: "owner" }) });
+  const firstPreview = await binding.preview({ context: {}, before: CUTOFF });
+  await expect(other.apply({ context: {}, previewToken: firstPreview.previewToken, confirm: true })).rejects.toThrow("out of date");
+  const next = await binding.preview({ context: {}, before: CUTOFF });
+  expect(await binding.apply({ context: {}, previewToken: next.previewToken, confirm: true })).toEqual({ deleted: ["2026-10-01/shot.jpg"], kept: [] });
+  expect(paths).toEqual(Array(4).fill(path.join(path.resolve(first), CAPTURE_LOCK_NAME)));
 });
