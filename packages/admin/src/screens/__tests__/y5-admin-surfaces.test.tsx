@@ -202,6 +202,7 @@ test("settings preserve legacy redirects, valid tab control, fallback, scrolling
   expect(screen.getByText("execution")).toBeTruthy();
   act(() => screen.getByText("change tab").click());
   expect(navigate).toHaveBeenLastCalledWith({ routePath: "/settings?tab=language" }, { replace: true });
+});
 
 test("media screen preserves the exact deep-link lookup and shares the live provider catalog with its tab count", () => {
   const linked = { id: "linked", workspaceId: "ws", title: "Linked", slug: "linked", alt: "", caption: "", credit: "",
@@ -254,6 +255,8 @@ test("media screen preserves the exact deep-link lookup and shares the live prov
   expect(screen.getByText("All:41")).toBeTruthy();
   expect(screen.getByText("External Providers:0")).toBeTruthy();
   expect(screen.getByRole("button", { name: "publish media" })).toBeTruthy();
+});
+
 test("plugin Add falls back to Installed when folder installation is unavailable", async () => {
   const { Plugins } = await import("../plugins/Plugins.js");
   const controller = {
@@ -263,6 +266,7 @@ test("plugin Add falls back to Installed when folder installation is unavailable
     onToggleEnabled: vi.fn(), onRemovePlugin: vi.fn(), onToggleExpanded: vi.fn(), onInspectPlugin: vi.fn(),
     onCloseInspector: vi.fn(), onOpenSettings: vi.fn(), onCloseSettings: vi.fn(), onSettingsSaved: vi.fn(),
     dismissSettingsNotice: vi.fn(), onRequestRemove: vi.fn(), onConfirmRemove: vi.fn(), onCancelRemove: vi.fn(),
+  };
   const { createPluginRules } = await import("../plugins/rules.js");
   const rules = createPluginRules({ productName: "Host", translate: ({ key }) => key,
     describeApiError: ({ fallback }) => fallback, isApiError: (_error): _error is Error => false,
