@@ -257,14 +257,15 @@ function isPlainNavigationClick({ event }: { event: MouseEvent }, _options = {})
   return event.button === 0 && !event.defaultPrevented && !modified;
 }
 
-type EditorKeysRequired = {
+/** What the editor's key/leave guard reads. */
+export type EmailTemplateEditorKeysArgs = {
   controller: EmailTemplateEditorControl; locale: string; t: EmailTranslate; adminBase: string;
   useDirtyGuardHook: EmailTemplateEditorHooks<unknown, unknown>['useDirtyGuardHook'];
 };
 
 /** Reuse the host's dirty guard for unload and in-app links; also save on Cmd/Ctrl+S. Removes all listeners. */
 function useEditorKeys(
-  { controller, locale, t, adminBase, useDirtyGuardHook }: EditorKeysRequired,
+  { controller, locale, t, adminBase, useDirtyGuardHook }: EmailTemplateEditorKeysArgs,
   { host = window, documentHost = document }: { host?: Window; documentHost?: Document } = {},
 ): void {
   const { dirty, save } = controller;
@@ -309,17 +310,19 @@ export interface EmailTemplateEditorProps<D extends string, C extends EmailTempl
   readonly hooks: EmailTemplateEditorHooks<C, V>; readonly kit: EmailTemplateEditorKit<D>;
   readonly copy: EmailTemplateEditorCopy;
   readonly resolveTabIndex: (required: { tabs: readonly EditorTab[]; activeId: string; tab: EditorTab }) => number;
+  /** The Ctrl/Cmd+S and leave-guard listeners; a test swaps them, the page defaults to this module's own. */
+  readonly useEditorKeysHook?: ((required: EmailTemplateEditorKeysArgs) => void) | undefined;
 }
 
 /** The editor page. Every hook, component and dictionary is the host's, injected through props. */
 export function EmailTemplateEditor<D extends string, C extends EmailTemplateEditorControl, V extends EmailTemplateViewControl<D>>(props: EmailTemplateEditorProps<D, C, V>) {
-  const { hooks, kit, copy } = props;
+  const { hooks, kit, copy, useEditorKeysHook = useEditorKeys } = props;
   const controller = hooks.useEditorHook({ id: props.id });
   const adminLocale = hooks.useAdminLocaleHook();
   const locale = props.locale ?? adminLocale;
   const view = hooks.useEmailTemplateViewHook();
   const t = copy.t;
-  useEditorKeys({ controller, locale, t, adminBase: kit.adminBase, useDirtyGuardHook: hooks.useDirtyGuardHook });
+  useEditorKeysHook({ controller, locale, t, adminBase: kit.adminBase, useDirtyGuardHook: hooks.useDirtyGuardHook });
   const pageT = (key: string) => copy.pageEditorT({ locale, key });
   const base = { controller, locale, t };
   return (

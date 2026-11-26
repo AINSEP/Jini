@@ -86,7 +86,7 @@ export interface EmailSegmentedProps {
   readonly name: string;
   readonly items: readonly { readonly key: string; readonly label: string; readonly checked?: boolean | undefined; readonly change: () => void }[];
 }
-export interface EmailLoadedProps<T> { readonly view: EmailLoadView<T>; readonly locale: string; readonly retry?: (() => void) | undefined; readonly children: (data: T) => ReactNode }
+export interface EmailLoadedProps<T> { readonly view: EmailLoadView<T>; readonly locale: string; readonly retry?: () => void; readonly children: (data: T) => ReactNode }
 
 /** Presentational components the views render with (the host's UI library and its email parts). */
 export interface EmailKit<S extends EmailStatusShape> {
