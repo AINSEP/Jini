@@ -1,4 +1,6 @@
-import type { ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
+import type { AdminSiteKeyStatus } from "@jini-ai/core/contracts/site/site-key";
+import type { AccessTokensController } from "../../host/hooks/use-access-tokens.hooks.js";
 import type { TabBarProps, TabBarTab } from "../../../react/kit.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { resolveActiveTabId, type Translate } from "@jini-ai/core/text";
@@ -129,4 +131,39 @@ export function Security({ tabId, useAdminLocaleHook, useSecurityPermissionsHook
       {activeTabId === "site-key" ? <SiteKey /> : null}
     </div>
   );
+}
+
+export interface SecurityBindingProps {
+  tabId?: string | null;
+  useAccessTokensHook?: () => AccessTokensController;
+  useSiteKeyHook?: () => {
+    status: AdminSiteKeyStatus | undefined; loadError: string | null; revealing: boolean; revealError: string | null;
+    revealedHex: string | null; reveal: () => Promise<void>; hideRevealed: () => void; generating: boolean;
+    generateError: { kind: "locked"; code: "KEY_DEPENDENT_DATA" | "KEY_MISMATCH"; detail: string } | { kind: "refused"; code: "KEY_INVALID" | "SITE_META_UNREADABLE"; detail: string } | { kind: "already-exists" } | { kind: "generic"; detail: string } | null;
+    generate: () => Promise<void>; refresh: () => Promise<void>; t: Translate;
+  };
+  useSecurityPermissionsHook?: SecurityProps["useSecurityPermissionsHook"];
+  useAdminLocaleHook?: SecurityProps["useAdminLocaleHook"];
+}
+
+export function bindSecurity({ hooks, kit, deps }: {
+  hooks: Required<Pick<SecurityBindingProps, "useAccessTokensHook" | "useSiteKeyHook" | "useSecurityPermissionsHook" | "useAdminLocaleHook">>;
+  kit: SecurityProps["kit"];
+  deps: {
+    createPanels: (required: Pick<SecurityBindingProps, "useAccessTokensHook"> & Required<Pick<SecurityBindingProps, "useSiteKeyHook" | "useAdminLocaleHook">>) => SecurityProps["panels"];
+    copy: SecurityProps["copy"];
+    onTabChange: SecurityProps["onTabChange"];
+  };
+}, _optional: Record<string, never> = {}) {
+  return function BoundSecurity({ useAdminLocaleHook = hooks.useAdminLocaleHook,
+    useSecurityPermissionsHook = hooks.useSecurityPermissionsHook, ...props }: SecurityBindingProps, _optional: Record<string, never> = {}) {
+    const panels = useMemo(() => deps.createPanels({
+      useAccessTokensHook: props.useAccessTokensHook,
+      useSiteKeyHook: props.useSiteKeyHook ?? hooks.useSiteKeyHook,
+      useAdminLocaleHook,
+    }), [props.useAccessTokensHook, props.useSiteKeyHook, useAdminLocaleHook]);
+    return <Security {...(props.tabId === undefined ? {} : { tabId: props.tabId })}
+      useAdminLocaleHook={useAdminLocaleHook} useSecurityPermissionsHook={useSecurityPermissionsHook}
+      kit={kit} panels={panels} copy={deps.copy} onTabChange={deps.onTabChange} />;
+  };
 }

@@ -819,7 +819,9 @@
       "./screens/storage/storage-screen-bindings": "browser",
       "./security/host/AccessTokensTab.hooks": "browser",
       "./pages/PageEditor": "browser",
-      "./pages/hooks/use-page-editor.hooks": "browser"
+      "./pages/hooks/use-page-editor.hooks": "browser",
+      "./security/host/AccessTokensTab": "browser",
+      "./security/host/hooks/use-access-tokens.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -5126,6 +5128,16 @@
       "types": "./src/pages/hooks/use-page-editor.hooks.ts",
       "import": "./src/pages/hooks/use-page-editor.hooks.ts",
       "default": "./src/pages/hooks/use-page-editor.hooks.ts"
+    },
+    "./security/host/AccessTokensTab": {
+      "types": "./src/security/host/AccessTokensTab.tsx",
+      "import": "./src/security/host/AccessTokensTab.tsx",
+      "default": "./src/security/host/AccessTokensTab.tsx"
+    },
+    "./security/host/hooks/use-access-tokens.hooks": {
+      "types": "./src/security/host/hooks/use-access-tokens.hooks.ts",
+      "import": "./src/security/host/hooks/use-access-tokens.hooks.ts",
+      "default": "./src/security/host/hooks/use-access-tokens.hooks.ts"
     }
   },
   "files": [
