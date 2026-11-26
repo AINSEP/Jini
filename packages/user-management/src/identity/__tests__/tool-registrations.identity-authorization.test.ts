@@ -39,20 +39,29 @@ const ctx = (principalId: string, input: unknown): ToolExecutionContext => ({ ex
 test('a non-owner cannot enable the protected owner account', async () => {
   const f = await fixture();
   await f.repos.principals.save({ id: 'caller', workspaceId: 'ws', kind: 'user', displayName: 'Caller', status: 'active', createdAt: 'now' });
+  const owner = await f.repos.principals.findById({ workspaceId: 'ws', id: f.ownerPrincipalId });
+  assert.ok(owner);
+  await f.repos.principals.save({ ...owner, status: 'disabled' });
   const tool = f.tools.find(item => item.descriptor.id === 'identity_user_enable')!;
-  await assert.rejects(tool.handler(ctx('caller', { principalId: f.ownerPrincipalId })), /OWNER_REQUIRED/);
-  assert.equal((await f.repos.principals.findById({ workspaceId: 'ws', id: f.ownerPrincipalId }))?.status, 'active');
+  await assert.rejects(tool.handler(ctx('caller', { principalId: f.ownerPrincipalId })), {
+    message: 'identity_user_enable: OWNER_REQUIRED: only an owner can modify an owner principal. Nothing was changed.',
+  });
+  assert.equal((await f.repos.principals.findById({ workspaceId: 'ws', id: f.ownerPrincipalId }))?.status, 'disabled');
 });
 
 test('the real service rechecks authority lost during human approval', async () => {
+  let approvalReached = 0;
   const f = await fixture(async (repos, owner) => {
+    approvalReached += 1;
     const principal = await repos.principals.findById({ workspaceId: 'ws', id: owner }); assert.ok(principal);
     await repos.principals.save({ ...principal, status: 'disabled' });
   });
   const role = { id: 'role', workspaceId: 'ws', name: 'Temporary', isBuiltin: false, version: 1 };
   await f.repos.roles.save(role);
   const tool = f.tools.find(item => item.descriptor.id === 'identity_role_delete')!;
-  await assert.rejects(tool.handler(ctx(f.ownerPrincipalId, { roleId: 'role' })), IdentityForbiddenError);
+  await assert.rejects(tool.handler(ctx(f.ownerPrincipalId, { roleId: 'role' })), error =>
+    error instanceof IdentityForbiddenError && error.permission === 'role.manage' && error.reason === 'principal_disabled');
+  assert.equal(approvalReached, 1);
   assert.deepEqual(await f.repos.roles.findById({ workspaceId: 'ws', id: 'role' }), role);
 });
 

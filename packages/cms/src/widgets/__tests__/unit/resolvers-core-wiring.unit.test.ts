@@ -56,6 +56,23 @@ test("an empty batch resolves to an empty map without touching any resolver", as
   assert.equal(results.size, 0);
 });
 
+test("unregister removes a resolver and calling it again leaves a later registration alone", async () => {
+  const resolver = createCoreResolvers(deps()).menu!;
+  const input = { typeKey: "menu", instances: [menuWidget], context: CTX } as const;
+  const expected = { ok: true, ir: { componentId: "menu", props: { title: "Main", items: [] } }, dependencyKeys: ["menu-1"] };
+  const unregister = registerCoreResolver({ typeKey: "menu", resolver });
+  try {
+    assert.deepEqual((await resolveWidgetType(input)).get("w-menu"), expected);
+    unregister();
+    assert.deepEqual((await resolveWidgetType(input)).get("w-menu"), { ok: false, reason: "resolver-error" });
+    const unregisterAgain = registerCoreResolver({ typeKey: "menu", resolver });
+    try {
+      unregister();
+      assert.deepEqual((await resolveWidgetType(input)).get("w-menu"), expected);
+    } finally { unregisterAgain(); }
+  } finally { unregister(); }
+});
+
 test("a dynamic type is a resolver-error until wireCoreResolvers registers it, then resolves through the injected ports", async () => {
   assert.deepEqual((await resolveWidgetType({ typeKey: "menu", instances: [menuWidget], context: CTX })).get("w-menu"), { ok: false, reason: "resolver-error" });
 

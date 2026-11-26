@@ -26,7 +26,7 @@ function content(overrides: Partial<SiteShareContent> = {}): SiteShareContent {
 
 function backend(options: { rows?: SiteShareRecord[]; reveal?: (input: { sealedPassword: unknown; shareId: string; workspaceId: string }) => Promise<{ password: string }>; host?: Partial<SiteShareHost>; prepare?: () => Promise<SiteShareContent> } = {}) {
   const rows = options.rows ?? [row()];
-  const registry = { get: async ({ site, shareId }: { site: string; shareId: string }) => rows.find(r => r.site === site && r.shareId === shareId), list: async () => rows };
+  const registry = { get: async ({ site, shareId }: { site: string; shareId: string }) => rows.find(r => r.site === site && r.shareId === shareId) ?? null, list: async () => rows };
   return createSiteShareBackend({ registry, site: "site-a", zip: {}, delivery: async () => undefined, ownerPrincipalId: Promise.resolve("owner"),
     prepare: options.prepare ?? (async () => content()), host: host(options.host),
     ...(options.reveal ? { savedKeys: { reveal: options.reveal as never } } : {}) });

@@ -12,6 +12,11 @@ const nodeEntries = new Set(['./server/sql', './identity/repo', './identity/repo
 
 test('every published entry has matching runtime metadata and a source module', () => {
   expect(typeof bindKernelUserTrashAdapter).toBe('function');
+  expect(manifest.exports['./identity/sql/kernel-user-trash-store']).toEqual({
+    types: './dist/identity/sql/kernel-user-trash-store.d.ts',
+    import: './dist/identity/sql/kernel-user-trash-store.js',
+    default: './dist/identity/sql/kernel-user-trash-store.js',
+  });
   expect(manifest.jini.entries['./identity/sql/user-trash-adapter']).toBe('universal');
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

@@ -68,8 +68,14 @@ const mutableResolvers: Partial<Record<WidgetTypeKey, WidgetResolver>> = {};
 export const CORE_RESOLVERS: Readonly<Partial<Record<WidgetTypeKey, WidgetResolver>>> = mutableResolvers;
 
 /** Registers (or replaces) one resolver in the closed map — the one typed, non-test way to populate it. */
-export function registerCoreResolver(required: { typeKey: WidgetTypeKey; resolver: WidgetResolver }, _optional: Record<string, never> = {}): void {
-  mutableResolvers[required.typeKey] = required.resolver;
+export function registerCoreResolver({ typeKey, resolver }: { typeKey: WidgetTypeKey; resolver: WidgetResolver }, _optional: Record<string, never> = {}): () => void {
+  mutableResolvers[typeKey] = resolver;
+  let registered = true;
+  return () => {
+    if (!registered) return;
+    registered = false;
+    if (mutableResolvers[typeKey] === resolver) delete mutableResolvers[typeKey];
+  };
 }
 
 /**

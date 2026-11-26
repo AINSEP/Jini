@@ -32,7 +32,7 @@ export interface SiteShareRecord {
 }
 /** The registry reads the backend performs itself; writes happen inside the host's share service. */
 export interface SiteShareRegistryLike {
-  get(required: { site: string; shareId: string }): Promise<SiteShareRecord | undefined>;
+  get(required: { site: string; shareId: string }): Promise<SiteShareRecord | null>;
   list(required: { site: string }): Promise<readonly SiteShareRecord[]>;
 }
 /** The prepared backup fields the backend reads; the host's plan type carries more and is passed through. */

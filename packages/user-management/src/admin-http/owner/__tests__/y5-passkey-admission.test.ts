@@ -23,7 +23,12 @@ describe("owner passkey mount admission", () => {
     };
     await routes[5]!.handle(admission);
     expect(noStore).toHaveBeenCalledTimes(1);
-    expect(json).toHaveBeenCalledWith({ isOwner: false, credentials: [] });
+    expect(json).toHaveBeenCalledExactlyOnceWith({ isOwner: false, credentials: [] });
+    expect(passkeyDeps).not.toHaveBeenCalled();
+    json.mockClear();
+    await routes[5]!.handle({ ...admission, authenticate: async () => ({ kind: 'session', principal: { id: 'other' } }) });
+    expect(noStore).toHaveBeenCalledTimes(2);
+    expect(json).toHaveBeenCalledExactlyOnceWith({ isOwner: false, credentials: [] });
     expect(passkeyDeps).not.toHaveBeenCalled();
   });
 });
@@ -48,19 +53,21 @@ it('reads the credential store once before MFA and uses only the trusted site or
 it('binds request admission without store reads for nonowners and delegates sign-in', async () => {
   const { bindOwnerPasskeyRoutes } = await import('../passkey-routes.js');
   const routes: { method: string; path: string; handle(req: object, res: object): Promise<void> }[] = [];
-  const store = vi.fn(() => ({})); const signedIn = vi.fn(); const noStore = vi.fn(); const json = vi.fn();
+  const store = vi.fn<() => object | undefined>(() => ({})); const signedIn = vi.fn(); const noStore = vi.fn(); const json = vi.fn();
   const resolveDeps = vi.fn(resolveOwnerPasskeyRouteDeps);
   const answerFailure = vi.fn(answerOwnerPasskeyFailure);
   const incident = vi.fn();
   const result = { sessionToken: 'signed-in' };
+  const completeOwnerPasskeyLogin = vi.fn(async () => result);
   const bind = bindOwnerPasskeyRoutes({ root: '/passkeys', mount: (input: (typeof routes)[number]) => { routes.push(input); },
     resolveOwnerPasskeyRouteDeps: resolveDeps, answerOwnerPasskeyFailure: answerFailure,
     workspaceId: () => 'ws', store, mfa: async () => ({ seededOwnerPrincipalId: 'owner' }), webauthn: () => ({}),
     site: () => ({ deps: { passkeyOrigin: 'https://trusted.test' }, name: 'Site', copy: { unavailable: 'missing', insecure: 'insecure' } }),
     unavailableMessage: 'missing', authenticate: async () => ({ kind: 'tool', principal: { id: 'other' } }), ownerPrincipalId: async () => 'owner',
     isJson: () => true, header: ({ name }: { name: string }) => name === 'origin' ? 'https://trusted.test' : undefined,
-    body: () => ({}), byteCount: () => 2, rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident, signedIn,
-    services: { completeOwnerPasskeyLogin: async () => result }, copy: {}, operation: 'passkey', incidentOptions: {},
+    body: () => ({ pendingToken: 'pending-1', response: { id: 'key-1' } }), byteCount: () => 2,
+    rate: async () => ({ allowed: true }), noStore, retryAfter: vi.fn(), json, empty: vi.fn(), incident, signedIn,
+    services: { completeOwnerPasskeyLogin }, copy: {}, operation: 'passkey', incidentOptions: {},
   } as unknown as Parameters<typeof bindOwnerPasskeyRoutes<object, object, object>>[0]);
   bind({}); expect(store).not.toHaveBeenCalled();
   expect(resolveDeps).not.toHaveBeenCalled();
@@ -71,12 +78,20 @@ it('binds request admission without store reads for nonowners and delegates sign
   const req = {}; const res = {};
   await routes[3]!.handle(req, res);
   expect(store).toHaveBeenCalledTimes(1);
+  expect(completeOwnerPasskeyLogin).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    input: expect.objectContaining({ workspaceId: 'ws', pendingToken: 'pending-1', response: { id: 'key-1' } }),
+  }));
   expect(signedIn).toHaveBeenCalledWith({ host: {}, req, res, result });
   expect(resolveDeps).toHaveBeenCalledTimes(1);
   expect(answerFailure).not.toHaveBeenCalled();
+  json.mockClear();
+  store.mockReturnValueOnce(undefined);
+  await routes[3]!.handle(req, res);
+  expect(json).toHaveBeenCalledExactlyOnceWith({ res, status: 400, value: { error: 'missing', code: 'PASSKEY_REFUSED', details: { operation: 'passkey' } } });
+  expect(incident).not.toHaveBeenCalled();
   store.mockImplementation(() => { throw new Error('store unavailable'); });
   await routes[3]!.handle(req, res);
-  expect(resolveDeps).toHaveBeenCalledTimes(2);
+  expect(resolveDeps).toHaveBeenCalledTimes(3);
   expect(answerFailure).toHaveBeenCalledWith({ error: expect.objectContaining({ message: 'store unavailable' }),
     json: expect.any(Function), incident: expect.any(Function), operation: 'passkey', incidentOptions: {} });
   expect(incident).toHaveBeenCalledWith({ res, error: expect.objectContaining({ message: 'store unavailable' }), options: {} });

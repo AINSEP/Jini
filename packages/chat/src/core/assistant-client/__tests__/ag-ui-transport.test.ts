@@ -347,12 +347,20 @@ describe("durable AG-UI Local CLI binding", () => {
     await started;
     agents[0]!.observer!.complete();
     expect(order).toEqual(["error", "done"]);
-    expect(handlers.onError.mock.calls[0]![0].message).toMatch(/stream.*(ended|stopped|interrupt)/i);
+    expect(handlers.onError.mock.calls[0]![0].message).toBe("The assistant stopped before replying. Send your message again.");
     expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([{ kind: "text", text: "partial" }]);
+  });
+
+  it("rejects and forgets an AG-UI start when the stream completes without events", async () => {
     const durable = durableSetup();
     const pending = durable.client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers: durable.handlers, durable: { launch: LAUNCH, bindRun: durable.bindRun } });
-    durable.agents[0]!.observer!.complete();
-    await expect(pending).rejects.toThrow();
+    const agent = durable.agents[0]!;
+    agent.observer!.complete();
+    await expect(pending).rejects.toThrow(/^The assistant stopped before replying\. Send your message again\.$/);
+    await durable.client.stopAgUiRun({ runId: agent.inputs[0]!.runId });
+    expect(agent.abortRun).not.toHaveBeenCalled();
+    agent.observer!.error(new Error("late reset"));
+    agent.observer!.complete();
     expect(durable.bindRun).not.toHaveBeenCalled();
     expect(durable.binding.followAcceptedRun).not.toHaveBeenCalled();
     expect(durable.handlers.onError).not.toHaveBeenCalled();

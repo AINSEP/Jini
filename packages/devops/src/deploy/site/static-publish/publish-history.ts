@@ -219,7 +219,7 @@ function staticDestinations(input: { rows: readonly PublishHistoryEntry[]; regis
 
 export type PublishDestination = DeploymentDestination<{
   readonly id: string;
-  readonly kind: string;
+  readonly kind: "peer" | `${string}-peer`;
   readonly peerId: string;
   readonly label: string;
   readonly url: string;
@@ -237,7 +237,7 @@ export async function listPublishDestinations(input: {
   historyStore: PublishHistoryStore;
   registry: DeployTargetRegistry;
   peers: readonly { id: string; label: string; baseUrl: string }[];
-  peerKind: string;
+  peerKind: Extract<PublishDestination, { peerId: string }>["kind"];
 }, _options: Record<string, never> = {}): Promise<PublishDestination[]> {
   const rows = await input.historyStore.listDestinationHistory({ workspaceId: input.workspaceId });
   if (rows.length > 200) throw new Error("publish destination limit exceeded (200)");
