@@ -1,4 +1,4 @@
-__FIRSTLINE__
+PARTIAL J ae96666dd: J1 (J1a/J1c dark contract built) left = required-port flip, journal entry kind/reason with Tovu T1, createBlobGc/withAsset/writer fencing/verifyStoredBlob, owner decision OQ-11a; J12 permanent-delete registrar; J3a/J3b gated on Tovu T-GATE. Items 1, 2, 4, J10, fs-files/agent-tools and api:update DONE; guard 55 -> 0; sweep NEW reds 0.
 
 # MERGE-24b — Jini continuation (items 1, 2, 4 + Jini leftovers), 2026-11-26
 
@@ -45,7 +45,8 @@ Per package, one heavy job at a time. ENV means Node 22 `RegExp.escape`, load ti
 
 | package | files | pass | fail | ENV | OLD | NEW | NEW fixed (sha) |
 |---|---|---|---|---|---|---|---|
-__CMSROWS__
+| cms | 952 | 8973 | 9 | 7 | 2 | 0 | NEW `subpath-isolation.contract` from merge-24 fixed by the guard work (`d0d8f3928`). OLD: forms `package-boundary` (version pin) and `universal-entries.boundary` (`media/document-ingress.ts` → jsdom); both files unchanged since merge-23. ENV: `RegExp.escape` ×7. |
+| agent-plugins | 177 | 2508 | 0 | – | – | 3 | 3 (`34eb182ff`) |
 | daemon (merge-24 run, no change since) | – | 4892 | 0 | – | – | – | – |
 | ui | 681 | 9017 | 8 | 0 | 0 | 8 | 8 (`79621e229`, `220d05075`) |
 | admin | 618 | 6479 | 8 | 0 | 2 | 6 | 6 (`8f3650de6`, `e283e2112`) |
@@ -101,7 +102,7 @@ __CMSROWS__
 | p4mounts **J3a/J3b** | **listed, not built** | Both are breaking Jini sheets whose prerequisite is the reviewed **Tovu T-GATE** (`errors` becomes mandatory in the 42 Tovu wrappers). Applying them first would reject still-unbound Tovu mounts, so the gate is needed for the Jini code itself. |
 | ext-a **J10** Email views → `@jini-ai/user-management/react/mail` | **built** | `email-view.types.ts`, `Email.tsx`, `EmailProviderTab.tsx`, `EmailSegments.tsx` (internal) and `EmailTemplateEditor.tsx`. Ports are injected and hooks are required props; `useEditorKeysHook` is an optional prop that defaults to the built-in one, because a direct call failed hook-injection. 4 `browser` leaves, changeset `admin-extraction-10.md` (minor). 16/16 tests. Mutations, all red: M-reveal-provider-key-in-status, M-preview-marks-unsaved-template-saved, M-ignore-part-prop, M-navigate-drops-part, M-unknown-tab-navigates, M-eager-tab-hooks, M-drop-status-facts. Sheet deviations: `shownProviderId({ providers, selectedId, isFullyActive })`; the template editor is generic over the device type `D`; editor port types are narrowed to the real admin shapes; `EmailLoadedProps.retry?: () => void`. Commits `9ea261c50`, `929b2d55b`, `27ac4864a`. |
 | ext-w1 **`@jini-ai/cms/fs-files/agent-tools`** (for T18/T19) | **built** | Universal. Exports the tool IDs, canonical `FS_FILES_READ_PERMISSION`, `FS_WRITE_LIMITS` (moved here from the node `write-files`, which imports and still exports it) and `getFsFilesAgentToolCatalog({ rootIds, rootDescriptors, maxFileBytes }, _optional = {})`; the root enum and descriptions are built per call. Pin "root enum and descriptions come from the selected host"; mutation `hardcode-roots` → red. Commit `e3aa865f0`. J12's second bullet (`cms:trash/permanent/tool-registrations`) does **not** exist on the branch and is **left**. |
-| API baselines | **done once at the end** | `pnpm api:update`: __APISHA__ |
+| API baselines | **done once at the end** | `pnpm api:update`: commit `ae96666dd` (cms, core and user-management baselines changed; 39 packages / 2764 entries written) |
 | changesets | added | `merge-24b-content-analyzer-factory.md` (cms **major**: the content-analyzer default export is gone), `merge-24b-blob-journal-provenance.md` (core + cms minor), `merge-24b-isolation-domains.md` (patches). Commit `700dbd51f`. |
 
 ## Tovu-side changes the Tovu run must make (exact)
@@ -176,5 +177,53 @@ Do this wherever installed manifests that only carry `extensions.tovu` must keep
 - `@jini-ai/user-management/member-login/{oidc-login,oidc-request}` isolation domain is `members`; runtime is unchanged (`node`).
 
 ## Continuation (exact)
-__CONT__
+1. **J1 (Opus):** decide OQ-11a (rendition digest column via a new migration, or derive it from the canonical key). Then flip `journalEligibility`/`cleanupJournal` to REQUIRED on durable bindings, with fakes in every fixture. Add `kind`/`reason` to cms `BlobGcJournalEntry` in the same change as Tovu T1. Build `createBlobGc`, `withAsset` purge with the generation re-check, fencing for the rendition/replacement/upload writers, and `verifyStoredBlob` (sheet `w3-p11rest.md` J1, lines 31–98).
+2. **J12 second bullet:** `cms:trash/permanent/tool-registrations` (sheet `w3-ext-w1.md` J12), with pins `skip-post-card-authorize` and `ignore-pre-effect-abort`.
+3. **J3a then J3b:** only after the Tovu run lands and reviews T-GATE.
+4. **OLD reds worth a ticket:**
+   - core `provider-neutral` ×3
+   - http-kit `http-error-log-redaction` ×2
+   - agent-runtime `loads-without-integrations` (fixture omits `smol-toml`)
+   - admin `theme-boundaries` (`email.css:72` `#fff`)
+   - admin `AlwaysAllowPanel` (accessible name)
+   - user-management `user-management-rename.contract` (95-entry snapshot)
+   - cms `universal-entries.boundary` (`document-ingress` → jsdom)
+   - cms forms `package-boundary` (version pin)
+5. **Re-run on Node ~24:** clears the `RegExp.escape` ENV reds (cms ×7, diagnostics ×11).
 
+
+## Pushed commits (branch `integ/merge-24-2026-11-25`, all on origin)
+
+```
+ae96666dd chore(merge-24b): regenerate API baselines once on the tip (pnpm api:update)
+26a17bf62 fix(platform): keep a host product name out of a durable-json test comment
+cf692ff30 fix(platform): drop duplicate reconcile manifest keys; cover the new subpaths
+e54ce0fe7 fix(agentic): compile test JSX with the automatic runtime
+2a2853e42 fix(chat): select the renamed jini-ui info-tip/tab-bar classes in four tests
+b2446baf0 fix(db): cover the four subpaths added since merge-23 in loads-without-driver
+efc9539e7 fix(user-management): runtime entry classes follow what each entry loads
+700dbd51f chore(changeset): merge-24b content-analyzer factory, fs-files agent-tools, blob journal provenance, isolation metadata
+01c374e02 fix(integrations): seed the expired attempt row with a payload in the sweep test
+b517e376d fix(user-management): type the optional args of the mail provider helpers
+34eb182ff test(agent-plugins): R03 identity tests bind the host read policy (legacyIdentity)
+d0d8f3928 fix(guard): reclassify isolation domains so every exported subpath stays in its domain (SI-domain 49 -> 0)
+45e2de6e7 fix(devops): keep hosting-vendor names out of the ProvidersTab seam comment
+56aa28fa6 fix(user-management): type every remaining untyped _optional arg
+5d0f50c93 fix(user-management): query the renamed jini-ui InfoTip bubble in role-header tests
+db0782a78 fix(user-management): type the optional args of the permission-list tool
+6221bd2fe docs(cms/media): J1a/J1c journal provenance and writer eligibility contract note
+27ac4864a feat(user-management): react/mail editor keys as a defaulted hook prop; changeset (J10)
+929b2d55b feat(user-management): publish react/mail leaves (J10)
+e283e2112 fix(admin): assert the renamed jini-* drag and empty-select classes
+8f3650de6 fix(admin): resolve CSS fixtures by path so jsdom tests read the real file
+8075007ee feat(cms/media): J1a import and file replacement clear journal eligibility for the key they own
+220d05075 fix(ui): hold the external-MCP header toggle when asserting it expands
+79621e229 fix(ui): resolve CSS fixtures by path so jsdom tests read the real file
+e3aa865f0 feat(cms): add fs-files/agent-tools catalog subpath with host-supplied roots
+01ac2d61e feat(cms/media): J1a/J1c journal provenance contract — rendition own digest, purge reason, writer eligibility clearing
+9ea261c50 feat(user-management): mail views move to react/mail with injected ports (J10)
+72d41e833 fix(cms): content-analyzer plugin is a host-bound factory; drop the phantom plugin-sdk ambient module
+2c2961d56 fix(agent-plugins): rename upgrade verifies only the ledgered current revision, quarantines older pre-rename copies
+```
+
+Merge commit: `0ba3fd793` (merge-23 → merge-24).
