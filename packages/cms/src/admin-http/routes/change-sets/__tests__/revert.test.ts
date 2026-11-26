@@ -153,6 +153,7 @@ function policySetup(options: { allowForce?: boolean; current?: number } = {}) {
   const deps = {
     workspaceId: WORKSPACE_ID, changeSets, revertRegistry: registry, outbox: { enqueue: async () => {} } as unknown as OutboxPort,
     clock: { nowMs: () => Date.parse("2026-10-05T00:00:00.000Z") }, idGen: { newId: () => "evt-1" }, toChangeSetHeader,
+    transaction: async <T>({ work }: { work: () => Promise<T> }) => work(),
   } as ChangeSetRevertRouteDeps;
   return { deps, writes, changeSets };
 }

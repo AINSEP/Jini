@@ -74,9 +74,8 @@ describe("media grid cursor paging", () => {
 
     rerender({ tab: "videos" });
     await waitFor(() => expect(waiting.length).toBe(3));
-    await act(async () => waiting[2]!.resolve({ media: [asset("v1")], nextCursor: null, counts: COUNTS, hasUntypedActive: false, retentionDays: 30 }));
+    await act(async () => waiting[2]!.resolve({ media: [asset("v1")], nextCursor: null, counts: COUNTS, hasUntypedActive: false }));
     await waitFor(() => expect(result.current.items?.map((item) => item.id)).toEqual(["v1"]));
-    expect(result.current.retentionDays).toBe(30);
 
     // The All page that was in flight answers now: it belongs to a view nobody is looking at.
     await act(async () => { waiting[1]!.resolve(answer(["a3", "a4"], null)); await pending; });

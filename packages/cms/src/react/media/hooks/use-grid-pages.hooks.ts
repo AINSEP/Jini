@@ -40,7 +40,6 @@ export interface GridPages {
   exactItem: AdminMedia | null;
   /** Workspace-wide counts per tab from the server, never counted from loaded rows. */
   counts: MediaGridPage["counts"] | null;
-  retentionDays: number | null;
   hasUntypedActive: boolean;
   /** Days a trashed asset is kept before purge, from the page on screen; `null` before page one or when the server omits it. */
   retentionDays: number | null;
@@ -106,10 +105,10 @@ function summarizeGrid({ shown, more, cursor }: { shown: MediaGridPage | undefin
   return { ...pageSummary({ shown }), hasMore: cursor !== null, loadingMore: pending.loading, loadMoreError: pending.error };
 }
 
-/** Page one's server counts, untyped-MIME flag and trash retention; none before page one lands. @complexity O(1). */
+/** Page one's server counts and untyped-MIME flag; none before page one lands. @complexity O(1). */
 function pageSummary({ shown }: { shown: MediaGridPage | undefined }, _optional: Record<string, never> = {}) {
-  if (!shown) return { counts: null, hasUntypedActive: false, retentionDays: null };
-  return { counts: shown.counts ?? null, hasUntypedActive: shown.hasUntypedActive ?? false, retentionDays: shown.retentionDays ?? null };
+  if (!shown) return { counts: null, hasUntypedActive: false };
+  return { counts: shown.counts ?? null, hasUntypedActive: shown.hasUntypedActive ?? false };
 }
 
 /**

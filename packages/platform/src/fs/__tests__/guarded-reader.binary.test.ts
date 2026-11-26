@@ -195,7 +195,7 @@ test("The streamed reader rejects growth and closes the checked descriptor.", as
     const filesystem = createNodeGuardedReaderFilesystem({});
     const fstat = filesystem.fstatSync!;
     const close = vi.spyOn(filesystem, "closeSync");
-    vi.spyOn(filesystem, "fstatSync").mockImplementation(((fd: number) => {
+    vi.spyOn(filesystem as Required<typeof filesystem>, "fstatSync").mockImplementation(((fd: number) => {
         const stat = fstat(fd);
         fs.appendFileSync(target, Buffer.alloc(4));
         return stat;
@@ -220,7 +220,7 @@ for (const outcome of ["shrinkage", "early exit", "abort"] as const) {
         const filesystem = createNodeGuardedReaderFilesystem({});
         const fstat = filesystem.fstatSync!;
         const close = vi.spyOn(filesystem, "closeSync");
-        vi.spyOn(filesystem, "fstatSync").mockImplementation(((fd: number) => {
+        vi.spyOn(filesystem as Required<typeof filesystem>, "fstatSync").mockImplementation(((fd: number) => {
             const stat = fstat(fd);
             if (outcome === "shrinkage") fs.truncateSync(target, 8);
             return stat;

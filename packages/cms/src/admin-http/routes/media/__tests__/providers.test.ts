@@ -26,7 +26,7 @@ const STALE = { status: 409, body: { error: "Your provider list changed in anoth
 
 it.each(["changed", "identical"])("a pre-delete ETag cannot overwrite a same-tick recreated provider (%s safe metadata)", async (metadata) => {
   const vault = new InMemoryVaultRepo({});
-  const policy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: {}, parseMeta: ({ meta }) => ({ baseUrl: null, model: null, ...meta as { model: string | null } }) };
+  const policy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: {}, parseMeta: ({ meta }) => ({ baseUrl: null, model: null, ...meta as { model?: string | null } }) };
   let nextId = 0;
   const idGen = { newId: () => `fresh-${++nextId}` };
   const repo = new MediaProviderCredentialVaultRepo({ vault, policy, idGen });

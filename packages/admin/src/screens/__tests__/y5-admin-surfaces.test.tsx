@@ -115,7 +115,7 @@ test("media keeps the exact deep-link item available for editing and sends one p
     error: null, hasMore: false, loadingMore: false, loadMoreError: null, loadMore: vi.fn(), retryLoadMore: vi.fn(), retentionDays: null }));
   const { result } = renderHook(() => useMedia({ port, tab: "images", itemId: "linked", locale: "en", t: key => key,
     hooks: { useGridPages, useMediaWrites, useFetchQuery, useFetchMutation, useInvalidate, useContentRefreshSubscription: () => {} },
-    deps: { readFileAsBase64, translate: ({ key }) => key, describeApiError: ({ e }) => String(e), sizeRefusalFromError: () => null },
+    deps: { readFileAsBase64, translate: ({ key }) => key, describeApiError: ({ e }) => String(e), sizeRefusalFromError: () => null, maxJsonUploadBytes: 1024 * 1024 },
   }), { wrapper: FetchQueryProvider });
   expect(useGridPages.mock.calls[0]?.[1]).toEqual({ itemId: "linked" });
   act(() => result.current.setEditingId("linked"));
