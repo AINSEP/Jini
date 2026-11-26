@@ -55,6 +55,39 @@ test("a revision edited after install (re-pack differs) is held and not moved", 
   assert.deepEqual(renames, []);
 });
 
+test("multiple pre-rename revisions upgrade when only the current revision is ledgered", async () => {
+  const renames: string[][] = [];
+  const historical: InstalledRevision = { ...REVISION, archiveDigest: "b".repeat(64), packageRoot: "/ws/alpha/package/sha256/bbb" };
+  const packed: string[] = [];
+  const port: BundledIdUpgradePort = {
+    ...fakePort({ renames }),
+    listInstalledPlugins: async () => [historical, REVISION],
+    packAgentPluginDirectory: async ({ sourceDir }) => {
+      packed.push(sourceDir);
+      return { sha256: sourceDir === REVISION.packageRoot ? REVISION.archiveDigest : "c".repeat(64) };
+    },
+  };
+  const savedHistorical = `/ws/.bundled-id-upgrade/alpha/${historical.archiveDigest}`;
+  const savedCurrent = `/ws/.bundled-id-upgrade/alpha/${REVISION.archiveDigest}`;
+  assert.deepEqual(await upgrade(port), [{ status: "upgraded", pluginId: "alpha", to: "new-pub/alpha", moved: [
+    { packageRoot: historical.packageRoot, savedAt: savedHistorical },
+    { packageRoot: REVISION.packageRoot, savedAt: savedCurrent },
+  ] }]);
+  assert.deepEqual(renames, [[historical.packageRoot, savedHistorical], [REVISION.packageRoot, savedCurrent]]);
+  assert.deepEqual(packed, [REVISION.packageRoot]);
+});
+
+test("a tampered ledgered current revision holds every pre-rename revision without moving history", async () => {
+  const renames: string[][] = [];
+  const historical: InstalledRevision = { ...REVISION, archiveDigest: "b".repeat(64), packageRoot: "/ws/alpha/package/sha256/bbb" };
+  const port: BundledIdUpgradePort = {
+    ...fakePort({ renames, repackDigest: "c".repeat(64) }),
+    listInstalledPlugins: async () => [historical, REVISION],
+  };
+  assert.deepEqual(await upgrade(port), [{ status: "held", pluginId: "alpha", to: "new-pub/alpha", reason: "its installed files were changed after install" }]);
+  assert.deepEqual(renames, []);
+});
+
 test("nothing moves when this build does not ship the canonical package", async () => {
   const renames: string[][] = [];
   assert.deepEqual(await upgrade(fakePort({ sourceId: "old-pub/alpha", renames })), []);
