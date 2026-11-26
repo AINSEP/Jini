@@ -1,5 +1,13 @@
 import { expect, test } from 'vitest';
 import { recoverableSurfaceResource, surfaceRecoveryInfo, SURFACE_EXCHANGE_META } from '../surface-recovery.js';
+import * as core from '../index.js';
+
+test('the public chat core exports the key written on recoverable surfaces', () => {
+  const exchange = { exchangeId: 'card', toolId: 'save', runId: 'run' };
+  const emitted = recoverableSurfaceResource({ resource: { resource: {} }, exchange });
+  expect(core).toHaveProperty('SURFACE_EXCHANGE_META', SURFACE_EXCHANGE_META);
+  expect(emitted).toEqual({ resource: { _meta: { [core.SURFACE_EXCHANGE_META]: exchange } } });
+});
 
 test('saved cards retain only exchange identity so returning to chat can restore the original request', () => {
   const resource = { type: 'resource', resource: { uri: 'ui://card', text: '<form>', _meta: { existing: true } } };
