@@ -1,4 +1,6 @@
 import { trimChars, trimCharsEnd } from "@jini-ai/core/primitives";
+import type { BlobJournalEligibility, BlobJournalIdentity, BlobPurgeReason } from "@jini-ai/core/contracts/blob-gc";
+import { planRenditionJournal } from "./blob-gc-journal.js";
 import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { resolveUploadCap } from "./upload-cap.js";
 import { validateDocumentIngress, documentContentType, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
@@ -288,6 +290,9 @@ export interface UploadMediaDeps {
   renditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
   documentArchiveReader?: DocumentArchiveReaderPort | undefined;
+  /** Writer-side journal binding (J1a): bind it on durable hosts, inside the same transaction as the
+   *  ownership row. Clears pending unlink eligibility for the key every claim takes. */
+  journalEligibility?: BlobJournalEligibility | undefined;
 }
 
 export interface UploadMediaRequired {
@@ -421,6 +426,8 @@ async function claimUploadBlob(
       // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
       await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined, ...documentOwnership });
     }
+    // A dedup hit or resurrection is a new owner too: bytes it holds must leave the journal (J1a).
+    await deps.journalEligibility?.clearForKeys({ workspaceId: input.workspaceId, storageKeys: [existingBlob.storageKey] });
     return existingBlob.storageKey;
   }
 
@@ -439,6 +446,8 @@ async function claimUploadBlob(
     createdByPrincipal: input.createdByPrincipal,
     createdAt: nowIso,
   });
+  // Ownership is saved first, so a journal entry queued before this write cannot unlink the new bytes.
+  await deps.journalEligibility?.clearForKeys({ workspaceId: input.workspaceId, storageKeys: [written.storageKey] });
   return written.storageKey;
 }
 
@@ -453,6 +462,7 @@ function saveOriginalRendition(
     transformName: "original",
     version: 1,
     storageKey,
+    sha256: media.source.sha256,
     createdAt: nowIso,
   });
 }
@@ -847,7 +857,9 @@ export interface PurgeMediaDeps extends MediaRowCleanupDeps {
 
 export interface PurgeMediaRequired {
   deps: PurgeMediaDeps;
-  input: { workspaceId: UUID; id: UUID };
+  /** `reason` is the exact provenance journaled with the derived keys. Omitted, the journal entries
+   *  carry no reason and the collector keeps them (keep/report), never guessing "owner-purge". */
+  input: { workspaceId: UUID; id: UUID; reason?: BlobPurgeReason | undefined };
 }
 
 /**
@@ -903,6 +915,7 @@ export async function purgeMedia(
     workspaceId: input.workspaceId,
     id: input.id,
     sha256: existing.source.sha256,
+    ...(input.reason === undefined ? {} : { reason: input.reason }),
   });
 
   return { purged: true };
@@ -915,7 +928,7 @@ export interface MediaRowCleanupDeps {
   /** Override only when the active host transaction already serializes byte ownership changes. */
   tombstoneLock?: typeof withSha256Lock;
   /** Persist exact rendition identities before their rows disappear. Bound to the same transaction. */
-  cleanupJournal?: (required: { workspaceId: UUID; mediaId: UUID; sha256: string; storageKeys: readonly string[] }) => Promise<void>;
+  cleanupJournal?: (required: MediaCleanupJournalInput) => Promise<void>;
   /** Hosts with durable repositories bind their shared transaction; nested calls join outer purge. */
   cleanupTransaction?: (required: { work: () => Promise<void> }) => Promise<void>;
   mediaRepo: MediaRepoPort;
@@ -924,6 +937,23 @@ export interface MediaRowCleanupDeps {
   /** Required — timestamps the blob-GC tombstone pass triggered after the media row is removed
    * (`tombstoneBlobIfUnreferenced`, `blob-gc.ts`). The host supplies its own clock port. */
   clock: Clock;
+}
+
+/** What a purge or upload rollback journals before removing rows (J1c provenance contract). */
+export interface MediaCleanupJournalInput {
+  workspaceId: UUID;
+  mediaId: UUID;
+  /** The SOURCE media digest (the original's bytes). Never a rendition's digest. */
+  sha256: string;
+  /** Every distinct rendition-row key, including the original passthrough (pre-J1c shape, kept for
+   *  existing bindings). Not provenance: journal `renditions` for unlink eligibility. */
+  storageKeys: readonly string[];
+  /** Present only when the caller stated it; absent entries are keep/report. */
+  reason?: BlobPurgeReason;
+  /** Derived keys only, each with its own byte digest, deduplicated against the original's key. */
+  renditions: readonly BlobJournalIdentity[];
+  /** Derived keys with no or conflicting recorded digest: report them, never journal them eligible. */
+  unverifiedRenditionKeys: readonly string[];
 }
 
 /**
@@ -936,16 +966,29 @@ export interface MediaRowCleanupDeps {
  * @complexity O(n) in the workspace's media row count, inherited from the tombstone-pass's
  * `isBlobUnreferenced` scan.
  */
+/** Journals the asset's current rendition set; the original's key comes from its own blob row. */
+async function journalRenditions(
+  deps: MediaRowCleanupDeps,
+  cleanupJournal: NonNullable<MediaRowCleanupDeps["cleanupJournal"]>,
+  input: { workspaceId: UUID; id: UUID; sha256: string; reason?: BlobPurgeReason },
+): Promise<void> {
+  const renditions = await deps.renditionRepo.listByAsset({ workspaceId: input.workspaceId, assetId: input.id });
+  const originalBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: input.sha256 });
+  const passthrough = renditions.find(row => row.transformName === "original")?.storageKey;
+  const originalKey = originalBlob?.storageKey ?? passthrough ?? "";
+  const reason = input.reason === undefined ? {} : { reason: input.reason };
+  const plan = planRenditionJournal({ workspaceId: input.workspaceId, original: { storageKey: originalKey }, renditions, ...reason });
+  await cleanupJournal({ workspaceId: input.workspaceId, mediaId: input.id, sha256: input.sha256,
+    storageKeys: [...new Set(renditions.map(row => row.storageKey))], ...reason,
+    renditions: plan.renditions, unverifiedRenditionKeys: plan.unverifiedKeys });
+}
+
 async function removeMediaRowsAndTombstoneBlob(
   deps: MediaRowCleanupDeps,
-  input: { workspaceId: UUID; id: UUID; sha256: string }
+  input: { workspaceId: UUID; id: UUID; sha256: string; reason?: BlobPurgeReason }
 ): Promise<void> {
   const work = async () => {
-    if (deps.cleanupJournal) {
-      const renditions = await deps.renditionRepo.listByAsset({ workspaceId: input.workspaceId, assetId: input.id });
-      await deps.cleanupJournal({ workspaceId: input.workspaceId, mediaId: input.id, sha256: input.sha256,
-        storageKeys: [...new Set(renditions.map(row => row.storageKey))] });
-    }
+    if (deps.cleanupJournal) await journalRenditions(deps, deps.cleanupJournal, input);
     await deps.renditionRepo.removeByAsset({ workspaceId: input.workspaceId, assetId: input.id });
     await deps.mediaRepo.remove({ workspaceId: input.workspaceId, id: input.id });
 
@@ -987,5 +1030,7 @@ export async function rollbackUploadedMedia(
     workspaceId: input.workspaceId,
     id: input.media.id,
     sha256: input.media.source.sha256,
+    // A compensating rollback is never an owner-confirmed purge: recorded distinctly, kept by the collector.
+    reason: "upload-rollback",
   });
 }

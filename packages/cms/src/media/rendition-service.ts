@@ -34,6 +34,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { createHash } from "node:crypto";
 
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
+import type { BlobJournalEligibility } from "@jini-ai/core/contracts/blob-gc";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, TransformDefinitionRepoPort } from "./ports.js";
 import type { AssetRenditionRecord, MediaRecord } from "./types.js";
 import { findMediaByIdOrSlug } from "./media-service.js";
@@ -49,6 +50,8 @@ export interface ResolveMediaRenditionDeps {
   renditionRepo: AssetRenditionRepoPort;
   transformRepo: TransformDefinitionRepoPort;
   blobStore: BlobStorePort;
+  /** Writer-side journal binding: clears pending unlink eligibility for the key a rendition claims. */
+  journalEligibility?: BlobJournalEligibility | undefined;
   imageTransformer: ImageTransformerPort;
   clock: Clock;
   idGen: IdGenerator;
@@ -145,9 +148,12 @@ function generateMediaRendition(
         transformName: input.transformName,
         version: input.version,
         storageKey,
+        sha256: outputSha256,
         createdAt: kernelNowIso({ clock: deps.clock }),
       };
       await deps.renditionRepo.save(row);
+      // This key regained an owner: a purge journaled before now must not unlink it (J1a).
+      await deps.journalEligibility?.clearForKeys({ workspaceId: input.workspaceId, storageKeys: [storageKey] });
       return row;
     } });
   } });

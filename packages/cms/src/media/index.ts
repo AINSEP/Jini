@@ -176,7 +176,9 @@ export type { RegisterTransformRequired, GetLatestTransformDefinitionRequired, I
 export type { BlobReferenceProbes, IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
 
 export { rollbackUploadedMedia } from "./media-service.js";
-export type { MediaRowCleanupDeps } from "./media-service.js";
+export type { MediaCleanupJournalInput, MediaRowCleanupDeps } from "./media-service.js";
+export { classifyJournalEntry, planRenditionJournal } from "./blob-gc-journal.js";
+export type { JournalEntryVerdict, JournalKeepReason, RenditionJournalPlan } from "./blob-gc-journal.js";
 
 // Video previews: policy/port. The bounded optional-host codec adapter lives in ./node.js.
 export {

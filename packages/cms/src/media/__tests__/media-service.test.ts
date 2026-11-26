@@ -21,6 +21,7 @@ import {
   uploadMedia,
   MEDIA_MAX_DESCRIPTION_LENGTH,
 } from "../media-service.js";
+import type { MediaCleanupJournalInput } from "../media-service.js";
 import {
   InMemoryAssetBlobRepo,
   InMemoryAssetRenditionRepo,
@@ -1073,9 +1074,11 @@ test('purge and upload compensation journal exact rendition keys before removing
     let journaled = false, inTransaction = false;
     const cleanupDeps = { ...deps,
       cleanupTransaction: async ({ work }: { work: () => Promise<void> }) => { inTransaction = true; try { await work(); } finally { inTransaction = false; } },
-      cleanupJournal: async (input: { workspaceId: string; mediaId: string; sha256: string; storageKeys: readonly string[] }) => {
+      cleanupJournal: async (input: MediaCleanupJournalInput) => {
         assert.equal(inTransaction, true);
-        assert.deepEqual(input, { workspaceId: WORKSPACE_ID, mediaId: media.id, sha256: media.source.sha256, storageKeys: [original, 'exact-thumb'] });
+        // The thumb row records no own digest, so it is reported unverified rather than journaled eligible.
+        assert.deepEqual(input, { workspaceId: WORKSPACE_ID, mediaId: media.id, sha256: media.source.sha256, storageKeys: [original, 'exact-thumb'],
+          ...(operation === 'rollback' ? { reason: 'upload-rollback' } : {}), renditions: [], unverifiedRenditionKeys: ['exact-thumb'] });
         assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 2);
         assert.ok(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }));
         journaled = true;

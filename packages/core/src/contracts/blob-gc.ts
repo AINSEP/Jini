@@ -46,3 +46,29 @@ export type BlobStorageKeyFor = (
 export interface BlobGcScope {
   readonly workspaceId: string;
 }
+
+/** What a journaled key held for its owner: the asset's original bytes or one derived rendition. */
+export type BlobJournalRole = "original" | "rendition";
+
+/**
+ * One key queued for a later unlink, with the provenance that alone can make it eligible. The
+ * `sha256` is the digest of THESE bytes — a rendition's own output digest, never its source asset's.
+ * `reason` is absent only on legacy entries, and an entry without it is keep/report, never unlinked.
+ */
+export type BlobJournalIdentity = BlobIdentity & {
+  readonly role: BlobJournalRole;
+  readonly reason?: BlobPurgeReason;
+};
+
+/**
+ * Writer-side half of the journal (J1a): a writer that takes ownership of a key — a fresh write, a
+ * dedup hit, a tombstone resurrection, a rendition save — clears any pending journal eligibility
+ * for exactly that key, inside the same fence/transaction as the ownership change, so bytes that
+ * regained an owner are never unlinked by an entry queued before they did.
+ */
+export interface BlobJournalEligibility {
+  clearForKeys(
+    required: { workspaceId: string; storageKeys: readonly string[] },
+    optional?: Record<string, never>,
+  ): Promise<void>;
+}

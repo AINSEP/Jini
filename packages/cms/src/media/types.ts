@@ -213,6 +213,9 @@ export interface AssetRenditionRecord {
   transformName: string;
   version: number;
   storageKey: string;
+  /** Digest of THIS row's bytes (a derived rendition's own output hash; the source's for the
+   *  original passthrough). Absent on legacy rows: their keys are journaled as unverified, keep/report. */
+  sha256?: string | undefined;
   createdAt: ISODateTime;
 }
 
