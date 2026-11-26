@@ -9,7 +9,7 @@ describe("connect host dependencies", () => {
     const readMcp = vi.fn(() => { throw new Error("MCP read before permission"); });
     const projectMcp = vi.fn();
     const bind = createAgentPluginConnectDeps({ host: { permissions: { connect: "connect" }, entityType: "plugin" } as Parameters<typeof createAgentPluginConnectDeps>[0]["host"], isPluginEnabled: vi.fn(), resolveInstalledPlugin: vi.fn(), projectMcp });
-    const routeDeps = bind({ workspaceId: "ws", authorize: async () => ({ allowed: false, reason: "denied" }), get mcp() { return readMcp(); } } as Parameters<typeof bind>[0]);
+    const routeDeps = bind({ workspaceId: "ws", authorize: async () => ({ allowed: false, reason: "denied" }), get mcp() { return readMcp(); } } as unknown as Parameters<typeof bind>[0]);
     const ctx = { principal: { id: "owner" }, run: { id: "run" }, input: {}, signal: new AbortController().signal } as ToolExecutionContext;
     await expect(runAgentPluginConnect({ routeDeps, surfaces: {}, ctx, pluginId: "synthetic" })).rejects.toThrow();
     expect(readMcp).not.toHaveBeenCalled();

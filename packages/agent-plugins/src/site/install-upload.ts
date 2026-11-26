@@ -410,6 +410,14 @@ export function bindAgentPluginUpload(required: Omit<InstallUploadedAgentPluginO
   path: Pick<typeof path, 'join' | 'relative'>;
   archiveReader(): AgentPluginArchiveReaderPort;
 }, _optional = {}) {
+  // Install and preview share one adapter: both hand the engine the object-arg archive reader.
+  const lifecycles: Pick<InstallUploadedAgentPluginOptional, 'lifecycle' | 'createLifecycle'> = {
+    lifecycle: { ...required.lifecycle, installAgentPlugin: (input, optional) => required.lifecycle.installAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }, optional) },
+    createLifecycle: (input, optional) => {
+      const lifecycle = required.createLifecycle(input, optional);
+      return { updateAgentPlugin: input => lifecycle.updateAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }) };
+    },
+  };
   function install(
     input: InstallUploadedAgentPluginRequired & { update: NonNullable<InstallUploadedAgentPluginRequired['update']> },
     optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] },
@@ -418,18 +426,14 @@ export function bindAgentPluginUpload(required: Omit<InstallUploadedAgentPluginO
   function install(input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'snapshotSettings' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] }) {
     return installUploadedAgentPlugin(input, {
       ...required, ...optional, archiveReader: optional.archiveReader ? toObjectArgArchiveReader({ reader: optional.archiveReader }) : required.archiveReader(),
-      lifecycle: { ...required.lifecycle, installAgentPlugin: (input, optional) => required.lifecycle.installAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }, optional) },
-      createLifecycle: (input, optional) => {
-        const lifecycle = required.createLifecycle(input, optional);
-        return { updateAgentPlugin: input => lifecycle.updateAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }) };
-      },
+      ...lifecycles,
     });
   }
   return {
     installUploadedAgentPlugin: install,
     previewUploadedAgentPlugin: (input: InstallUploadedAgentPluginRequired, optional: Pick<InstallUploadedAgentPluginOptional, 'layout' | 'pluginHost' | 'mcpProvisioning'> & { archiveReader?: Parameters<typeof toObjectArgArchiveReader>[0]['reader'] }) => previewUploadedAgentPlugin(input, {
       ...required, ...optional, archiveReader: optional.archiveReader ? toObjectArgArchiveReader({ reader: optional.archiveReader }) : required.archiveReader(),
-      lifecycle: { ...required.lifecycle, installAgentPlugin: (input, optional) => required.lifecycle.installAgentPlugin({ ...input, archiveReader: toZeroArgArchiveReader({ reader: input.archiveReader }) }, optional) },
+      ...lifecycles,
     }),
   };
 }

@@ -15,7 +15,7 @@ describe("plugin host bindings", () => {
     const lifecycle = { setAgentPluginEnabled: vi.fn(async () => { events.push("OFF"); return { pluginId: "synthetic", enabled: false }; }) };
     const createLifecycle = vi.fn(() => lifecycle);
     const operation = createSetAgentPluginEnabled({ createLifecycle, bindProviderFacePorts: () => ({ links: async () => new Map() }), assertAgentPluginReady: async () => {}, AgentPluginLinkedError: class extends Error { constructor(_required: { pluginId: string; providerPluginId: string }) { super("linked"); } } });
-    const agentPluginLayout = { forWorkspace: () => ({ root: "/workspace" }) } as AgentPluginLayout;
+    const agentPluginLayout = { forWorkspace: () => ({ root: "/workspace" }) } as unknown as AgentPluginLayout;
     await operation({ agentPluginLayout, workspaceId: "ws", pluginId: "synthetic", enabled: false, actor: "owner" }, { notifyRosterChanged: async () => { events.push("notify"); } });
     await operation({ agentPluginLayout, workspaceId: "ws", pluginId: "synthetic", enabled: false, actor: "owner" });
     expect(events).toEqual(["OFF", "notify", "OFF"]);

@@ -16,9 +16,11 @@ async function fixture() {
   } } as Parameters<ReturnType<typeof bindAgentPluginMemory>['pluginMemory']>[0]['layout'];
   const invalidWorkspace = vi.fn();
   const siblingFailure = vi.fn();
-  const readdir = vi.fn(filesystem.readdir);
+  // A spied copy keeps readdir's overloads intact while recording the calls the lazy reader makes.
+  const spiedFilesystem = { ...filesystem };
+  const readdir = vi.spyOn(spiedFilesystem, 'readdir');
   const bound = bindAgentPluginMemory({
-    filesystem: { ...filesystem, readdir: readdir as typeof filesystem.readdir }, withLock: async ({ run }) => run(),
+    filesystem: spiedFilesystem, withLock: async ({ run }) => run(),
     workspaceDirectory: ({ layout }) => path.join(layout.root, 'ws'),
     parseManifest: () => ({ ok: true, manifest: { name: 'sample' } }),
     onEvent: vi.fn(), invalidWorkspace, siblingFailure,

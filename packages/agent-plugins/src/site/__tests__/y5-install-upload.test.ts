@@ -65,7 +65,7 @@ function uploadBinding(reader: ReturnType<Parameters<typeof bindAgentPluginUploa
     path: { relative: () => 'packages', join: (...parts: string[]) => parts.join('/') }, lstat: vi.fn(), readInstallIdentity: vi.fn(), warnCleanup: vi.fn(),
   } as unknown as Parameters<typeof bindAgentPluginUpload>[0]);
   const input = { archive, expectedSha256: digest, workspaceId: 'ws', actor: 'owner' };
-  const layout = { forWorkspace: () => ({ root: '/ws', pluginPackagesDir: () => '/packages' }) } as InstallUploadedAgentPluginOptional['layout'];
+  const layout = { forWorkspace: () => ({ root: '/ws', pluginPackagesDir: () => '/packages' }) } as unknown as InstallUploadedAgentPluginOptional['layout'];
   return { bound, input, layout };
 }
 

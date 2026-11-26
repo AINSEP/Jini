@@ -14,8 +14,8 @@ it('bypasses uninitialized provider ports with explicit links and reuses lifecyc
   const bound = createSetAgentPluginEnabled({
     createLifecycle, bindProviderFacePorts: () => ({ links: provider.links }), assertAgentPluginReady: vi.fn(), AgentPluginLinkedError: Error,
   } as unknown as Parameters<typeof createSetAgentPluginEnabled>[0]);
-  const layout = { forWorkspace: () => ({ root: '/ws' }) } as Parameters<typeof bound>[0]['agentPluginLayout'];
-  const input = { agentPluginLayout: layout, workspaceId: 'ws', pluginId: 'sample', enabled: true };
+  const layout = { forWorkspace: () => ({ root: '/ws' }) } as unknown as Parameters<typeof bound>[0]['agentPluginLayout'];
+  const input = { agentPluginLayout: layout, workspaceId: 'ws', pluginId: 'sample', enabled: true, actor: 'owner' };
   const links = { links: async () => new Map<string, string>() };
   await bound(input, { links });
   expect(reads).toBe(0);
@@ -39,8 +39,8 @@ it('awaits readiness only for linked enable and refuses before writing', async (
     bindProviderFacePorts: () => ({ links: async () => new Map([['sample', 'provider']]) }),
     assertAgentPluginReady: async () => { order.push('ready'); }, AgentPluginLinkedError: LinkedError,
   } as unknown as Parameters<typeof createSetAgentPluginEnabled>[0]);
-  const layout = { forWorkspace: () => ({ root: '/ws' }) } as Parameters<typeof bound>[0]['agentPluginLayout'];
-  const input = { agentPluginLayout: layout, workspaceId: 'ws', pluginId: 'sample', enabled: true };
+  const layout = { forWorkspace: () => ({ root: '/ws' }) } as unknown as Parameters<typeof bound>[0]['agentPluginLayout'];
+  const input = { agentPluginLayout: layout, workspaceId: 'ws', pluginId: 'sample', enabled: true, actor: 'owner' };
   await expect(bound(input)).rejects.toBeInstanceOf(LinkedError);
   await expect(bound({ ...input, enabled: false })).rejects.toBeInstanceOf(LinkedError);
   expect(order).toEqual(['ready']);

@@ -1,5 +1,5 @@
 import { createAutomaticAgentPluginUse, readChatAgentPluginState, type AutomaticAgentPluginPorts, type ChatAgentPluginState, type ChatAgentPlugins } from '../lifecycle/index.js';
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, optionalString, ToolInputError, type Principal, type SurfaceEmitter, type ToolHandler } from '@jini-ai/core';
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, optionalString, ToolInputError, type AgentToolDefinition, type Principal, type SurfaceEmitter, type ToolHandler } from '@jini-ai/core';
 import type { AgentPluginGuidanceAttempt, AgentPluginGuidanceOffer, PrepareToolGuidance } from '@jini-ai/core/contracts/site/daemon';
 import type { ChatDeleteSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
 import type { PluginMaturity } from '../lifecycle/host-tools/index.js';
@@ -14,7 +14,7 @@ export interface AutomaticPluginDeps {
   rank: (required: Parameters<AutomaticAgentPluginPorts['rank']>[0], optional: { automatic: true }) => ReturnType<AutomaticAgentPluginPorts['rank']>;
   resolve: AutomaticAgentPluginPorts['resolve'];
   formatPluginToolPointer: NonNullable<AutomaticAgentPluginPorts['formatPluginToolPointer']>;
-  catalog: Parameters<typeof indexCatalogById>[0]['catalog'];
+  catalog: readonly AgentToolDefinition[];
   metadata: NonNullable<Parameters<typeof buildDomainRegistrations>[0]['metadata']>;
   derivedRisk: Parameters<typeof buildDomainRegistrations>[0]['derivedRisk'];
   catalogModule: string;
@@ -46,7 +46,8 @@ type Entry = { turnId: string; controller: ReturnType<typeof createAutomaticAgen
 
   /** Keep the successful turn snapshot across attempts; failed preparation remains retryable. */
   function preflight({ entry }: { entry: Entry }, _options = {}): Promise<string> {
-    entry.preflight ??= entry.controller.prepare({ query: entry.context.query, loaded: entry.context.pinned, maxPromptArgBytes: entry.context.maxPromptArgBytes })
+    entry.preflight ??= entry.controller.prepare({ query: entry.context.query, loaded: entry.context.pinned,
+      ...(entry.context.maxPromptArgBytes !== undefined && { maxPromptArgBytes: entry.context.maxPromptArgBytes }) })
       .catch(error => { entry.preflight = undefined; throw error; });
     return entry.preflight;
   }
@@ -137,7 +138,8 @@ export function bindAutomaticGuidanceResolver<Layout extends Pick<AgentPluginWor
       rank: (input) => deps.rank({ query: input.query.slice(0, 16000), candidates: input.candidates, limit: input.limit }, { automatic: true }),
       resolve: deps.resolveForEntry({ workspaceId: deps.workspaceId }),
       ask: createPluginChoiceAsk({ deps, surfaces, askAgentPluginChoice, context, abort }, { getEntry: () => entry, approve: revisionSeq => { approvedPreferenceRevisionSeq = revisionSeq; } }),
-      saveAuto: () => deps.preferences.saveAuto({ workspaceId: deps.workspaceId, principalId: context.principal.id, expectedRevisionSeq: approvedPreferenceRevisionSeq }),
+      saveAuto: () => deps.preferences.saveAuto({ workspaceId: deps.workspaceId, principalId: context.principal.id,
+        ...(approvedPreferenceRevisionSeq !== undefined && { expectedRevisionSeq: approvedPreferenceRevisionSeq }) }),
       publish: async value => {
         if (abort.signal.aborted) return;
         if (!entry.attempts.size) lateAnswers.set(chatKey(context), value.state);
