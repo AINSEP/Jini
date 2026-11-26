@@ -486,16 +486,6 @@ function redirectRevision(
   return { redirectId: record.id, workspaceId: record.workspaceId, seq: record.version, state: record, tombstoned, actorId: input.actorId, pluginId: input.pluginId, recordedAt: record.updatedAt };
 }
 
-/** Persists a redirect with its revision before enqueueing its mutation event. */
-async function persistRedirectWrite(
-  { deps, record, revision, change }: { deps: RedirectsWriteDeps; record: RedirectRecord; revision: RedirectRevision; change: "created" | "updated" },
-  _optional: Record<string, never> = {},
-): Promise<{ record: RedirectRecord }> {
-  await deps.transaction(async () => { await insertRedirectAndRevision({ db: deps.db, record, revision }); });
-  await enqueueMutatedEvent(deps, record, change);
-  return { record };
-}
-
 export interface CreateRedirectRequired {
   deps: RedirectsWriteDeps;
   input: CreateRedirectInput;
@@ -526,29 +516,34 @@ export async function createRedirect(required: CreateRedirectRequired, _optional
   const { deps, input, source = "manual" } = required;
 
   const priority = input.priority ?? DEFAULT_PRIORITY;
-  const finalTarget = await validateWriteFields({ deps, workspaceId: input.workspaceId, fields: { ...input, priority } });
+  const record = await deps.transaction(async () => {
+    const finalTarget = await validateWriteFields({ deps, workspaceId: input.workspaceId, fields: { ...input, priority } });
 
-  const now = clockNowIso({ clock: deps.clock });
-  const id = deps.idGen.newId();
-  const record: RedirectRecord = {
-    id,
-    workspaceId: input.workspaceId,
-    matchType: input.matchType,
-    fromPattern: input.fromPattern,
-    toTarget: finalTarget,
-    statusCode: input.statusCode,
-    status: "active",
-    override: input.override ?? false,
-    priority,
-    source,
-    createdByPrincipal: input.actorId,
-    createdByPluginId: input.pluginId,
-    createdAt: now,
-    updatedAt: now,
-    version: 1,
-  };
-  await requireWildcardCapacity({ deps, record, existingId: undefined });
-  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "created" });
+    const now = clockNowIso({ clock: deps.clock });
+    const id = deps.idGen.newId();
+    const record: RedirectRecord = {
+      id,
+      workspaceId: input.workspaceId,
+      matchType: input.matchType,
+      fromPattern: input.fromPattern,
+      toTarget: finalTarget,
+      statusCode: input.statusCode,
+      status: "active",
+      override: input.override ?? false,
+      priority,
+      source,
+      createdByPrincipal: input.actorId,
+      createdByPluginId: input.pluginId,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    };
+    await requireWildcardCapacity({ deps, record, existingId: undefined });
+    await insertRedirectAndRevision({ db: deps.db, record, revision: redirectRevision({ record, input, tombstoned: false }) });
+    return record;
+  });
+  await enqueueMutatedEvent(deps, record, "created");
+  return { record };
 }
 
 export interface UpdateRedirectRequired {

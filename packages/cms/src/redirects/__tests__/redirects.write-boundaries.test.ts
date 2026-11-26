@@ -353,17 +353,13 @@ test("a redirect validated against an old graph cannot commit a cycle introduced
   assert.deepEqual(await pendingEvents(deps), ["redirect.updated:a"]);
 });
 
-// B270, create arm. RED today: `createRedirect` runs `validateWriteFields` BEFORE it asks for the
-// writer lock (`persistRedirectWrite` only wraps the insert), so an update that commits between the
-// two is never seen. Kept as a todo, not a failing active test; the body is the reproduction.
-test.todo("a created redirect validated against an old graph cannot commit a cycle introduced by an intervening update", async () => {
+test("a created redirect validated against an old graph cannot commit a cycle introduced by an intervening update", async () => {
   const repo = new InMemoryRedirectRepo();
   await repo.insertRedirect(record({ id: "a", fromPattern: "/a", toTarget: "/x", status: "disabled" }));
   const lock = writerLock();
   const createValidated = deferred();
   const releaseCreate = deferred();
   let gateNext = true;
-  // The create's own transaction call is the first one after its validation returned; hold it there.
   const gatedTransaction: RedirectsWriteDeps["transaction"] = async (fn) => {
     if (gateNext) { gateNext = false; createValidated.resolve(); await releaseCreate.promise; }
     return lock.transaction(fn);
@@ -380,6 +376,39 @@ test.todo("a created redirect validated against an old graph cannot commit a cyc
 
   await assert.rejects(created, (err: unknown) => err instanceof RedirectLoopError);
   assert.deepEqual(await activeExactEdges(repo), ["/a->/b"]);
+  assert.deepEqual(await pendingEvents(base), ["redirect.updated:a"]);
+});
+
+test("import refuses a row whose graph changed before its writer lock", async () => {
+  const repo = new InMemoryRedirectRepo();
+  await repo.insertRedirect(record({ id: "a", fromPattern: "/a", toTarget: "/x", status: "disabled" }));
+  const lock = writerLock();
+  const createPaused = deferred();
+  const releaseCreate = deferred();
+  let gateNext = true;
+  const gatedTransaction: RedirectsWriteDeps["transaction"] = async (fn) => {
+    if (gateNext) { gateNext = false; createPaused.resolve(); await releaseCreate.promise; }
+    return lock.transaction(fn);
+  };
+  const base = makeDeps(repo);
+  const imported = importRedirects({ deps: { ...base, transaction: gatedTransaction }, input: {
+    workspaceId: WORKSPACE_ID, actorId: ACTOR_ID,
+    rules: [
+      { ...fields, fromPattern: "/b", toTarget: "/a", actorId: ACTOR_ID },
+      { ...fields, fromPattern: "/independent", toTarget: "/landing", actorId: ACTOR_ID },
+    ],
+  } });
+  await createPaused.promise;
+  await updateRedirect({ deps: { ...base, transaction: lock.transaction }, input: {
+    workspaceId: WORKSPACE_ID, id: "a", status: "active", toTarget: "/b", actorId: ACTOR_ID,
+  } });
+  releaseCreate.resolve();
+
+  const result = await imported;
+  assert.deepEqual(result.failed.map(({ index, code }) => ({ index, code })), [{ index: 0, code: "REDIRECT_LOOP_DETECTED" }]);
+  assert.deepEqual(result.created.map(({ fromPattern, source }) => ({ fromPattern, source })), [{ fromPattern: "/independent", source: "import" }]);
+  assert.deepEqual(await activeExactEdges(repo), ["/a->/b", "/independent->/landing"]);
+  assert.deepEqual(await pendingEvents(base), ["redirect.updated:a", `redirect.created:${result.created[0]!.id}`]);
 });
 
 /** Write deps whose `isInTrash`/`restore` go through ONE real `TrashService` over a record-store

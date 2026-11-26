@@ -132,7 +132,7 @@ export function createNewsletterUpdateCampaignHandler(deps: NewsletterToolDeps):
       actorId: ctx.principal.id,
       fields: {
         subject: typeof input.subject === "string" ? input.subject : existing.subject,
-        preheader: typeof input.preheader === "string" ? input.preheader : existing.preheader,
+        preheader: input.preheader === null || typeof input.preheader === "string" ? input.preheader : existing.preheader,
         fromName: typeof input.fromName === "string" ? input.fromName : existing.fromName,
         fromEmail: typeof input.fromEmail === "string" ? input.fromEmail : existing.fromEmail,
         replyTo: typeof input.replyTo === "string" ? input.replyTo : existing.replyTo,
