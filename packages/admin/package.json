@@ -779,6 +779,7 @@
       "./react/shell/appearance": "browser",
       "./shell/components/AssistantDock/hooks/execution-config-ledger.hooks": "browser",
       "./shell/components/AssistantDock/hooks/execution-config.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/execution-config-refresh": "browser",
       "./shell/components/AssistantDock/hooks/byok-runtime.hooks": "browser",
       "./shell/components/AssistantDock/hooks/local-cli-selection.hooks": "browser",
       "./shell/components/AssistantDock/hooks/composer-discovery.hooks": "browser",
@@ -4905,6 +4906,11 @@
       "import": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.js"
     },
+    "./shell/components/AssistantDock/hooks/execution-config-refresh": {
+      "types": "./dist/shell/components/AssistantDock/hooks/execution-config-refresh.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/execution-config-refresh.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/execution-config-refresh.js"
+    },
     "./shell/components/AssistantDock/hooks/byok-runtime.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.js",
@@ -5570,6 +5576,9 @@
       ],
       "shell/components/AssistantDock/hooks/execution-config.hooks": [
         "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/execution-config-refresh": [
+        "./dist/shell/components/AssistantDock/hooks/execution-config-refresh.d.ts"
       ],
       "shell/components/AssistantDock/hooks/byok-runtime.hooks": [
         "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts"

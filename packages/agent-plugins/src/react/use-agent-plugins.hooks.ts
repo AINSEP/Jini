@@ -1,12 +1,7 @@
 import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
-import type { AgentPluginSurfaceSummary } from "@jini-ai/admin/screens/plugins/hooks/agent-plugin-surfaces-port.hooks";
-import type { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate } from "@jini-ai/ui/fetch-query";
+import type { AdminSurfaceAction } from "@jini-ai/core/contracts/site/agent-plugins-admin-surfaces";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import { useCallback, useMemo, useState } from "react";
-
-import type { AgentPluginListRow } from "@jini-ai/admin/agent-plugins/models";
-import type { useContentRefreshSubscription } from "@jini-ai/admin/shell/hooks/use-content-refresh-subscription.hooks";
-
-import type { AgentPluginsPort } from "@jini-ai/admin/screens/integrations/agent-plugin-ports";
 
 import { type Translate } from '@jini-ai/core/text';
 /**
@@ -36,6 +31,48 @@ import { type Translate } from '@jini-ai/core/text';
  * `translatePlugins` directly.
  */
 
+/**
+ * HTTP presentation projection; installation paths/digests never enter the browser.
+ * Restated from the plugin lifecycle's `InstalledAgentPlugin` (only the fields the screen reads) so admin owns its
+ * plugin-list port; `__tests__/installed-plugin-fit.typecheck.ts` fails to compile when the lifecycle's types drift.
+ */
+interface AgentPluginSummary {
+  readonly pluginId: string;
+  readonly version: string | null;
+  readonly description: string | null;
+  readonly keywords: readonly string[];
+  readonly skills: readonly { readonly name: string; readonly summary: string }[];
+  readonly mcpServerIds: readonly string[];
+  readonly enabled: boolean;
+}
+/** One row of `GET .../agent-plugins` as the host's screen reads it: {@link AgentPluginSummary} plus the optional
+ *  host-owned lifecycle/account fields. `version`/`description` are nullable, not optional-absent: the wire always
+ *  sends the key, `null` when the package's own manifest carries none. Agent Plugins (agent-plugins.org packages) are
+ *  a DIFFERENT family from the site/runtime plugins `AdminPlugin` describes. */
+export interface AgentPluginListRow extends AgentPluginSummary {
+  /** Account state is independent of activation; absent for plugins with no sign-in. */
+  connectionStatus?: "connected" | "disconnected" | "pending" | "needs_reauth";
+  /** Host maturity; absent means normal. */
+  maturity?: "untested" | "soon";
+  /** The provider plugin (Plugins screen) whose switch this plugin follows; it has no switch of its own. */
+  providerPlugin?: string;
+  provides?: string[];
+  origin?: "bundled" | "operator-installed";
+  hostOk?: boolean;
+  missingRequires?: string[];
+  requiredBy?: string[];
+  archiveDigest?: string;
+  /** `plugin.json`'s `extensions.jini.displayName`; `null` (or absent, from a server predating the
+   *  field) means title-case `pluginId` instead. */
+  displayName?: string | null;
+  /** `plugin.json`'s `extensions.jini.summary` — the plain-language explainer the row shows in place
+   *  of `description` (which is written for the assistant); `null`/absent means show `description`. */
+  summary?: string | null;
+  keywords: string[];
+  skills: Array<{ name: string; summary: string }>;
+  mcpServerIds: string[];
+}
+
 /** The minimal shape `AgentPluginDetailsModal` actually reads (`plugin.id`/`plugin.displayName`) —
  *  see that component's own narrowed prop type. Kept here, not re-exported from the deleted
  *  `agent-plugin-catalog.ts`, since nothing about it is bundle-specific anymore: any installed
@@ -45,18 +82,27 @@ export interface InspectedAgentPlugin {
   readonly id: string;
   readonly displayName: string;
   /** Set by the row's "Manage" button: the screens it already listed, so the modal opens on the first. */
-  readonly surfaces?: readonly AgentPluginSurfaceSummary[];
+  readonly surfaces?: readonly { readonly id: string; readonly title: string; readonly src: string; readonly actions: readonly AdminSurfaceAction[]; readonly linkOrigins?: readonly string[] }[];
 }
 
 export interface AgentPluginsDependencies {
-  useFetchQuery: typeof useFetchQuery; useFetchMutation: typeof useFetchMutation;
-  useCachedLoader: typeof useCachedLoader; useInvalidate: typeof useInvalidate;
-  useContentRefreshSubscription: typeof useContentRefreshSubscription;
+  useFetchQuery: FetchQueryAdapter["useFetchQuery"]; useFetchMutation: FetchQueryAdapter["useFetchMutation"];
+  useCachedLoader: FetchQueryAdapter["useCachedLoader"]; useInvalidate: FetchQueryAdapter["useInvalidate"];
+  useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }, optional?: {}) => void;
   resource: string; toggleRefusalKeys: Readonly<Record<string, string>>;
   translatePlugins: (required: { locale: string; key: string }) => string;
   describeApiError: (required: { e: unknown; fallback: string }) => string;
   isApiError: (error: unknown) => error is AdminHttpError;
-  port: AgentPluginsPort;
+  port: {
+    listAgentPlugins(): Promise<{ agentPlugins: AgentPluginListRow[] }>;
+    setAgentPluginEnabled(required: { pluginId: string; input: { enabled: boolean } }, optional?: Record<string, never>): Promise<{ agentPlugin: AgentPluginListRow }>;
+    getAgentPluginFiles(required: { pluginId: string }, optional?: Record<string, never>): Promise<{
+      readonly pluginId: string;
+      readonly files: readonly { readonly relativePath: string; readonly sizeBytes: number; readonly content: string | null; readonly omitted: null | "binary" | "too-large" | "symlink" | "unreadable" }[];
+      readonly truncated: boolean;
+      readonly limits: { readonly maxFiles: number; readonly maxEntries: number; readonly maxFileBytes: number; readonly maxTotalBytes: number };
+    }>;
+  };
   locale: string;
   t: Translate;
 }
@@ -203,3 +249,18 @@ export function useAgentPlugins({ port, locale, t, useFetchQuery, useFetchMutati
   };
 }
 
+/**
+ * Binds the real `/api/.../agent-plugins` client and the real `useAdminLocale()` — see
+ * `agent-plugins-dependencies.hooks.ts`.
+ *
+ * The zero-argument-dependencies half of the `useX(dependencies)` / `useWiredX()` pair, so
+ * `AgentPlugins.tsx` composes this and a test composes {@link useAgentPlugins} with
+ * `createFakeAgentPluginsPort`.
+ */
+export function useWiredAgentPlugins({ useAdminLocaleHook, ...deps }: Omit<AgentPluginsDependencies, "locale" | "t"> & {
+  useAdminLocaleHook: () => string;
+}, _optional = {}): AgentPluginsController {
+  const locale = useAdminLocaleHook();
+  const t = (key: string): string => deps.translatePlugins({ locale: locale, key: key });
+  return useAgentPlugins({ ...deps, locale, t });
+}

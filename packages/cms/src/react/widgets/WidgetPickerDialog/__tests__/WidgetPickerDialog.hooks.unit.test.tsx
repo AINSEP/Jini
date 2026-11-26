@@ -11,7 +11,7 @@ it("cancels an existing selection without creation and reopens with the baseline
   const required: Parameters<typeof useWidgetPickerDialog>[0] = {
     props: { widgetType: "text", onUseExisting: vi.fn(), onCreateNew, onCancel },
     deps: { port: { listWidgets: async () => ({ widgets: [{ id: "existing", workspaceId: "workspace", slug: "existing", title: "Existing", status: "active", widgetType: "text", config: {}, updatedAt: "2026-11-25", version: 1 }]), createWidget: vi.fn() },
-      locale: "en", useFetchQuery, defaultWidgetConfig: () => ({}), WIDGET_TYPE_OPTIONS: [{ value: "text", label: "Text" }],
+      useAdminLocaleHook: () => "en", useFetchQuery, defaultWidgetConfig: () => ({}), WIDGET_TYPE_OPTIONS: [{ value: "text", label: "Text" }],
       widgetTypeLabel: ({ widgetType }) => widgetType, translateWidgets: ({ key }) => key, sharedComponentsT: ({ key }) => key,
       describeApiError: ({ fallback }) => fallback },
   };

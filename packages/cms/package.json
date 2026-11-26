@@ -723,6 +723,7 @@
       "./admin-http/routes/forms/pull-submissions": "universal",
       "./react/publish-content/criteria-publish-result": "universal",
       "./react/publish-content/PublishSectionButton": "browser",
+      "./react/publish-content/PublishContentDialog.hooks": "browser",
       "./posts/revision-thinning": "universal",
       "./admin-http/routes/posts/revision-thinning": "universal",
       "./forms/destinations/connection-port": "universal",
@@ -4894,6 +4895,11 @@
       "types": "./dist/react/publish-content/PublishSectionButton.d.ts",
       "import": "./dist/react/publish-content/PublishSectionButton.js",
       "default": "./dist/react/publish-content/PublishSectionButton.js"
+    },
+    "./react/publish-content/PublishContentDialog.hooks": {
+      "types": "./dist/react/publish-content/PublishContentDialog.hooks.d.ts",
+      "import": "./dist/react/publish-content/PublishContentDialog.hooks.js",
+      "default": "./dist/react/publish-content/PublishContentDialog.hooks.js"
     },
     "./posts/revision-thinning": {
       "types": "./dist/posts/revision-thinning.d.ts",

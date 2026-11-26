@@ -138,7 +138,8 @@
       "./site/soon-lock": "node",
       "./react/installed-skills-composer-source": "browser",
       "./react/agent-plugin-install-port": "browser",
-      "./react/use-agent-plugins.hooks": "browser"
+      "./react/use-agent-plugins.hooks": "browser",
+      "./react/AgentPluginDetailsModal": "browser"
     },
     "isolation": {
       "entries": {
@@ -511,6 +512,11 @@
       "types": "./dist/react/use-agent-plugins.hooks.d.ts",
       "import": "./dist/react/use-agent-plugins.hooks.js",
       "default": "./dist/react/use-agent-plugins.hooks.js"
+    },
+    "./react/AgentPluginDetailsModal": {
+      "types": "./dist/react/AgentPluginDetailsModal.d.ts",
+      "import": "./dist/react/AgentPluginDetailsModal.js",
+      "default": "./dist/react/AgentPluginDetailsModal.js"
     }
   },
   "files": [
