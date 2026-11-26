@@ -2,7 +2,12 @@ import { useId, type ComponentType, type CSSProperties } from "react";
 import type { Translate } from "@jini-ai/core/text";
 import type { AgentPluginListRow } from "../../agent-plugins/models.js";
 import { I18nProvider, SettingsDialogShell, type KitDictionaries, type SettingsDialogTab } from "../../react/kit.js";
-import { PluginRulesProvider } from "./rules-context.js";
+import type { PluginRulesProvider } from "./rules-context.js";
+import type { AgentPluginDisableConfirmDialog } from "./AgentPluginDisableConfirmDialog.js";
+import type { AddAgentPluginPanel } from "./AddAgentPluginPanel.js";
+import type { AgentPluginRow } from "./AgentPluginRow.js";
+import type { AgentPluginManageButton } from "./AgentPluginManageButton.js";
+import type { AgentPluginUpdateSlot } from "./AgentPluginUpdateControl.js";
 import type { PluginRules } from "./rules.js";
 import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
 import type { useAgentPluginInstall, AgentPluginInstallHost } from "./hooks/use-agent-plugin-install.hooks.js";
@@ -71,6 +76,12 @@ export interface AgentPluginsProps {
     useAgentPluginSurfacesHook: typeof useAgentPluginSurfaces;
   };
   kit: {
+    PluginRulesProvider: typeof PluginRulesProvider;
+    AgentPluginDisableConfirmDialog: typeof AgentPluginDisableConfirmDialog;
+    AddAgentPluginPanel: typeof AddAgentPluginPanel;
+    AgentPluginRow: typeof AgentPluginRow;
+    AgentPluginManageButton: typeof AgentPluginManageButton;
+    AgentPluginUpdateSlot: typeof AgentPluginUpdateSlot;
     AgentPluginDetailsModal: ComponentType<Pick<AgentPluginsProps["hooks"], "useDetails" | "useAgentPluginMemoryHook" | "useAgentPluginDetailsViewHook" | "useAgentPluginSurfacesHook"> & {
       plugin: InspectedAgentPlugin; t: Translate; onClose: () => void;
     }>;
@@ -181,6 +192,7 @@ function AgentPluginsView({ props, themeBoundary, tab, controller, tabs, pending
 /** The agent-plugins screen under the host-bound rule functions the Jini rows and dialogs read. */
 export function AgentPlugins(props: AgentPluginsProps, _optional = {}) {
   const { pluginRules } = props.deps;
+  const { PluginRulesProvider } = props.kit;
   return (
     <PluginRulesProvider rules={pluginRules}>
       <AgentPluginsScreen {...props} />
