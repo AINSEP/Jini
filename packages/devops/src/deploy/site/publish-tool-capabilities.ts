@@ -173,8 +173,8 @@ async function buildInstalledProviderCapability({ installed, registry, context }
 
 /** A host lacking a saved key on this site. `worksForIds` is non-empty only for a host that is not
  *  loaded (its plugin is off): the copy inventory derives `publishHosts` from this site's LOADED
- *  hosts, so an off host never appears there (2026-11-02 owner bug: with Vercel off, the chat said
- *  "no site has a Vercel key" while 8 sites held one). For such a host a key's saved worksFor (the
+ *  hosts, so an off host never appears there (2026-11-02 owner bug: with a hosting plugin off, the chat said
+ *  "no site has a key for that host" while 8 sites held one). For such a host a key's saved worksFor (the
  *  host id or its vendor id, the ids the Jini matcher reads) declares compatibility. Presence only:
  *  the copy card and the publish itself still re-check the key. */
 interface MissingHost { readonly id: string; readonly worksForIds: readonly string[] }
