@@ -64,6 +64,32 @@ it("a missed editor update rolls back staged envelopes", async () => {
   expect(update?.parameters).toContain(1);
 });
 
+it("guarded OAuth SQL compares configuration in the write", async () => {
+  const f = fixture();
+  const sealed = externalMcpVaultEnvelope({ record: { workspaceId: "ws", id: "late-auth", kind: "mcp-auth", ownerKey: "server",
+    principalId: null, binding: null, provider: null, label: "late-auth", isDefault: false, revision: 1,
+    sealed: { keyId: "key", ciphertext: "late", nonce: "nonce", alg: "alg" }, last4: null, tokenLength: null,
+    meta: {}, createdAt: "stamp", updatedAt: "stamp" } }, { staged: true });
+  expect(await f.repo.updateOAuthRuntime({ key: f.record, expectedSealedOAuth: null,
+    expectedConfig: { createdAt: f.record.createdAt, version: f.record.version },
+    patch: { sealedOAuth: sealed, oauthStatus: "connected", oauthExpiresAt: null, oauthRefreshLeaseUntil: null,
+      oauthAadVersion: 1, updatedAt: "later" } })).toBe(false);
+  const runtime = f.queries.find(query => query.sql.startsWith("update"))!;
+  const where = runtime.sql.split(" where ")[1];
+  expect(where).toMatch(/"oauth_secret_id" is null/);
+  expect(where).toMatch(/"version" = \$\d+/);
+  expect(where).toMatch(/"created_at" = \$\d+/);
+  expect(runtime.parameters.slice(-2)).toEqual([1, "stamp"]);
+  expect(await f.vaultRepo.list({ workspaceId: "ws", kind: "mcp-auth", ownerKey: "server", principalId: null })).toEqual([]);
+  f.queries.length = 0;
+  f.setAffected(1n);
+  expect(await f.repo.updateIfVersion({ record: f.record, expectedVersion: 1, expectedCreatedAt: "stamp",
+    replaces: { sealedEnv: null, sealedOAuth: null } })).toBe(true);
+  const edit = f.queries.find(query => query.sql.startsWith("update"))!;
+  expect(edit.sql.split(" where ")[1]).toMatch(/"created_at" = \$\d+/);
+  expect(edit.parameters.at(-1)).toBe("stamp");
+});
+
 it("access update writes no credential columns", async () => {
   const f = fixture(); f.setAffected(1n);
   expect(await f.repo.updateAccessIfCurrent({ workspaceId: "ws", serverId: "server", expected: externalMcpAccessSnapshot({ record: f.record }),

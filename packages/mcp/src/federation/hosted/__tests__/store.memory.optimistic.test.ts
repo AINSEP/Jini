@@ -56,6 +56,13 @@ describe("insert", () => {
 });
 
 describe("updateIfVersion", () => {
+  test("guarded OAuth edits reject a different creation time with matching version and pointers", async () => {
+    const { repo, stored } = await seeded();
+    expect(await repo.updateIfVersion({ record: { ...stored, oauthClientId: null }, expectedVersion: stored.version,
+      expectedCreatedAt: LATER, replaces: replaces(stored) })).toBe(false);
+    expect(await repo.findByServerId(stored)).toEqual(stored);
+  });
+
   test("T-stale: a save from an old screen is refused after another save landed, and the first save stays", async () => {
     const { repo, stored } = await seeded();
     expect(await repo.updateIfVersion({ record: { ...stored, label: "Writer 1" }, expectedVersion: 1, replaces: replaces(stored) })).toBe(true);
@@ -86,6 +93,19 @@ describe("updateIfVersion", () => {
 });
 
 describe("updateOAuthRuntime", () => {
+  test.each([{ version: 2 }, { createdAt: LATER }])("guarded OAuth writes reject a moved configuration: %j", async moved => {
+    const { repo, stored } = await seeded();
+    await repo.upsert({ ...stored, ...moved });
+    const replacement = (await repo.findByServerId(stored))!;
+    expect(replacement.sealedOAuth).toEqual(stored.sealedOAuth);
+    const late = envelope(stored, "mcp-auth", "auth-late", "late");
+    expect(await repo.updateOAuthRuntime({ key: stored, expectedSealedOAuth: stored.sealedOAuth,
+      expectedConfig: { createdAt: stored.createdAt, version: stored.version },
+      patch: { oauthStatus: "connected", oauthExpiresAt: LATER, oauthRefreshLeaseUntil: null,
+        sealedOAuth: late, oauthAadVersion: 1, updatedAt: LATER } })).toBe(false);
+    expect(await repo.findByServerId(stored)).toEqual(replacement);
+  });
+
   test("refresh-vs-disable: a refresh that read the row before an admin disabled it leaves the row disabled and its version alone", async () => {
     const { repo, stored: readByRefresh } = await seeded();
     const accessUpdate = { workspaceId: "ws", serverId: "linear", expected: externalMcpAccessSnapshot({ record: readByRefresh }),

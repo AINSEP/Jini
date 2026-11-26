@@ -101,11 +101,12 @@ export class InMemoryExternalMcpServerRepo implements ExternalMcpServerRepoPort 
   /** The edit write: the version AND both credential pointers are compared in the same queued step
    * that writes, so nothing can land between the compare and the write.
    * @complexity O(1) row lookup plus the bounded two-envelope commit. */
-  async updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean> {
+  async updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly expectedCreatedAt?: string; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean> {
     return this.write(async () => {
-      const { record, expectedVersion, replaces } = required;
+      const { record, expectedVersion, expectedCreatedAt, replaces } = required;
       const current = this.rows.get(keyOf(record.workspaceId, record.serverId));
       if (!current || current.version !== expectedVersion) return false;
+      if (expectedCreatedAt !== undefined && current.createdAt !== expectedCreatedAt) return false;
       const sameEnv = this.pointerId({ sealed: replaces.sealedEnv, identity: current, kind: "mcp-env" }) === this.pointerId({ sealed: current.sealedEnv, identity: current, kind: "mcp-env" });
       const sameAuth = this.pointerId({ sealed: replaces.sealedOAuth, identity: current, kind: "mcp-auth" }) === this.pointerId({ sealed: current.sealedOAuth, identity: current, kind: "mcp-auth" });
       if (!sameEnv || !sameAuth) return false;
@@ -117,11 +118,12 @@ export class InMemoryExternalMcpServerRepo implements ExternalMcpServerRepoPort 
   /** The runtime write: only the sealed-OAuth pointer and its status/expiry/lease columns change,
    * and only while the stored credential is still the one the caller read. `version` is untouched.
    * @complexity O(1) row lookup plus the bounded two-envelope commit. */
-  async updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean> {
+  async updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version">; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean> {
     return this.write(async () => {
-      const { key, expectedSealedOAuth, patch } = required;
+      const { key, expectedSealedOAuth, expectedConfig, patch } = required;
       const current = this.rows.get(keyOf(key.workspaceId, key.serverId));
       if (!current) return false;
+      if (expectedConfig !== undefined && (current.version !== expectedConfig.version || current.createdAt !== expectedConfig.createdAt)) return false;
       const expectedId = this.pointerId({ sealed: expectedSealedOAuth, identity: current, kind: "mcp-auth" });
       if (expectedId !== this.pointerId({ sealed: current.sealedOAuth, identity: current, kind: "mcp-auth" })) return false;
       await this.commit({ record: { ...current, ...patch } });

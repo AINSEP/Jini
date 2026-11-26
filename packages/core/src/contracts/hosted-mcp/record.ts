@@ -162,16 +162,19 @@ export interface ExternalMcpServerRepoPort {
   /**
    * The edit write: replaces the editable columns and both credential pointers iff the stored
    * `version` equals `expectedVersion` AND both stored envelopes are the ones in `replaces`; sets
-   * `version` to `expectedVersion + 1`. `false` when nothing was written (the row is gone, moved on, or a credential was replaced since the read).
+   * `version` to `expectedVersion + 1`. When supplied, `expectedCreatedAt` must also match.
+   * `false` when nothing was written (the row is gone, moved on, or a credential was replaced since the read).
    * @agent-note Compare-and-set in the write statement under the same writer lock the credential writers take. `record.version` is ignored; the repository assigns the next version.
    */
-  updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean>;
+  updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly expectedCreatedAt?: string; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean>;
   /**
    * The runtime write: sets only the sealed-OAuth pointer, `oauthStatus`, `oauthExpiresAt`,
-   * `oauthRefreshLeaseUntil`, `oauthAadVersion` and `updatedAt`, iff the stored sealed-OAuth envelope is `expectedSealedOAuth`. Leaves `version` and every other column alone. `false` when the credential was replaced or removed, or the row is gone.
+   * `oauthRefreshLeaseUntil`, `oauthAadVersion` and `updatedAt`, iff the stored sealed-OAuth envelope is `expectedSealedOAuth`.
+   * When supplied, `expectedConfig` also compares creation time and version in the write.
+   * Leaves `version` and every other column alone. `false` when the credential or guarded configuration changed, or the row is gone.
    * @agent-note A late token set for a credential that no longer exists is dropped, never written onto its replacement. The caller reports it as "reauthorization required".
    */
-  updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean>;
+  updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version">; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean>;
   /** Compare the approved snapshot and update access atomically, preserving credential columns. */
   /** @agent-note Compare-and-set against `expected`; `false` means the row changed since approval and nothing was written. A successful write advances `version`, so a form saved from before the approval or revocation conflicts instead of restoring the old grants. */
   updateAccessIfCurrent(required: ExternalMcpAccessUpdate): Promise<boolean>;
