@@ -37,6 +37,28 @@ function deferredPort() {
 const answer = (ids: string[], nextCursor: string | null): MediaGridPage => ({ media: ids.map(asset), nextCursor, counts: COUNTS, hasUntypedActive: false });
 
 describe("media grid cursor paging", () => {
+  it("Trash policy comes from the current first page, even when that page is empty", async () => {
+    const { port, waiting } = deferredPort();
+    const { result, rerender } = renderHook(({ tab }) => useGridPages({ port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "trash" as const } as { tab: "trash" | "images" } });
+    await waitFor(() => expect(waiting.length).toBe(1));
+    await act(async () => waiting[0]!.resolve({ ...answer([], "cursor-1"), retentionDays: 30 }));
+    await waitFor(() => expect(result.current.retentionDays).toBe(30));
+    expect(result.current.items).toEqual([]);
+
+    let pending: Promise<void> = Promise.resolve();
+    act(() => { pending = result.current.loadMore(); });
+    await waitFor(() => expect(waiting.length).toBe(2));
+    expect(waiting[1]!.page.cursor).toBe("cursor-1");
+    await act(async () => { waiting[1]!.resolve({ ...answer(["legacy"], null), retentionDays: 60 }); await pending; });
+    expect(result.current.retentionDays).toBe(30);
+    expect(result.current.items?.map((item) => item.id)).toEqual(["legacy"]);
+
+    rerender({ tab: "images" });
+    await waitFor(() => expect(waiting.length).toBe(3));
+    expect(result.current.retentionDays).toBeNull();
+    expect(result.current.items).toEqual([]);
+  });
+
   it("changing tabs during load more drops the stale response and keeps exact counts", async () => {
     const { port, waiting } = deferredPort();
     const { result, rerender } = renderHook(({ tab }) => useGridPages({ port, tab, orderBy: "created", listKey: ["media"], useFetchQuery }), { wrapper, initialProps: { tab: "all" as const } as { tab: "all" | "videos" } });

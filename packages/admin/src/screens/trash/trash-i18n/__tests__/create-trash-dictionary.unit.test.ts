@@ -8,7 +8,7 @@ import { createTrashDictionary } from "../create-trash-dictionary.js";
 const ORIGINAL_NEUTRAL_KEYS = 51;
 // Keys added after the split, on purpose (bug d2: the header states the retention window). Each is
 // asserted present in every locale below, so the count can only grow by a key that actually landed.
-const ADDED_SINCE_SPLIT = ["Items are permanently deleted {days} days after they are moved to Trash."];
+const ADDED_SINCE_SPLIT = ["Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row."];
 const EXPECTED_KEYS_PER_LOCALE: Record<string, number> = Object.fromEntries(
   ["es", "id", "de", "zh-CN", "zh-TW", "pt-BR", "ru", "fa", "ar", "ja", "ko", "pl", "hu", "fr", "uk", "tr", "th", "it", "hi", "ur", "bn"].map((locale) => [locale, ORIGINAL_NEUTRAL_KEYS + ADDED_SINCE_SPLIT.length])
 );

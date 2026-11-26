@@ -51,7 +51,7 @@ export function coverageLine({ translate }: { translate: Translate }, _optional:
  */
 export function retentionLine({ translate, retentionDays }: { translate: Translate; retentionDays: number | null }, _optional: Record<string, never> = {}): string | null {
   if (retentionDays === null) return null;
-  return interpolate({ template: translate("Items are permanently deleted {days} days after they are moved to Trash."), vars: { days: String(retentionDays) } });
+  return interpolate({ template: translate("Items moved to Trash now are permanently deleted after {days} days. Items trashed earlier keep the date shown on their row."), vars: { days: String(retentionDays) } });
 }
 
 /** A human label for a row's kind. Unknown kinds print as themselves rather than being hidden —
