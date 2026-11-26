@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { AgentPluginInstallError } from '../../install-errors.js';
+import { AgentPluginInstallError } from '../../../core/install-errors.js';
 import { createInstalledPackageIndex } from '../../installed-package-index.js';
 import type { AgentPluginLifecyclePorts } from '../../ports.js';
 import { forceRemove } from '../fixtures/force-remove.js';

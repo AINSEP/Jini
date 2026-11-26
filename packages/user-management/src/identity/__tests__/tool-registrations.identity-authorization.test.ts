@@ -1,3 +1,5 @@
+import { buildIdentityRegistrations, identityDerivedRisk } from "../../server/agent-tool-registrations.js";
+import { createUsernameChangePort } from "../username-change-ports.js";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { assertVersionedWrite } from '@jini-ai/core/optimistic-concurrency';
@@ -5,8 +7,8 @@ import type { ToolExecutionContext } from '@jini-ai/core';
 import { IdentityForbiddenError, type IdentityRepos } from '../../core/index.js';
 import { InMemoryPrincipalRepo, InMemoryUserRepo, InMemorySessionRepo, InMemoryRoleRepo, InMemoryPolicyRepo,
   InMemoryPolicyPermissionRepo, InMemoryRolePolicyRepo, InMemoryPrincipalRoleRepo, InMemoryPrincipalPolicyRepo,
-  createTransactionalInMemoryIdentityRepos, seedIdentity, assertCallerHasAnyPermission } from '../../server/index.js';
-import { assertUserAccountAction } from '../delete-user-service.js';
+  createTransactionalInMemoryIdentityRepos, seedIdentity, assertCallerHasAnyPermission, normalizeUsername, parseIdentityToolInput } from '../../server/index.js';
+import { SelfDeleteError, assertUserAccountAction } from '../delete-user-service.js';
 import { buildGatedIdentityRegistrations, withoutPassword, type IdentityToolDeps } from '../tool-registrations.js';
 
 async function fixture(afterApproval: (repos: IdentityRepos, owner: string) => Promise<void> = async () => {}) {
@@ -20,7 +22,7 @@ async function fixture(afterApproval: (repos: IdentityRepos, owner: string) => P
   const clock = { nowMs: () => 0 }; const idGen = { newId: () => `id-${++nextId}` };
   const hasher = { hash: async () => 'hash', verify: async () => true };
   const { ownerPrincipalId } = await seedIdentity({ deps: { repos, clock, idGen, hasher }, input: { workspaceId: 'ws', ownerUsername: 'owner', ownerPassword: 'owner-password' } });
-  const deps = { workspaceId: 'ws', clock, idGen, passwordHasher: hasher, ownerPrincipalId: Promise.resolve(ownerPrincipalId),
+  const deps = { buildIdentityRegistrations, identityDerivedRisk, normalizeUsername, parseIdentityToolInput, createUsernameChangePort, SelfDeleteError, workspaceId: 'ws', clock, idGen, passwordHasher: hasher, ownerPrincipalId: Promise.resolve(ownerPrincipalId),
     transactions: repos.transactions, principalRepo: repos.principals, userRepo: repos.users, sessionRepo: repos.sessions,
     roleRepo: repos.roles, policyRepo: repos.policies, policyPermissionRepo: repos.policyPermissions,
     rolePolicyRepo: repos.rolePolicies, principalRoleRepo: repos.principalRoles, principalPolicyRepo: repos.principalPolicies,

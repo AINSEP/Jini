@@ -1,4 +1,5 @@
-import { answerOwnerPasskeyFailure, resolveOwnerPasskeyRouteDeps, type bindOwnerPasskeyRoutes } from './passkey-routes.js';
+import { answerOwnerPasskeyFailure, resolveOwnerPasskeyRouteDeps } from './passkey-route-deps.js';
+import type { bindOwnerPasskeyRoutes } from './passkey-routes.js';
 
 export function createOwnerPasskeyAdmission<Request, Response, Host>({ required, host, req, res }: {
   required: Parameters<typeof bindOwnerPasskeyRoutes<Request, Response, Host>>[0]; host: Host; req: Request; res: Response;

@@ -13,6 +13,9 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./deploy/site/publish-tool-schema": "universal",
+      "./deploy/site/publish-credentials/store-validation": "universal",
+      "./source-control/site/store.validation": "universal",
       "./source-control/site/agent-tools": "universal",
       "./source-control/site/bundled-provider-registry": "universal",
       "./static-export/site/route-manifest": "universal",
@@ -194,6 +197,21 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./deploy/site/publish-tool-schema": {
+      "types": "./dist/deploy/site/publish-tool-schema.d.ts",
+      "import": "./dist/deploy/site/publish-tool-schema.js",
+      "default": "./dist/deploy/site/publish-tool-schema.js"
+    },
+    "./deploy/site/publish-credentials/store-validation": {
+      "types": "./dist/deploy/site/publish-credentials/store-validation.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/store-validation.js",
+      "default": "./dist/deploy/site/publish-credentials/store-validation.js"
+    },
+    "./source-control/site/store.validation": {
+      "types": "./dist/source-control/site/store.validation.d.ts",
+      "import": "./dist/source-control/site/store.validation.js",
+      "default": "./dist/source-control/site/store.validation.js"
+    },
     "./source-control/site/agent-tools": {
       "types": "./dist/source-control/site/agent-tools.d.ts",
       "import": "./dist/source-control/site/agent-tools.js",

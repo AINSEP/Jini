@@ -23,7 +23,7 @@ test("B226: changing the default publishing key does not inherit the previous ke
     vendorCredentialSetRepo: { credentialVault: { open: () => ({ list: async () => [] }), scope: (input: unknown) => input } },
   } as unknown as StaticPublishToolDeps;
   const ctx: ToolExecutionContext = { executionId: "check", principal: { id: "operator" }, run: { id: "run" }, input: {}, signal: new AbortController().signal };
-  const historyStore = new InMemoryPublishHistoryStore({ resolvePublishHistoryListLimit: ({ requested }) => requested ?? 20 });
+  const historyStore = new InMemoryPublishHistoryStore({ peerKind: "peer", resolvePublishHistoryListLimit: ({ requested }) => requested ?? 20 });
   const before = await getStaticPublishCapabilities({ deps, credentialSource: source, historyStore, ctx });
   assert.equal(before.providers[0]?.ready, true);
   basis = { id: "key-b", revision: 1 };

@@ -1,33 +1,15 @@
+import { ownerOf } from './store-owner.js';
 import type { UUID } from '@jini-ai/core/primitives';
 import type { SecretSealerPort, VaultSummary } from '@jini-ai/core/contracts/vault';
 import type { DeployTargetRegistry, DeployTargetCredentialSpec } from '../deploy-targets/types.js';
 import type { PublishConnectionInput, PublishProviderId } from './types.js';
 import { PublishCredentialSecretStoreUnconfiguredError, bound, vault, inventory, scopeOfRow, providerContract, publishHostsForCredential, selectPublishCredential, type PublishCredentialReadDeps, type VendorCredentialSetRecord, type VendorCredentialSetRepoPort } from './store.js';
 
-/** The store holding vendor row `id`: this site's, else the project's when one is attached (ids are
- *  unique across both). Never opens a row. @complexity At most one lookup. */
-export async function ownerOf<R extends Pick<VendorCredentialSetRepoPort, "findById" | "project">>(repo: R, input: { workspaceId: string; id: string }): Promise<{ repo: R | VendorCredentialSetRepoPort; workspaceId: string }> {
-  const project = repo.project;
-  if (!project || await repo.findById(input)) return { repo, workspaceId: input.workspaceId };
-  return { repo: project.repo, workspaceId: project.workspaceId };
-}
-
 /** The vendor row with this id from whichever store holds it — this site's or the project's. */
 export async function findPublishCredentialRecord(deps: { repo: Pick<VendorCredentialSetRepoPort, "findById" | "project"> },
   input: { workspaceId: UUID; id: UUID }): Promise<VendorCredentialSetRecord | null> {
   const owner = await ownerOf(deps.repo, input);
   return owner.repo.findById({ workspaceId: owner.workspaceId, id: input.id });
-}
-
-/** Jini checks exact ownership before opening. Keep the typed error used by HTTP and daemon
- * boundaries: a missing key must not become an unhandled rejection in a publishing process. */
-export async function decryptRecord({ deps, record, providerId }: { deps: PublishCredentialResolveDeps; record: VendorCredentialSetRecord; providerId: PublishProviderId }, _options = {}): Promise<PublishConnectionInput> {
-  try {
-    const resolved = await vault(deps).get({ ...bound(deps).scope({ workspaceId: record.workspaceId, kind: "vendor" }), id: record.id });
-    if (!resolved?.payload) throw new PublishCredentialSecretStoreUnconfiguredError(deps.storageMessage);
-    const { vendorId: _vendorId, ...fields } = resolved.payload as Record<string, string>;
-    return { ...fields, providerId };
-  } catch { throw new PublishCredentialSecretStoreUnconfiguredError(deps.storageMessage); }
 }
 
 export interface PublishCredentialResolveDeps extends PublishCredentialReadDeps {

@@ -1,4 +1,5 @@
-import { AgentPluginUpdateError, type AgentPluginMcpProvisioningPort } from '@jini-ai/agent-plugins/lifecycle';
+import type { AgentPluginMcpProvisioningPort } from '@jini-ai/agent-plugins/lifecycle';
+import { AgentPluginUpdateError } from '../core/update-error.js';
 import type { provisionAgentPluginMcpServers, resolveAgentPluginMcpServers } from '../connect/federate-mcp.js';
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 
@@ -8,7 +9,7 @@ export type UpdateMcpDeps = {
   mcp: ProvisionDeps;
   /** Announces the changed roster so live runtimes reload; the composition root binds
    *  `notifyExternalMcpRosterChanged`. A port rather than a value import: a feature module may not
-   *  value-import `#src/assistant/` (`domain-no-direct-tool-registration.boundary.test.ts`), the
+   *  value-import `the assistant layer` (`domain-no-direct-tool-registration.boundary.test.ts`), the
    *  same seam `apply-tool-renames.ts` uses. */
   notifyExternalMcpRosterChanged: () => Promise<void>;
 };

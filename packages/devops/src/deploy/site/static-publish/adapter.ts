@@ -26,13 +26,13 @@ import type { FormDestinationPublishInput, FormReceiverPlan, FormReceiverPort } 
 import type { ExportReport as BaseExportReport } from '../../../static-export/contracts.js';
 type ExportReport = BaseExportReport & { consentWarning?: string };
 /**
- * Imported from the LEAF `export-failure-summary.ts`, not from `#src/features/site-export/index`.
+ * Imported from the LEAF `export-failure-summary.ts`, not from `site-export/index`.
  *
  * This is a runtime import, and that is the point: it adds exactly ONE module to this file's eager
  * graph. Importing the same function through the barrel would add 65 (`express`, better-sqlite3,
  * drizzle, handlebars, liquidjs and the whole theme/post/db graph, via `site-exporter.ts`), on a
  * module reached from `assistant/tool-registrations.ts`. Avoiding that cost — not a cycle — is why
- * this function was previously resolved by a call-time `require("#src/features/site-export/index")`.
+ * this function was previously resolved by a call-time `require("site-export/index")`.
  *
  * The `require()` is gone because it was corrupting coverage: under `tsx` it loaded the barrel and
  * its whole graph a second time through the CJS hook, and the two images merged into one broken
@@ -42,8 +42,8 @@ type ExportReport = BaseExportReport & { consentWarning?: string };
  * On the cycle the old comment here described (`adapter.ts -> export/index.ts ->
  * site-exporter.ts -> server/app.ts -> ... -> src/assistant`): that back-edge no longer exists.
  * `site-exporter.ts` dropped its `server/app.ts` import in the 2026-08-16 rework, and its current
- * runtime imports are `node:*`, an `express` TYPE, `#src/contracts/core/index` and
- * `#src/features/theme/index` — nothing under `server/` or `assistant/`. The leaf module imports
+ * runtime imports are `node:*`, an `express` TYPE, `core contracts` and
+ * `theme/index` — nothing under `server/` or `assistant/`. The leaf module imports
  * nothing at runtime at all, so it cannot participate in a cycle regardless.
  */
 import type { firstExportFailure } from "../../../core/export-failure-summary.js";

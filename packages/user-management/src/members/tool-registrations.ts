@@ -14,7 +14,7 @@ import { adaptLegacyAuthorize } from "@jini-ai/core";
  * handler here therefore performs that same check itself via the kit's `requireToolPermission`,
  * which is ADR-021 §2's single evaluation for these tools, located where the real route locates it.
  */
-import { buildDomainRegistrations, indexCatalogById, optionalString, readToolLimit, requireInputRecord, requireString, resolveHostReadRefs, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalString, readToolLimit, requireInputRecord, requireString, resolveHostReadRefs, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { ToolInputError } from "@jini-ai/core";
@@ -155,7 +155,7 @@ export interface MembersToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const membersDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const membersDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> memberRepo.list: read only.
   ["members_list", "none"],
   // -> memberRepo.findById: read only.

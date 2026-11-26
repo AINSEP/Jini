@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 
 import { buildZipFixture, type ZipFixtureEntry } from "../fixtures/build-zip.js";
 import { forceRemove } from "../fixtures/force-remove.js";
-import { AgentPluginInstallError } from "../../install.js";
+import { AgentPluginInstallError } from "../../../core/install-errors.js";
 import { installAgentPlugin } from "../test-support.js";
 import { createAgentPluginLayout } from "../../layout.js";
 import { createYauzlAgentPluginArchiveReader, type YauzlPort } from "../../yauzl-archive-reader.js";

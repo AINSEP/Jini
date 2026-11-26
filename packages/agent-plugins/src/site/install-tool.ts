@@ -1,13 +1,17 @@
 import { createAgentPluginUpdateEffects, requireUpdateMcpDeps, type UpdateMcpDeps } from "./update-effects.js";
-import { AgentPluginUpdateError, AgentPluginHostIncompatibleError, isAgentPluginName, type UpdateAgentPluginRequired } from "@jini-ai/agent-plugins/lifecycle";
+import type { UpdateAgentPluginRequired } from "@jini-ai/agent-plugins/lifecycle";
+import { AgentPluginUpdateError } from "../core/update-error.js";
+import { AgentPluginHostIncompatibleError } from "../core/host-incompatible-error.js";
+import { isAgentPluginName } from "../core/plugin-name.js";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, ToolInputError, type AgentToolDefinition, type DerivedRiskByToolId, type ToolRegistration, type ToolExecutionContext } from "@jini-ai/core";
-import { FolderZipError } from "@jini-ai/agent-plugins/folder-zip";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration, type ToolExecutionContext } from "@jini-ai/core";
+import { FolderZipError } from "../core/folder-zip-error.js";
 import type { zipLocalFolder } from "@jini-ai/agent-plugins/folder-zip/node";
 import type { ToolContributor } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { InstallAttachmentReader, PluginInstallSourcePort } from "@jini-ai/core/contracts/headless/plugin-install-source";
-import { AgentPluginInstallError, type createAgentPluginLifecycle } from "../lifecycle/index.js";
+import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
+import { AgentPluginInstallError } from "../core/install-errors.js";
 import { AgentPluginUploadError, UPLOADED_AGENT_PLUGIN_TRUST_WARNING, createAgentPluginUpload, installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional, type InstallUploadedAgentPluginRequired, type InstalledUploadedAgentPlugin, type UpdatedUploadedAgentPlugin, type bindAgentPluginUpload } from "./install-upload.js";
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 import type { listBundledAgentPluginServers } from "../connect/new-site-agent-plugin-tokens.js";
@@ -45,7 +49,7 @@ export type AgentPluginsInstallToolDeps<Layout extends AgentPluginLayout = Agent
 
 export const AGENT_PLUGINS_UPDATE_TOOL_ID = "agent_plugins_update";
 export const AGENT_PLUGINS_INSTALL_TOOL_ID = "agent_plugins_install";
-export const derivedRisk: DerivedRiskByToolId = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([[AGENT_PLUGINS_INSTALL_TOOL_ID, "mutates-durable-state"], [AGENT_PLUGINS_UPDATE_TOOL_ID, "mutates-durable-state"], [CUSTOMIZE_AGENT_PLUGIN_TOOL, "mutates-durable-state"]]);
 
 /** Gate all three entry points before any source read or package publication. */
 async function runInstallTool<Layout extends AgentPluginLayout>({ deps, ctx, operation }: { deps: (Parameters<ReturnType<typeof bindAgentPluginsInstallTools<Layout>>['buildRegistrations']>[0] & Parameters<typeof bindAgentPluginsInstallTools<Layout>>[0]); ctx: ToolExecutionContext; operation: "install" | "update" | 'customize' }, _optional = {}) {

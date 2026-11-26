@@ -1,3 +1,4 @@
+import { AgentPluginUpdateError } from "../core/update-error.js";
 import path from 'node:path';
 import { createPersistentStateModule } from './persistent-state.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
@@ -19,13 +20,6 @@ export interface AgentPluginUpdateJournal {
   readonly settingsSnapshot: unknown;
   readonly startedAt: string;
   readonly result?: 'updated' | 'rolled-back';
-}
-
-export class AgentPluginUpdateError extends Error {
-  readonly code: string;
-  constructor(required: { code: string; message: string }, optional: ErrorOptions = {}) {
-    super(required.message, optional); this.code = required.code; this.name = 'AgentPluginUpdateError';
-  }
 }
 
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;

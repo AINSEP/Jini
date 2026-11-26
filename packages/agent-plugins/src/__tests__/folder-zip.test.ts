@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { crc32, FOLDER_MAX_FILES, FolderZipError, zipFolderFiles } from "../folder-zip.js";
+import { crc32, FOLDER_MAX_FILES, zipFolderFiles } from "../folder-zip.js";
+import { FolderZipError } from "../core/folder-zip-error.js";
 
 function picked(required: { name: string; relative?: string; bytes?: Uint8Array }, _optional: Record<string, never> = {}): File {
   const file = new File([new Uint8Array(required.bytes ?? [])], required.name);

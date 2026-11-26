@@ -1,16 +1,16 @@
 import type { Dirent } from "node:fs";
 import path from "node:path";
 
-import { parsePluginTokenMap, type TokenMapLimits } from "./token-map.js";
+import { parsePluginTokenMap, type TokenMapLimits } from "../core/token-map.js";
 import type { TokenCheckOutcome, TokenSignInPlugin } from "./token-sign-in.js";
 import type { ResolvedAgentPluginForConnect } from "./installed-plugin.js";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 
 
 import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
-import { titleCaseFromPluginId } from "./connect-tool.js";
+import { titleCaseFromPluginId } from "../core/plugin-display-name.js";
 import type { InstalledAgentPluginServers } from "./import-access-token.js";
-import { listTokenSignInPlugins } from "./token-sign-in.js";
+import { listTokenSignInPlugins } from "../core/token-sign-in-list.js";
 
 /**
  * @file The rules for access tokens given while CREATING a site, shared by every create path: the

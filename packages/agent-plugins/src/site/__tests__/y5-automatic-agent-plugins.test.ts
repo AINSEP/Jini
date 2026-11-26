@@ -1,3 +1,4 @@
+import { createAutomaticAgentPluginUse, readChatAgentPluginState } from "../../lifecycle/automatic-use.js";
 import { describe, expect, it, vi } from "vitest";
 import { createAutomaticPluginRuns, type AutomaticPluginDeps, type AutomaticPluginRun } from "../automatic-agent-plugins.js";
 
@@ -12,6 +13,7 @@ function fixture() {
   const list = vi.fn(async () => [{ pluginId: "synthetic", enabled: true, keywords: ["synthetic"], skills: [], mcpServerIds: [] }]);
   const askAgentPluginChoice = vi.fn(async () => { opened(); return answering; });
   const deps: AutomaticPluginDeps = {
+    createAutomaticAgentPluginUse, readChatAgentPluginState,
     workspaceId: "workspace", siteTitleReady: Promise.resolve(), preferences: { mode: async () => preference.mode, snapshot: async () => ({ ...preference }), saveAuto },
     list, rank: ({ candidates }) => candidates.map(candidate => ({ ...candidate, score: 4 })), resolve: async () => ({ ok: true, promptPrefix: "Guidance" }),
     formatPluginToolPointer: () => "read guidance", warn: vi.fn(),

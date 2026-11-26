@@ -3,7 +3,6 @@ import { requireInputRecord } from "@jini-ai/core";
 
 
 import type { SourceControlProvider } from "../../source-control/site/provider-module.js";
-import { findReservedPath } from "../../source-control/registry.js";
 
 import { SiteShareRefusal } from "./share-refusal.js";
 
@@ -83,7 +82,7 @@ function parseFolder({ raw, deps }: { deps: SiteBackupToolDeps["deps"]; raw: str
  * @complexity O(r) reserved paths.
  */
 export function requireUnreservedFolder({ folder, provider, deps }: { deps: SiteBackupToolDeps["deps"]; folder: string; provider: SourceControlProvider }, _optional: Record<string, never> = {}): void {
-  const reserved = findReservedPath({ folder }, provider.reservedPaths === undefined ? {} : { reservedPaths: provider.reservedPaths });
+  const reserved = deps.findReservedPath({ folder }, provider.reservedPaths === undefined ? {} : { reservedPaths: provider.reservedPaths });
   if (reserved !== undefined) throw new deps.CustomCredentialValidationError(`the backup folder must not be inside '${reserved}': '${folder}'`);
 }
 

@@ -84,7 +84,7 @@ export interface ExternalMcpSettingsPanelProps {
       onSave: (fields: { allowedToolNames: string; writeAllowedToolNames: string }) => void;
       useExternalMcpToolsModalEscapeHook: ExternalMcpSettingsPanelProps["hooks"]["useExternalMcpToolsModalEscape"];
       useTHook: () => Translate; useExternalMcpDriftCopyHook: () => Translate;
-      pickerCollaborators: ExternalMcpSettingsPanelProps["deps"]["EXTERNAL_MCP_PICKER_COLLABORATORS"];
+      pickerCollaborators: ExternalMcpSettingsPanelProps["deps"]["pickerCollaborators"];
     }>;
     ExternalMcpRemoveConfirmDialog: ComponentType<{ name: string; isOAuth: boolean; cardHandle: string; onConfirm: () => void; onCancel: () => void; t: Translate;
       ConfirmDialog: ExternalMcpSettingsPanelProps["kit"]["ConfirmActionDialog"];
@@ -109,15 +109,15 @@ export interface ExternalMcpSettingsPanelProps {
     parseSavedToolNames: (required: { value: string | undefined }) => string[];
     grantWriteFieldValue: (required: { currentWriteAllowedToolNames: string | undefined; remoteName: string }) => string;
     buildExternalMcpRemoveConfirmCopy: (required: { name: string; isOAuth: boolean }, optional: { t?: Translate }) => { title: string; body: string };
-    describeDriftHeadline: (required: { connections: readonly AdmissionDriftConnection[]; copy: ExternalMcpSettingsPanelProps["deps"]["EXTERNAL_MCP_DRIFT_COPY"] }) => string;
-    EXTERNAL_MCP_DRIFT_COPY: {
+    describeDriftHeadline: (required: { connections: readonly AdmissionDriftConnection[]; copy: ExternalMcpSettingsPanelProps["deps"]["driftCopy"] }) => string;
+    driftCopy: {
       readonly refusal: Readonly<Record<Exclude<AdminToolRefusalReason, "not-in-operator-allowlist">, { kind: AdmissionDriftKind; key: string }>>;
       readonly refusedFallback: string; readonly notOffered: string; readonly inertWriteGrant: string; readonly stillLive: string;
       readonly notRunning: string; readonly disabledButRunning: string; readonly removedButStillRunning: string;
       readonly decryptFailed: string; readonly failedToStart: string; readonly launcherMissing: string;
       readonly restartHeadline: string; readonly noRestartHeadline: string; readonly needsSignIn: string;
     };
-    EXTERNAL_MCP_PICKER_COLLABORATORS: {
+    pickerCollaborators: {
       useExternalMcpDriftCopyHook: () => Translate; useTHook: () => Translate;
       productVars: Readonly<{ productName: string }>;
       useWiredExternalMcpToolPickerHook: (required: { serverId: string; active: boolean; allowedToolNames: string | undefined; writeAllowedToolNames: string | undefined; t: Translate }) => {
@@ -257,7 +257,7 @@ function ExternalMcpPanelHead(props: ExternalMcpPanelView, _optional = {}) {
         onCancel={cancelForm}
       />
 
-      <ExternalMcpAdmissionsBanner<AdmissionDriftConnection> describeHeadline={(required) => deps.describeDriftHeadline({ ...required, copy: deps.EXTERNAL_MCP_DRIFT_COPY })}
+      <ExternalMcpAdmissionsBanner<AdmissionDriftConnection> describeHeadline={(required) => deps.describeDriftHeadline({ ...required, copy: deps.driftCopy })}
         controller={admissions}
         t={tDrift}
         onRequestRemove={setConfirmRemoveId}

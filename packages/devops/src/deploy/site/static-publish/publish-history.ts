@@ -50,7 +50,7 @@ export type PublishTrigger = "admin_ui" | "agent_tool";
  *  `publish-run.ts`'s `toHistoryEntry` for where this is derived from the target's own outcome. */
 export interface PublishHistoryEntry {
   /** Absent/null legacy discriminator means static. Other kinds reuse target as their owner id. */
-  readonly kind?: "static" | "tovu-peer" | "deploy";
+  readonly kind?: string;
   readonly target: StaticPublishTargetId;
   readonly url: string;
   /** `false` for an accepted deploy without confirmed landing, or an "uploaded, not yet confirmed
@@ -112,7 +112,7 @@ export interface PublishHistoryStore {
  *  the first." Dies on process restart, same as any in-memory double; production always uses
  *  `SqlitePublishHistoryStore` instead (`host src/server/runtime/composition/deps.ts`), never this class. */
 export class InMemoryPublishHistoryStore implements PublishHistoryStore {
-  constructor(private readonly required: { resolvePublishHistoryListLimit(input: { requested: number | undefined }): number }, _optional = {}) {}
+  constructor(private readonly required: { peerKind: string; resolvePublishHistoryListLimit(input: { requested: number | undefined }): number }, _optional = {}) {}
   private readonly entriesByWorkspace = new Map<UUID, PublishHistoryEntry[]>();
 
   /** Full-ledger selection, matching SQL's kind-scoped grouped max(id). O(n) time, O(d) space for n runs/d destinations. */
@@ -123,7 +123,7 @@ export class InMemoryPublishHistoryStore implements PublishHistoryStore {
       const row = rows[i];
       if (row === undefined) throw new Error("Publish history has no row at its recorded position");
       const key = JSON.stringify([row.kind ?? "static", row.target, row.projectName]);
-      if (isReplayableDestination({ row }) && !latest.has(key)) latest.set(key, row);
+      if (isReplayableDestination({ row, peerKind: this.required.peerKind }) && !latest.has(key)) latest.set(key, row);
       if (latest.size > 200) break;
     }
     return [...latest.values()];
@@ -219,7 +219,7 @@ function staticDestinations(input: { rows: readonly PublishHistoryEntry[]; regis
 
 export type PublishDestination = DeploymentDestination<{
   readonly id: string;
-  readonly kind: "tovu-peer";
+  readonly kind: string;
   readonly peerId: string;
   readonly label: string;
   readonly url: string;
@@ -230,13 +230,14 @@ export type PublishDestination = DeploymentDestination<{
  * may enter this projection; deleted peers never become destinations from stale history.
  * @returns Latest successful destinations and explicitly pending deploys, newest first; throws on the 200-destination cap.
  * @complexity O(d*p + d*f*c + d log d), d <= 200, p saved peers; no per-row I/O.
- * @example listPublishDestinations({ workspaceId, historyStore, registry, peers })
+ * @example listPublishDestinations({ workspaceId, historyStore, registry, peers, peerKind })
  */
 export async function listPublishDestinations(input: {
   workspaceId: UUID;
   historyStore: PublishHistoryStore;
   registry: DeployTargetRegistry;
   peers: readonly { id: string; label: string; baseUrl: string }[];
+  peerKind: string;
 }, _options: Record<string, never> = {}): Promise<PublishDestination[]> {
   const rows = await input.historyStore.listDestinationHistory({ workspaceId: input.workspaceId });
   if (rows.length > 200) throw new Error("publish destination limit exceeded (200)");
@@ -244,9 +245,9 @@ export async function listPublishDestinations(input: {
   const peers = new Map(input.peers.map(peer => [peer.id, peer]));
   destinations.push(...rows.flatMap((row): PublishDestination[] => {
     if (!isConfirmedOrPending({ row })) return [];
-    if (row.kind === "tovu-peer") {
+    if (row.kind === input.peerKind) {
       const peer = peers.get(row.target);
-      return peer ? [{ id: `tovu-peer:${peer.id}`, kind: "tovu-peer", peerId: peer.id,
+      return peer ? [{ id: `${input.peerKind}:${peer.id}`, kind: input.peerKind, peerId: peer.id,
         label: peer.label, url: peer.baseUrl, lastPublishedAt: row.publishedAt }] : [];
     }
     if (row.kind === "deploy" && row.url !== "") {
@@ -258,8 +259,8 @@ export async function listPublishDestinations(input: {
 }
 
 /** Replay needs public static config or a peer/deploy identity, in addition to an eligible outcome. */
-function isReplayableDestination({ row }: { row: PublishHistoryEntry }, _options: Record<string, never> = {}): boolean {
-  return isConfirmedOrPending({ row }) && (row.kind === "tovu-peer" || row.kind === "deploy" || row.configFields !== undefined);
+function isReplayableDestination({ row, peerKind }: { row: PublishHistoryEntry; peerKind: string }, _options: Record<string, never> = {}): boolean {
+  return isConfirmedOrPending({ row }) && (row.kind === peerKind || row.kind === "deploy" || row.configFields !== undefined);
 }
 
 /** Ledger eligibility is shared by selection and projection: only deploys can be pending. */

@@ -83,7 +83,7 @@ import { createPersistentStateModule } from "./persistent-state.js";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import { describeErrorForLog } from "@jini-ai/core";
-import { AgentPluginInstallError, type AgentPluginInstallErrorCode } from "./install-errors.js";
+import { AgentPluginInstallError, type AgentPluginInstallErrorCode } from "../core/install-errors.js";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";

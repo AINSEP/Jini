@@ -20,8 +20,8 @@ import type { Clock } from "@jini-ai/core/primitives";
  * `requireToolPermission` themselves. The one exception is `database_plan_migrate_forward`,
  * documented at its own handler.
  */
-import { createDatabaseReadTools, type InputReaders, type RestorePointListPort, type RestorePointSavePort } from "@jini-ai/db/tools";
-import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalNumber, optionalString, requireInputRecord, requireString, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import type { createDatabaseReadTools, InputReaders, RestorePointListPort, RestorePointSavePort } from "@jini-ai/db/tools";
+import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalNumber, optionalString, requireInputRecord, requireString, requireNoInput, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission, type ToolPermissionAuthorizationPort, type ToolExecutionContext } from "@jini-ai/core";
 import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 import { type AuthorizeFn, type MutationActor } from "@jini-ai/core/contracts/events";
@@ -37,7 +37,7 @@ import type { ToolContributor } from "@jini-ai/core";
 import type { buildMigrateForwardHooks, BuildMigrateForwardHooksInput } from "../recovery/migrate-forward-hooks.js";
 import type { LedgerAppendPort } from "@jini-ai/db/recovery/migrate-forward-hooks";
 import type { DbMessages } from "../tools/index.js";
-import { executeMigrateForward, type OperationLockPort } from "../recovery/migrate-forward-execute.js";
+import type { executeMigrateForward, OperationLockPort } from "../recovery/migrate-forward-execute.js";
 import type { DatabaseIntrospectionPort } from "@jini-ai/core/contracts/site/database-introspection";
 import type { LedgerReadPort } from "@jini-ai/db/tools";
 
@@ -56,6 +56,8 @@ type HostDeps<T, G> = Omit<T, 'deps'> & { deps: G };
 
 /** `G` is the host's own gateway deps: Jini only hands them back to the host's gateway functions. */
 export interface DatabaseToolDeps<G = GatewayDeps> {
+  createDatabaseReadTools: typeof createDatabaseReadTools;
+  executeMigrateForward: typeof executeMigrateForward;
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;
@@ -99,7 +101,7 @@ type DatabaseMutationActorBinding = (required: { readonly principalId: string },
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const databaseDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const databaseDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> getTimeline (timeline.ts): one LedgerReadPort.query() read.
   ["database_query_timeline", "none"],
   // -> listRestorePoints (restore-points.ts): one RestorePointListPort.list() read.
@@ -129,7 +131,7 @@ export const databaseDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 const MIGRATE_TOOL_ID = "database_execute_migrate_forward";
 
 /** Database catalog entries this pass does not wire, and why — see `features/database/agent-tools.ts`'s own per-entry comments for the full reasoning. */
-const UNWIRED_DATABASE_TOOL_IDS = new Set([
+const UNWIRED_DATABASE_TOOL_IDS: ReadonlySet<string> = new Set([
   // No envelope-minting function exists (only the receiving side, `resolveDeepLinkContext`, does),
   // and minting one honestly needs a schema-drift computation this pass has no adapter for.
   "database_get_restore_guidance",
@@ -207,7 +209,7 @@ const migrateHooks = createMigrateHooks(routeDeps, mutationActor);
           planId: plan.planId,
           planHash: plan.planHash,
         });
-        return executeMigrateForward({
+        return routeDeps.executeMigrateForward({
           siteId: routeDeps.workspaceId,
           confirmationToken: record.confirmationToken,
           costClass,
@@ -234,7 +236,7 @@ export function buildDatabaseRegistrations<G = GatewayDeps>(
 ): ToolRegistration[] {
   const { surfaces, mutationActor, adaptLegacyAuthorize } = routeDeps;
   const CATALOG_BY_ID = indexCatalogById({ catalog: routeDeps.catalog });
-  const portable = createDatabaseReadTools({
+  const portable = routeDeps.createDatabaseReadTools({
     readers: databaseInputReaders,
     workspaceId: routeDeps.workspaceId, introspection: routeDeps.databaseIntrospection,
     ledger: routeDeps.databaseLedgerRepo, restorePoints: routeDeps.restorePointsRepo,

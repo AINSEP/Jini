@@ -51,7 +51,7 @@ export function toDeployFile(entry: { outputFile: string; data: string | Buffer;
  * Checks BOTH `routes.failed` and `assets.failed` (HIGH audit finding, 2026-08-19 Codex sol bug/
  * architecture audit) — this used to check only `routes.failed`, so a page could export fine while
  * its own stylesheet or hero image 404s and publishing would still report success. See
- * `firstExportFailure`'s own doc (`#src/features/site-export/export-failure-summary`) for the shared check both this
+ * `firstExportFailure`'s own doc (`site-export/export-failure-summary`) for the shared check both this
  * function and `commit-site.ts`'s `commitSiteToSourceControl` now use.
  */
 export async function runExportForPublish(

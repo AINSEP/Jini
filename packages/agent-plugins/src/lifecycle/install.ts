@@ -1,7 +1,7 @@
 import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 import { listInstalledPackageRoots } from "./installed-package-roots.js";
 import { createUninstallModule } from "./uninstall.js";
-import { AgentPluginInstallError } from "./install-errors.js";
+import { AgentPluginInstallError } from "../core/install-errors.js";
 import { createInstalledPackageIndex } from "./installed-package-index.js";
 import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core/plugin-directory";
 /**
@@ -75,8 +75,8 @@ import type { AgentPluginLifecyclePorts } from "./ports.js";
 import type { AgentPluginLayout, InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
-export { AgentPluginInstallError } from "./install-errors.js";
-export type { AgentPluginInstallErrorCode } from "./install-errors.js";
+export { AgentPluginInstallError } from "../core/install-errors.js";
+export type { AgentPluginInstallErrorCode } from "../core/install-errors.js";
 
 export interface InstallAgentPluginRequired {
   readonly archive: Uint8Array;

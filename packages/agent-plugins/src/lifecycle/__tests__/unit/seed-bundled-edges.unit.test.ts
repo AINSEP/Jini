@@ -1,4 +1,4 @@
-import { AgentPluginInstallError } from '../../install-errors.js';
+import { AgentPluginInstallError } from '../../../core/install-errors.js';
 import { afterEach, describe, expect, test } from 'vitest';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';

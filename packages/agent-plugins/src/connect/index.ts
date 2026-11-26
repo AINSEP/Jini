@@ -11,12 +11,15 @@ export * from './connect-card-ui.js';
 export * from './connect-destination.js';
 export * from './connect-sign-in-wait.js';
 export * from './connect-tool.js';
-export { defaultResolveInstalledAgentPlugin, type ResolvedAgentPluginForConnect } from './installed-plugin.js';
+export type { ResolvedAgentPluginForConnect } from './installed-plugin.js';
 export { agentPluginConnectAgentToolCatalogFor, agentPluginConnectDerivedRiskFor, hasStoredAgentPluginCredential } from './catalog.js';
 export type { AgentPluginConnectSignInPort, AgentPluginConnectApiConnectionsPort, AgentPluginConnectApprovalsPort, AgentPluginAccessApprovalDescription, AgentPluginConnectMessages, AgentPluginConnectHost, AgentPluginConnectDeps, AgentPluginConnectOptions, AgentPluginConnectResult } from './contracts.js';
 export * from './access-token-tool.js';
 export * from './token-sign-in.js';
-export * from './token-map.js';
+export { listTokenSignInPlugins } from '../core/token-sign-in-list.js';
+export * from '../core/token-map.js';
 export * from './import-access-token.js';
 export * from './grant-signed-in-defaults.js';
 export * from './apply-tool-renames.js';
+
+export { titleCaseFromPluginId } from '../core/plugin-display-name.js';

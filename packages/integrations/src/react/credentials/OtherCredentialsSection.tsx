@@ -50,7 +50,7 @@ export function OtherCredentialEntry({ store, row, controller, deps }: { store: 
     otherCredentialRemoveDialogBody: (required: { locale: string; store: OtherCredentialStoreInfo }) => string;
     VIEWER_TIME_ZONE: string | undefined;
     /** "Remove from the host," never "Revoke": removal forgets the stored copy, the provider keeps the key. */
-    REMOVE_FROM_TOVU: string;
+    REMOVE_FROM_HOST: string;
     removeHandleLabel: (required: { name: string }) => string;
   };
 }, _optional = {}) {
@@ -129,10 +129,10 @@ function OtherCredentialRemoveButton({ row, translate, dialogRef, deps }: { row:
         // renders unconditionally — no accordion, no menu — so two configured items under the
         // same store put two identically-labeled "Remove from the host" buttons on screen at once.
         // `row.name` is this row's own display name, already visible in its heading.
-        aria-label={`${translate(deps.REMOVE_FROM_TOVU)} — ${row.name}`}
+        aria-label={`${translate(deps.REMOVE_FROM_HOST)} — ${row.name}`}
         {...agentHandle({ handle: `security-other-credentials-remove-${rowHandleBase({ row })}` }, { role: "button", label: deps.removeHandleLabel({ name: row.name }) })}
       >
-        {translate(deps.REMOVE_FROM_TOVU)}
+        {translate(deps.REMOVE_FROM_HOST)}
       </button>
       {row.error ? (
         <p className="save-error" role="alert">
@@ -263,7 +263,7 @@ const OtherCredentialRemoveDialog = forwardRef<HTMLDialogElement, { row: OtherCr
             {translate("Cancel")}
           </button>
           <button type="button" className="btn-danger" onClick={confirm}>
-            {translate(deps.REMOVE_FROM_TOVU)}
+            {translate(deps.REMOVE_FROM_HOST)}
           </button>
         </div>
       </dialog>

@@ -1,4 +1,4 @@
-import type { TokenSignInPlugin } from './token-sign-in.js';
+import type { TokenSignInPlugin } from '../connect/token-sign-in.js';
 
 /**
  * @file Bounded validation of access tokens handed over while a site is being CREATED, and of the

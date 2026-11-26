@@ -1,6 +1,6 @@
 import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import { toolMetadata } from "@jini-ai/core/tool-metadata/email-templates";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, type AgentToolSideEffect, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { ToolContributor } from "@jini-ai/core";
 import {
@@ -31,7 +31,7 @@ export interface EmailTemplatesToolDeps {
   ForbiddenError: abstract new (...args: never[]) => Error;
 }
 
-export const emailTemplatesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const emailTemplatesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> postRepo.listHtmlByKind only.
   ["email_template_list", "none"],
   // -> postRepo.findById only.

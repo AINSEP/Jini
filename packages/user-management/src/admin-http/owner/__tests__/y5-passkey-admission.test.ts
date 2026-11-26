@@ -28,7 +28,7 @@ describe("owner passkey mount admission", () => {
 });
 
 it('reads the credential store once before MFA and uses only the trusted site origin', async () => {
-  const { resolveOwnerPasskeyRouteDeps } = await import('../passkey-routes.js');
+  const { resolveOwnerPasskeyRouteDeps } = await import('../passkey-route-deps.js');
   const order: string[] = [];
   const credentials = {} as Awaited<ReturnType<typeof resolveOwnerPasskeyRouteDeps>>['credentials'];
   const store = vi.fn(() => { order.push('store'); return credentials; });
@@ -68,7 +68,7 @@ it('binds request admission without store reads for nonowners and delegates sign
 });
 
 it('sets no-store before writing an origin refusal', async () => {
-  const { ownerPasskeyActionRoute } = await import('../passkey-routes.js');
+  const { ownerPasskeyActionRoute } = await import('../passkey-route-deps.js');
   const order: string[] = [];
   const json = vi.fn(() => { order.push('refuse'); });
   await ownerPasskeyActionRoute({ action: 'confirm', admission: {

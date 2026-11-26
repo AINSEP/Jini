@@ -1,7 +1,7 @@
 /** Declarative public-page exports. Parsing grants no trust and never reads plugin files. */
 import { validatePluginIdentity } from '@jini-ai/core/plugin-directory';
 import {
-  checkAdminSurfaceActionSchema, exceedsAdminSurfacePayloadLimit, validateAdminSurfaceActionValue,
+  checkAdminSurfaceActionSchema,
   type AdminSurfaceActionSchema,
 } from '../contracts/admin-surface-action-schema.js';
 import type { AgentPluginExportExternalHosts, AgentPluginExport } from "@jini-ai/core/contracts/site/agent-plugins-manifest";
@@ -10,7 +10,7 @@ export type ParseAgentPluginExportsResult =
   | { readonly ok: true; readonly metadata: AgentPluginExportMetadata; readonly warnings: readonly string[] }
   | { readonly ok: false; readonly errors: readonly string[] };
 
-type Entry = Readonly<Record<string, unknown>>;
+import type { Entry } from "../core/export-props.js";
 const KNOWN_KEYS: ReadonlySet<string> = new Set(['template', 'props', 'consent', 'staticExport', 'version', 'minVersion', 'aliases', 'hostLinks', 'styles', 'assets', 'scripts', 'externalHosts', 'urlProps']);
 const HOST_KINDS: readonly string[] = ['script', 'frame', 'connect'];
 const isObject = (value: unknown): value is Entry => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -136,31 +136,3 @@ function checkExport({ name, entry, provides, warnings }: { readonly name: strin
   return checkVersions({ entry }) ?? checkFiles({ entry }) ?? checkExternal({ entry }) ?? checkContract({ entry, provides });
 }
 
-/** Save and render share the existing bounded schema/value policy; messages never echo prop values.
- * @returns First validation reason, or null on success. No side effects. @complexity O(p) prop values.
- */
-export function validateAgentPluginExportProps(
-  { definition, props }: { readonly definition: AgentPluginExport; readonly props: unknown },
-  _optional: Record<string, never> = {},
-): string | null {
-  if (exceedsAdminSurfacePayloadLimit({ payload: props })) return 'props exceed the payload limit';
-  return validateAdminSurfaceActionValue({ schema: definition.props, value: props }) ?? checkUrlPropValues({ definition, props });
-}
-
-function isPageOn({ value, hosts }: { readonly value: unknown; readonly hosts: readonly string[] }, _optional = {}): boolean {
-  if (typeof value !== 'string') return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && url.pathname !== '/' && hosts.includes(url.origin);
-  } catch { return false; }
-}
-
-/** Runs after the schema, so props is a closed object. Reasons name the host, never the value. */
-function checkUrlPropValues({ definition, props }: { readonly definition: AgentPluginExport; readonly props: unknown }, _optional = {}): string | null {
-  const hosts = definition.externalHosts?.frame ?? [];
-  for (const name of definition.urlProps ?? []) {
-    const value = (props as Entry)[name];
-    if (value !== undefined && !isPageOn({ value, hosts })) return `${name} must be an https link to a page on ${hosts.join(' or ')}`;
-  }
-  return null;
-}

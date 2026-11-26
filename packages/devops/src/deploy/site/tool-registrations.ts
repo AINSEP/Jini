@@ -2,7 +2,7 @@ import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observabi
 import { toolMetadata } from '@jini-ai/core/tool-metadata/deployments';
 import { type Clock } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalString, requireInputRecord, requireNoInput, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalString, requireInputRecord, requireNoInput, requireString, type AgentToolSideEffect, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import type { requireToolPermission } from "@jini-ai/core";
 // `ToolInputError` specifically — see `features/post/tool-registrations.ts`'s identical import for
 // why: the marker `@jini-ai/daemon`'s `ToolExecutor` reads to classify a rejection 400 rather than
@@ -60,7 +60,7 @@ export interface DeploymentsToolDeps extends ExportRunner {
    * `RouteDeps.runExportSite`. Returns `ExportRunReportLike` (`export-run.ts`'s own structural
    * mirror of the real `ExportReport`) rather than the real type, deliberately: this domain already
    * imports `ExportRunReportLike` from its sibling `export-run.ts`, so reusing it here avoids a
-   * fresh `#src/features/site-export/index` type import — the real `RouteDeps.exportSiteBound` (which returns the
+   * fresh `site-export/index` type import — the real `RouteDeps.exportSiteBound` (which returns the
    * real `ExportReport`) already satisfies this structurally (same reasoning `ExportEngine`'s own
    * doc gives for its return type).
    */
@@ -74,7 +74,7 @@ const CATALOG_BY_ID = indexCatalogById({ catalog: deploymentsAgentToolCatalog })
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const deploymentsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const deploymentsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> startExportRun (export-run.ts) -> exportSite: writes a folder of HTML/CSS/JS/asset files to
   //    disk. A real mutation, same classification as `backup_create_restore_point`.
   ["deployment_trigger_export", "mutates-durable-state"],

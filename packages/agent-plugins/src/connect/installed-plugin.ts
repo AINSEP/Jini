@@ -1,4 +1,4 @@
-import { parsePluginCredentialCards } from './credential-cards.js';
+import type { parsePluginCredentialCards } from './credential-cards.js';
 import type { AgentPluginInstalledMcpReads } from './federate-mcp.js';
 import type { createAgentPluginLifecycle } from '../lifecycle/index.js';
 import type { AgentPluginLayout } from '@jini-ai/core/contracts/headless/plugin-host';
@@ -35,6 +35,3 @@ export async function resolveInstalledAgentPlugin(input: { workspaceId: string; 
   return { servers: await readInstalledMcpServers({ packageRoot: plugin.packageRoot }), credentialCards: cards.ok ? cards.descriptors : [] };
 }
 
-export function defaultResolveInstalledAgentPlugin(input: Omit<Parameters<typeof resolveInstalledAgentPlugin>[0], 'parseCredentialCards'>, _optional = {}): Promise<ResolvedAgentPluginForConnect | null> {
-  return resolveInstalledAgentPlugin(Object.assign(Object.defineProperties({}, Object.getOwnPropertyDescriptors(input)), { parseCredentialCards: parsePluginCredentialCards }) as Parameters<typeof resolveInstalledAgentPlugin>[0]);
-}

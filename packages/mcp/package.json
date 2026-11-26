@@ -13,6 +13,7 @@
     "kind": "protocol-adapter",
     "runtime": "node",
     "entries": {
+      "./react/external-mcp/hooks/external-mcp-source-actions": "browser",
       ".": "node",
       "./bin": "node",
       "./tools/ask-choice": "universal",
@@ -46,6 +47,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./react/external-mcp/hooks/external-mcp-source-actions": {
+      "types": "./dist/react/external-mcp/hooks/external-mcp-source-actions.d.ts",
+      "import": "./dist/react/external-mcp/hooks/external-mcp-source-actions.js",
+      "default": "./dist/react/external-mcp/hooks/external-mcp-source-actions.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

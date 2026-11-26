@@ -1,3 +1,4 @@
+import { AgentPluginHostIncompatibleError } from "../core/host-incompatible-error.js";
 import * as semver from 'semver';
 import type { AgentPluginActivations, AgentPluginOrigin } from './activation.js';
 import { isValidAgentPluginHostRange } from './compatibility-metadata.js';
@@ -7,15 +8,6 @@ export { readAgentPluginCompatibilityMetadata, isValidAgentPluginHostRange, INVA
 /** Host extension contract, independent of product releases and the upstream manifest schema.
  * `hostRange` is checked against this, never against an app version. */
 export const AGENT_PLUGIN_CONTRACT_VERSION = '1.0.0';
-
-/** Named refusal shared by HTTP and tool adapters. */
-export class AgentPluginHostIncompatibleError extends Error {
-  readonly code = 'PLUGIN_HOST_INCOMPATIBLE';
-  constructor(required: { pluginId: string }, _optional: Record<string, never> = {}) {
-    super(`Plugin '${required.pluginId}' is not compatible with this host's Agent Plugin contract.`);
-    this.name = 'AgentPluginHostIncompatibleError';
-  }
-}
 
 export interface AgentPluginCompatibility {
   readonly hostOk: boolean;

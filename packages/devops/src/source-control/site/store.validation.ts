@@ -1,6 +1,8 @@
 import type { SourceControlProviderId, SourceControlConnectionInput } from "@jini-ai/core/contracts/site/source-control-credentials";
 import type { UUID } from "@jini-ai/core/primitives";
-import { SourceControlCredentialValidationError, type SourceControlCredentialWriteDeps, type SourceControlProviderDescriptor, type SourceControlProviderRegistry } from "./store.js";
+import type { SourceControlCredentialWriteDeps, SourceControlProviderDescriptor, SourceControlProviderRegistry } from "./store.js";
+
+export class SourceControlCredentialValidationError extends Error {}
 
 const MAX_LABEL_LENGTH = 200;
 

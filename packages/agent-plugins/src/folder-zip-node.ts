@@ -1,7 +1,8 @@
 import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
-import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
+import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, zipFolderFiles } from "./folder-zip.js";
+import { FolderZipError } from "./core/folder-zip-error.js";
 import { isAgentPluginName } from './core/plugin-name.js';
 import { type AgentPluginIdentityReadOptions, readAgentPluginPortableExtension } from './core/identity-namespace.js';
 

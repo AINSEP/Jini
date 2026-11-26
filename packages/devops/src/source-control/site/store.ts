@@ -13,7 +13,7 @@ import type { DescriptorI18n } from "@jini-ai/core/text";
 import type { SourceControlProviderDescriptor as BaseProviderDescriptor } from "../contracts.js";
 import type { SourceControlCredentialForm } from "./credential-form.js";
 import type { SourceControlProvider, SourceControlProviderModule, SourceControlKitHttpClient as HttpClientPort } from "./provider-module.js";
-import { validateLabel, optionalBoolean, isEmptyTokenPatch, normalizeConnectionPatch, assertBlankPatchChangesNoField, preservedProvider, credentialRegistry, normalizeStoredToken, assertPlainField, validateConnection } from "./store.validation.js";
+import { SourceControlCredentialValidationError, validateLabel, optionalBoolean, isEmptyTokenPatch, normalizeConnectionPatch, assertBlankPatchChangesNoField, preservedProvider, credentialRegistry, normalizeStoredToken, assertPlainField, validateConnection } from "./store.validation.js";
 
 export type SourceControlProviderDescriptor = Omit<BaseProviderDescriptor, "credential" | "i18n"> & { readonly credential?: SourceControlCredentialForm; readonly i18n?: DescriptorI18n };
 export interface SourceControlProviderRegistry {
@@ -38,13 +38,11 @@ import type {
  * The identity store stays separate from deployments and custom API keys; commit callers may
  * supply the existing custom-key reader through a port when this provider has no identity row. */
 
-export class SourceControlCredentialValidationError extends Error {}
-
 /** A `(workspaceId, providerId, label)` collision — the route maps this to `409 DUPLICATE_LABEL`. */
 export class SourceControlCredentialDuplicateLabelError extends Error {}
 
 /** Thrown when `sealer.seal()`/`keyring.activeKey()` fails while writing a connection — the
- *  realistic cause is a missing site key (`TOVU_SITE_KEY`), same fail-closed
+ *  realistic cause is a missing site key (`site key`), same fail-closed
  *  contract `PublishCredentialSecretStoreUnconfiguredError` documents for the sibling table. */
 export class SourceControlCredentialSecretStoreUnconfiguredError extends Error {}
 

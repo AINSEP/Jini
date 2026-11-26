@@ -8,7 +8,8 @@ import { test } from "../legacy-test.js";
 import { forceRemove } from "../fixtures/force-remove.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 import { installAgentPlugin, ports } from "../test-support.js";
-import { createInstallModule, AgentPluginInstallError, type InstallAgentPluginRequired } from "../../install.js";
+import { createInstallModule, type InstallAgentPluginRequired } from "../../install.js";
+import { AgentPluginInstallError } from "../../../core/install-errors.js";
 import type { AgentPluginLayout, AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**

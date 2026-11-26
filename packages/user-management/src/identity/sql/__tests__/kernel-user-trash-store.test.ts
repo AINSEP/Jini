@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { sql } from "kysely";
 import { expect, test, vi } from "vitest";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
-import { bindKernelUserTrashAdapter } from "../user-trash-adapter.js";
+import { bindKernelUserTrashAdapter } from "../kernel-user-trash-store.js";
 
 const input = { workspaceId: "site", entityId: "member", at: "now", expectedVersion: null };
 

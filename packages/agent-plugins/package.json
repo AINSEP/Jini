@@ -13,6 +13,10 @@
     "kind": "plugin-packaging",
     "runtime": "universal",
     "entries": {
+      "./core/folder-zip-error": "universal",
+      "./core/provider-plugin-link": "universal",
+      "./core/export-props": "universal",
+      "./site/plugin-memory": "node",
       "./connect/new-site-agent-plugin-tokens": "node",
       "./site/set-enabled": "node",
       "./site/memory": "node",
@@ -186,6 +190,21 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./core/folder-zip-error": {
+      "types": "./dist/core/folder-zip-error.d.ts",
+      "import": "./dist/core/folder-zip-error.js",
+      "default": "./dist/core/folder-zip-error.js"
+    },
+    "./core/provider-plugin-link": {
+      "types": "./dist/core/provider-plugin-link.d.ts",
+      "import": "./dist/core/provider-plugin-link.js",
+      "default": "./dist/core/provider-plugin-link.js"
+    },
+    "./core/export-props": {
+      "types": "./dist/core/export-props.d.ts",
+      "import": "./dist/core/export-props.js",
+      "default": "./dist/core/export-props.js"
+    },
     "./site/plugin-memory": {
       "types": "./dist/site/plugin-memory.d.ts",
       "import": "./dist/site/plugin-memory.js",

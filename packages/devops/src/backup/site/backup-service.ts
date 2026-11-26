@@ -1,3 +1,4 @@
+import type { findReservedPath } from "../../source-control/registry.js";
 import { requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { DbOpsPort } from "@jini-ai/core/contracts/site/gated-mutations-ports";
@@ -102,6 +103,7 @@ export interface SiteBackupRequestDeps<TSource extends SiteBackupSources = SiteB
 export interface SiteBackupToolDeps<TSource extends SiteBackupSources = SiteBackupSources, TContent extends SiteBackupRepositoryPlanContent = SiteBackupRepositoryPlanContent, TRequest extends SiteBackupRequestDeps<TSource, TContent> = SiteBackupRequestDeps<TSource, TContent>> {
   readonly request: TRequest;
   deps: {
+    findReservedPath: typeof findReservedPath;
     CustomCredentialValidationError: new (message: string) => Error;
     normalizeWriteFilePath(required: { rawPath: string }): string;
     validateBranch(required: { value: string }): string;

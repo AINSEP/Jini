@@ -1,5 +1,5 @@
 import type { LoginProvider } from "@jini-ai/core/contracts/site/user-management-server";
-import { parseLoginProviders } from "../server/login-providers.js";
+import type { parseLoginProviders } from "../server/login-providers.js";
 import type { LoginProviderPreset } from "../server/login-types.js";
 
 export const LOGIN_PROVIDERS_FILENAME = "jini-login-providers.json";
@@ -14,6 +14,7 @@ export function fingerprint({ value, sha256Hex }: { value: LoginProviderPreset; 
  * @complexity O(p) bundled packages, two small file reads per provider package.
  */
 export async function loadBundledLoginProviders(required: {
+  parseLoginProviders: typeof parseLoginProviders;
   sourceRoot: string;
   sha256Hex: (required: { text: string }) => string;
   bundledContributionSources: (required: { sourceRoot: string; filename: string }) => Iterable<{ pluginId: string; packageRoot: string }>;
@@ -29,7 +30,7 @@ export async function loadBundledLoginProviders(required: {
   }) => Promise<{ items: readonly LoginProvider[] }>;
 }, _options = {}): Promise<readonly LoginProvider[]> {
   const contribution: Parameters<typeof required.loadPluginContributionsFromSource>[0]["definition"] = {
-    filename: LOGIN_PROVIDERS_FILENAME, contribution: "member login providers", kind: "data", parse: parseLoginProviders,
+    filename: LOGIN_PROVIDERS_FILENAME, contribution: "member login providers", kind: "data", parse: required.parseLoginProviders,
     load: ({ descriptor, plugin }) => ({ ...descriptor, pluginId: plugin.pluginId, configurationVersion: fingerprint({ value: descriptor, sha256Hex: required.sha256Hex }) }),
     onReadError: ({ error }) => (error as { code?: string }).code === "ENOENT" ? [] : undefined,
   };
