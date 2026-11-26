@@ -1,4 +1,4 @@
-import type { MediaRecord, MediaProvenance } from "./cms-media.js";
+import type { MediaRecord, MediaProvenance, StagedMediaFile } from "./cms-media.js";
 
 export interface MediaToolUploadInput {
   workspaceId: string;
@@ -43,7 +43,23 @@ export interface MediaToolStoragePorts {
   resolvePublicUrls(required: { assets: readonly MediaRecord[] }, optional?: Record<string, never>): Promise<Map<string, string | null>>;
 }
 
+export type MediaStagedUploadInput = Omit<MediaToolUploadInput, "bytes"> & { staged: StagedMediaFile };
+
+export interface MediaLocalImportStoragePorts extends MediaToolStoragePorts {
+  canUploadStagedVideo(required: Record<string, never>, optional?: { signal?: AbortSignal }): Promise<boolean>;
+  uploadStagedVideo(required: { input: MediaStagedUploadInput }, optional?: { signal?: AbortSignal }): Promise<{ media: MediaRecord }>;
+}
+
 export interface MediaImportSourcePorts {
+  ordinaryMaxBytes: number;
+  withLocalStream<T>(required: {
+    rootPath: string; relativePath: string; maxBytes: number;
+    consume: (source: { length: number; chunks: AsyncIterable<Uint8Array> }) => Promise<T>;
+  }, optional?: { signal?: AbortSignal }): Promise<T>;
+  withStagedFile<T>(required: {
+    chunks: AsyncIterable<Uint8Array>; byteLength: number; contentType: string;
+    consume: (staged: StagedMediaFile) => Promise<T>;
+  }, optional?: { signal?: AbortSignal }): Promise<T>;
   fetchRemote(required: { url: string }, optional?: Record<string, never>): Promise<{ bytes: Uint8Array; contentType: string; url: URL }>;
   resolveLocal(required: { root: string; relativePath: string }, optional?: Record<string, never>): { rootPath: string; relativePath: string };
   readLocal(required: { rootPath: string; relativePath: string; maxBytes: number }, optional?: Record<string, never>): Promise<Uint8Array>;

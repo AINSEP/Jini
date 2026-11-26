@@ -38,6 +38,11 @@ export interface ObjectStoreCallOptions {
   readonly signal?: AbortSignal;
 }
 
+export type StagedObjectWriter = (required: {
+  readonly key: string; readonly byteLength: number; readonly sha256: string;
+  readonly openChunks: (required: Record<string, never>, optional?: ObjectStoreCallOptions) => AsyncIterable<Uint8Array>;
+}, optional?: ObjectStoreCallOptions) => Promise<void>;
+
 /** Anonymous read access, present only on a store whose objects are publicly reachable. */
 export interface PublicObjectAccess {
   /** The public URL a recipient fetches `key` at. */
@@ -50,6 +55,7 @@ export interface PublicObjectAccess {
 }
 
 export interface ObjectStore {
+  resolveStagedWriter?(required: Record<string, never>, optional?: ObjectStoreCallOptions): Promise<StagedObjectWriter | undefined>;
   /** `written: false` only when `ifAbsent` was set and the key was already occupied. */
   put(required: { readonly key: string; readonly bytes: Uint8Array }, optional?: ObjectStorePutOptions): Promise<{ readonly written: boolean }>;
   /** `null` only when the key is absent; every other fault rejects. */
@@ -124,5 +130,6 @@ export function deferObjectStore(required: { readonly load: () => Promise<Object
     get: async (input, options) => (await current()).get(input, options),
     head: async (input, options) => (await current()).head(input, options),
     delete: async (input, options) => (await current()).delete(input, options),
+    resolveStagedWriter: async (input, options) => (await current()).resolveStagedWriter?.(input, options),
   };
 }

@@ -8,11 +8,11 @@
  * original row and its bytes are never touched. No codec, binary or vendor lives in this file —
  * the ffmpeg adapter lives in an agent plugin and is one adapter of {@link MediaTranscoderPort}.
  */
-import type { MediaTranscoderPort, VideoTranscodeFailureReason, VideoTranscodeTarget } from "@jini-ai/core/contracts/site/cms-media";
+import type { MediaTranscoderPort, StagedMediaFile, StagedMediaTranscoderPort, VideoTranscodeFailureReason, VideoTranscodeTarget } from "@jini-ai/core/contracts/site/cms-media";
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
 import { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 import { sniffContentType } from "./content-type-sniffer.js";
-import { getMediaById, rollbackUploadedMedia, uploadMedia, type UploadMediaDeps } from "./media-service.js";
+import { getMediaById, rollbackUploadedMedia, uploadMedia, uploadStagedVideo, type UploadMediaDeps } from "./media-service.js";
 import type { MediaRecord } from "./types.js";
 
 const MIB = 1024 * 1024;
@@ -108,7 +108,7 @@ async function readOriginalVideo(
 
 /** The refusals that need no bytes: a trashed item, a recorded non-video type, a missing blob. */
 async function findOriginalBlob(
-  { deps, input, fail }: { deps: ConvertMediaVideoDeps; input: ConvertMediaVideoRequired["input"]; fail: Fail },
+  { deps, input, fail }: { deps: Pick<ConvertMediaVideoDeps, "mediaRepo" | "blobRepo">; input: ConvertMediaVideoRequired["input"]; fail: Fail },
   _optional = {},
 ): Promise<{ media: MediaRecord; storageKey: string }> {
   const { media } = await getMediaById({ deps, input: { workspaceId: input.workspaceId, id: input.mediaId } });
@@ -136,17 +136,17 @@ async function readBoundedBytes(
 
 /** Stores the converted bytes as a new item and links it to the original; a failed link removes the new item. */
 async function storeConvertedCopy(
-  { deps, input, original, bytes, maxOutputBytes }: { deps: ConvertMediaVideoDeps; input: ConvertMediaVideoRequired["input"]; original: MediaRecord; bytes: Uint8Array; maxOutputBytes: number },
+  { deps, input, original, storeUpload }: { deps: UploadMediaDeps & Pick<ConvertMediaVideoDeps, "linkDerivedMedia">; input: ConvertMediaVideoRequired["input"]; original: MediaRecord; storeUpload: (filename: string) => Promise<{ media: MediaRecord }> },
+  { signal }: { signal?: AbortSignal | undefined } = {},
 ): Promise<MediaRecord> {
   // uploadMedia derives the title from the filename; a path separator would be cut from the
   // stored filename, so it is replaced rather than letting the title and filename disagree.
   const filename = `${original.title.replace(/[\\/]/g, "-")} (web).mp4`;
-  const { media } = await uploadMedia({ deps, input: {
-    workspaceId: input.workspaceId, bytes, filename, contentType: "video/mp4",
-    alt: original.alt, caption: original.caption, credit: original.credit, createdByPrincipal: input.createdByPrincipal,
-  } }, { maxUploadBytes: maxOutputBytes });
+  const { media } = await storeUpload(filename);
   try {
+    signal?.throwIfAborted();
     await deps.linkDerivedMedia({ workspaceId: input.workspaceId, originalId: original.id, derivedId: media.id, target: "mp4-h264-aac-faststart" });
+    signal?.throwIfAborted();
   } catch (error) {
     await rollbackUploadedMedia({ deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, renditionRepo: deps.renditionRepo, clock: deps.clock }, input: { workspaceId: input.workspaceId, media } });
     throw error;
@@ -175,6 +175,34 @@ export async function convertMediaVideo(
   // An abort that lands while the transcoder finishes must still leave nothing behind.
   throwIfCanceled({ signal, fail });
   if (!result.ok) throw fail(result.reason, result.message);
-  const media = await storeConvertedCopy({ deps, input, original: original.media, bytes: result.bytes, maxOutputBytes });
+  const media = await storeConvertedCopy({ deps, input, original: original.media,
+    storeUpload: filename => uploadMedia({ deps, input: {
+      workspaceId: input.workspaceId, bytes: result.bytes, filename, contentType: "video/mp4",
+      alt: original.media.alt, caption: original.media.caption, credit: original.media.credit, createdByPrincipal: input.createdByPrincipal,
+    } }, { maxUploadBytes: maxOutputBytes }),
+  });
   return { originalId: original.media.id, convertedId: media.id, media };
+}
+
+export async function convertStagedMediaVideo({ deps, input, staged }: {
+  deps: UploadMediaDeps & Pick<ConvertMediaVideoDeps, "linkDerivedMedia" | "randomHex"> & { transcoder: StagedMediaTranscoderPort };
+  input: ConvertMediaVideoRequired["input"]; staged: StagedMediaFile;
+}, { signal, maxInputBytes = VIDEO_TRANSCODE_MAX_INPUT_BYTES, maxOutputBytes = maxInputBytes }: ConvertMediaVideoOptional = {}): Promise<{ originalId: string; convertedId: string; media: MediaRecord }> {
+  const fail = failureFactory(deps);
+  throwIfCanceled({ signal, fail });
+  const { media: original } = await findOriginalBlob({ deps, input, fail });
+  if (staged.byteLength > maxInputBytes) throw fail("too-large");
+  if (staged.sha256 !== original.source.sha256) throw fail("invalid");
+  throwIfCanceled({ signal, fail });
+  const result = await deps.transcoder.transcodeStaged({ input: staged, target: "mp4-h264-aac-faststart", consume: async output => {
+    throwIfCanceled({ signal, fail });
+    return storeConvertedCopy({ deps, input, original,
+      storeUpload: filename => uploadStagedVideo({ deps, input: {
+        workspaceId: input.workspaceId, staged: output, filename, contentType: "video/mp4",
+        alt: original.alt, caption: original.caption, credit: original.credit, createdByPrincipal: input.createdByPrincipal,
+      } }, { maxUploadBytes: maxOutputBytes, signal }),
+    }, { signal });
+  } }, { signal, maxOutputBytes });
+  if (!result.ok) throw fail(result.reason, result.message);
+  return { originalId: original.id, convertedId: result.value.id, media: result.value };
 }

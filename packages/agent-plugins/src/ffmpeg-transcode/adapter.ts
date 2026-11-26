@@ -15,7 +15,7 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MediaTranscoderPort, VideoTranscodeFailureReason, VideoTranscodeResult } from "@jini-ai/core/contracts/site/cms-media";
+import type { MediaTranscoderPort, StagedMediaFile, StagedMediaTranscoderPort, VideoTranscodeFailureReason, VideoTranscodeResult } from "@jini-ai/core/contracts/site/cms-media";
 
 /** Local executables the converter needs; ffprobe ships with ffmpeg and is only located, never run here. */
 export interface VideoBinaries { readonly nice: string; readonly ffmpeg: string; readonly ffprobe: string }
@@ -56,6 +56,7 @@ export function buildVideoTranscodeArgs(
 
 /** Everything the host must supply; none of it is optional so no ambient lookup can sneak in. */
 export interface FfmpegMediaTranscoderRequired {
+  sealStagedFile: (required: { root: string; path: string; maxBytes: number }, optional?: { signal?: AbortSignal }) => Promise<StagedMediaFile>;
   findBinaries: VideoBinaryFinder;
   runProcess: VideoProcessRunner;
   /** Share with the frame extractor's lock to keep one ffmpeg per process; defaults to a per-adapter lock. The host now supplies it, so there is no default here. */
@@ -140,12 +141,37 @@ async function transcodeHoldingLock(
  * @complexity O(n) in video bytes plus one ffmpeg process.
  */
 export function createFfmpegMediaTranscoder(
-  { findBinaries, runProcess, lock, sniffContentType, maxInputBytes, messages, env }: FfmpegMediaTranscoderRequired,
+  { findBinaries, runProcess, lock, sniffContentType, maxInputBytes, messages, env, sealStagedFile }: FfmpegMediaTranscoderRequired,
   { tempDir = tmpdir(), timeoutMs = VIDEO_TRANSCODE_TIMEOUT_MS }: FfmpegMediaTranscoderOptional = {},
-): MediaTranscoderPort {
+): MediaTranscoderPort & StagedMediaTranscoderPort {
   const failure = (reason: VideoTranscodeFailureReason): Failure => ({ ok: false, reason, message: messages[reason] });
   // Why-comment — conversion is a host capability with local process risk, not a dependency of portable media services.
   return {
+    async transcodeStaged({ input, consume }, { signal, maxOutputBytes = maxInputBytes } = {}) {
+      if (signal?.aborted) return failure("canceled");
+      if (input.byteLength > maxInputBytes) return failure("too-large");
+      const binaries = await findBinaries({}, { env });
+      if (!binaries) return failure("unavailable");
+      const release = lock.tryAcquire({}, {});
+      if (!release) return failure("busy");
+      try {
+        let output: StagedMediaFile;
+        try {
+          signal?.throwIfAborted();
+          const path = join(input.root, "output.mp4");
+          const args = buildVideoTranscodeArgs({ input: input.path, output: path, maxOutputBytes });
+          await runProcess({ command: binaries.nice, args: ["-n", "19", binaries.ffmpeg, ...args] },
+            { timeoutMs, maxOutputBytes: DIAGNOSTIC_OUTPUT_BYTES, ...(signal ? { signal } : {}) });
+          if (signal?.aborted) return failure("canceled");
+          output = await sealStagedFile({ root: input.root, path, maxBytes: maxOutputBytes }, signal ? { signal } : {});
+        } catch (error) {
+          const reason = (error as { reason?: unknown } | null)?.reason;
+          return failure(signal?.aborted ? "canceled" : reason === "too-large" ? "too-large" : reasonOf(error));
+        }
+        if (signal?.aborted) return failure("canceled");
+        return { ok: true, value: await consume(output) };
+      } finally { release(); }
+    },
     async transcode({ input }, { signal, maxOutputBytes = maxInputBytes } = {}) {
       const refused = earlyRefusal({ input, maxInputBytes }, { signal });
       if (refused) return failure(refused);

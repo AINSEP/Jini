@@ -113,6 +113,9 @@ export interface PutBlobInput {
  * `blobStoreFromObjectStore({ store })` so the bytes go to any object-store provider.
  */
 export interface BlobStorePort {
+  resolveStagedWriter?(required: Record<string, never>, optional?: { signal?: AbortSignal }): Promise<
+    ((required: { workspaceId: string; sha256: string; byteLength: number; openChunks: import("@jini-ai/core/contracts/site/cms-media").StagedMediaFile["openChunks"] }, optional?: { signal?: AbortSignal }) => Promise<{ storageKey: string }>) | undefined
+  >;
   put(input: PutBlobInput): Promise<{ storageKey: string }>;
   /**
    * Create-only write: writes `input.bytes` under `computeBlobStorageKey(input)` iff no object

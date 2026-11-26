@@ -23,6 +23,15 @@ import type { BlobStorePort } from "./ports.js";
 export function blobStoreFromObjectStore(required: { readonly store: ObjectStore }, _optional: Record<string, never> = {}): BlobStorePort {
   const { store } = required;
   return {
+    async resolveStagedWriter(input, options = {}) {
+      const writer = await store.resolveStagedWriter?.(input, options);
+      if (!writer) return undefined;
+      return async ({ workspaceId, sha256, byteLength, openChunks }, optional = {}) => {
+        const storageKey = computeBlobStorageKey({ workspaceId, sha256 });
+        await writer({ key: storageKey, byteLength, sha256, openChunks }, optional);
+        return { storageKey };
+      };
+    },
     async put(input) {
       const storageKey = computeBlobStorageKey(input);
       await store.put({ key: storageKey, bytes: input.bytes });

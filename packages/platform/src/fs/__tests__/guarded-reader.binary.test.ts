@@ -187,3 +187,57 @@ for (const maxBytes of [0, -1, 1.5, NaN, Infinity]) {
         assert.equal(streamSpy.mock.calls.length, 0);
     });
 }
+
+test("The streamed reader rejects growth and closes the checked descriptor.", async (t) => {
+    const { rootPath } = fixture(t);
+    const target = path.join(rootPath, "clip.mov");
+    fs.writeFileSync(target, Buffer.alloc(16, 7));
+    const filesystem = createNodeGuardedReaderFilesystem({});
+    const fstat = filesystem.fstatSync!;
+    const close = vi.spyOn(filesystem, "closeSync");
+    vi.spyOn(filesystem, "fstatSync").mockImplementation(((fd: number) => {
+        const stat = fstat(fd);
+        fs.appendFileSync(target, Buffer.alloc(4));
+        return stat;
+    }) as typeof fstat);
+    const guarded = createGuardedFileReader({ rootPath, denyRules, limits, filesystem }, { descriptorRead: {} });
+    let yielded = 0;
+    await assert.rejects(() => guarded.withGuardedBinaryStream({ relativePath: "clip.mov", maxBytes: 32,
+        consume: async ({ length, chunks }) => {
+            assert.equal(length, 16);
+            for await (const chunk of chunks) yielded += chunk.byteLength;
+        },
+    }), FsFilePathError);
+    assert.ok(yielded <= 16);
+    assert.equal(close.mock.calls.length, 1);
+});
+
+for (const outcome of ["shrinkage", "early exit", "abort"] as const) {
+    test(`streamed descriptor closes once after ${outcome}`, async (t) => {
+        const { rootPath } = fixture(t);
+        const target = path.join(rootPath, "clip.mov");
+        fs.writeFileSync(target, Buffer.alloc(128 * 1024, 9));
+        const filesystem = createNodeGuardedReaderFilesystem({});
+        const fstat = filesystem.fstatSync!;
+        const close = vi.spyOn(filesystem, "closeSync");
+        vi.spyOn(filesystem, "fstatSync").mockImplementation(((fd: number) => {
+            const stat = fstat(fd);
+            if (outcome === "shrinkage") fs.truncateSync(target, 8);
+            return stat;
+        }) as typeof fstat);
+        const controller = new AbortController();
+        const guarded = createGuardedFileReader({ rootPath, denyRules, limits, filesystem }, { descriptorRead: {} });
+        const pending = guarded.withGuardedBinaryStream({ relativePath: "clip.mov", maxBytes: 256 * 1024,
+            consume: async ({ chunks }) => {
+                for await (const chunk of chunks) {
+                    assert.ok(chunk.byteLength <= 64 * 1024);
+                    if (outcome === "early exit") return;
+                    if (outcome === "abort") controller.abort();
+                }
+            },
+        }, { signal: controller.signal });
+        if (outcome === "early exit") await pending;
+        else await assert.rejects(() => pending);
+        assert.equal(close.mock.calls.length, 1);
+    });
+}

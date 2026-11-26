@@ -1,8 +1,8 @@
 import { captureMediaUploaded } from "../site/analytics.js";
 import { withChatPreview } from "../site/chat-preview.js";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
-import type { ImageCodecPort, MediaProvenance, MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
-import type { ImportedMediaView, MediaImportRefusalPorts, MediaImportSourcePorts, MediaToolStoragePorts, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
+import type { ImageCodecPort, MediaProvenance, MediaRecord, StagedMediaFile } from "@jini-ai/core/contracts/site/cms-media";
+import type { ImportedMediaView, MediaImportRefusalPorts, MediaImportSourcePorts, MediaLocalImportStoragePorts, MediaToolStoragePorts, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
 import { toolMetadata } from "@jini-ai/core/tool-metadata/media-import";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireString, requireToolPermission, withSchemaOnRejection, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolContributor, type ToolHandler, type ToolPermissionAuthorizationPort, type ToolRegistration } from "@jini-ai/core";
 import { sniffContentType, MediaValidationError } from "../index.js";
@@ -11,7 +11,7 @@ import { buildImportFilename, MediaImportValidationError } from "../import/index
 export interface MediaImportToolDeps {
   workspaceId: string;
   authorize: ToolPermissionAuthorizationPort;
-  storage: MediaToolStoragePorts;
+  storage: MediaLocalImportStoragePorts;
   source: MediaImportSourcePorts;
   refusals: MediaImportRefusalPorts;
   tracker?: Tracker;
@@ -116,10 +116,17 @@ export async function persistImportedMedia(
 ): Promise<{ media: ImportedMediaView }> {
   const { storage, input, sourceUrl, actorId, tracker } = required;
   const { media } = await storage.upload({ input }, {});
-  // Identical recording discipline to the URL, generated-media and admin upload paths.
   const sniffed = sniffContentType({ bytes: input.bytes });
-  await storage.recordContentType({ workspaceId: input.workspaceId, sha256: media.source.sha256, contentType: sniffed }, {});
-  captureMediaUploaded({ ...(tracker === undefined ? {} : { tracker }), actorId, byteLength: input.bytes.byteLength, kind: "image", source: "assistant" });
+  return formatImportedMedia({ storage, media, workspaceId: input.workspaceId, contentType: sniffed, byteLength: input.bytes.byteLength, sourceUrl, actorId, tracker });
+}
+
+async function formatImportedMedia({ storage, media, workspaceId, contentType, byteLength, sourceUrl, actorId, tracker }: {
+  storage: MediaToolStoragePorts; media: MediaRecord; workspaceId: string; contentType: string; byteLength: number;
+  sourceUrl: string; actorId: string; tracker: Tracker | undefined;
+}, _optional: Record<string, never> = {}): Promise<{ media: ImportedMediaView }> {
+  // Identical recording discipline to the URL, generated-media and admin upload paths.
+  await storage.recordContentType({ workspaceId, sha256: media.source.sha256, contentType }, {});
+  captureMediaUploaded({ ...(tracker === undefined ? {} : { tracker }), actorId, byteLength, kind: "image", source: "assistant" });
   const urls = await storage.resolvePublicUrls({ assets: [media] }, {});
   return {
     media: {
@@ -210,6 +217,69 @@ function createMediaReplaceFileHandler(routeDeps: MediaImportToolDeps, CATALOG_B
 };
 }
 
+async function persistLocalImport({ routeDeps, input, relativePath, provenancePath, source, actorId, signal }: {
+  routeDeps: MediaImportToolDeps; input: Record<string, unknown>; relativePath: string; provenancePath: string;
+  source: { bytes: Uint8Array } | { staged: StagedMediaFile }; actorId: string; signal: AbortSignal;
+}, _optional: Record<string, never> = {}): Promise<unknown> {
+  const contentType = "bytes" in source
+    ? routeDeps.source.validateBytes({ source: relativePath, bytes: source.bytes, bytesTruncated: false }, {})
+    : source.staged.contentType;
+  const title = optionalString({ input, key: "title" });
+  // uploadMedia derives its title by stripping the final extension. A synthetic suffix lets
+  // an explicit editorial title keep its punctuation and spaces; this is never a disk path.
+  const filename = title === undefined ? relativePath.split(/[\\/]/).at(-1) : `${title}.imported`;
+  if (filename === undefined) throw new Error("Media import path has no filename");
+  signal.throwIfAborted();
+  const persistence = { storage: routeDeps.storage,
+    ...(routeDeps.tracker === undefined ? {} : { tracker: routeDeps.tracker }), actorId,
+  };
+  const uploadInput = { workspaceId: routeDeps.workspaceId, filename, contentType,
+    provenance: { kind: 'upload' as const, path: provenancePath },
+    alt: optionalString({ input, key: "alt" }), caption: optionalString({ input, key: "caption" }),
+    description: optionalString({ input, key: "description" }), createdByPrincipal: actorId,
+  };
+  if ("bytes" in source) {
+    const result = await persistImportedMedia({ ...persistence, input: { ...uploadInput, bytes: source.bytes }, sourceUrl: "" });
+    return withChatPreview({ routeDeps, bytes: source.bytes, contentType, result });
+  }
+  const { media } = await routeDeps.storage.uploadStagedVideo({ input: { ...uploadInput, staged: source.staged } }, { signal });
+  return formatImportedMedia({ storage: persistence.storage, media, workspaceId: routeDeps.workspaceId, contentType,
+    byteLength: source.staged.byteLength, actorId, tracker: persistence.tracker, sourceUrl: "",
+  });
+}
+
+async function importLocalStream({ routeDeps, input, request, relativePath, maxBytes, actorId, signal }: {
+  routeDeps: MediaImportToolDeps; input: Record<string, unknown>; request: { rootPath: string; relativePath: string };
+  relativePath: string; maxBytes: number; actorId: string; signal: AbortSignal;
+}, _optional: Record<string, never> = {}): Promise<unknown> {
+  return routeDeps.source.withLocalStream({ ...request, maxBytes, consume: async ({ length, chunks }) => {
+    if (length <= routeDeps.source.ordinaryMaxBytes) {
+      const collected: Uint8Array[] = [];
+      for await (const chunk of chunks) collected.push(chunk);
+      return persistLocalImport({ routeDeps, input, relativePath, provenancePath: request.relativePath, actorId, signal, source: { bytes: Buffer.concat(collected) } });
+    }
+    const iterator = chunks[Symbol.asyncIterator]();
+    const prefix = Buffer.alloc(Math.min(length, 64 * 1024));
+    let filled = 0;
+    let remainder: Uint8Array = new Uint8Array();
+    while (filled < prefix.length) {
+      const next = await iterator.next();
+      if (next.done) throw new MediaImportValidationError({ message: "Local file ended before its checked length." });
+      const take = Math.min(next.value.length, prefix.length - filled);
+      prefix.set(next.value.subarray(0, take), filled);
+      filled += take;
+      remainder = next.value.subarray(take);
+    }
+    const contentType = routeDeps.source.validateBytes({ source: relativePath, bytes: prefix, bytesTruncated: false }, {});
+    if (!contentType.startsWith("video/")) throw new MediaImportValidationError({ message: `file '${relativePath}' exceeds the ${routeDeps.source.ordinaryMaxBytes}-byte import limit. Nothing was saved.` });
+    return routeDeps.source.withStagedFile({ byteLength: length, contentType, chunks: (async function* () {
+      yield prefix;
+      if (remainder.length) yield remainder;
+      while (true) { const next = await iterator.next(); if (next.done) return; yield next.value; }
+    })(), consume: staged => persistLocalImport({ routeDeps, input, relativePath, provenancePath: request.relativePath, source: { staged }, actorId, signal }) }, { signal });
+  } }, { signal });
+}
+
 function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATALOG_BY_ID: ReadonlyMap<string, AgentToolDefinition>): ToolHandler {
   return async (ctx): Promise<unknown> => {
   const input = requireInputRecord({ input: ctx.input });
@@ -223,26 +293,11 @@ function createMediaImportLocalFileHandler(routeDeps: MediaImportToolDeps, CATAL
     fn: async () => {
       const request = routeDeps.source.resolveLocal({ root, relativePath }, {});
       const maxBytes = routeDeps.source.localReadLimit({ relativePath }, {});
+      if (await routeDeps.storage.canUploadStagedVideo({}, { signal: ctx.signal })) {
+        return importLocalStream({ routeDeps, input, request, relativePath, maxBytes, actorId: ctx.principal.id, signal: ctx.signal });
+      }
       const bytes = await routeDeps.source.readLocal({ ...request, maxBytes }, {});
-      const contentType = routeDeps.source.validateBytes({ source: relativePath, bytes, bytesTruncated: false }, {});
-      const title = optionalString({ input, key: "title" });
-      // uploadMedia derives its title by stripping the final extension. A synthetic suffix lets
-      // an explicit editorial title keep its punctuation and spaces; this is never a disk path.
-      const filename = title === undefined ? relativePath.split(/[\\/]/).at(-1) : `${title}.imported`;
-      if (filename === undefined) throw new Error("Media import path has no filename");
-      ctx.signal.throwIfAborted();
-      const result = await persistImportedMedia({
-        storage: routeDeps.storage, ...(routeDeps.tracker === undefined ? {} : { tracker: routeDeps.tracker }), actorId: ctx.principal.id,
-        input: {
-          workspaceId: routeDeps.workspaceId, bytes, filename, contentType,
-          provenance: { kind: 'upload', path: request.relativePath },
-          alt: optionalString({ input, key: "alt" }), caption: optionalString({ input, key: "caption" }),
-          description: optionalString({ input, key: "description" }),
-          createdByPrincipal: ctx.principal.id,
-        },
-        sourceUrl: "",
-      });
-      return withChatPreview({ routeDeps, bytes, contentType, result });
+      return persistLocalImport({ routeDeps, input, relativePath, provenancePath: request.relativePath, source: { bytes }, actorId: ctx.principal.id, signal: ctx.signal });
     },
   });
 };

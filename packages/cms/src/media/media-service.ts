@@ -2,6 +2,7 @@ import { trimChars, trimCharsEnd } from "@jini-ai/core/primitives";
 import type { BlobJournalEligibility, BlobJournalIdentity, BlobPurgeReason } from "@jini-ai/core/contracts/blob-gc";
 import { planRenditionJournal } from "./blob-gc-journal.js";
 import { describeUploadOverLimit } from "@jini-ai/core/text";
+import type { StagedMediaFile } from "@jini-ai/core/contracts/site/cms-media";
 import { resolveUploadCap } from "./upload-cap.js";
 import { validateDocumentIngress, documentContentType, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
 import { safeMediaProvenance } from './provenance.js';
@@ -356,7 +357,7 @@ export async function probeVideoCodec(
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 /** Upload-time text fields are trimmed; omitted ones start empty. */
-const uploadText = ({ alt, caption, credit, description }: UploadMediaRequired["input"]) => ({
+const uploadText = ({ alt, caption, credit, description }: Omit<UploadMediaInput, "bytes">) => ({
   alt: alt?.trim() ?? "", caption: caption?.trim() ?? "", credit: credit?.trim() ?? "",
   ...(description === undefined ? {} : { description: description.trim() }),
 });
@@ -392,17 +393,17 @@ function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void
 }
 
 /** Applies the MIME, empty-file and size policy for this kind; returns the cap that applied. */
-function assertUploadAdmissible({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }, optional: UploadMediaOptional): number {
+function assertUploadAdmissible({ input, kind, byteLength }: { input: Omit<UploadMediaInput, "bytes">; kind: UploadKind; byteLength: number }, optional: UploadMediaOptional): number {
   const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : resolveUploadCap({ contentType: input.contentType }, { maxUploadBytes: optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES, maxVideoUploadBytes: optional.maxVideoUploadBytes });
   const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
   if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
     throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` });
   }
-  if (input.bytes.byteLength === 0) {
+  if (byteLength === 0) {
     throw new MediaValidationError({ message: "uploaded file is empty" });
   }
   assertDescriptionWithinLimit(input.description);
-  assertWithinUploadCap(input.bytes.byteLength, maxUploadBytes);
+  assertWithinUploadCap(byteLength, maxUploadBytes);
   return maxUploadBytes;
 }
 
@@ -414,7 +415,7 @@ async function storedUploadBytes({ input, kind }: { input: UploadMediaRequired["
 
 /** Dedup check-then-act; must run inside the sha256 lock. Returns the blob's storage key. */
 async function claimUploadBlob(
-  { deps, input, kind, sha256, bytes, nowIso }: { deps: UploadMediaRequired["deps"]; input: UploadMediaRequired["input"]; kind: UploadKind; sha256: string; bytes: Uint8Array; nowIso: string },
+  { deps, input, kind, sha256, writeBlob, nowIso }: { deps: UploadMediaRequired["deps"]; input: Omit<UploadMediaInput, "bytes">; kind: UploadKind; sha256: string; writeBlob: () => Promise<{ storageKey: string }>; nowIso: string },
 ): Promise<string> {
   const privateUpload = kind === "document" || input.access === "private";
   const documentOwnership = privateUpload ? { documentOwned: true } : {};
@@ -431,11 +432,7 @@ async function claimUploadBlob(
     return existingBlob.storageKey;
   }
 
-  const written = await deps.blobStore.put({
-    workspaceId: input.workspaceId,
-    sha256,
-    bytes,
-  });
+  const written = await writeBlob();
   await deps.blobRepo.save({
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
@@ -453,7 +450,7 @@ async function claimUploadBlob(
 
 function saveOriginalRendition(
   deps: UploadMediaRequired['deps'],
-  { input, media, storageKey, nowIso }: { input: UploadMediaRequired['input']; media: MediaRecord; storageKey: string; nowIso: string },
+  { input, media, storageKey, nowIso }: { input: Omit<UploadMediaInput, "bytes">; media: MediaRecord; storageKey: string; nowIso: string },
 ) {
   return deps.renditionRepo.save({
     id: deps.idGen.newId(),
@@ -476,17 +473,49 @@ export async function uploadMedia(
   const provenance = safeMediaProvenance({ source: input.provenance });
   // Document policy is mandatory even if a host overrides the ordinary media MIME/size policy.
   if (kind === "document") await validateDocumentIngress({ filename: input.filename, bytes: input.bytes }, { archiveReader: deps.documentArchiveReader });
-  const maxUploadBytes = assertUploadAdmissible({ input, kind }, optional);
+  const maxUploadBytes = assertUploadAdmissible({ input, kind, byteLength: input.bytes.byteLength }, optional);
 
   const bytes = await storedUploadBytes({ input, kind });
   assertWithinUploadCap(bytes.byteLength, maxUploadBytes);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso }) });
+  const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, nowIso,
+    writeBlob: () => deps.blobStore.put({ workspaceId: input.workspaceId, sha256, bytes }),
+  }) });
 
   const contentType = kind === 'document' ? documentContentType({ filename: input.filename }) : sniffContentType({ bytes });
   const codec = kind === 'media' ? await probeVideoCodec({ bytes, contentType }, optional) : {};
+  return commitUploadedMedia({ deps, input, kind, provenance, sha256, nowIso, storageKey, contentType, codec });
+}
+
+export async function uploadStagedVideo({ deps, input }: {
+  deps: UploadMediaDeps; input: Omit<UploadMediaInput, "bytes" | "kind"> & { staged: StagedMediaFile };
+}, optional: UploadMediaOptional = {}): Promise<{ media: MediaRecord }> {
+  const { staged } = input;
+  if (!staged.contentType.startsWith("video/") || staged.contentType !== input.contentType) throw new MediaValidationError({ message: "staged import must contain a video" });
+  if (!Number.isSafeInteger(staged.byteLength) || staged.byteLength < 1) throw new MediaValidationError({ message: "staged video length is invalid" });
+  assertUploadAdmissible({ input, kind: "media", byteLength: staged.byteLength }, optional);
+  const provenance = safeMediaProvenance({ source: input.provenance });
+  const write = await deps.blobStore.resolveStagedWriter?.({}, optional.signal ? { signal: optional.signal } : {});
+  if (!write) throw new MediaValidationError({ message: "Staged video storage is unavailable on this adapter." });
+  optional.signal?.throwIfAborted();
+  const sha256 = staged.sha256;
+  const nowIso = kernelNowIso({ clock: deps.clock });
+  return withSha256Lock({ key: sha256, criticalSection: async () => {
+    optional.signal?.throwIfAborted();
+    const storageKey = await claimUploadBlob({ deps, input, kind: "media", sha256, nowIso,
+      writeBlob: () => write({ workspaceId: input.workspaceId, sha256, byteLength: staged.byteLength, openChunks: staged.openChunks }, optional.signal ? { signal: optional.signal } : {}),
+    });
+    return commitUploadedMedia({ deps, input, kind: "media", provenance, sha256, nowIso, storageKey, contentType: staged.contentType, codec: {} });
+  } });
+}
+
+async function commitUploadedMedia({ deps, input, kind, provenance, sha256, nowIso, storageKey, contentType, codec }: {
+  deps: UploadMediaDeps; input: Omit<UploadMediaInput, "bytes">; kind: UploadKind;
+  provenance: ReturnType<typeof safeMediaProvenance>; sha256: string; nowIso: string; storageKey: string;
+  contentType: string; codec: { videoCodec?: VideoCodec };
+}, _optional: Record<string, never> = {}): Promise<{ media: MediaRecord }> {
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
 

@@ -1,8 +1,9 @@
 import {
-  convertMediaVideo, shouldTranscodeOnImport, uploadMedia, VideoConversionError,
+  convertMediaVideo, convertStagedMediaVideo, shouldTranscodeOnImport, uploadMedia, uploadStagedVideo, VideoConversionError,
   type MediaTranscoderPort, type VideoCodecProbePort, type ConvertMediaVideoDeps, type MediaRecord, type UploadMediaDeps, type UploadMediaInput,
 } from "@jini-ai/cms/media";
-import type { MediaConversionNotice, MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
+import type { MediaConversionNotice, MediaUploadResult, StagedMediaTranscoderPort } from "@jini-ai/core/contracts/site/cms-media";
+import type { MediaStagedUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
 
 
 /**
@@ -49,19 +50,16 @@ function describeSkippedConversion({ cause }: { cause: unknown }, _optional: Rec
  * @complexity O(1) here; the conversion itself is O(video bytes).
  */
 async function convertStoredUpload(
-  required: { conversion: ImportVideoConversion; input: UploadFacts; stored: { media: MediaRecord } },
+  required: { conversion: Pick<ImportVideoConversion, "reportNote" | "thresholdBytes">; input: { contentType: string }; sizeBytes: number; stored: { media: MediaRecord }; convert: () => Promise<unknown> },
   _optional: Record<string, never> = {},
 ): Promise<MediaConversionNotice | undefined> {
-  const { conversion, input, stored } = required;
+  const { conversion, input, stored, sizeBytes, convert } = required;
   // The sniffed type of the stored bytes wins over the declared one, so a mislabeled upload cannot dodge or trigger the rule.
   const contentType = stored.media.source.contentType ?? input.contentType;
   const threshold = conversion.thresholdBytes === undefined ? {} : { thresholdBytes: conversion.thresholdBytes };
-  if (!shouldTranscodeOnImport({ sizeBytes: input.bytes.byteLength, contentType }, threshold)) return undefined;
+  if (!shouldTranscodeOnImport({ sizeBytes, contentType }, threshold)) return undefined;
   try {
-    await convertMediaVideo({
-      deps: conversion.deps,
-      input: { workspaceId: stored.media.workspaceId, mediaId: stored.media.id, createdByPrincipal: input.createdByPrincipal },
-    });
+    await convert();
     return undefined;
   } catch (cause) {
     conversion.reportNote({ note: describeSkippedConversion({ cause }), cause });
@@ -85,7 +83,11 @@ export function withVideoConversionOnImport<Input extends UploadFacts>(
   if (!conversion) return storeUpload;
   return async (input) => {
     const stored = await storeUpload(input);
-    const conversionNotice = await convertStoredUpload({ conversion, input, stored });
+    const conversionNotice = await convertStoredUpload({ conversion, input, stored, sizeBytes: input.bytes.byteLength,
+      convert: () => convertMediaVideo({ deps: conversion.deps,
+        input: { workspaceId: stored.media.workspaceId, mediaId: stored.media.id, createdByPrincipal: input.createdByPrincipal },
+      }),
+    });
     // The notice belongs to the request that stored the original, not to the shared converter or the
     // media record, so it is merged into this call's own result and never kept anywhere else.
     return conversionNotice === undefined ? stored : { ...stored, conversionNotice };
@@ -95,7 +97,7 @@ export function withVideoConversionOnImport<Input extends UploadFacts>(
 /** The injected pieces of the owner's video import rule (2026-10-31); absent, an import never converts. */
 export interface VideoImportOptions {
   /** The ffmpeg adapter built at the composition root; no transcoder means no conversion. */
-  ports: { transcoder?: MediaTranscoderPort; videoCodecProbe?: VideoCodecProbePort };
+  ports: { transcoder?: MediaTranscoderPort; stagedTranscoder?: StagedMediaTranscoderPort; videoCodecProbe?: VideoCodecProbePort };
   /** Where the plain-words note goes when a conversion could not be made (see `ImportVideoConversion`). */
   reportNote: ImportVideoConversion["reportNote"];
   linkDerivedMedia: ConvertMediaVideoDeps["linkDerivedMedia"];
@@ -148,4 +150,20 @@ export function createConvertingUploader(
     storeUpload: (input: UploadMediaInput) => uploadMedia({ deps: uploadDeps, input }, { ...caps, videoCodecProbe: optional.video?.ports.videoCodecProbe }),
     conversion: buildImportVideoConversion({ uploadDeps, video: optional.video }),
   });
+}
+
+export function createConvertingStagedUploader({ uploadDeps, caps }: {
+  uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
+}, { video }: { video?: VideoImportOptions | undefined } = {}): (input: MediaStagedUploadInput, optional?: { signal?: AbortSignal }) => Promise<MediaUploadResult<MediaRecord>> {
+  return async (input, { signal } = {}) => {
+    const stored = await uploadStagedVideo({ deps: uploadDeps, input }, { ...caps, signal });
+    const transcoder = video?.ports.stagedTranscoder;
+    if (!video || !transcoder) return stored;
+    const conversionNotice = await convertStoredUpload({ conversion: video, input, stored, sizeBytes: input.staged.byteLength,
+      convert: () => convertStagedMediaVideo({ deps: { ...uploadDeps, transcoder, linkDerivedMedia: video.linkDerivedMedia },
+        input: { workspaceId: stored.media.workspaceId, mediaId: stored.media.id, createdByPrincipal: input.createdByPrincipal }, staged: input.staged,
+      }, { signal, maxInputBytes: caps.maxVideoUploadBytes ?? caps.maxUploadBytes, maxOutputBytes: caps.maxUploadBytes }),
+    });
+    return conversionNotice === undefined ? stored : { ...stored, conversionNotice };
+  };
 }

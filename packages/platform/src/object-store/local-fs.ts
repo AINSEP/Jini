@@ -13,7 +13,8 @@
  * planted as the object itself is refused rather than followed.
  */
 import { constants } from 'node:fs';
-import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { ObjectStore, ObjectStoreProvider } from '@jini-ai/core/object-store';
@@ -90,6 +91,32 @@ export function createLocalFsObjectStore(required: { readonly rootDir: string },
   const { rootDir } = required;
   const pathOf = (key: string) => physicallyContained({ rootDir, key });
   return {
+    async resolveStagedWriter(_required, _optional = {}) {
+      return async ({ key, byteLength, sha256, openChunks }, { signal } = {}) => {
+        signal?.throwIfAborted();
+        const path = await pathOf(key);
+        await mkdir(dirname(path), { recursive: true });
+        const temporary = `${path}.${randomUUID()}.tmp`;
+        const file = await open(temporary, CREATE_ONLY_FLAGS, 0o600);
+        try {
+          const hash = createHash('sha256');
+          let length = 0;
+          for await (const chunk of openChunks({}, signal ? { signal } : {})) {
+            signal?.throwIfAborted();
+            length += chunk.byteLength;
+            if (length > byteLength) throw new Error('staged object length mismatch');
+            await file.writeFile(chunk);
+            hash.update(chunk);
+          }
+          if (length !== byteLength || hash.digest('hex') !== sha256) throw new Error('staged object verification failed');
+          signal?.throwIfAborted();
+          await rename(temporary, path);
+        } finally {
+          await file.close();
+          await rm(temporary, { force: true });
+        }
+      };
+    },
     async put({ key, bytes }, options = {}) {
       const path = await pathOf(key);
       await mkdir(dirname(path), { recursive: true });

@@ -79,6 +79,7 @@ export interface MediaDependencies {
     };
   };
   deps: {
+    maxJsonUploadBytes: number;
     readFileAsBase64: (required: { file: File }) => Promise<string>;
     translate: (required: { locale: string; key: string }) => string;
     describeApiError: (required: { e: unknown; fallback: string }) => string;
@@ -164,12 +165,16 @@ export interface MediaController {
   locale: string;
 }
 
+const SIZE_REFUSAL = Symbol("media-json-upload-size-refusal");
+
 /**
  * The operator-facing text for a failed upload, or `null` when there is no failure. A typed size
  * refusal gets the owner copy; every other failure keeps the generic description. @complexity O(1).
  */
 function describeUploadFailure({ failure, locale, deps }: { failure: unknown; locale: string; deps: MediaDependencies["deps"] }, _optional: Record<string, never> = {}): string | null {
   if (!failure) return null;
+  if (failure === SIZE_REFUSAL) return deps.translate({ locale, key: "This file is too large to upload here. The limit is {limit} MiB." })
+    .replace("{limit}", String(deps.maxJsonUploadBytes / (1024 * 1024)));
   return deps.sizeRefusalFromError({ t: (key) => deps.translate({ locale, key }), error: failure })
     ?? deps.translate({ locale, key: deps.describeApiError({ e: failure, fallback: "upload failed" }) });
 }
@@ -195,6 +200,10 @@ function describeUploadFailure({ failure, locale, deps }: { failure: unknown; lo
     setConversionNotice(null);
     clearOtherWriteErrors(uploadMutation);
     try {
+      if (file.size > deps.maxJsonUploadBytes) {
+        setReadError(SIZE_REFUSAL);
+        return;
+      }
       const dataBase64 = await deps.readFileAsBase64({ file }).catch((readFailure: unknown) => {
         setReadError(readFailure);
         throw readFailure;

@@ -29,6 +29,9 @@ function fixture() {
   const log = vi.fn();
   const binding = bindMediaImportTools<Omit<VideoImportOptions, "linkDerivedMedia">>({ fsRootIds: ["site"], recoveryText: "Pick a folder.", mediaAssetReadToolId: "read_asset",
     resolveSiteFileRequest: ({ relativePath }) => ({ rootPath: "/site", relativePath }), openFsFileForRead: read,
+    withLocalStream: async () => { throw new Error("unexpected staged read"); },
+    withStagedFile: async () => { throw new Error("unexpected staging"); },
+    createConvertingStagedUploader: () => upload,
     uploadLimitForFile: () => 100, uploadCaps: { maxUploadBytes: 100 },
     fetchImage: vi.fn(async () => ({ bytes, contentType: "image/png", url: new URL("https://cdn.example/final.png") })),
     validateImageBytes: () => "image/png", createConvertingUploader, replaceMediaFile,
@@ -37,7 +40,7 @@ function fixture() {
   });
   const routeDeps = { workspaceId: "site", authorize: async () => ({ allowed: true, reason: "grant" }),
     mediaRepo: { findById: async () => media, replaceFileIfVersion: vi.fn(), saveRenditionIfSource: vi.fn() },
-    mediaContentTypeStore: { set: vi.fn() }, mediaImportLocalMaxBytes: 200 } as unknown as Parameters<typeof binding.buildMediaImportRegistrations>[0]["deps"];
+    mediaContentTypeStore: { set: vi.fn() }, blobStore: {}, mediaImportLocalMaxBytes: 200 } as unknown as Parameters<typeof binding.buildMediaImportRegistrations>[0]["deps"];
   const resolvePublicUrls = vi.fn(async () => new Map([["asset", "/m/asset/"]]));
   const ctx: ToolExecutionContext = { executionId: "e", run: { id: "run" }, principal: { id: "human" }, signal: new AbortController().signal, input: {} };
   return { binding, routeDeps, resolvePublicUrls, ctx, read, upload, createConvertingUploader, replaceMediaFile, log };
