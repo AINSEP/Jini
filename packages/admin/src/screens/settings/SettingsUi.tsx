@@ -43,6 +43,7 @@ export interface SettingsUiProps {
     useAdminBrowserAgentSettings: Parameters<typeof BrowserAgentSettingsPanel>[0]["useBrowserAgentSettingsHook"];
   };
   kit: {
+    BrowserAgentSettingsPanel: typeof BrowserAgentSettingsPanel;
     I18nProvider: ComponentType<I18nProviderProps>;
     SettingsDialogShell: ComponentType<Omit<SettingsDialogShellProps, "activeTabId"> & { activeTabId: string | undefined }>;
     ExecutionTab: ComponentType<{ presets: readonly ProviderPreset[]; config: ExecutionConfig; onConfigChange: (next: ExecutionConfig) => void;
@@ -75,6 +76,7 @@ export interface SettingsUiProps {
       useAdminLocaleHook: () => string; createTranslator: typeof createAdminByokKeyPanelTranslator; t: Translate }>;
   };
   deps: {
+    createAdminByokKeyPanelTranslator: typeof createAdminByokKeyPanelTranslator;
     SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
     ADMIN_LOCALES: readonly { code: string; label: string; nativeLabel?: string }[];
     DEFAULT_INSTRUCTIONS: string; DEFAULT_EXECUTION_CONFIG: ExecutionConfig;

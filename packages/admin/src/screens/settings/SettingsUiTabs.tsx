@@ -2,10 +2,8 @@ import type { ComponentProps, ReactNode, RefObject } from "react";
 import type { SettingsDialogTab, MemoryEntrySummary, MemoryExtractionRecord, MemoryConfigFlagKey, PrivacyConsentState } from "../../react/kit.js";
 import type { SettingsUiProps } from "./SettingsUi.js";
 import { interpolate, type Translate } from "@jini-ai/core/text";
-import { createAdminByokKeyPanelTranslator } from "../../shell/components/AdminByokKeyPanel.hooks.js";
 import type { createSettingsUiTranslators } from "./SettingsUi.hooks.js";
 import { UserInterfaceSettingsPanel } from "./UserInterfaceSettingsPanel.js";
-import { BrowserAgentSettingsPanel } from "../webmcp/BrowserAgentSettingsPanel.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { memoryPanelDictionaries } from "./settings-memory-i18n.js";
 import { t as tInterfaceCopy } from "./settings-interface-i18n.js";
@@ -134,7 +132,7 @@ function notificationsTab(props: SettingsUiView, _optional = {}): SettingsDialog
 
 function privacyTab(props: SettingsUiView, _optional = {}): SettingsDialogTab {
   const { s, settingsLocale, t, tCap, kit, hooks, deps } = props;
-  const { PrivacyTab } = kit;
+  const { PrivacyTab, BrowserAgentSettingsPanel } = kit;
   return ({
       id: "privacy",
       label: t("Privacy"),
@@ -368,7 +366,7 @@ function aboutTab(props: SettingsUiView, _optional = {}): SettingsDialogTab {
 function SettingsExecutionPanel({ adminCredential, agentPresentation, executionPolicy, tExecution, hooks, kit, deps }: Pick<SettingsUiView, "adminCredential" | "agentPresentation" | "executionPolicy" | "tExecution" | "hooks" | "kit" | "deps">, _optional = {}) {
   const { AdminByokMigrationPrompt, AdminByokKeyFooter, AdminByokSettingsFooter, ExecutionTab } = kit;
   const { useAdminLocale } = hooks;
-  const { DEFAULT_PROVIDER_PRESETS, SETTINGS_EXECUTION_PRODUCT_VARS, createProbeErrorDescriber, resolveAdminByokFooterStatusLine } = deps;
+  const { DEFAULT_PROVIDER_PRESETS, SETTINGS_EXECUTION_PRODUCT_VARS, createProbeErrorDescriber, resolveAdminByokFooterStatusLine, createAdminByokKeyPanelTranslator } = deps;
   return (
 <>
           <AdminByokMigrationPrompt useAdminLocaleHook={useAdminLocale} createTranslator={createAdminByokKeyPanelTranslator} controller={adminCredential} />

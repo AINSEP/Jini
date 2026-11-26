@@ -1,5 +1,5 @@
 import type { ownerPasskeySite } from './passkey-route-deps.js';
-import type { answerOwnerPasskeyFailure } from './passkey-route-deps.js';
+import type { answerOwnerPasskeyFailure, resolveOwnerPasskeyRouteDeps } from './passkey-route-deps.js';
 import { createOwnerPasskeyAdmission } from './passkey-admission.js';
 import { OwnerRequiredError } from '../../core/types.js';
 import type { beginOwnerPasskeyEnrollment, confirmOwnerPasskeyEnrollment, beginOwnerPasskeyLogin, completeOwnerPasskeyLogin, removeOwnerPasskey } from '../../server/mfa/passkey-service.js';
@@ -105,6 +105,8 @@ export function registerOwnerPasskeyRoutes(required: {
 }
 
 export function bindOwnerPasskeyRoutes<Request, Response, Host>(required: {
+  resolveOwnerPasskeyRouteDeps: typeof resolveOwnerPasskeyRouteDeps;
+  answerOwnerPasskeyFailure: typeof answerOwnerPasskeyFailure;
   root: string;
   mount(required: { host: Host; method: 'post' | 'get'; path: string; handle(req: Request, res: Response): Promise<void> }): void;
   workspaceId(required: { host: Host }): string;

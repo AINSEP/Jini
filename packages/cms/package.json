@@ -13,6 +13,10 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./core/days-remaining": "universal",
+      "./admin-http/routes/external-mcp/provider-refusal": "universal",
+      "./publish/content/peer-transport-error": "universal",
+      "./publish/trust/handshake-error": "universal",
       "./posts/sql/repo": "node",
       "./posts/sql/repo.rows": "node",
       "./posts/repo.memory": "universal",

@@ -1,7 +1,6 @@
 import { forwardRef } from "react";
 import { agentHandle, agentHandleSegment } from "@jini-ai/core/agent-handles";
 import { type Translate } from "@jini-ai/core/text";
-import { SecretInput } from "../../shell/components/SecretInput/SecretInput.js";
 import { removeDialogLastRowNote } from "../security-i18n.js";
 import type { AccessTokenRowCategoryId, AccessTokenRow } from "../access-token-rows.js";
 import { invalidAdditionalHostsEntries } from "../custom-credential-forms.js";
@@ -153,7 +152,7 @@ export const AddCustomCredentialDialog = forwardRef<HTMLDialogElement, { control
           onChange={(value) => controller.setCustomAddField({ additionalHosts: value })}
           translate={translate}
         />
-        <CustomCredentialTokenField controller={controller} form={form} translate={translate} />
+        <CustomCredentialTokenField SecretInput={bindings.kit.SecretInput} controller={controller} form={form} translate={translate} />
         <CustomCredentialUsernameField controller={controller} form={form} translate={translate} />
         <CustomCredentialCategoryField bindings={bindings} controller={controller} form={form} translate={translate} />
         <CustomKeyStorageChoice controller={controller} />
@@ -226,7 +225,7 @@ function CustomCredentialUrlField({ bindings, controller, form, translate, baseU
   );
 }
 
-function CustomCredentialTokenField({ controller, form, translate }: { controller: AccessTokensController; form: AccessTokensController["customAddForm"]; translate: Translate }, _optional: Record<string, never> = {}) {
+function CustomCredentialTokenField({ controller, form, translate, SecretInput }: { controller: AccessTokensController; form: AccessTokensController["customAddForm"]; translate: Translate; SecretInput: AccessTokensTabBindings["kit"]["SecretInput"] }, _optional: Record<string, never> = {}) {
   return (
 <div className="field">
           <label className="field-label" htmlFor="security-add-custom-token">

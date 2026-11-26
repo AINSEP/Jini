@@ -3,6 +3,8 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { useRemoveConfirmDialog, useAddCustomCredentialDialog } from "../AccessTokensTab.hooks.js";
 import type { AccessTokenRow } from "../../access-token-rows.js";
+import { SecretInput } from "../../../shell/components/SecretInput/SecretInput.js";
+import { asciiSlug } from "../../../shell/lib/ascii-slug.js";
 
 afterEach(cleanup);
 
@@ -219,8 +221,9 @@ test("the live tab preserves combined search counts and disables custom Save unt
       useMergedSecretsOrderHook: useMergedSecretsOrder, useRemoveConfirmDialogHook: useRemoveConfirmDialog, useAddCustomCredentialDialogHook: useAddCustomCredentialDialog,
       useTabBarKeyboardHook: () => ({ onKeyDown: vi.fn() }),
     },
-    kit: { CredentialHint: () => null, OnboardingChipField: () => null, OtherCredentialEntry: () => null, ConnectedMarkIcon: () => null, DisclosureChevronIcon: () => null, SearchIcon: () => null },
+    kit: { SecretInput, CredentialHint: () => null, OnboardingChipField: () => null, OtherCredentialEntry: () => null, ConnectedMarkIcon: () => null, DisclosureChevronIcon: () => null, SearchIcon: () => null },
     deps: {
+      asciiSlug,
       ACCESS_TOKEN_CATEGORIES: [{ id: "all" as const, label: "All" }], ACCESS_TOKEN_PROVIDER_COPY: { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" },
       showCopyKeysEntry: false, viewerTimeZone: "UTC", removeLabel: "Remove stored copy", customCredentialBaseUrlPlaceholder: "https://api.example.com",
       removeTokenHandleLabel: ({ provider }: { provider: string }) => `Remove ${provider}`,

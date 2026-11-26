@@ -1,7 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { type Translate } from "@jini-ai/core/text";
-import { asciiSlug } from "../../shell/lib/ascii-slug.js";
-import { SecretInput } from "../../shell/components/SecretInput/SecretInput.js";
 import type { AdminPublishTargetField } from "../../deployment/api/deployment-api.types.js";
 import { extraFieldsAroundToken, type AccessTokenProviderInfo } from "../access-token-providers.js";
 import type { AccessTokensTabBindings } from "./AccessTokensTab.js";
@@ -69,7 +67,7 @@ function ExtraFieldInputs({ bindings,
   onFieldChange: (name: string, value: string) => void;
   t: Translate;
 }) {
-  const { fieldNameHandleSegment, accessTokenExtraFieldIdSuffix } = bindings.deps;
+  const { asciiSlug, fieldNameHandleSegment, accessTokenExtraFieldIdSuffix } = bindings.deps;
 
   return (
     <>
@@ -103,6 +101,7 @@ function ExtraFieldInput({ bindings,
   t: Translate;
 }) {
   const { fieldHelpText } = bindings.deps;
+  const { SecretInput } = bindings.kit;
 
   return (
     <div className="field">
@@ -163,6 +162,7 @@ function TokenNameField({ idPrefix, name, onNameChange, translate }: Pick<Parame
 function TokenSecretField({ bindings, idPrefix, info, token, onTokenChange, connected, translate }: Pick<Parameters<typeof TokenInputFields>[0], "bindings" | "idPrefix" | "info" | "token" | "onTokenChange" | "connected"> & { translate: Translate }, _optional: Record<string, never> = {}) {
 
   const { storedTokenNotice } = bindings.deps;
+  const { SecretInput } = bindings.kit;
   return (
 <div className="field">
         <label className="field-label" htmlFor={`${idPrefix}-token`}>
