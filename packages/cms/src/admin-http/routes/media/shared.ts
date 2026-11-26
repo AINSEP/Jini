@@ -1,6 +1,7 @@
 import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError, rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import type { AdminMediaDto } from "@jini-ai/core/contracts/site/cms-media";
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 
 import { EntityNotLiveError } from "../../../core/entity-liveness.js";
 import { MediaConflictError, MediaNotFoundError, MediaUploadSizeError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
@@ -45,6 +46,13 @@ export const MEDIA_UPLOAD_SIZE: MediaErrorMapping = {
   matches: ({ err }, _o = {}) => err instanceof MediaUploadSizeError, status: 400, code: MediaUploadSizeError.code,
   fields: ({ err }, _o = {}) => { const { fileBytes, limitBytes } = err as MediaUploadSizeError; return { fileBytes, limitBytes }; },
 };
+
+export function assertBase64UploadSize({ value, limitBytes }: { value: string; limitBytes: number }, _optional: Record<string, never> = {}): void {
+  const fileBytes = Math.floor(value.length / 4) * 3 - (value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0);
+  if (fileBytes > limitBytes) {
+    throw new MediaUploadSizeError({ message: describeUploadOverLimit({ fileBytes, limitBytes }), fileBytes, limitBytes });
+  }
+}
 // A slug collision — either `resolveSlugForUpdate`'s own app-level courtesy check, or (on a
 // genuine race) `SqliteMediaRepo.save()`'s translated UNIQUE-constraint catch; both throw the
 // same `MediaConflictError` so this route needs only one branch regardless of which layer

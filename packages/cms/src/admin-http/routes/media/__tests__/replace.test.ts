@@ -1,5 +1,6 @@
 import { describeUploadOverLimit } from "@jini-ai/core/text";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as strictBase64 from "@jini-ai/core/contracts/site/strict-base64";
 import type { MediaRecord } from "../../../../media/types.js";
 import { MediaValidationError } from "../../../../media/types.js";
 import { MediaUploadSizeError } from "../../../../media/types.js";
@@ -17,6 +18,7 @@ function deps(log: string[] = [], options: { row?: MediaRecord | null; capable?:
   const capable = options.capable ?? true;
   return {
     workspaceId: WORKSPACE_ID,
+    maxJsonUploadBytes: Number.MAX_SAFE_INTEGER,
     outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     maxUploadBytes: options.maxUploadBytes ?? 50 * 1024 * 1024,
     mediaRepo: {
@@ -40,6 +42,24 @@ function run(body: unknown, d = deps(), authorize = recordingAuthorize().authori
 }
 
 describe("mediaReplaceRoute", () => {
+  it.each([16, 17])("JSON payload one decoded byte over budget %i never reaches the decoder or writer", async (limitBytes) => {
+    const log: string[] = [];
+    const d = { ...deps(log), maxJsonUploadBytes: limitBytes };
+    const bytes = Buffer.concat([Buffer.from(PNG, "base64"), Buffer.alloc(limitBytes - 16)]);
+    const decode = vi.spyOn(strictBase64, "decodeStrictBase64");
+    try {
+      expect(await run({ ...BODY, dataBase64: bytes.toString("base64") }, d)).toEqual({ ok: true, value: { media: { id: "m-1" } } });
+      decode.mockClear();
+      log.length = 0;
+      const dataBase64 = Buffer.concat([bytes, Buffer.from([0])]).toString("base64");
+      expect(await refusalOf(() => run({ ...BODY, dataBase64 }, d))).toEqual({ status: 400, body: {
+        error: describeUploadOverLimit({ fileBytes: limitBytes + 1, limitBytes }), code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: limitBytes + 1, limitBytes,
+      } });
+      expect(decode).not.toHaveBeenCalled();
+      expect(log).toEqual([`find:${WORKSPACE_ID}:m-1`]);
+    } finally { decode.mockRestore(); }
+  });
+
   it("keeps the method, path and default status, and carries the id and body through parse", () => {
     expect(mediaReplaceRoute.method).toBe("post");
     expect(mediaReplaceRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media/:mediaId/replace");

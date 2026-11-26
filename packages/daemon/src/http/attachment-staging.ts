@@ -1,4 +1,5 @@
-import { chmod, copyFile, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { chmod, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import type { StoredAttachment } from './attachment-types.js';
 import type { AttachmentClaim } from '@jini-ai/core/contracts/site/daemon-http';
@@ -14,7 +15,7 @@ export const stagedPathsByAttachment = new WeakMap<StoredAttachment, Set<string>
  * O(b) I/O for b claimed bytes, bounded by the attachment store's batch limits. Partial copies
  * are removed before rejection. The temporary directory is private and directly under real root.
  */
-export async function stageAttachmentClaim(required: { claim: AttachmentClaim; filesystemRoot: string }, _optional = {}): Promise<{
+export async function stageAttachmentClaim(required: { claim: AttachmentClaim; filesystemRoot: string; deps: { copyFile: (src: string, dst: string, mode: number) => Promise<void> } }, _optional = {}): Promise<{
   claim: AttachmentClaim; cleanup: () => Promise<void>;
 }> {
   const root = await realpath(required.filesystemRoot);
@@ -29,7 +30,7 @@ export async function stageAttachmentClaim(required: { claim: AttachmentClaim; f
     const attachments: StoredAttachment[] = [];
     for (const attachment of required.claim.attachments) {
       const target = resolve(directory, basename(attachment.path));
-      await copyFile(attachment.path, target);
+      await required.deps.copyFile(attachment.path, target, constants.COPYFILE_FICLONE);
       await chmod(target, 0o600);
       attachments.push({ ...attachment, path: target });
       const aliases = stagedPathsByAttachment.get(attachment);

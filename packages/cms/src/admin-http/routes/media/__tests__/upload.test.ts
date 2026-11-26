@@ -1,5 +1,6 @@
 import { describeUploadOverLimit } from "@jini-ai/core/text";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as strictBase64 from "@jini-ai/core/contracts/site/strict-base64";
 import { MediaConflictError, MediaValidationError, type MediaRecord } from "../../../../media/types.js";
 import { uploadMedia } from "../../../../media/media-service.js";
 import { isoBmffVideoBytes } from "../../../../media/__tests__/iso-bmff-fixture.js";
@@ -15,6 +16,7 @@ const FIELDS = { kind: "media", filename: "a.png", contentType: "image/png", dat
 function deps(log: string[] = [], options: { fail?: unknown; stored?: MediaRecord } = {}) {
   return {
     workspaceId: WORKSPACE_ID,
+    maxJsonUploadBytes: Number.MAX_SAFE_INTEGER,
     outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     storeUpload: async (input: MediaUploadInput) => {
       log.push(`store:${input.kind}:${input.filename}:${input.contentType}:${input.bytes.byteLength}:${input.alt}:${input.caption}:${input.credit}:${input.createdByPrincipal}`);
@@ -39,6 +41,24 @@ function run(fields: unknown, d = deps(), authorize = recordingAuthorize().autho
 }
 
 describe("mediaUploadRoute", () => {
+  it.each([16, 17])("JSON payload one decoded byte over budget %i never reaches the decoder or writer", async (limitBytes) => {
+    const log: string[] = [];
+    const d = { ...deps(log), maxJsonUploadBytes: limitBytes };
+    const bytes = Buffer.concat([Buffer.from(PNG, "base64"), Buffer.alloc(limitBytes - 16)]);
+    const decode = vi.spyOn(strictBase64, "decodeStrictBase64");
+    try {
+      expect(await run({ ...FIELDS, dataBase64: bytes.toString("base64") }, d)).toEqual({ ok: true, value: { media: { id: "m-9" } } });
+      decode.mockClear();
+      log.length = 0;
+      const dataBase64 = Buffer.concat([bytes, Buffer.from([0])]).toString("base64");
+      expect(await refusalOf(() => run({ ...FIELDS, dataBase64 }, d))).toEqual({ status: 400, body: {
+        error: describeUploadOverLimit({ fileBytes: limitBytes + 1, limitBytes }), code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: limitBytes + 1, limitBytes,
+      } });
+      expect(decode).not.toHaveBeenCalled();
+      expect(log).toEqual([]);
+    } finally { decode.mockRestore(); }
+  });
+
   it("upload returns the original media with a safe conversion notice", async () => {
     const stored = fakeMedia({ id: "original-video" });
     const d = { ...deps(), storeUpload: async () => ({ media: stored, conversionNotice: "web-copy-unavailable" as const }) };

@@ -9,6 +9,7 @@ function fixture() {
     path: { type: "string", minLength: 1, description: "Path" }, themeId: { type: "string", minLength: 1, description: "Theme" },
   } } as const;
   const deps = {
+    mediaVideoMaxBytes: 50 * 1024 * 1024,
     refuseUnexpectedKeys: vi.fn(),
     destination: {
       workspaceId: "workspace", authorize: vi.fn(async () => ({ allowed: true, reason: "granted" })), refuseUnexpectedKeys: vi.fn(),
@@ -48,6 +49,34 @@ function fixture() {
 }
 
 describe("files copy execution", () => {
+  it("one large video reaches Media without an approval payload", async () => {
+    const { deps, described, askHuman, handler, ctx } = fixture();
+    const bytes = Buffer.alloc(10_000_001);
+    Buffer.from("000000186674797069736f6d0000000069736f6d6d703432", "hex").copy(bytes);
+    const encode = vi.spyOn(bytes, "toString");
+    deps.source.readAsset.mockResolvedValue({ path: "clip.mp4", bytes });
+    deps.destination.media.validateBytes.mockReturnValue("video/mp4");
+    const media = { id: "video", createdBy: "agent", slug: "clip", title: "clip", alt: "", caption: "", credit: "", sha256: "hash", status: "active", version: 1, publicUrl: "/clip.mp4", sourceUrl: "" };
+    deps.destination.media.persist.mockResolvedValue({ media });
+    const input = { sources: [{ root: "site", path: "clip.mp4" }], destination: { kind: "media" } };
+    expect(await handler(ctx(input))).toEqual({ applied: true, written: ["clip.mp4"], skipped: [], media: [media] });
+    expect(deps.source.readAsset).toHaveBeenCalledExactlyOnceWith({ ctx: expect.objectContaining({ principal: { id: "agent" } }), input: input.sources[0], maxBytes: deps.mediaVideoMaxBytes }, {});
+    expect(deps.destination.media.persist).toHaveBeenCalledExactlyOnceWith({ actorId: "agent", sourceUrl: "", input: { workspaceId: "workspace", bytes, filename: "clip.mp4", contentType: "video/mp4", createdByPrincipal: "agent" } }, {});
+    expect(encode).not.toHaveBeenCalledWith("base64");
+    expect(askHuman).not.toHaveBeenCalled();
+    expect(described).not.toHaveBeenCalled();
+    expect(deps.destination.fs.prepareSite).not.toHaveBeenCalled();
+    expect(deps.destination.fs.preparePicked).not.toHaveBeenCalled();
+    encode.mockRestore();
+  });
+
+  it("the same-size non-video is refused before Media persistence", async () => {
+    const { deps, handler, ctx } = fixture();
+    deps.source.readAsset.mockResolvedValue({ path: "image.png", bytes: Buffer.alloc(10_000_001) });
+    await expect(handler(ctx({ sources: [{ root: "site", path: "image.png" }], destination: { kind: "media" } }))).rejects.toThrow(/byte cap/);
+    expect(deps.destination.media.persist).not.toHaveBeenCalled();
+  });
+
   it("a denied destination never calls the source port", async () => {
     const { deps, handler, ctx } = fixture();
     deps.destination.authorize.mockResolvedValue({ allowed: false, reason: "denied" });
