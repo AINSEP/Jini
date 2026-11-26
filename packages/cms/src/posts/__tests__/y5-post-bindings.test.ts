@@ -65,8 +65,11 @@ test("featured-image refusals preserve the copy and bind the media read guidance
 test("preview preserves the original host bag for the renderer and template reader", async () => {
   const deps = { workspaceId: "site", authorize: vi.fn(async () => ({ allowed: true, reason: "grant" })),
     postRepo: new InMemoryPostRepo({}, { initialRows: [row] }), hostValue: "kept" };
-  const readPostTemplateOptions = vi.fn(async (_input: { deps: typeof deps; kind: PostRecord["kind"] }) => ["template"]);
-  const renderer = { renderPostPreview: vi.fn(async (_input: { deps: typeof deps; input: unknown }) => ({ html: "<p>Preview</p>", templateChoice: null })) };
+  type PreviewBinding = Parameters<typeof bindPostPreviewTools>[0];
+  type PreviewRenderer = Parameters<ReturnType<typeof bindPostPreviewTools>["buildPostPreviewRegistrations"]>[0]["renderer"];
+  // Typed as the production ports: the binding hands the renderer and template reader the host's own bag (asserted by identity below).
+  const readPostTemplateOptions = vi.fn<PreviewBinding["readPostTemplateOptions"]>(async () => ["template"]);
+  const renderer = { renderPostPreview: vi.fn<PreviewRenderer["renderPostPreview"]>(async () => ({ html: "<p>Preview</p>", templateChoice: null })) };
   const binding = bindPostPreviewTools({ catalog: createPostPreviewAgentToolCatalog({ fetchPublishedPageToolId: "local_page", fetchLiveUrlToolId: "live_page" }),
     readPageBodyOptions: () => ({}), shapePageBody: ({ body }) => ({ body, bodyBytes: body.length, truncated: false }), readPostTemplateOptions, readPermission: "content.read", contentPostReadToolId: "content_read.content_post" });
   const [tool] = binding.buildPostPreviewRegistrations({ deps, renderer });

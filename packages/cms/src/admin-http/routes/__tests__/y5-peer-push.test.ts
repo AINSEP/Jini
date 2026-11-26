@@ -3,7 +3,7 @@ import { registerPublishContentPeerPushRoutes, respondWithPeerActionError } from
 
 describe("peer push registration", () => {
   it("preflights every push before resolving a credential", () => {
-    const routes: Parameters<Parameters<typeof registerPublishContentPeerPushRoutes>[0]["mount"]>[0][] = [];
+    const routes: { preflight: { check: () => unknown } }[] = [];
     const openPeer = vi.fn();
     registerPublishContentPeerPushRoutes({ mount: entry => { routes.push(entry); }, openPeer, plan: vi.fn(), confirm: vi.fn(), execute: vi.fn(), canPublishToLive: () => false, liveSiteRefusal: { status: 403, body: { code: "LIVE_REFUSED" } }, operation: "host/peer" });
     expect(routes).toHaveLength(3);

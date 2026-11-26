@@ -6,6 +6,7 @@ import { InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, c
 import { createHostBlobWriteBindings } from "../blob-write-bindings.js";
 import { InMemoryMediaContentTypeStore } from "../content-type-store.js";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
+import { InMemoryOutbox } from "../../../redirects/__tests__/support/events.fixture.js";
 
 it("refuses a missing staged blob without writing media", async () => {
   const save = vi.fn();
@@ -30,7 +31,7 @@ async function boundFixture() {
   const createBlobWriteBindings = vi.fn(createHostBlobWriteBindings);
   const uploadCaps = { maxUploadBytes: 1024, maxVideoUploadBytes: 2048 };
   const deps = { workspaceId: "site", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
-    authorize: async () => ({ allowed: true, reason: "grant" }), outbox: { enqueue: async () => {} }, changeSets: new InMemoryChangeSetRepo(), ports: { media } };
+    authorize: async () => ({ allowed: true, reason: "grant" }), outbox: new InMemoryOutbox(), changeSets: new InMemoryChangeSetRepo(), ports: { media } };
   const record: MediaRecord = { id: "video", workspaceId: "site", kind: "media", title: "Video", slug: "video", alt: "", caption: "", credit: "",
     source: { sha256 }, status: "active", createdAt: "now", updatedAt: "now", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null };
   const entity = { entityType: "media", id: "video", schemaVersion: 1, hashVersion: 1, contentHash: "hash", requiredBlobs: [sha256], state: { ...record } };
