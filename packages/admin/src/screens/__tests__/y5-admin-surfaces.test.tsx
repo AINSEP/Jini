@@ -8,6 +8,16 @@ import { afterEach, expect, test, vi } from "vitest";
 import { EmailStatusFacts } from "../email/EmailSenderTab.js";
 import { createEmailNavigate } from "../email/Email.hooks.js";
 import { useScreenshotCleanup } from "../storage/hooks/use-screenshot-cleanup.hooks.js";
+import { parseMediaHtmlAttributes } from "../../media/html-attributes.js";
+import { mediaFileName } from "../../media/rules.js";
+import { BrowserAgentSettingsPanel } from "../webmcp/BrowserAgentSettingsPanel.js";
+import { createAdminByokKeyPanelTranslator } from "../../shell/components/AdminByokKeyPanel.hooks.js";
+import { PluginRulesProvider } from "../plugins/rules-context.js";
+import { PluginPackageFilesModal } from "../plugins/PluginPackageFilesModal.js";
+import { PluginRemoveConfirmDialog } from "../plugins/PluginRemoveConfirmDialog.js";
+import { PluginRow } from "../plugins/PluginRow.js";
+import { AddPluginPanel } from "../plugins/AddPluginPanel.js";
+import { InstalledTabIcon, DownloadedTabIcon, MarketplaceTabIcon, PluginTrashIcon } from "../plugins/plugins-visuals.js";
 
 afterEach(cleanup);
 
@@ -86,6 +96,7 @@ test("media metadata saves only the edited fields from the mount baseline", asyn
     hooks: { useFetchQuery, useFetchMutation }, deps: {
       port, locale: "en", translate: ({ key }) => key,
       embedPolicy: { allowedAttributeNames: [], isAllowedAttributeName: () => false, parseAttributes: () => ({ attributes: {}, errors: [], error: null }) },
+      parseMediaHtmlAttributes,
       embedMarkerSnippet: ({ value }) => value, writeText: vi.fn(), setTimeout,
       describeApiError: ({ e }) => String(e),
     } }), { initialProps: { current: item }, wrapper: FetchQueryProvider });
@@ -175,10 +186,10 @@ test("settings preserve legacy redirects, valid tab control, fallback, scrolling
       </div>,
       ExecutionTab: noop, InstructionsTab: noop, NotificationsTab: noop, PrivacyTab: noop,
       LanguageTab: noop, MemorySettingsPanel: noop, Workspace: noop, AboutPanel: noop,
-      AdminByokMigrationPrompt: noop, AdminByokKeyFooter: noop, AdminByokSettingsFooter: noop,
+      AdminByokMigrationPrompt: noop, AdminByokKeyFooter: noop, AdminByokSettingsFooter: noop, BrowserAgentSettingsPanel,
     },
     deps: {
-      navigate, createSettingsTabChange: () => (nextTabId) => navigate({ routePath: `/settings?tab=${nextTabId}` }, { replace: true }),
+      navigate, createAdminByokKeyPanelTranslator, createSettingsTabChange: () => (nextTabId) => navigate({ routePath: `/settings?tab=${nextTabId}` }, { replace: true }),
       SETTINGS_DIALOG_DICTIONARIES: {}, ADMIN_LOCALES: [], DEFAULT_INSTRUCTIONS: "", DEFAULT_EXECUTION_CONFIG: config,
       tApp: ({ key }) => key, tCapability: ({ key }) => key, tWorkspace: ({ key }) => key,
       DEFAULT_PROVIDER_PRESETS: [], isDesktopAdmin: () => false, defaultLocalAgentId: "local", scopeKeys: { desktopKey: "desktop", serverKey: "server" },
@@ -240,7 +251,7 @@ test("media screen preserves the exact deep-link lookup and shares the live prov
       InfoTip: () => null, Lightbox: () => null, MiddleTruncate: () => null, RemoteImageImport: () => null,
       Button: () => null, Dialog: () => null, TextField: () => null,
     },
-    deps: { mediaProviderCatalogPort: port, VIEWER_TIME_ZONE: "UTC", MEDIA_GRID_SIZE_STORAGE_KEY: "host.media.cardSize",
+    deps: { mediaProviderCatalogPort: port, mediaFileName, VIEWER_TIME_ZONE: "UTC", MEDIA_GRID_SIZE_STORAGE_KEY: "host.media.cardSize",
       mediaTranslate: ({ key }) => key, VIDEO_CONVERSION_NOTICE_KEY: "conversion notice",
       defaultMediaImportPort: { importFromUrl: vi.fn(), listKey: ["media"] }, describeApiError: ({ e }) => String(e),
     },
@@ -274,7 +285,8 @@ test("plugin Add falls back to Installed when folder installation is unavailable
   render(<Plugins tabId="add" hooks={{ usePluginsHook: () => controller, useAdminLocale: () => "en",
     useWiredPluginPackageFiles: () => { throw new Error("no inspector"); },
     useWiredPluginProviderSettings: () => { throw new Error("no settings"); }, useProviderSettingsFocus: () => {} }}
-    kit={{ TabBar, Toast: () => null, PluginProviderSettingsDialog: () => null }}
+    kit={{ TabBar, Toast: () => null, PluginProviderSettingsDialog: () => null, PluginRulesProvider, PluginPackageFilesModal,
+      PluginRemoveConfirmDialog, PluginRow, AddPluginPanel, InstalledTabIcon, DownloadedTabIcon, MarketplaceTabIcon, PluginTrashIcon }}
     deps={{ pluginRules: rules, pluginRemoveAriaLabel: rules.pluginRemoveAriaLabel,
       pluginRemoveBlocker: rules.pluginRemoveBlocker, pluginToggleAriaLabel: rules.pluginToggleAriaLabel,
       pluginToggleControl: rules.pluginToggleControl, translateAdminNavLabel: ({ key }) => key,

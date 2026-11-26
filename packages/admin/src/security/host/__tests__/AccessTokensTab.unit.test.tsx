@@ -46,7 +46,8 @@ it("uses the host secret control for extra, token, and custom fields and the hos
       accessTokenExtraFieldIdSuffix: ({ deps, fieldName }: Parameters<AccessTokensTabBindings["deps"]["accessTokenExtraFieldIdSuffix"]>[0]) => deps.asciiSlug({ text: fieldName, trimChars }),
       ACCESS_TOKEN_CATEGORIES: categories, customCredentialBaseUrlPlaceholder: "https://api.example.test" },
   } as unknown as AccessTokensTabBindings;
-  const info = { extraFields: [{ name: "account", label: "Account", secret: true }], tokenPageUrl: "", scopeGuidanceKey: "" } as Parameters<typeof TokenInputFields>[0]["info"];
+  const info: Parameters<typeof TokenInputFields>[0]["info"] = { kind: "custom", providerId: "fixture", label: "Fixture", vendorLabel: "Fixture", purposeLabel: "Fixture",
+    category: "hosting", extraFields: [{ name: "account", label: "Account", secret: true }], tokenPageUrl: "", scopeGuidanceKey: "" };
   const controller = {
     customAddForm: { name: "Provider", baseUrl: "https://api.example.test", additionalHosts: "", token: "custom-secret", username: "", category: "hosting", worksFor: [], saving: false, error: null },
     worksForOptions: [], t: (key: string) => key, setCustomAddField: vi.fn(), resetCustomAddForm: vi.fn(), createCustomCredential: vi.fn(),
