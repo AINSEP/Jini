@@ -116,7 +116,7 @@ test("malformed deep-link input refuses before lookup and authorization precedes
 test("the prepared restore preserves the gateway plan and an undefined createdAt property", async () => {
   const f = fixture();
   const plan = { planId: "plan", planHash: "hash", extra: "gateway-field" };
-  f.host.plan = vi.fn(async () => ({ ok: true, value: plan }));
+  f.host.plan = vi.fn(async () => ({ ok: true as const, value: plan }));
   f.deps.restorePointsRepo.list = vi.fn(async () => []);
   let prepared: unknown;
   const describe = f.host.describe;
