@@ -377,6 +377,7 @@ function mediaTrashHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandle
 
 export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "maxVideoUploadBytes" | "listContentTypes" | "videoConversion">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "maxVideoUploadBytes" | "listContentTypes" | "videoConversion"> = {}): ToolRegistration[] {
   const routeDeps: MediaToolDeps = {
+    createHash: required.createHash,
     authorize: required.authorize,
     workspaceId: required.workspaceId,
     clock: required.clock,

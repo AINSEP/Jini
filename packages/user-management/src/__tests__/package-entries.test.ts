@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { bindKernelUserTrashAdapter } from '../identity/sql/user-trash-adapter.js';
+import { bindKernelUserTrashAdapter } from '../identity/sql/kernel-user-trash-store.js';
 
 const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 // Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel,

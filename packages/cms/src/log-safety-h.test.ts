@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { ToolExecutionContext } from "@jini-ai/core";
@@ -152,11 +153,11 @@ test.each(["DOCUMENT_TEXT_UNAVAILABLE", "DOCUMENT_TEXT_FAILED"] as const)("H: li
   const blobRepo = new InMemoryAssetBlobRepo({});
   const blobStore = new InMemoryBlobStore();
   const bytes = Buffer.from("%PDF-1.7\n%%EOF");
-  const deps: MediaToolDeps = { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
+  const deps: MediaToolDeps = { createHash, workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
     clock: { nowMs: () => 0 }, idGen: { newId: () => "id" }, mediaRepo, assetBlobRepo: blobRepo,
     assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
     documentTextExtractors: [{ contentType: "application/pdf", extract: async () => { throw new DocumentTextExtractionError({ code, message: SECRET, cause: failure() }); } }] };
-  const { media } = await uploadMedia({ deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo, blobRepo,
+  const { media } = await uploadMedia({ deps: { createHash, clock: deps.clock, idGen: deps.idGen, mediaRepo, blobRepo,
     renditionRepo: deps.assetRenditionRepo, blobStore }, input: { workspaceId: "ws", kind: "document", filename: "guide.pdf",
     contentType: "application/octet-stream", bytes, createdByPrincipal: "actor" } });
   const tool = buildMediaRegistrations(deps).find(row => row.descriptor.id === "library_read")!;

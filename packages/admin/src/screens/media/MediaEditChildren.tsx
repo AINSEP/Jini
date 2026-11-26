@@ -1,4 +1,5 @@
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { useEditMediaModal } from "./hooks/use-edit-media-modal.hooks.js";
 import type { MediaProps } from "./Media.js";
 import { EditMediaPanel } from "./MediaEditPanel.js";

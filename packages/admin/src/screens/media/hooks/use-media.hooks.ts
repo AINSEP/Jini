@@ -62,12 +62,12 @@ export interface MediaDependencies {
   tab: MediaGridTab; itemId?: string | null | undefined; locale: string; t: (key: string) => string;
   hooks: Pick<FetchQueryAdapter, "useFetchQuery" | "useFetchMutation" | "useInvalidate"> & {
     useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
-    useGridPages: (required: { port: MediaDependencies["port"]; tab: MediaGridTab; orderBy: MediaOrderBy; useFetchQuery: FetchQueryAdapter["useFetchQuery"]; listKey: QueryKey }, optional?: { itemId?: string | null | undefined }) => {
+    useGridPages: (required: { port: MediaDependencies["port"]; tab: MediaGridTab; orderBy: MediaOrderBy; useFetchQuery: FetchQueryAdapter["useFetchQuery"]; listKey: QueryKey; useCallback: typeof useCallback; useState: typeof useState }, optional?: { itemId?: string | null | undefined }) => {
       items: AdminMedia[] | null; exactItem: AdminMedia | null; counts: MediaGridPage["counts"] | null; retentionDays: number | null;
       hasUntypedActive: boolean; error: Error | null; hasMore: boolean; loadingMore: boolean;
       loadMoreError: Error | null; loadMore: () => Promise<void>; retryLoadMore: () => Promise<void>;
     };
-    useMediaWrites: (required: { port: MediaDependencies["port"]; locale: string; useFetchMutation: FetchQueryAdapter["useFetchMutation"]; deps: { KEYS: { list: QueryKey }; translate: MediaDependencies["deps"]["translate"] } }, optional?: Record<string, never>) => {
+    useMediaWrites: (required: { port: MediaDependencies["port"]; locale: string; useFetchMutation: FetchQueryAdapter["useFetchMutation"]; useState: typeof useState; deps: { KEYS: { list: QueryKey }; translate: MediaDependencies["deps"]["translate"] } }, optional?: Record<string, never>) => {
       uploadMutation: MutationResult<{ filename: string; contentType: string; dataBase64: string; alt?: string | undefined }, MediaUploadResult<AdminMedia>>;
       trashMutation: MutationResult<string, { media: AdminMedia }>;
       purgeMutation: MutationResult<string, { purged: boolean }>;
@@ -244,7 +244,7 @@ function describeUploadFailure({ failure, locale, deps }: { failure: unknown; lo
 
 export function useMedia({ port, locale, t, tab, itemId, hooks, deps }: MediaDependencies, _optional = {}): MediaController {
   const [orderBy, setOrderBy] = useState<MediaOrderBy>("created");
-  const list = hooks.useGridPages({ port, tab, orderBy, useFetchQuery: hooks.useFetchQuery, listKey: KEYS.list }, { itemId });
+  const list = hooks.useGridPages({ port, tab, orderBy, useFetchQuery: hooks.useFetchQuery, listKey: KEYS.list, useCallback, useState }, { itemId });
   const invalidate = hooks.useInvalidate();
   const invalidateList = useCallback(() => invalidate({ key: KEYS.list }), [invalidate]);
   hooks.useContentRefreshSubscription({ resource: MEDIA_RESOURCE, onRefresh: invalidateList });
@@ -262,7 +262,7 @@ export function useMedia({ port, locale, t, tab, itemId, hooks, deps }: MediaDep
     setSelectedFileName(event.currentTarget.files?.[0]?.name ?? "");
   }, []);
   const { uploadMutation, trashMutation, purgeMutation, restoreMutation, restoreFallback, clearOtherWriteErrors, trash, restore, pendingPurge, setPendingPurge, rowSavingId, purge } =
-    hooks.useMediaWrites({ port, locale, useFetchMutation: hooks.useFetchMutation, deps: { KEYS, translate: deps.translate } });
+    hooks.useMediaWrites({ port, locale, useFetchMutation: hooks.useFetchMutation, useState, deps: { KEYS, translate: deps.translate } });
   const media = list.items;
   const lookupMedia = media && list.exactItem ? [...media, list.exactItem] : media;
   // Local FileReader errors bypass the mutation; translate known copy while retaining diagnostics.

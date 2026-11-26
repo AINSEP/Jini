@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { acceptedMediaItems } from "../../../media/MediaPickerDialog/MediaPickerDialog.hooks.js";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 import { MediaContentEditor, type MediaContentEditorProps } from "../MediaContentEditor.js";
@@ -15,11 +16,13 @@ const kit: MediaContentEditorProps["kit"] = {
   HtmlAttributeRows: () => null,
 };
 const deps: MediaContentEditorProps["deps"] = {
+  acceptedMediaItems,
   port: { listMedia: async () => ({ media: [] }), mediaOriginalUrl: ({ id }) => `/media/${id}` }, locale: "en",
   acceptsMedia: () => true,
   resolveTabBarTabIndex: ({ activeId, tab }) => activeId === tab.id ? 0 : -1,
 };
 const hooks: MediaContentEditorProps["hooks"] = {
+  useEffect, useMemo, useRef, useState,
   useEditor: useMediaContentEditor,
   useMediaPickerItems: () => ({ items: [], error: null }),
   useTabBarKeyboard: () => ({ onKeyDown: () => {} }),

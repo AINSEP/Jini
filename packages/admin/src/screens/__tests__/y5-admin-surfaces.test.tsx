@@ -285,7 +285,7 @@ test("plugin Add falls back to Installed when folder installation is unavailable
 });
 
 test("agent plugin Update passes the shown digest and install collaborators unchanged", async () => {
-  const { AgentPluginUpdateSlot } = await import("../plugins/AgentPlugins.js");
+  const { AgentPluginUpdateSlot } = await import("../plugins/AgentPluginUpdateControl.js");
   const { useAgentPluginUpdate } = await import("../plugins/hooks/use-agent-plugin-update.hooks.js");
   const { createPluginRules } = await import("../plugins/rules.js");
   const plugin = { pluginId: "notes", displayName: "Notes", version: "1", description: null, keywords: [],

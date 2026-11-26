@@ -52,6 +52,7 @@ export interface VideoConversionToolOptions {
   maxOutputBytes?: number | undefined;
 }
 export interface ConvertVideoToolDeps extends VideoConversionToolOptions {
+  createHash: import("./media-service.js").UploadMediaDeps["createHash"];
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;
@@ -70,7 +71,7 @@ export interface ConvertVideoToolDeps extends VideoConversionToolOptions {
  */
 export function buildConvertVideoRegistrations(deps: ConvertVideoToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
   const conversionDeps = {
-    clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
+    createHash: deps.createHash, clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
     renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, transcoder: deps.transcoder,
     linkDerivedMedia: deps.linkDerivedMedia, randomHex: deps.randomHex,
   };

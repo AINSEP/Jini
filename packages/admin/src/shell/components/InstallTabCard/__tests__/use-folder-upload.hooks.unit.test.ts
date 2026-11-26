@@ -4,9 +4,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import * as folderZip from "@jini-ai/agent-plugins/folder-zip";
+import * as folderZipModule from "@jini-ai/agent-plugins/folder-zip";
+import { FolderZipError } from "@jini-ai/agent-plugins/core/folder-zip-error";
 import { FOLDER_EMPTY } from "@jini-ai/agent-plugins/folder-zip";
 import { FOLDER_TOO_MANY, useFolderUpload, type PickedFolderInput } from "../use-folder-upload.hooks.js";
+
+const folderZip = { ...folderZipModule, FolderZipError };
 
 // This package's jsdom has no `Blob.prototype.arrayBuffer`, so every pick read as unreadable. Answer it
 // through jsdom's own FileReader, as a browser File does, so the real zipper runs on the fixtures below.

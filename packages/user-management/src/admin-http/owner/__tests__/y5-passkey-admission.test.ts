@@ -68,7 +68,7 @@ it('binds request admission without store reads for nonowners and delegates sign
 });
 
 it('sets no-store before writing an origin refusal', async () => {
-  const { ownerPasskeyActionRoute } = await import('../passkey-route-deps.js');
+  const { ownerPasskeyActionRoute } = await import('../passkey-routes.js');
   const order: string[] = [];
   const json = vi.fn(() => { order.push('refuse'); });
   await ownerPasskeyActionRoute({ action: 'confirm', admission: {

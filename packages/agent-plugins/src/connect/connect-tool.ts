@@ -9,6 +9,7 @@ import { previewAgentPluginEnableAccess } from "./enable-access.js";
 import { recordAgentPluginAccessDeclined } from "./apply-connect-defaults.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpProjections } from "./ports.js";
 import type { McpServerConfig, RemoteMcpServerConfig } from "../lifecycle/manifest.js";
+import { titleCaseFromPluginId } from "../core/plugin-display-name.js";
 
 /**
  * @file agent_plugin_connect connects an Agent Plugin's account through

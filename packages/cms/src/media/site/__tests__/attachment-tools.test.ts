@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
@@ -9,7 +10,7 @@ import { InMemoryBlobStore } from "../../blob-store.memory.js";
 
 const ctx = (input: unknown): ToolExecutionContext => ({ executionId: "e", principal: { id: "owner" }, run: { id: "original-run" }, input, signal: new AbortController().signal });
 function deps(): MediaToolDeps & { refuseUnexpectedKeys(input: Record<string, unknown>, allowed: readonly string[]): void } {
-  return { workspaceId: "w", authorize: async () => ({ allowed: true, reason: "matched" }), clock: { nowMs: () => 0 }, idGen: { newId: () => "id" },
+  return { createHash, workspaceId: "w", authorize: async () => ({ allowed: true, reason: "matched" }), clock: { nowMs: () => 0 }, idGen: { newId: () => "id" },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}), assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
     refuseUnexpectedKeys: (input, allowed) => { if (Object.keys(input).some(k => !allowed.includes(k))) throw new ToolInputError({ message: "unexpected key" }); } };
 }
