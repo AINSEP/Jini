@@ -1,17 +1,18 @@
-import { adaptLegacyAuthorize, refuseUnexpectedKeys, type ToolContributor } from "@jini-ai/core";
+import type { ToolContributor } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { HttpClientPort } from "@jini-ai/core/primitives";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import type { ImageCodecPort, MediaRecord } from "@jini-ai/core/contracts/site/cms-media";
 import type { MediaImportRefusalPorts, MediaImportSourcePorts, MediaToolUploadInput } from "@jini-ai/core/contracts/site/media-tool-ports";
 import type { UploadMediaDeps } from "../media-service.js";
-import type { createConvertingUploader, VideoImportOptions } from "../site/import-video-conversion.js";
+import type { VideoImportOptions } from "../site/import-video-conversion.js";
 import type { replaceMediaFile } from "../replace-media-file.js";
 import type { MediaPublicUrlDeps } from "../site/contracts.js";
 import type { MediaContentTypeStorePort } from "../site/content-type-store.js";
 import { MediaImportValidationError } from "../import/index.js";
 import { buildMediaImportAgentToolCatalog } from "./agent-tools.js";
-import { buildMediaImportRegistrations, mediaImportDerivedRisk, isImportShapeRejection, persistImportedMedia, withCallerSafeEgressRefusal, type MediaImportToolDeps as Ports } from "./tool-registrations.js";
+import { buildMediaImportRegistrations, mediaImportDerivedRisk, isImportShapeRejection, persistImportedMedia, withCallerSafeEgressRefusal } from "./tool-registrations.js";
+import { bindMediaImportDeps } from "./bindings.deps.js";
 
 export interface MediaImportToolDeps extends Omit<UploadMediaDeps, "blobRepo" | "renditionRepo" | "mediaRepo">, MediaPublicUrlDeps {
   workspaceId: string; authorize: AuthorizeFn; tracker?: Tracker; imageCodec?: ImageCodecPort;
@@ -22,16 +23,16 @@ export interface MediaImportToolDeps extends Omit<UploadMediaDeps, "blobRepo" | 
   outboundTestOrigins?: readonly string[]; mediaImportEgressRefusalLog?: (line: string) => void; mediaImportLocalMaxBytes?: number;
 }
 
-export function bindMediaImportTools(required: {
+export function bindMediaImportTools<TVideo extends Pick<VideoImportOptions, "ports">>(required: {
   fsRootIds: readonly string[]; recoveryText: string; mediaAssetReadToolId: string;
   resolveSiteFileRequest(required: { routeDeps: Pick<MediaImportToolDeps, "siteBinding" | "workspaceId" | "resolveRoots">; root: string; relativePath: string }, optional: Record<string, never>): { rootPath: string; relativePath: string };
   openFsFileForRead: MediaImportSourcePorts["readLocal"];
   uploadLimitForFile(required: { name: string; type: string }): number;
-  uploadCaps: Parameters<typeof createConvertingUploader>[0]["caps"];
+  uploadCaps: { maxUploadBytes: number; maxVideoUploadBytes?: number };
   fetchImage(required: { deps: { httpClient: HttpClientPort; plainHttpTestOrigins?: readonly string[] }; url: string }): ReturnType<MediaImportSourcePorts["fetchRemote"]>;
   validateImageBytes: MediaImportSourcePorts["validateBytes"];
-  createConvertingUploader(input: Parameters<typeof createConvertingUploader>[0] & { mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: Parameters<typeof createConvertingUploader>[1]): ReturnType<typeof createConvertingUploader>; replaceMediaFile: typeof replaceMediaFile;
-  isEgressRefusal: MediaImportRefusalPorts["isEgressRefusal"]; describeEgressRefusal: MediaImportRefusalPorts["describeEgressRefusal"];
+  createConvertingUploader(input: { uploadDeps: UploadMediaDeps; caps: { maxUploadBytes: number; maxVideoUploadBytes?: number }; mediaRepo: MediaImportToolDeps["mediaRepo"]; clock: MediaImportToolDeps["clock"] }, optional: { video?: TVideo | undefined }): (input: MediaToolUploadInput) => Promise<{ media: MediaRecord }>; replaceMediaFile: typeof replaceMediaFile;
+  EgressRefusedError: new (required: { message: string }, optional: { callerSafeMessage: string }) => Error & { readonly callerSafeMessage: string };
   isPathRefusal: MediaImportRefusalPorts["isPathRefusal"]; logEgressRefusal: (line: string) => void;
 }, _optional: Record<string, never> = {}) {
   const catalog = buildMediaImportAgentToolCatalog({ fsRootIds: required.fsRootIds, fsFolderReadRecovery: required.recoveryText, mediaAssetReadToolId: required.mediaAssetReadToolId });
@@ -49,22 +50,17 @@ export function bindMediaImportTools(required: {
       throw new MediaImportValidationError({ message });
     }
   };
-  const refusals: MediaImportRefusalPorts = { isEgressRefusal: required.isEgressRefusal, describeEgressRefusal: required.describeEgressRefusal, isPathRefusal: required.isPathRefusal, logEgressRefusal: ({ line }) => required.logEgressRefusal(line) };
-  const bindDeps = ({ deps: routeDeps, resolvePublicUrls, videoImport }: { deps: MediaImportToolDeps; resolvePublicUrls: (input: { deps: MediaPublicUrlDeps & { workspaceId: string }; assets: readonly MediaRecord[] }) => Promise<Map<string, string | null>>; videoImport?: VideoImportOptions | undefined }): Ports => ({
-    get workspaceId() { return routeDeps.workspaceId; }, get authorize() { return adaptLegacyAuthorize({ authorize: routeDeps.authorize }); }, get tracker() { return routeDeps.tracker; }, get imageCodec() { return routeDeps.imageCodec; },
-    refuseUnexpectedKeys: (input, allowed) => refuseUnexpectedKeys({ input, allowed }),
-    refusals: { ...refusals, logEgressRefusal: ({ line }) => (routeDeps.mediaImportEgressRefusalLog ?? required.logEgressRefusal)(line) },
-    storage: { upload: ({ input }) => required.createConvertingUploader({ uploadDeps: { clock: routeDeps.clock, idGen: routeDeps.idGen, mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo, renditionRepo: routeDeps.assetRenditionRepo, blobStore: routeDeps.blobStore }, caps: required.uploadCaps, mediaRepo: routeDeps.mediaRepo, clock: routeDeps.clock }, { video: videoImport })(input), recordContentType: input => routeDeps.mediaContentTypeStore.set({ ...input, workspaceId: routeDeps.workspaceId }), resolvePublicUrls: input => resolvePublicUrls({ deps: routeDeps, ...input }) },
-    source: { fetchRemote: ({ url }) => required.fetchImage({ deps: { httpClient: routeDeps.mediaImportHttpClient, plainHttpTestOrigins: routeDeps.outboundTestOrigins }, url }), resolveLocal: input => resolveLocalImportRequest({ routeDeps, ...input }), readLocal: input => required.openFsFileForRead(input),
-      localReadLimit: ({ relativePath }) => { const ceiling = required.uploadLimitForFile({ name: relativePath, type: "" }); return Math.min(routeDeps.mediaImportLocalMaxBytes ?? ceiling, ceiling); }, validateBytes: required.validateImageBytes },
-    replacement: { findById: input => routeDeps.mediaRepo.findById({ workspaceId: routeDeps.workspaceId, ...input }), isAvailable: () => !!routeDeps.mediaRepo.replaceFileIfVersion && !!routeDeps.mediaRepo.saveRenditionIfSource,
-      replace: ({ media, bytes, contentType, provenance, principalId }, { signal }) => required.replaceMediaFile({ deps: routeDeps, media, bytes, contentType, provenance, principalId }, { ...required.uploadCaps, videoCodecProbe: videoImport?.ports.videoCodecProbe, signal }) },
-  });
+  const refusals: MediaImportRefusalPorts = {
+    isEgressRefusal: ({ error }) => error instanceof required.EgressRefusedError,
+    describeEgressRefusal: ({ error }) => error instanceof required.EgressRefusedError
+      ? { logMessage: error.message, callerSafeError: new required.EgressRefusedError({ message: error.callerSafeMessage }, { callerSafeMessage: error.callerSafeMessage }) } : undefined,
+    isPathRefusal: required.isPathRefusal, logEgressRefusal: ({ line }) => required.logEgressRefusal(line),
+  };
   return { mediaImportAgentToolCatalog: catalog, resolveLocalImportRequest,
     isImportShapeRejection: (input: { error: unknown }, _optional: Record<string, never> = {}) => isImportShapeRejection({ ...input, refusals }),
     withCallerSafeEgressRefusal: <T>({ work, log }: { work: () => Promise<T>; log: (line: string) => void }, optional: { toolId?: string } = {}) => withCallerSafeEgressRefusal({ work, refusals: { ...refusals, logEgressRefusal: ({ line }) => log(line) } }, optional),
-    persistImportedMedia: ({ routeDeps, resolvePublicUrls, ...input }: { routeDeps: MediaImportToolDeps; resolvePublicUrls: Parameters<typeof bindDeps>[0]["resolvePublicUrls"]; input: MediaToolUploadInput; sourceUrl: string; actorId: string }, optional: { videoImport?: VideoImportOptions | undefined } = {}) => persistImportedMedia({ ...input, tracker: routeDeps.tracker, storage: bindDeps({ deps: routeDeps, resolvePublicUrls, ...optional }).storage }),
-    buildMediaImportRegistrations: (routeDeps: MediaImportToolDeps, optional: Omit<Parameters<typeof bindDeps>[0], "deps">) => buildMediaImportRegistrations({ deps: bindDeps({ deps: routeDeps, ...optional }), catalog }),
-    contributeMediaImportTools: (optional: Omit<Parameters<typeof bindDeps>[0], "deps">): ToolContributor<MediaImportToolDeps, unknown> => ({ domain: "media-import", build: routeDeps => buildMediaImportRegistrations({ deps: bindDeps({ deps: routeDeps, ...optional }), catalog }), risk: mediaImportDerivedRisk }),
+    persistImportedMedia: ({ routeDeps, resolvePublicUrls, ...input }: { routeDeps: MediaImportToolDeps; resolvePublicUrls: Parameters<typeof bindMediaImportDeps<TVideo>>[0]["resolvePublicUrls"]; input: MediaToolUploadInput; sourceUrl: string; actorId: string }, optional: { videoImport?: TVideo | undefined } = {}) => persistImportedMedia({ ...input, tracker: routeDeps.tracker, storage: bindMediaImportDeps({ deps: routeDeps, resolvePublicUrls, ...optional, required, resolveLocalImportRequest, refusals }, {}).storage }),
+    buildMediaImportRegistrations: (input: Pick<Parameters<typeof bindMediaImportDeps<TVideo>>[0], "deps" | "resolvePublicUrls" | "videoImport">, _optional: Record<string, never> = {}) => buildMediaImportRegistrations({ deps: bindMediaImportDeps({ ...input, required, resolveLocalImportRequest, refusals }, {}), catalog }),
+    contributeMediaImportTools: (input: Pick<Parameters<typeof bindMediaImportDeps<TVideo>>[0], "resolvePublicUrls" | "videoImport">, _optional: Record<string, never> = {}): ToolContributor<MediaImportToolDeps, unknown> => ({ domain: "media-import", build: deps => buildMediaImportRegistrations({ deps: bindMediaImportDeps({ deps, ...input, required, resolveLocalImportRequest, refusals }, {}), catalog }), risk: mediaImportDerivedRisk }),
   };
 }

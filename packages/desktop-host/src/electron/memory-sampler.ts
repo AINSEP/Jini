@@ -30,7 +30,7 @@ function validBytes(bytes: number | null | undefined): bytes is number {
  */
 export async function readDesktopMemory({ usages, platform, electronMetrics, samplePrivateMemory }: {
   usages: readonly ProcessUsage[]; platform: NodeJS.Platform; electronMetrics: readonly ElectronProcessMemory[];
-  samplePrivateMemory?: PrivateMemorySampler;
+  samplePrivateMemory: PrivateMemorySampler | undefined;
 }, _options = {}): Promise<MemoryUsage[]> {
   const fallback = fallbackMemory({ usages, platform, electronMetrics });
   if (!samplePrivateMemory || !usages.length) return fallback;

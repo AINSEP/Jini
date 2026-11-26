@@ -4,7 +4,8 @@ import { sql } from "kysely";
 import { expect, test, vi } from "vitest";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { postRevisionLockKey } from "@jini-ai/core/contracts/site/post-revision-lock";
-import { SqlPostRepo } from "../repo.js";
+import { bindPostRepoFor, SqlPostRepo } from "../repo.js";
+import { sqlitePostSearch } from "../search-index.sqlite.js";
 import { bindInMemoryPostRepo } from "../../repo.memory.js";
 import { toRecord, toRow, toRevisionRow, toRevisionRecord } from "../repo.rows.js";
 import { createMediaAccessEvidence } from "../../../media/site/access-evidence.js";
@@ -99,6 +100,38 @@ test("a projection failure rolls back the row and revision append locks before i
     expect(second.previousId).toBe(first.id);
     expect((await f.repo.listRevisions({ workspaceId: "site", postId: "post" })).map(revision => revision.seq)).toEqual([1, 2]);
   } finally { await f.kernel.close(); }
+});
+
+test("the bound repo erases once and writes rows and search through the same transaction", async () => {
+  const f = await fixture();
+  const upsert = sqlitePostSearch.upsert;
+  const projection = vi.spyOn(sqlitePostSearch, "upsert");
+  try {
+    await f.kernel.execute(sql`CREATE TABLE post_search_document (post_id TEXT PRIMARY KEY, title TEXT, slug TEXT, body_text TEXT)`);
+    const rawKernel = { database: f.kernel };
+    const eraseKernel = vi.fn(({ store }: { store: typeof rawKernel }) => store.database);
+    const postRepoFor = bindPostRepoFor({ eraseKernel, searchHost: { searchConfig: "simple", projectionVersionSettingId: "projection" },
+      nowIso, newId: randomUUID, hashJsonText, postRevisionLockKey }, {});
+    const first = postRepoFor({ kernel: rawKernel, mediaAccessEvidence: createMediaAccessEvidence() }, {});
+    const second = postRepoFor({ kernel: rawKernel, mediaAccessEvidence: createMediaAccessEvidence() }, {});
+    expect(eraseKernel.mock.calls).toEqual([[{ store: rawKernel }, {}], [{ store: rawKernel }, {}]]);
+    await first.save(row);
+    expect(projection.mock.calls[0]![0].kernel).toBe(f.kernel);
+    expect(await f.kernel.query(sql`SELECT post_id, title FROM post_search_document`)).toEqual([{ post_id: "post", title: "Post" }]);
+    projection.mockImplementationOnce(async required => {
+      expect(required.kernel).toBe(f.kernel);
+      expect((await second.findById({ workspaceId: "site", id: "failed" }))?.title).toBe("Failed");
+      await upsert(required);
+      throw new Error("projection failed");
+    });
+    await expect(second.save({ ...row, id: "failed", slug: "failed", title: "Failed" })).rejects.toThrow("projection failed");
+    expect(await second.findById({ workspaceId: "site", id: "failed" })).toBeNull();
+    expect(await f.kernel.query(sql`SELECT post_id, title FROM post_search_document`)).toEqual([{ post_id: "post", title: "Post" }]);
+    expect(eraseKernel).toHaveBeenCalledTimes(2);
+  } finally {
+    projection.mockRestore();
+    await f.kernel.close();
+  }
 });
 
 test("protected revisions survive thinning and expired preview tokens refuse deletion", async () => {

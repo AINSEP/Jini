@@ -31,12 +31,18 @@ test('zero bytes are a successful native reading', async () => {
 });
 
 test('Windows uses committed private KiB and retains RSS for other PIDs', async () => {
-  expect(await readDesktopMemory({ usages, platform: 'win32', electronMetrics: [
+  expect(await readDesktopMemory({ usages, platform: 'win32', samplePrivateMemory: undefined, electronMetrics: [
     { pid: 1, memory: { privateBytes: 2, workingSetSize: 9 } },
   ] })).toEqual([
     { ...usages[0], rssBytes: 2048, rawRssBytes: 900, memoryMetric: 'committed' },
     { ...usages[1], rawRssBytes: 700, memoryMetric: 'rss' },
   ]);
+});
+
+test('non-Windows hosts keep OS RSS when no native sampler is supplied', async () => {
+  expect(await readDesktopMemory({ usages, platform: 'linux', samplePrivateMemory: undefined,
+    electronMetrics: [{ pid: 1, memory: { privateBytes: 2, workingSetSize: 9 } }],
+  })).toEqual(usages.map(row => ({ ...row, rawRssBytes: row.rssBytes, memoryMetric: 'rss' })));
 });
 
 test('grouping exposes mixed native metrics and any RSS fallback', () => {

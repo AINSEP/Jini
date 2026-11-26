@@ -14,3 +14,9 @@ it('reads native memory once and retains raw RSS and mixed-rss for invalid or mi
     expect(groupMemoryMetric({ processes: result.map(row => ({ ...row, name: '', role: 'process' as const, cpuPercent: 0, cpuWarning: false })) })).toBe('mixed-rss');
   }
 });
+
+it('does not call the native sampler for an empty inventory', async () => {
+  const samplePrivateMemory = vi.fn(async () => ({ metric: 'unavailable' as const, readings: [] }));
+  expect(await readDesktopMemory({ usages: [], platform: 'darwin', electronMetrics: [], samplePrivateMemory })).toEqual([]);
+  expect(samplePrivateMemory).not.toHaveBeenCalled();
+});

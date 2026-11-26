@@ -9,7 +9,8 @@ import type { PostAutosaveSnapshot, PostRecord, PostRepoPort, PostRevisionAppend
 import type { GoLiveCandidatesPort } from "@jini-ai/cms/entries";
 import { toRecord, toRevisionRecord, toRevisionRow, toRow, updatableColumns, type PostTables } from "./repo.rows.js";
 import { toPostSearchDocument } from "@jini-ai/cms/posts/search";
-import { postSearchFor, type PostSearchProjection } from "@jini-ai/cms/posts/sql";
+import { postSearchFor } from "./search-index.js";
+import type { PostSearchKernel, PostSearchProjection } from "./search-index.contract.js";
 
 /**
  * @file THE post repository: one Kysely query body for every database the storage kernel drives
@@ -365,7 +366,12 @@ export class SqlPostRepo implements PostRepoPort, GoLiveCandidatesPort {
 }
 
 /** The post repo for `kernel`, with its dialect's search projection. */
-export function bindPostRepoFor(required: Omit<ConstructorParameters<typeof SqlPostRepo>[0], "kernel" | "search" | "mediaAccessEvidence"> & { searchHost: Parameters<typeof postSearchFor>[1] }, _optional: Record<string, never> = {}) {
-  return ({ kernel, mediaAccessEvidence }: { kernel: ContentKernel; mediaAccessEvidence: MediaAccessEvidence }, _optional: Record<string, never> = {}): SqlPostRepo =>
-    new SqlPostRepo({ ...required, kernel, mediaAccessEvidence, search: postSearchFor(kernel, required.searchHost) });
+export function bindPostRepoFor<TRawKernel>(required: Omit<ConstructorParameters<typeof SqlPostRepo>[0], "kernel" | "search" | "mediaAccessEvidence"> & {
+  searchHost: Parameters<typeof postSearchFor>[1];
+  eraseKernel(required: { store: TRawKernel }, optional: Record<string, never>): PostSearchKernel;
+}, _optional: Record<string, never> = {}) {
+  return ({ kernel, mediaAccessEvidence }: { kernel: TRawKernel; mediaAccessEvidence: MediaAccessEvidence }, _optional: Record<string, never> = {}): SqlPostRepo => {
+    const erased = required.eraseKernel({ store: kernel }, {});
+    return new SqlPostRepo({ ...required, kernel: erased, mediaAccessEvidence, search: postSearchFor(erased, required.searchHost) });
+  };
 }
