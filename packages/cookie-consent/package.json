@@ -28,6 +28,7 @@
         "src/site/cookie-consent.ts",
         "src/render/css.ts",
         "src/server/region.ts",
+        "src/server/receipt.ts",
         "src/site/revisions.ts",
         "src/site/readiness.ts"
       ]

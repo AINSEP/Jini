@@ -1,6 +1,6 @@
 import type { AssetReferenceScan, AssetReferenceIndex, MediaAccessEvidence } from "./access-evidence.js";
 import { collectReferencedMediaKeys, collectPlacedWidgetMediaKeys } from "../../publish/content/media-references.js";
-import { parseWidgetInstancePayload } from "../../widgets/entry-payload.js";
+import { parseWidgetInstancePayload } from "../../widgets/payload-fields.js";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 import type { PostRecord } from "../../posts/post.js";
 import type { MediaRecord } from "../types.js";

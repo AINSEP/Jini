@@ -4,7 +4,7 @@ import { InMemoryEntryRepo, entryVersionConflictError, type EntryRecord } from "
 import { InMemoryContentTypeRepo } from "../../../content-types/index.js";
 import { InMemoryChangeSetRepo } from "../../../forms/__tests__/change-set.fixture.js";
 import { createEntryLockState } from "../../concurrency.js";
-import { buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
+import { buildWidgetInstanceFieldsJson } from "../../payload-fields.js";
 import {
   insertWidgetEmbed,
   removeWidgetEmbed,

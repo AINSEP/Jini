@@ -47,6 +47,9 @@
         "./host": [
           "node:"
         ]
+      },
+      "entries": {
+        "./runtime/widget-partials": "host"
       }
     },
     "optionalPeers": {

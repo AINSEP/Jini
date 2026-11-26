@@ -1,6 +1,6 @@
 import type { JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { EntryRecord } from "../entries/index.js";
-import { parseWidgetInstancePayload } from "./entry-payload.js";
+import { parseWidgetInstancePayload } from "./payload-fields.js";
 import { resolveWidgetType } from "./resolvers/index.js";
 import { WIDGET_CONTENT_TYPE } from "./types.js";
 import type { WidgetInstanceView, WidgetRenderIR, WidgetResolveContext, WidgetResolveResult, WidgetTypeKey } from "./types.js";

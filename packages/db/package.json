@@ -22,6 +22,7 @@
       },
       "shared": [
         "src/shared/ddl.adapter.ts",
+        "src/tools/restore-points.ts",
         "src/kernel/dialect.ts",
         "src/kernel/idle-turn.ts",
         "src/kernel/index.ts",

@@ -5,7 +5,8 @@ import test from "../support/test-runner.js";
 import { InMemoryContentTypeRepo } from "../../../content-types/index.js";
 import { VersionConflictError, type EntryRecord } from "../../../entries/index.js";
 import { createEntryLockState } from "../../concurrency.js";
-import { buildWidgetInstanceFieldsJson, ensureWidgetContentTypesRegistered, parseWidgetInstancePayload } from "../../entry-payload.js";
+import { ensureWidgetContentTypesRegistered } from "../../entry-payload.js";
+import { buildWidgetInstanceFieldsJson, parseWidgetInstancePayload } from "../../payload-fields.js";
 import {
   WidgetConfigValidationError,
   WidgetInstanceNotFoundError,

@@ -1,5 +1,5 @@
 import { ToolInputError, requireString, type ToolHandler } from "@jini-ai/core";
-import { VERSION_CONFLICT_CODE } from "../posts/expected-version.js";
+import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
 import { PageConcurrentEditError } from "./html-document-store.js";
 import type { PageHtmlOperation, PageHtmlWriteOutcome, PagesHtmlDocumentStorePort } from "@jini-ai/core/contracts/site/page-html-store";
 import type { PageHtmlRegionPorts, HtmlRegionScan, ScannedRegion, RegionLookupProblem, RegionMoveProblem } from "@jini-ai/core/contracts/site/html-region-ports";

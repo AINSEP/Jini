@@ -9,7 +9,7 @@ import {
   getLatestTransformDefinition,
   type MediaRecord,
 } from "../../../media/index.js";
-import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
+import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../payload-fields.js";
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";

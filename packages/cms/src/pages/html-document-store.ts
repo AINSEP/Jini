@@ -2,10 +2,12 @@ import type { PluginEmbedDiagnostic, PagesHtmlDocumentStoreScope, PagesHtmlDocum
 import { nowIso as clockNowIso, type Clock as ClockPort, type UUID } from "@jini-ai/core/primitives";
 import { assertEntityLive, type PostStatus } from "../core/index.js";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
-import { normalizeEmbedMarkerQuoting } from "../widgets/markers/index.js";
-import { extractHtmlEntryRefs, normalizeWidgetSlugMarkers, type WidgetSlugLookupPort, type EntryRefsRepoPort, type EntryRefRow } from "../widgets/index.js";
+import { normalizeEmbedMarkerQuoting } from "../widgets/markers/marker.js";
+import { extractHtmlEntryRefs } from "../widgets/entry-refs-extractor.js";
+import { normalizeWidgetSlugMarkers, type WidgetSlugLookupPort } from "../widgets/widget-slug-normalization.js";
+import type { EntryRefsRepoPort, EntryRefRow } from "../widgets/ports.js";
 import type { EntryRefsReport } from "../widgets/entry-refs-extractor.js";
-import { announcePendingGoLive } from "../entries/index.js";
+import { announcePendingGoLive } from "../entries/go-live.js";
 import { SYSTEM_ACTOR_ID, type PostRepoPort } from "../posts/post.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
 

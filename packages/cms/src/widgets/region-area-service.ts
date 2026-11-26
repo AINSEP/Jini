@@ -35,16 +35,8 @@ import {
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
-import {
-  areaDocWithPlacements,
-  buildWidgetAreaFieldsJson,
-  emptyWidgetAreaDoc,
-  ensureWidgetContentTypesRegistered,
-  parseWidgetAreaPayload,
-  parseWidgetInstancePayload,
-  toWidgetAreaEntry,
-  widgetAreaSlug,
-} from "./entry-payload.js";
+import { areaDocWithPlacements, emptyWidgetAreaDoc, ensureWidgetContentTypesRegistered, toWidgetAreaEntry, widgetAreaSlug } from "./entry-payload.js";
+import { buildWidgetAreaFieldsJson, parseWidgetAreaPayload, parseWidgetInstancePayload } from "./payload-fields.js";
 import {
   WidgetAreaConflictError,
   WidgetAreaNotFoundError,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { scanEmbedMarkers, withInnerContent } from "../markers/marker.js";
-import { buildWidgetInstanceFieldsJson, parseWidgetInstancePayload, buildWidgetAreaFieldsJson, parseWidgetAreaPayload } from "../entry-payload.js";
+import { buildWidgetInstanceFieldsJson, parseWidgetInstancePayload, buildWidgetAreaFieldsJson, parseWidgetAreaPayload } from "../payload-fields.js";
 
 // Literal element: Tovu content/themes/static/tailark-dusk/index.html:54.
 const MARKER = `<nav class="main-nav" data-embed-config='{"type":"menu","id":"menu-header-nav"}'><!-- live content when connected to Tovu --></nav>`;

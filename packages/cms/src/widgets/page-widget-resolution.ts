@@ -1,7 +1,7 @@
 import type { Logger } from "@jini-ai/core/primitives";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { EntryListPort, EntryRepoPort } from "../entries/index.js";
-import { parseWidgetAreaPayload } from "./entry-payload.js";
+import { parseWidgetAreaPayload } from "./payload-fields.js";
 import type { WidgetRegionBindingRepoPort } from "./ports.js";
 import { WIDGET_AREA_CONTENT_TYPE } from "./types.js";
 import type { WidgetPlacementNode, WidgetRegionKey, WidgetRenderIR, WidgetResolveContext } from "./types.js";

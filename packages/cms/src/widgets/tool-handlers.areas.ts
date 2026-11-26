@@ -10,7 +10,7 @@ import { AGENT_TOOL_PRINCIPAL_KIND, isRecord, requireInputRecord, requireNumber,
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { requireWidgetPermission } from "./authorize-helper.js";
 import { insertWidgetEmbed, removeWidgetEmbed, reorderWidgetEmbeds } from "./embed-service.js";
-import { parseWidgetAreaPayload, parseWidgetInstancePayload } from "./entry-payload.js";
+import { parseWidgetAreaPayload, parseWidgetInstancePayload } from "./payload-fields.js";
 import { WidgetAreaNotFoundError } from "./errors.js";
 import { bindWidgetArea, mutateWidgetAreaPlacements } from "./region-area-service.js";
 import type { WidgetsHandlerArgs, WidgetsPackageToolDeps } from "./tool-handlers.types.js";

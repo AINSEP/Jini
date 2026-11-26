@@ -4,7 +4,7 @@ import type { Clock } from "@jini-ai/core/primitives";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { DbOpsPort } from "@jini-ai/core/contracts/site/gated-mutations-ports";
 import type { SiteStatusPort } from "@jini-ai/core/contracts/site/recovery-reconcile-interrupted-migration";
-import { listRestorePoints, type RestorePointListPort } from "../tools/index.js";
+import { listRestorePoints, type RestorePointListPort } from "../tools/restore-points.js";
 import { resolveDeepLinkContext, type DatabaseContextEnvelope, type DeepLinkRestorePointLookupPort } from "./deep-link.js";
 import { computeDisclosure, type DisclosureWatermarkSourcePort } from "./disclosure.js";
 import { confirmRestore, executeRestore, planRestore, type PlanRestoreGatewayPort, type ConfirmRestoreGatewayPort, type ExecuteRestoreGatewayPort, type ExecuteRestoreOperationLockPort } from "./recovery-orchestrator.js";

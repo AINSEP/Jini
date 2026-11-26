@@ -38,12 +38,8 @@ import {
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
 import { trustedWidgetActor, type WidgetWriteActor } from "./authorize-helper.js";
 import { validateWidgetConfig, type WidgetConfigFieldError } from "./config-validation.js";
-import {
-  buildWidgetInstanceFieldsJson,
-  ensureWidgetContentTypesRegistered,
-  parseWidgetInstancePayload,
-  toWidgetInstanceEntry,
-} from "./entry-payload.js";
+import { ensureWidgetContentTypesRegistered, toWidgetInstanceEntry } from "./entry-payload.js";
+import { buildWidgetInstanceFieldsJson, parseWidgetInstancePayload } from "./payload-fields.js";
 import {
   WidgetConfigValidationError,
   WidgetInstanceNotFoundError,

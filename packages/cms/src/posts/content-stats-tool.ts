@@ -10,8 +10,8 @@ import { withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { PostRecord, PostRepoPort } from "./post.js";
 import { extractPostPlainText } from "./search.js";
-import { extractPlainTextFromHtml } from "../seo/index.js";
-import { sniffContentType } from "../media/index.js";
+import { extractPlainTextFromHtml } from "../seo/html-plain-text.js";
+import { sniffContentType } from "../media/content-type-sniffer.js";
 import type { MediaContentTypeStorePort } from "../media/site/content-type-store.js";
 
 /** Read ports only; structural projections also permit small in-memory fixtures. */

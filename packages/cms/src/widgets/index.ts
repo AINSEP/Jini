@@ -4,6 +4,7 @@ export * from "./config-validation.js";
 export * from "./embed-validation.js";
 export * from "./errors.js";
 export * from "./entry-payload.js";
+export * from "./payload-fields.js";
 export * from "./concurrency.js";
 export * from "./ports.js";
 export * from "./host-ports.js";

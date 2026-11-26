@@ -10,7 +10,7 @@ import { WIDGET_AREA_CONTENT_TYPE } from "../../types.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import { bindWidgetArea, mutateWidgetAreaPlacements, type RegionAreaServiceDeps } from "../../region-area-service.js";
 import { createWidgetInstance, type WidgetWriteServiceDeps } from "../../write-service.js";
-import { buildWidgetInstanceFieldsJson } from "../../entry-payload.js";
+import { buildWidgetInstanceFieldsJson } from "../../payload-fields.js";
 
 /**
  * @file `region-area-service.ts` paths the AC-level suite does not reach: re-binding an

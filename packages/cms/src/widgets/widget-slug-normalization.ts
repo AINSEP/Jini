@@ -11,7 +11,7 @@
  */
 import type { UUID } from "@jini-ai/core/primitives";
 import type { EntryRepoPort } from "../entries/index.js";
-import { embedMarkerTarget, scanEmbedMarkers, substituteMarkers, withAddedId, type EmbedMarker } from "./markers/index.js";
+import { embedMarkerTarget, scanEmbedMarkers, substituteMarkers, withAddedId, type EmbedMarker } from "./markers/marker.js";
 import { WIDGET_CONTENT_TYPE } from "./types.js";
 
 /** The one repo capability this needs: the same slug lookup render-time resolution uses. */

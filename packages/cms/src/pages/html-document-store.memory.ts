@@ -8,14 +8,14 @@ import { type OutboxPort } from "@jini-ai/core/contracts/events";
 import { type PostRecord, type PostRepoPort } from "../posts/post.js";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 // Not from the barrel above — see `html-document-store.sqlite.ts`'s identical import for why.
-import { announcePendingGoLive } from "../entries/index.js";
+import { announcePendingGoLive } from "../entries/go-live.js";
 import { SYSTEM_ACTOR_ID } from "../posts/post.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
-import { normalizeEmbedMarkerQuoting } from "../widgets/markers/index.js";
-import { normalizeWidgetSlugMarkers, type WidgetSlugLookupPort } from "../widgets/index.js";
+import { normalizeEmbedMarkerQuoting } from "../widgets/markers/marker.js";
+import { normalizeWidgetSlugMarkers, type WidgetSlugLookupPort } from "../widgets/widget-slug-normalization.js";
 import type { UUID } from "@jini-ai/core/primitives";
-import { extractHtmlEntryRefs } from "../widgets/index.js";
-import type { EntryRefsRepoPort } from "../widgets/index.js";
+import { extractHtmlEntryRefs } from "../widgets/entry-refs-extractor.js";
+import type { EntryRefsRepoPort } from "../widgets/ports.js";
 import {
   PageConcurrentEditError,
   PageKindMismatchError,

@@ -1,6 +1,9 @@
 // Test-only argument adapters keep copied assertions byte-identical.
-import * as owner from "../../../entry-payload.js";
+import * as entryPayload from "../../../entry-payload.js";
+import * as payloadFields from "../../../payload-fields.js";
+const owner = { ...entryPayload, ...payloadFields };
 export * from "../../../entry-payload.js";
+export { WIDGET_PAYLOAD_FIELD } from "../../../payload-fields.js";
 export function buildWidgetInstanceFieldsJson(payload: Parameters<typeof owner.buildWidgetInstanceFieldsJson>[0]["payload"]) { return owner.buildWidgetInstanceFieldsJson({ payload }); }
 export function parseWidgetInstancePayload(fieldsJson: Parameters<typeof owner.parseWidgetInstancePayload>[0]["fieldsJson"]): ReturnType<typeof owner.parseWidgetInstancePayload> { return owner.parseWidgetInstancePayload({ fieldsJson }); }
 export function buildWidgetAreaFieldsJson(payload: Parameters<typeof owner.buildWidgetAreaFieldsJson>[0]["payload"]) { return owner.buildWidgetAreaFieldsJson({ payload }); }

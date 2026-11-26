@@ -808,7 +808,10 @@
         "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts",
         "src/screens/trash/rules.ts",
         "src/shell/components/AssistantDock/hooks/chat-package-kind.ts",
-        "src/screens/skills/skill-drop.ts"
+        "src/screens/skills/skill-drop.ts",
+        "src/screens/settings/rules.ts",
+        "src/shell/components/AssistantDock/local-cli-selection-echo.ts",
+        "src/screens/plugins/resolve-composer-discovery-outcome.ts"
       ],
       "forbidden": {
         "universal": [

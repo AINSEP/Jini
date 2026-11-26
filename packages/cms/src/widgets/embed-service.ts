@@ -37,7 +37,7 @@ import {
 } from "./authorize-helper.js";
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
 import { validateWidgetEmbedMutation } from "./embed-validation.js";
-import { parseWidgetInstancePayload } from "./entry-payload.js";
+import { parseWidgetInstancePayload } from "./payload-fields.js";
 import {
   WidgetEmbedGuardrailError,
   WidgetEmbedHostNotFoundError,

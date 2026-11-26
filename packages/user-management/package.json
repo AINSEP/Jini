@@ -176,7 +176,7 @@
         "./identity/user-purge-types": "server",
         "./identity/username-change-ports": "server",
         "./identity/delete-user-service": "server",
-        "./member-login/oidc-login": "server",
+        "./member-login/oidc-login": "members",
         "./member-login/link-service": "members",
         "./public-http/routes/newsletter/confirm": "newsletter",
         "./public-http/routes/newsletter/unsubscribe": "newsletter",
@@ -184,7 +184,7 @@
         "./identity/repo.authentication": "server",
         "./identity/repo.authorization": "server",
         "./member-login/unlink-identity": "members",
-        "./member-login/oidc-request": "server"
+        "./member-login/oidc-request": "members"
       },
       "shared": [
         "src/server/auth-challenge.ts",

@@ -1,8 +1,8 @@
 import type { ConsentAnalyticsProof, ConsentConfig, ConsentState } from '@jini-ai/core/contracts/site/cookie-consent';
 import type { ConsentPluginContribution, ConsentPluginHttp } from '@jini-ai/core/contracts/headless/site-cookie-consent';
 import { CONSENT_COOKIE, OPTIONAL, type Optional } from '../contract.js';
-import { DEFAULT_MAX_AGE_MS, parseStored } from '../policy.js';
-import { readConsent, type ConsentRecord } from '../server/index.js';
+import { DEFAULT_MAX_AGE_MS, parseStored } from '../contracts/policy.js';
+import { readConsent, type ConsentRecord } from '../server/receipt.js';
 import { siteBannerMode } from './cookie-consent.js';
 
 /** A dot segment or an encoded separator never reaches a plugin handler, whatever the plugin does with paths. */

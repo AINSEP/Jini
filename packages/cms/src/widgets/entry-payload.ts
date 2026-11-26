@@ -1,4 +1,4 @@
-import { isNonArrayRecord } from "@jini-ai/core";
+import { WIDGET_PAYLOAD_FIELD, parseWidgetAreaPayload, parseWidgetInstancePayload } from "./payload-fields.js";
 import type { ContentTypeRepoPort } from "../content-types/index.js";
 import type { WidgetHostPorts } from "./host-ports.js";
 import type { Clock as ClockPort, JsonObject } from "@jini-ai/core/primitives";
@@ -57,52 +57,6 @@ import type {
  * change — see the implementation report).
  */
 
-export const WIDGET_PAYLOAD_FIELD = "payload";
-
-interface WidgetInstancePayload {
-  widgetType: WidgetTypeKey;
-  /** `Record<string, unknown>`, not `JsonObject`, matching the stub-frozen `Create/UpdateWidgetInstanceInput.config` shape (`write-service.ts`) — cast to `JsonObject` only at the `WidgetInstanceEntry` read-model boundary below. */
-  config: Record<string, unknown>;
-  status: WidgetInstanceStatus;
-}
-
-interface WidgetAreaPayload {
-  regionKey: WidgetRegionKey;
-  doc: WidgetAreaDoc;
-}
-
-/** Reads the single `payload` text field out of an entry's `fieldsJson.ext.<owner>` envelope. */
-function readPayloadString(fieldsJson: unknown, owner: string): string {
-  const fields = { value: fieldsJson };
-  if (!isNonArrayRecord(fields)) throw new Error("widgets: malformed fieldsJson (expected an object)");
-  const ext = { value: fields.value.ext };
-  if (!isNonArrayRecord(ext)) throw new Error("widgets: malformed fieldsJson (missing ext)");
-  const ownerBag = { value: ext.value[owner] };
-  if (!isNonArrayRecord(ownerBag) || typeof ownerBag.value[WIDGET_PAYLOAD_FIELD] !== "string") {
-    throw new Error(`widgets: malformed fieldsJson (missing fields.ext.${owner}.payload)`);
-  }
-  return ownerBag.value[WIDGET_PAYLOAD_FIELD];
-}
-
-function buildFieldsJson(payload: unknown, owner: string): unknown {
-  return { ext: { [owner]: { [WIDGET_PAYLOAD_FIELD]: JSON.stringify(payload) } } };
-}
-
-export function buildWidgetInstanceFieldsJson({ payload }: { payload: WidgetInstancePayload }, _optional: Record<string, never> = {}): unknown {
-  return buildFieldsJson(payload, WIDGET_FIELD_NAMESPACE);
-}
-
-export function parseWidgetInstancePayload({ fieldsJson }: { fieldsJson: unknown }, _optional: Record<string, never> = {}): WidgetInstancePayload {
-  return JSON.parse(readPayloadString(fieldsJson, WIDGET_FIELD_NAMESPACE)) as WidgetInstancePayload;
-}
-
-export function buildWidgetAreaFieldsJson({ payload }: { payload: WidgetAreaPayload }, _optional: Record<string, never> = {}): unknown {
-  return buildFieldsJson(payload, WIDGET_AREA_FIELD_NAMESPACE);
-}
-
-export function parseWidgetAreaPayload({ fieldsJson }: { fieldsJson: unknown }, _optional: Record<string, never> = {}): WidgetAreaPayload {
-  return JSON.parse(readPayloadString(fieldsJson, WIDGET_AREA_FIELD_NAMESPACE)) as WidgetAreaPayload;
-}
 
 export function toWidgetInstanceEntry({ entry }: { entry: EntryRecord }, _optional: Record<string, never> = {}): WidgetInstanceEntry {
   const payload = parseWidgetInstancePayload({ fieldsJson: entry.fieldsJson });
