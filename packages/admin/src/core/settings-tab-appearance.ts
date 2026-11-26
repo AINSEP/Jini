@@ -14,7 +14,7 @@ export interface AppearanceConfig {
   theme: "system" | "light" | "dark";
   /** Legacy single value belongs to Classic. Kept for existing settings callers. */
   accentColor: string;
-  /** Tovu admin-theme overrides other than Classic; stored separately from the scalar. */
+  /** Host admin-theme overrides other than Classic; stored separately from the scalar. */
   accentColors?: Readonly<Record<string, string>>;
 }
 

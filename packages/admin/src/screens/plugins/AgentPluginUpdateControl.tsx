@@ -1,5 +1,8 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useId } from "react";
+import type { AgentPluginListRow } from "../../agent-plugins/models.js";
+import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
+import type { AgentPluginsProps } from "./AgentPlugins.js";
 
 import { AddAgentPluginPanel } from "./AddAgentPluginPanel.js";
 import type { AgentPluginUpdateState } from "./hooks/use-agent-plugin-update.hooks.js";
@@ -7,7 +10,7 @@ import type { AgentPluginUpdateState } from "./hooks/use-agent-plugin-update.hoo
 import { type Translate } from '@jini-ai/core/text';
 export interface AgentPluginUpdateControlProps {
   /** The row's update state and upload controller, composed by the wired list
-   *  (`AgentPlugins.tsx`'s `AgentPluginUpdateSlot`, from `useAgentPluginUpdate`). */
+   *  (`AgentPluginUpdateSlot`, from `useAgentPluginUpdate`). */
   readonly update: AgentPluginUpdateState;
   readonly t: Translate;
   /** The row's own agent-handle base; the button and panel nest under `<base>-update`. */
@@ -46,3 +49,24 @@ export function AgentPluginUpdateControl({ update, t, agentHandleBase }: AgentPl
     </div>
   );
 }
+
+/**
+ * The wired owner of one updatable row's Update control: hooks cannot run inside the rows' `map`, so
+ * each operator-installed row composes its update state (`useAgentPluginUpdate`) here and
+ * `AgentPluginUpdateControl` only renders what it is handed.
+ */
+export function AgentPluginUpdateSlot({ hooks, deps, plugin, expectedOldDigest, t, agentHandleBase, onUpdated, port }: {
+  plugin: AgentPluginListRow;
+  expectedOldDigest: string;
+  t: Translate;
+  agentHandleBase: string;
+  onUpdated: (plugin: AgentPluginListRow) => void;
+  port: AgentPluginInstallPort;
+} & { hooks: Pick<AgentPluginsProps["hooks"], "useAgentPluginUpdateHook">; deps: Pick<AgentPluginsProps["deps"], "productName" | "isApiError" | "folderZip" | "pluginRules"> }) {
+
+  const { useAgentPluginUpdateHook } = hooks;
+  const { isApiError, folderZip, pluginRules } = deps;
+  const update = useAgentPluginUpdateHook({ plugin, expectedOldDigest, port, t, onUpdated, productName: deps.productName, isApiError, folderZip, rules: pluginRules });
+  return <AgentPluginUpdateControl update={update} t={t} agentHandleBase={agentHandleBase} />;
+}
+

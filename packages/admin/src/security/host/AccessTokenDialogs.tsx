@@ -13,8 +13,8 @@ import { WorksForField } from "./AccessTokenFields.js";
 /**
  * Native `<dialog>` confirm — same `.confirm-dialog` foundation `styles.css:2880` documents (`[open]`-
  * scoped `display`, never a bare-class rule — that comment's own header records the live bug an
- * unscoped rule caused). "Remove from Tovu," never "Revoke" — `rules.ts`'s own header, this page's
- * one load-bearing copy constraint: deleting Tovu's row does not revoke the credential at the
+ * unscoped rule caused). "Remove from the host," never "Revoke" — `rules.ts`'s own header, this page's
+ * one load-bearing copy constraint: deleting the host's row does not revoke the credential at the
  * provider, and this dialog is the one place that fact has to be stated in words, not implied by a
  * button label.
  *
@@ -147,7 +147,7 @@ export const AddCustomCredentialDialog = forwardRef<HTMLDialogElement, { control
       >
         <h2 id={titleId}>{translate("Add custom provider")}</h2>
         <CustomCredentialNameField controller={controller} form={form} translate={translate} />
-        <CustomCredentialUrlField controller={controller} form={form} translate={translate} baseUrlInvalid={baseUrlInvalid} />
+        <CustomCredentialUrlField bindings={bindings} controller={controller} form={form} translate={translate} baseUrlInvalid={baseUrlInvalid} />
         <AdditionalHostsField
           value={form.additionalHosts}
           onChange={(value) => controller.setCustomAddField({ additionalHosts: value })}
@@ -206,7 +206,7 @@ function CustomCredentialNameField({ controller, form, translate }: { controller
   );
 }
 
-function CustomCredentialUrlField({ controller, form, translate, baseUrlInvalid }: { controller: AccessTokensController; form: AccessTokensController["customAddForm"]; translate: Translate; baseUrlInvalid: boolean }, _optional: Record<string, never> = {}) {
+function CustomCredentialUrlField({ bindings, controller, form, translate, baseUrlInvalid }: { bindings: AccessTokensTabBindings; controller: AccessTokensController; form: AccessTokensController["customAddForm"]; translate: Translate; baseUrlInvalid: boolean }, _optional: Record<string, never> = {}) {
   return (
 <div className="field">
           <label className="field-label" htmlFor="security-add-custom-base-url">
@@ -217,7 +217,7 @@ function CustomCredentialUrlField({ controller, form, translate, baseUrlInvalid 
             id="security-add-custom-base-url"
             type="url"
             value={form.baseUrl}
-            placeholder="https://api.example.com"
+            placeholder={bindings.deps.customCredentialBaseUrlPlaceholder}
             onChange={(e) => controller.setCustomAddField({ baseUrl: e.target.value })}
             {...agentHandle({ handle: "security-access-tokens-add-custom-base-url" }, { role: "field", label: "This provider's API base URL" })}
           />

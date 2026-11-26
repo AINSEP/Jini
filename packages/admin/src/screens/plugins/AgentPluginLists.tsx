@@ -5,7 +5,8 @@ import { AgentPluginRow, type AgentPluginRowStateControl } from "./AgentPluginRo
 import { AgentPluginManageButton } from "./AgentPluginManageButton.js";
 import { MarketplaceIcon } from "./agent-plugins-visuals.js";
 import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
-import { AgentPluginUpdateSlot, type AgentPluginsProps, type AgentPluginsController } from "./AgentPlugins.js";
+import type { AgentPluginsProps, AgentPluginsController } from "./AgentPlugins.js";
+import { AgentPluginUpdateSlot } from "./AgentPluginUpdateControl.js";
 const AGENT_PLUGINS_SPEC_URL = "https://agent-plugins.org/specification";
 /**
  * The panel's non-row messages: a failed load, an unsettled first load, a refused toggle, and a

@@ -34,7 +34,7 @@ import type { MediaPort } from "./media-port.hooks.js";
  * there is no sibling-vs-nested key decision to make here at all, unlike `forms`/`collections`'
  * list-plus-detail-editor pairs.
  *
- * `baselineRef` (2026-08-12 audit round, TM-TOVU-2026-08-12-A — silent-revert lost update, media's
+ * `baselineRef` (2026-08-12 audit round, media audit 2026-08-12-A — silent-revert lost update, media's
  * instance of the Comments defect): `diffMediaMetadata` must diff `draft` against the SAME snapshot
  * `draft` was seeded from, not the live `item` prop. `props.item` is NOT frozen — `use-media.hooks
  * .ts`'s `editingItem` is recomputed from `list.data` on every render, and `Media.tsx`'s

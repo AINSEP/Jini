@@ -32,7 +32,7 @@ import type { PostsListPort } from "./posts-list-port.hooks.js";
  * `load` (staleness-bug generalization pass — see `use-content-refresh-subscription.hooks.ts`'s own
  * header): pulled out of the mount effect into a `useCallback` so the same function can also be
  * handed to `useContentRefreshSubscription`, which re-runs it whenever `content_post_create`/
- * `_update`/`_delete` (`apps/website/src/features/post/agent-tools.ts`) write a post from an
+ * `_update`/`_delete` (`host src/features/post/agent-tools.ts`) write a post from an
  * assistant run this screen otherwise has no way to learn about — the exact bug this pass was
  * dispatched to fix, reported against this exact screen (an operator asked the assistant to
  * translate-and-publish a post; the write landed, this list did not move until a manual reload).

@@ -30,7 +30,7 @@ const UNKNOWN_ERROR = "unknown error";
 /**
  * Re-reads all three stores directly, bypassing `useFetchQuery`'s cache — an out-of-band write
  * (today `custom_credential_set_username`/`custom_credential_set_token`,
- * `apps/website/src/features/custom-credentials/agent-tools.ts`) has nothing to invalidate that
+ * `host src/features/custom-credentials/agent-tools.ts`) has nothing to invalidate that
  * this hook would ever re-read: `publishQuery`/`sourceControlQuery`/`customQuery` only ever feed
  * the ONE-TIME seed effects above (`publishSeededRef` et al.), and every subsequent read this hook
  * shows the operator comes from `publishCredentials`/`sourceControlCredentials`/`customCredentials`

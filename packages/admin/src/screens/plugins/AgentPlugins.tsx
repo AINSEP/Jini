@@ -4,7 +4,6 @@ import type { AgentPluginListRow } from "../../agent-plugins/models.js";
 import { I18nProvider, SettingsDialogShell, type KitDictionaries, type SettingsDialogTab } from "../../react/kit.js";
 import { PluginRulesProvider } from "./rules-context.js";
 import type { PluginRules } from "./rules.js";
-import { AgentPluginUpdateControl } from "./AgentPluginUpdateControl.js";
 import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
 import type { useAgentPluginInstall, AgentPluginInstallHost } from "./hooks/use-agent-plugin-install.hooks.js";
 import type { useAgentPluginUpdate } from "./hooks/use-agent-plugin-update.hooks.js";
@@ -187,26 +186,6 @@ export function AgentPlugins(props: AgentPluginsProps, _optional = {}) {
       <AgentPluginsScreen {...props} />
     </PluginRulesProvider>
   );
-}
-
-/**
- * The wired owner of one updatable row's Update control: hooks cannot run inside the rows' `map`, so
- * each operator-installed row composes its update state (`useAgentPluginUpdate`) here and
- * `AgentPluginUpdateControl` only renders what it is handed.
- */
-export function AgentPluginUpdateSlot({ hooks, deps, plugin, expectedOldDigest, t, agentHandleBase, onUpdated, port }: {
-  plugin: AgentPluginListRow;
-  expectedOldDigest: string;
-  t: Translate;
-  agentHandleBase: string;
-  onUpdated: (plugin: AgentPluginListRow) => void;
-  port: AgentPluginInstallPort;
-} & { hooks: Pick<AgentPluginsProps["hooks"], "useAgentPluginUpdateHook">; deps: Pick<AgentPluginsProps["deps"], "productName" | "isApiError" | "folderZip" | "pluginRules"> }) {
-
-  const { useAgentPluginUpdateHook } = hooks;
-  const { isApiError, folderZip, pluginRules } = deps;
-  const update = useAgentPluginUpdateHook({ plugin, expectedOldDigest, port, t, onUpdated, productName: deps.productName, isApiError, folderZip, rules: pluginRules });
-  return <AgentPluginUpdateControl update={update} t={t} agentHandleBase={agentHandleBase} />;
 }
 
 export function bindAgentPlugins({ kit, hooks, deps }: Pick<AgentPluginsProps, "kit" | "hooks" | "deps">, _optional = {}) {

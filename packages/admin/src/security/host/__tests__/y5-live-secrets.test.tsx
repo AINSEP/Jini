@@ -222,7 +222,7 @@ test("the live tab preserves combined search counts and disables custom Save unt
     kit: { CredentialHint: () => null, OnboardingChipField: () => null, OtherCredentialEntry: () => null, ConnectedMarkIcon: () => null, DisclosureChevronIcon: () => null, SearchIcon: () => null },
     deps: {
       ACCESS_TOKEN_CATEGORIES: [{ id: "all" as const, label: "All" }], ACCESS_TOKEN_PROVIDER_COPY: { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" },
-      showCopyKeysEntry: false, viewerTimeZone: "UTC", removeLabel: "Remove stored copy",
+      showCopyKeysEntry: false, viewerTimeZone: "UTC", removeLabel: "Remove stored copy", customCredentialBaseUrlPlaceholder: "https://api.example.com",
       removeTokenHandleLabel: ({ provider }: { provider: string }) => `Remove ${provider}`,
       storedTokenNotice: "Stored encrypted. Never shown again.", hostingPluginsHref: "/plugins",
       providerGroupHandleLabel: vi.fn(), tokenRowHandleLabel: vi.fn(), fieldNameHandleSegment: vi.fn(), fieldHelpText: vi.fn(), accessTokenExtraFieldIdSuffix: vi.fn(),

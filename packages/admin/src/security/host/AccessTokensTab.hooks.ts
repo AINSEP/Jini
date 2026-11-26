@@ -35,7 +35,7 @@ export interface RemoveConfirmDialogActions {
  * @param required.ref - The forwarded ref `RemoveConfirmDialog` receives from its caller.
  * @param required.row - The token row this confirm dialog is for.
  * @param required.controller - `AccessTokensController.removeToken` is the one call this hook makes.
- * @returns `close`/`confirm`, wired directly to the dialog's Cancel/"Remove from Tovu" buttons.
+ * @returns `close`/`confirm`, wired directly to the dialog's Cancel/"Remove from the host" buttons.
  * @complexity O(1).
  */
 export function useRemoveConfirmDialog(

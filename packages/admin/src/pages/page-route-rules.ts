@@ -33,7 +33,7 @@ export interface ThemePageRowMenuHandlers {
  * `/:slug` — one path segment (`panels.tsx`) — so `/` cannot match it, the bug `45101306` fixed
  * by switching to id-always. The editor maps `home` back to `/` before fetching. The alias wins:
  * a real page whose legal slug is `home` uses its id, preserving access without reserving a
- * public slug. `getAdminPostByIdOrSlug` (`apps/website/src/features/post/post.ts`) resolves an
+ * public slug. `getAdminPostByIdOrSlug` (`host src/features/post/post.ts`) resolves an
  * ordinary slug or id server-side (slug checked first, id as the fallback).
  *
  * Deliberately returns the bare route path rather than a full href or two id/slug-flavored
@@ -88,7 +88,7 @@ function themePageRowMenuItems({ row, handlers, t, deps }: { row: { pageId: stri
  * `null` maps to whichever of {@link STATIC_TIER_PAGE_SHELL_TEMPLATES} (`pages-default.html`, then
  * the legacy `page-shell.html`) `availableTemplates` actually lists — the REAL filename the live
  * render already resolves through (`resolveStaticTierPageShellFallback`,
- * `apps/website/src/features/theme/static-render.ts`), so picking it back explicitly in the UI is a
+ * `host src/features/theme/static-render.ts`), so picking it back explicitly in the UI is a
  * no-op. When the active theme ships neither name (a declarative/handlebars theme, or a static theme
  * with no page shell at all), there is no real filename to show, so this returns
  * {@link THEME_DEFAULT_SENTINEL} instead — the one case the picker renders one extra, synthetic
