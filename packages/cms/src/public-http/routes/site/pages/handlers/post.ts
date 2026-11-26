@@ -106,7 +106,7 @@ export async function renderTemplateBranchIfEligible({ post, theme, isBarePageCh
 export async function renderBarePostPage({ deps, post }: { deps: {
   resolveSiteTitleForRender(): Promise<string>;
   resolveWidgetsForRender(required: { theme: null }, optional: { post: PostRecord }): Promise<ResolvePageWidgetsResult>;
-  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult | undefined>;
   resolveMediaTransformVersionsForRender(): Promise<ReadonlyMap<string, number>>;
   resolveMediaAssetMetadataForRender(required: { post: PostRecord }): Promise<ReadonlyMap<string, MediaAssetRenderMeta>>;
   buildExtraHead(required: { route: "post"; siteTitle: string; post: PostRecord }): Promise<string>;
@@ -139,7 +139,7 @@ export async function renderBarePostPage({ deps, post }: { deps: {
 export async function renderGenericPostPage({ deps, post, posts, siteAssistantEnabled }: { deps: {
   resolveSiteTitleForRender(): Promise<string>;
   resolveWidgetsForRender(required: { post: PostRecord }): Promise<ResolvePageWidgetsResult>;
-  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult>;
+  resolveHtmlEmbedsForRender(required: { post: PostRecord }): Promise<ResolveHtmlPageEmbedsResult | undefined>;
   resolveMediaTransformVersionsForRender(): Promise<ReadonlyMap<string, number>>;
   resolveMediaAssetMetadataForRender(required: { post: PostRecord }, optional: { listed: readonly PostRecord[] }): Promise<ReadonlyMap<string, MediaAssetRenderMeta>>;
   buildExtraHead(required: { route: "post"; siteTitle: string; post: PostRecord }): Promise<string>;

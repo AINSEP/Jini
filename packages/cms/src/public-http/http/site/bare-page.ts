@@ -36,7 +36,7 @@ const EMPTY_MEDIA_ASSET_METADATA: ReadonlyMap<string, MediaAssetRenderMeta> = ne
  *  caller that only has a post/siteTitle (no widgets, no embeds) still gets a valid document. */
 export interface RenderBareEntryDocumentRequired {
   /** Host assets join only documents this renderer constructs; authored full documents stay intact. */
-  documentAssets?: DocumentAssets;
+  documentAssets?: DocumentAssets | undefined;
   post: PostRecord;
   siteTitle: string;
   /** SPEC-008 T049 — the caller's pre-built SEO/og head fold (`pages.ts`'s `buildExtraHead`), spliced
@@ -45,7 +45,7 @@ export interface RenderBareEntryDocumentRequired {
   /** SPEC-047 Slice 2 — an `"html"`-format Page's pre-resolved `data-embed-type` targets, threaded
    *  straight into {@link renderHtmlPageBody}. Omitted degrades to every marker resolving to the
    *  REQ-28 placeholder, that function's own existing contract. */
-  pageHtmlEmbeds?: ResolveHtmlPageEmbedsResult;
+  pageHtmlEmbeds?: ResolveHtmlPageEmbedsResult | undefined;
   /** SPEC-043/ADR-047 W-004 — a `"doc"`-format Page's pre-resolved inline widget embeds, threaded
    *  straight into {@link renderDocNode}. Omitted degrades to empty, same as that function's own
    *  default parameter. */

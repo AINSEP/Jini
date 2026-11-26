@@ -1,6 +1,22 @@
 import { expect, it, vi } from 'vitest';
 import type { PublicPostRecord } from '../../../../posts/post.js';
-import { renderPostPreview } from '../template-preview-render.js';
+import { renderBarePostPreview, renderPostPreview } from '../template-preview-render.js';
+
+it('forwards an absent HTML embed result as an explicit preview renderer input', async () => {
+  const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Post', slug: 'post', bodyJson: {}, kind: 'post', bodyFormat: 'doc', bodyHtml: null, status: 'draft', updatedAt: 'now', version: 1 };
+  const renderBareEntryDocument = vi.fn((required: Parameters<Parameters<typeof renderBarePostPreview>[0]['deps']['renderBareEntryDocument']>[0]) => {
+    expect(Object.hasOwn(required, 'pageHtmlEmbeds')).toBe(true);
+    expect(required.pageHtmlEmbeds).toBeUndefined();
+    return 'preview';
+  });
+  expect(await renderBarePostPreview({ post, deps: {
+    resolveSiteTitle: async () => 'Site', resolveWidgetsForRender: async () => ({ inlineResolved: new Map() }),
+    resolveHtmlEmbedsForRender: async () => undefined,
+    resolveMediaTransformVersionsForRender: async () => new Map(),
+    resolveMediaAssetMetadataForRender: async () => new Map(), renderBareEntryDocument,
+  } })).toBe('preview');
+  expect(renderBareEntryDocument).toHaveBeenCalledOnce();
+});
 
 it('renders a bare preview before reading the active theme', async () => {
   const post: PublicPostRecord = { id: 'p', workspaceId: 'w', title: 'Page', slug: 'page', bodyJson: {}, kind: 'page', bodyFormat: 'html', bodyHtml: 'saved', status: 'draft', templateChoice: '', updatedAt: 'now', version: 1 };

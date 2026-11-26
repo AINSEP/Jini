@@ -1,7 +1,7 @@
 import { useEffect, type ComponentType, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { ByokConfig, ExecutionConfig, ExecutionPort, ProviderPreset } from "@jini-ai/core/contracts/execution";
 import { type Translate } from "@jini-ai/core/text";
-import type { I18nProviderProps, SettingsDialogShellProps, SettingsDialogTab, SettingsSlice, SaveState as KitSaveState, PrivacyConsentState, MemoryEntrySummary, MemoryExtractionRecord, MemoryConfigFlagKey, ExecutionCredentialController, ExecutionCredentialView } from "../../react/kit.js";
+import type { I18nProviderProps, KitDictionaries, SettingsDialogShellProps, SettingsDialogTab, SettingsSlice, SaveState as KitSaveState, PrivacyConsentState, MemoryEntrySummary, MemoryExtractionRecord, MemoryConfigFlagKey, ExecutionCredentialController, ExecutionCredentialView } from "../../react/kit.js";
 import type { InterfaceConfig } from "../../core/settings-tabs.js";
 import type { createAdminByokKeyPanelTranslator } from "../../shell/components/AdminByokKeyPanel.hooks.js";
 import { createSettingsUiTranslators } from "./SettingsUi.hooks.js";
@@ -75,7 +75,7 @@ export interface SettingsUiProps {
       useAdminLocaleHook: () => string; createTranslator: typeof createAdminByokKeyPanelTranslator; t: Translate }>;
   };
   deps: {
-    SETTINGS_DIALOG_DICTIONARIES: Record<string, Record<string, string>>;
+    SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
     ADMIN_LOCALES: readonly { code: string; label: string; nativeLabel?: string }[];
     DEFAULT_INSTRUCTIONS: string; DEFAULT_EXECUTION_CONFIG: ExecutionConfig;
     tApp: (required: { locale: string; key: string }) => string;

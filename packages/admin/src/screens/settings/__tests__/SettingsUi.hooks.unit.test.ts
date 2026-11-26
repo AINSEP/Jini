@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import type { KitDictionaries } from "../../../react/kit.js";
+import type { SettingsUiProps } from "../SettingsUi.js";
 import { createSettingsUiTranslators } from "../SettingsUi.hooks.js";
 import { aiAgentPanelDictionaries, t as tExecution } from "../settings-execution-i18n.js";
 
@@ -28,6 +30,14 @@ describe("createSettingsUiTranslators (host dictionaries injected)", () => {
 });
 
 describe("settings-execution-i18n", () => {
+  it("accepts the kit's partial locale dictionaries at the settings screen boundary", () => {
+    expectTypeOf<KitDictionaries>().toEqualTypeOf<SettingsUiProps["deps"]["SETTINGS_DIALOG_DICTIONARIES"]>();
+    const dictionaries: KitDictionaries = { es: { Other: "Otro" } };
+    expect(aiAgentPanelDictionaries({ dictionaries, locales: [{ code: "es" }] }).es).toEqual({
+      Other: "Otro", "Execution mode": "Agente de IA", "AI agent": "Agente de IA",
+    });
+  });
+
   it("keeps the {productName} token in the server-scope key and translations, for the host to fill", () => {
     const key = "Detected on the {productName} server, not on your own computer.";
     expect(tExecution({ locale: "de", key })).toBe("Auf dem {productName}-Server erkannt, nicht auf Ihrem eigenen Computer.");
