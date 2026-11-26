@@ -5,8 +5,36 @@ import * as privacy from "./settings-tab-privacy.js";
 import * as appearance from "./settings-tab-appearance.js";
 import type { AppearanceConfig } from "./settings-tab-appearance.js";
 import type { InterfaceConfig } from "./settings-tab-preferences.js";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 export type { AppearanceConfig, InterfaceConfig };
+
+export function createPrivacyConsentBrowserAdapter({ deps }: { deps: {
+  getBrowser: () => {
+    readonly localStorage: { setItem: (key: string, value: string) => void; removeItem: (key: string) => void };
+    dispatchEvent: (event: Event) => boolean;
+  } | undefined;
+  createEvent: (type: string, init: { detail: boolean }) => Event;
+  observe: (required: { error: unknown; step: string }) => void;
+  withdrawalKey: string; consentEvent: string; saveMarkerStep: string; clearMarkerStep: string;
+} }, _optional = {}) {
+  return {
+    onMetricsWithdrawal: () => {
+      const browser = deps.getBrowser();
+      if (browser === undefined) return;
+      /* Live teardown still applies. */
+      orFallbackSync({ work: () => { browser.localStorage.setItem(deps.withdrawalKey, '1'); }, fallback: undefined, step: deps.saveMarkerStep }, { observe: deps.observe });
+      browser.dispatchEvent(deps.createEvent(deps.consentEvent, { detail: false }));
+    },
+    onMetricsSaved: ({ metrics }: { metrics: boolean }, _optional = {}) => {
+      const browser = deps.getBrowser();
+      if (browser === undefined) return;
+      /* The marker only denies. */
+      orFallbackSync({ work: () => { browser.localStorage.removeItem(deps.withdrawalKey); }, fallback: undefined, step: deps.clearMarkerStep }, { observe: deps.observe });
+      browser.dispatchEvent(deps.createEvent(deps.consentEvent, { detail: metrics }));
+    },
+  };
+}
 
 export function createSettingsTabs({ deps }: { deps: {
   loadNamespaceValues: (required: { namespace: string }) => Promise<Map<string, unknown>>;

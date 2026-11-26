@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { bindProviders } from "../providers/Providers.js";
 import { TabBar } from "@jini-ai/ui/tab-strip";
 import { cleanup, act, render, renderHook, screen } from "@testing-library/react";
@@ -128,4 +129,74 @@ test("media keeps the exact deep-link item available for editing and sends one p
   expect(upload).toHaveBeenCalledExactlyOnceWith({ filename: "photo.png", contentType: "image/png", dataBase64: "encoded" }, { alt: undefined });
   expect(result.current.uploading).toBe(false);
   expect(result.current.uploadOpen).toBe(false);
+});
+
+test("settings preserve legacy redirects, valid tab control, fallback, scrolling and save feedback", async () => {
+  const { bindSettingsUi } = await import("../settings/SettingsUi.js");
+  const config: import("@jini-ai/core/contracts/execution").ExecutionConfig = {
+    mode: "byok", byok: { protocol: "openai", providerId: null, apiKey: "", baseUrl: "", model: "" }, localCli: { agentId: null },
+  };
+  const port = { detectLocalAgents: async () => [], testConnection: async () => ({ ok: true }) };
+  const save = { status: "saved" as const };
+  const slice = <T,>(value: T) => ({ value, onChange: vi.fn(), loadError: null, saveState: save, refresh: async () => {} });
+  const state: ReturnType<Parameters<typeof bindSettingsUi>[0]["hooks"]["useSettingsUiHook"]> = {
+    loading: false, loadError: null, save, port,
+    execution: slice(config), instructions: slice(""), language: slice("fr"),
+    notifications: slice({ soundEnabled: true, successSoundId: "ok", failureSoundId: "no", desktopEnabled: false }),
+    privacy: slice({ telemetry: { metrics: false }, installationId: null, privacyDecisionAt: null }),
+    interface: slice({ hideChatFabWhileOpen: true, wrapTabs: false, adminTheme: "classic" }),
+    memoryTopTab: "memories", setMemoryTopTab: vi.fn(),
+  };
+  const navigate = vi.fn();
+  const useSettingsActiveTabScrollHook = vi.fn(() => ({ current: null }));
+  const useSettingsLocaleSyncHook = vi.fn();
+  const noop = () => null;
+  const Bound = bindSettingsUi({
+    hooks: {
+      useAdminThemeBoundaryHook: () => ({ "data-theme": "light" }), useSettingsUiHook: () => state,
+      useSettingsActiveTabScrollHook, useSettingsLocaleSyncHook,
+      useSettingsExecutionHook: () => ({ config, onConfigChange: vi.fn(), subtitleKey: "Execution", visibility: "hidden", note: null, unavailableReason: "BYOK" }),
+      useExecutionPolicy: () => ({ config, allowed: false, readAllowedForSend: async () => false, visibility: "hidden", note: null, preserveChange: next => next, subtitleKey: "Execution" }),
+      useAiAgentPresentationHook: () => ({ port, scopeCopy: "server", warning: null }),
+      useAdminExecutionCredentialHook: () => ({ stored: null, apiKeyStoredExternally: false, apiKeyPlaceholder: undefined,
+        storedKeyIsForOtherEndpoint: false, canDiscoverModels: true, saveState: save, settingsSaveState: save, canSaveKey: false,
+        saveKey: async () => {}, saveSettings: async () => {}, legacyKey: null, migrateLegacyKey: async () => {}, dismissLegacyPrompt: vi.fn() }),
+      useAdminLocale: () => "fr", useUserInterfaceTab: () => ({ hideChatFabWhileOpen: true, wrapTabs: false, toggleHideChatFabWhileOpen: vi.fn(), toggleWrapTabs: vi.fn() }),
+      useAdminBrowserAgentSettings: () => ({ enabled: false, busy: false, error: null, setEnabled: async () => {} }),
+    },
+    kit: {
+      I18nProvider: ({ children }) => <>{children}</>,
+      SettingsDialogShell: ({ tabs, activeTabId, chromeExtra, onActiveTabIdChange }) => <div>
+        <span>{activeTabId ?? tabs[0]?.id}</span>{chromeExtra}
+        <button onClick={() => onActiveTabIdChange?.("language")}>change tab</button>
+      </div>,
+      ExecutionTab: noop, InstructionsTab: noop, NotificationsTab: noop, PrivacyTab: noop,
+      LanguageTab: noop, MemorySettingsPanel: noop, Workspace: noop, AboutPanel: noop,
+      AdminByokMigrationPrompt: noop, AdminByokKeyFooter: noop, AdminByokSettingsFooter: noop,
+    },
+    deps: {
+      navigate, createSettingsTabChange: () => (nextTabId) => navigate({ routePath: `/settings?tab=${nextTabId}` }, { replace: true }),
+      SETTINGS_DIALOG_DICTIONARIES: {}, ADMIN_LOCALES: [], DEFAULT_INSTRUCTIONS: "", DEFAULT_EXECUTION_CONFIG: config,
+      tApp: ({ key }) => key, tCapability: ({ key }) => key, tWorkspace: ({ key }) => key,
+      DEFAULT_PROVIDER_PRESETS: [], isDesktopAdmin: () => false, defaultLocalAgentId: "local", scopeKeys: { desktopKey: "desktop", serverKey: "server" },
+      SETTINGS_EXECUTION_PRODUCT_VARS: { productName: "Host" }, createProbeErrorDescriber: () => () => "probe",
+      resolveAdminByokFooterStatusLine: () => "", webMcpT: ({ key }) => key,
+      memoryUnavailableNote: "Memory unavailable", localCliDataAttribute: "data-host-local-cli",
+      legacySkillsPath: "/addons/skills", legacyAppearancePath: "/admin-ui?tab=appearance", now: () => 1,
+    },
+  });
+  const mounted = render(<Bound tabId="skills" />);
+  expect(navigate).toHaveBeenLastCalledWith({ routePath: "/addons/skills" }, { replace: true });
+  expect(screen.getByText("execution")).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toBe("Enregistré");
+  expect(useSettingsActiveTabScrollHook).toHaveBeenLastCalledWith({ ready: true, tabId: "skills" });
+  expect(useSettingsLocaleSyncHook).toHaveBeenLastCalledWith({ locale: "fr" });
+  mounted.rerender(<Bound tabId="appearance" />);
+  expect(navigate).toHaveBeenLastCalledWith({ routePath: "/admin-ui?tab=appearance" }, { replace: true });
+  mounted.rerender(<Bound tabId="privacy" />);
+  expect(screen.getByText("privacy")).toBeTruthy();
+  mounted.rerender(<Bound tabId="missing" />);
+  expect(screen.getByText("execution")).toBeTruthy();
+  act(() => screen.getByText("change tab").click());
+  expect(navigate).toHaveBeenLastCalledWith({ routePath: "/settings?tab=language" }, { replace: true });
 });
