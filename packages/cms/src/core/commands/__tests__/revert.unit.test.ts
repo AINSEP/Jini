@@ -40,3 +40,37 @@ test("L079: a later inverse failure rolls back earlier writes.", async () => {
   expect((await changeSets.findById({ workspaceId: "workspace", id: "change" }))?.changeSet).toEqual(record);
   expect(events).toEqual([]);
 });
+
+test("L079: an outbox failure rolls back both inverses and the reverted change set.", async () => {
+  const record: ChangeSetRecord = { id: "change", workspaceId: "workspace", status: "applied", summary: "Update two rows", createdAt: "2026-11-26T00:00:00.000Z" };
+  const items: ChangeSetItemRecord[] = [0, 1].map(position => ({ id: `item-${position}`, changeSetId: record.id,
+    entityType: "document", entityId: `doc-${position}`, operation: "update", position, entityVersionAtApply: 2, inversePayload: { value: "before" } }));
+  const changeSets = new InMemoryChangeSetRepo([record], items);
+  const key = { workspaceId: record.workspaceId, id: record.id };
+  let values: Record<string, string> = { "doc-0": "original-0", "doc-1": "original-1" };
+  const original = { ...values };
+  const sentinel = new Error("outbox failed");
+  let active = false;
+  const registry = createRevertRegistry({});
+  registry.register("document", "update", { currentVersion: async () => 2, applyInverse: async ({ item }) => {
+    values[item.entityId] = `reverted-${item.position}`;
+  } });
+  const deps: RevertChangeSetDeps = { changeSets, registry, clock: { nowMs: () => 0 }, idGen: { newId: () => "event" },
+    outbox: { enqueue: async () => {
+      expect(active).toBe(true);
+      expect(values).toEqual({ "doc-0": "reverted-0", "doc-1": "reverted-1" });
+      expect((await changeSets.findById(key))?.changeSet.status).toBe("reverted");
+      throw sentinel;
+    }, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} },
+    transaction: async ({ work }) => {
+      const snapshot = { ...values };
+      const row = { ...(await changeSets.findById(key))!.changeSet };
+      active = true;
+      try { return await work(); }
+      catch (error) { values = snapshot; await changeSets.save(row); throw error; }
+      finally { active = false; }
+    } };
+  await expect(revertChangeSet({ deps, input: { workspaceId: key.workspaceId, changeSetId: key.id, actor: { id: "reverter", kind: "user" } } })).rejects.toBe(sentinel);
+  expect(values).toEqual(original);
+  expect((await changeSets.findById(key))?.changeSet).toEqual(record);
+});

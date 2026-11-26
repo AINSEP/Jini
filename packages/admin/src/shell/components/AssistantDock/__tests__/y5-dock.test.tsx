@@ -171,17 +171,17 @@ test.each([false, true])("the injected transport seam preserves override=%s and 
 });
 
 test("the dock uses the injected runtime visibility and skill availability rules", () => {
-  const visible = vi.fn(visibleAssistantRuntimePreferences);
-  const available = vi.fn(resolveSkillsAvailable);
+  const visible = vi.fn(visibleAssistantRuntimePreferences).mockReturnValue({ preferSubagents: true, useClaudeInChrome: true, replyLength: false });
+  const available = vi.fn(resolveSkillsAvailable).mockReturnValue(false);
   const useDiscoverySelect = vi.fn(input.hooks.useDiscoverySelect);
   const { result } = renderHook(() => useAssistantDockState({ ...input,
     hooks: { ...input.hooks, useDiscoverySelect },
     deps: { ...input.deps, visibleAssistantRuntimePreferences: visible, resolveSkillsAvailable: available },
   }));
   expect(visible).toHaveBeenCalledExactlyOnceWith({ agent: undefined });
-  expect(result.current.runtime.visible).toEqual({ preferSubagents: false, useClaudeInChrome: false, replyLength: true });
+  expect(result.current.runtime.visible).toEqual({ preferSubagents: true, useClaudeInChrome: true, replyLength: false });
   expect(available).toHaveBeenCalledExactlyOnceWith({ executionMode: "byok", agents: undefined, selectedAgentId: "agent" });
-  expect(useDiscoverySelect).toHaveBeenCalledWith(expect.objectContaining({ skillsAvailable: true }));
+  expect(useDiscoverySelect).toHaveBeenCalledWith(expect.objectContaining({ skillsAvailable: false }));
 });
 
 test("the pane uses the supplied failure provider, settings choices, accessories and display helper", () => {

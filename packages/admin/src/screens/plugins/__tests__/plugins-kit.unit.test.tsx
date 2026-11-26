@@ -61,28 +61,29 @@ it("uses injected icons in the screen's installed, downloaded and marketplace ta
     ...kit, PluginRow: () => <li>host row</li>,
     InstalledTabIcon: () => <span>host installed</span>, DownloadedTabIcon: () => <span>host downloaded</span>,
     MarketplaceTabIcon: () => <span>host marketplace</span>,
-    TabBar: ({ tabs }) => <>{tabs.map((tab) => <span key={tab.id}>{tab.icon}</span>)}</>,
+    TabBar: ({ tabs }) => <>{tabs.map((tab) => <span key={tab.id} data-testid={tab.id}>{tab.icon}</span>)}</>,
   } });
   const view = renderWithAdminKit(<Bound />);
-  expect(view.getByText("host installed")).toBeTruthy();
-  expect(view.getByText("host downloaded")).toBeTruthy();
-  expect(view.getByText("host marketplace")).toBeTruthy();
+  expect(view.getByTestId("installed").textContent).toBe("host installed");
+  expect(view.getByTestId("downloaded").textContent).toBe("host downloaded");
+  expect(view.getByTestId("marketplace").textContent).toBe("host marketplace");
 });
 
 it.each(["installed", "downloaded"] as const)("threads the row kit into the %s panel", (tab) => {
   const Row: typeof PluginRow = ({ action }) => <li>{usePluginRules() === rules ? "shared rules" : "wrong rules"}{action}</li>;
   const Trash: typeof PluginTrashIcon = () => <span>host trash</span>;
   const Panel = PLUGINS_TAB_PANELS[tab];
+  const onToggleEnabled = vi.fn(async () => {});
   const view = renderWithAdminKit(
     <PluginRulesProvider rules={rules}>
       <Panel {...props} kit={{ ...kit, PluginRow: Row, PluginTrashIcon: Trash }} plugins={[plugin]}
-        controller={controller} rowHandleById={new Map([[plugin.id, "row-example"]])} />
+        controller={{ ...controller, onToggleEnabled }} rowHandleById={new Map([[plugin.id, "row-example"]])} />
     </PluginRulesProvider>,
   );
   expect(view.getByRole("listitem").textContent).toContain("shared rules");
   if (tab === "downloaded") expect(view.getByText("host trash")).toBeTruthy();
   view.getByRole("button", { name: rules.pluginToggleAriaLabel({ plugin, locale: "en" }) }).click();
-  expect(controller.onToggleEnabled).toHaveBeenCalledWith(plugin);
+  expect(onToggleEnabled).toHaveBeenCalledExactlyOnceWith(plugin);
 });
 
 it("uses the injected marketplace icon and add panel", () => {

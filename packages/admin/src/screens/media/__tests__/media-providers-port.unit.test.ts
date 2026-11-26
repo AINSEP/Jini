@@ -85,6 +85,18 @@ describe("mediaProvidersPort per-provider writes", () => {
     expect(options.init).toEqual({ method: "DELETE" });
   });
 
+  it("sends removals and patches in one batch and returns the authoritative provider map", async () => {
+    const { request, port } = wiredPort();
+    const reply = { openai: { apiKeyConfigured: true, apiKeyTail: "0001", model: "canonical" } };
+    request.mockResolvedValue(reply);
+    await expect(port.applyProviderChanges({ removes: ["grok"], patches: [{ providerId: "openai", fields: { model: "new" } }] })).resolves.toEqual(reply);
+    expect(request).toHaveBeenCalledTimes(1);
+    const [target, options] = request.mock.calls[0]!;
+    expect(target).toEqual({ path: `/workspaces/${WORKSPACE_ID}/media/providers` });
+    expect(options.init.method).toBe("PATCH");
+    expect(JSON.parse(options.init.body)).toEqual({ removes: ["grok"], patches: [{ providerId: "openai", fields: { model: "new" } }] });
+  });
+
   it("REJECTS on failure, unlike fetchMediaProviders — the tab renders this as its save-error state", async () => {
     patchMediaProvider.mockRejectedValue(new Error("no site key"));
     removeMediaProvider.mockRejectedValue(new Error("no site key"));

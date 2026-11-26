@@ -54,6 +54,9 @@ it.each(["changed", "identical"])("a pre-delete ETag cannot overwrite a same-tic
   expect(recreated[0]?.vaultRecord?.id).toBe("fresh-2");
   const after = await read();
   expect(after.ok && after.value.headers!.etag).not.toBe(firstTag);
+  if (!after.ok) throw new Error("expected GET reply after recreate");
+  const freshTag = after.value.headers?.etag;
+  expect(freshTag).toMatch(/^"mp1-[a-f0-9]{64}"$/);
   const parsed = mediaPutProvidersRoute.parse({ ...raw({}, { openai: { model: "stale overwrite" } }), headers: { "if-match": firstTag } });
   if (!parsed.ok) throw new Error("expected parsed PUT");
   const putDeps: MediaPutProvidersRouteDeps = { workspaceId: WORKSPACE_ID, ...rowErrors, saveProviders: async ({ workspaceId, providers, expectedRevision }) => {
@@ -63,6 +66,12 @@ it.each(["changed", "identical"])("a pre-delete ETag cannot overwrite a same-tic
   } };
   expect(await refusalOf(() => mediaPutProvidersRoute.handle({ input: parsed.value, deps: putDeps, authorize }))).toEqual(STALE);
   expect(await repo.listByWorkspaceId({ workspaceId: WORKSPACE_ID })).toEqual(recreated);
+  const fresh = mediaPutProvidersRoute.parse({ ...raw({}, { openai: { model: "fresh write" } }), headers: { "if-match": freshTag! } });
+  if (!fresh.ok) throw new Error("expected parsed PUT");
+  const saved = await mediaPutProvidersRoute.handle({ input: fresh.value, deps: putDeps, authorize });
+  expect(saved.ok && saved.value.status).toBe(200);
+  const readBack = await read();
+  expect(readBack.ok && readBack.value.body).toMatchObject({ openai: { model: "fresh write" } });
   await mediaPatchProviderRoute.handle({ input: { ...input, body: { apiKey: "rotated-token-123456" } }, deps: patchDeps, authorize });
   expect((await repo.listByWorkspaceId({ workspaceId: WORKSPACE_ID }))[0]?.vaultRecord?.id).toBe("fresh-2");
 });

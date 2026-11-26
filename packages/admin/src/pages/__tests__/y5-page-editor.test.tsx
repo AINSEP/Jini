@@ -6,7 +6,7 @@ import { afterEach } from "vitest";
 import { PagePreview } from "../PageEditorPreview.js";
 import { PageAutosaveStaleBanner, PageVersionConflictBanner } from "../PageEditorNotices.js";
 import {
-  PAGE_PREVIEW_IFRAME_SANDBOX, THEME_DEFAULT_SENTINEL, pickerValueToChoice,
+  PAGE_PREVIEW_IFRAME_SANDBOX, THEME_DEFAULT_SENTINEL,
   pageAutosaveStaleBasisMessage, pageVersionConflictMessage, pageDirtyGuardBaseline,
   pageRefreshMayHaveUnsavedEdits, pageEditableHtml, pageAcceptsHtmlBody,
   pagePreviewFormTarget, buildPageAutosaveDraft, buildPageSavePlan, pagePartialSaveMessage,
@@ -62,8 +62,10 @@ test("preview keeps draft HTML in the hidden POST form across refresh remounts a
   expect(first.getAttribute("sandbox")).toBe("allow-scripts");
   expect(first.getAttribute("referrerpolicy")).toBe("no-referrer");
   expect(first.getAttribute("src")).toBeNull();
+  expect(first.getAttribute("name")).toBe("pending-page");
   expect(mounted.container.querySelector("form")?.getAttribute("method")).toBe("post");
   expect(mounted.container.querySelector("form")?.getAttribute("target")).toBe("pending-page");
+  expect(mounted.container.querySelector("form")?.getAttribute("action")).toBe("/preview?r=1");
   expect(mounted.container.querySelector("input[name=bodyHtml]")?.getAttribute("value")).toBe(base.html);
   expect(screen.getAllByText("Watch on YouTube")).toHaveLength(2);
   expect(readYoutubeIds).toHaveBeenCalledWith({ html: base.html, bodyJson: undefined });
@@ -72,7 +74,11 @@ test("preview keeps draft HTML in the hidden POST form across refresh remounts a
   ]);
   revision = 2;
   mounted.rerender(<PagePreview {...base} hooks={hooks} />);
-  expect(screen.getByTitle("Page preview")).not.toBe(first);
+  const refreshed = screen.getByTitle("Page preview");
+  expect(refreshed).not.toBe(first);
+  expect(refreshed.getAttribute("name")).toBe("pending-page");
+  expect(mounted.container.querySelector("form")?.getAttribute("target")).toBe("pending-page");
+  expect(mounted.container.querySelector("form")?.getAttribute("action")).toBe("/preview?r=2");
   expect(mounted.container.querySelector("input[name=bodyHtml]")?.getAttribute("value")).toBe(base.html);
   mounted.rerender(<PagePreview {...base} hooks={hooks} status="published" dirty={false} />);
   const live = screen.getByTitle("Page preview");
@@ -122,6 +128,7 @@ const editorPage: AdminPost = {
 function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
   let saved = page;
   let refresh: () => void = () => {};
+  const scheduleAutosave = vi.fn();
   const port: PageEditorDependencies["port"] = {
     getPage: vi.fn(async () => ({ post: saved })),
     getPresentation: async () => ({ activeThemeTemplates: [], activeThemeId: "theme", activeThemeApiVersion: undefined, activeThemeTier: null }),
@@ -137,7 +144,7 @@ function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
     usePreviewPaneWidth: () => ({ frameRef: () => {}, paneWidth: 900 }), useDirtyGuard, useSettlementGeneration,
     useAgentScreenEntry: () => {}, useExternalEntryRefresh,
     useContentRefreshSubscription: ({ onRefresh }) => { refresh = onRefresh; },
-    useStandingDraftAutosave: () => ({ recoverableDraft: null, staleBasis: null, dismissRecoverable: () => {}, scheduleAutosave: () => {},
+    useStandingDraftAutosave: () => ({ recoverableDraft: null, staleBasis: null, dismissRecoverable: () => {}, scheduleAutosave,
       clearStandingDraft: async () => ({ discarded: true }), supersedeBasis: () => {}, preserveFailedSave: () => {} }),
     useWiredInteractiveEditorFlush: ({ setHtml }) => useInteractiveEditorFlush({ setHtml, isEditorSourceError: () => false,
       normalizeEmbedMarkerQuoting: ({ html }) => html, logger: { warn: () => {} } }),
@@ -157,7 +164,7 @@ function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
     isUnexpectedServerFailure: () => false, setTimeout, clearTimeout, document, window,
   } satisfies Omit<PageEditorDependencies, "locale" | "hooks">;
   const binding = bindPageEditorHooks({ hooks, deps });
-  return { ...binding, port, deps, hooks, refresh: () => refresh(), external: (next: AdminPost) => { saved = next; } };
+  return { ...binding, port, deps, hooks, scheduleAutosave, refresh: () => refresh(), external: (next: AdminPost) => { saved = next; } };
 }
 
 test("controller keeps authored documents untouched and validates metadata before writing pending HTML", async () => {
@@ -232,7 +239,8 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
       resolveTabBarTabIndex: ({ activeId, tab }) => activeId === tab.id ? 0 : -1,
       standingDraftRecoveryMessage: () => "recover",
       pageExternalChangeBindings: { agentHandle, copy: { messageKey: "changed", regionAgentLabel: "changed", loadLatestAgentLabel: "load", keepEditsAgentLabel: "keep" } },
-      pickerValueToChoice: vi.fn(pickerValueToChoice), THEME_DEFAULT_SENTINEL: "host-default", pageAutosaveStaleBasisMessage, pageVersionConflictMessage,
+      pickerValueToChoice: vi.fn(({ value }: { value: string }) => value === "host-default" ? null : value),
+      THEME_DEFAULT_SENTINEL: "host-default", pageAutosaveStaleBasisMessage, pageVersionConflictMessage,
       devicePreviewWidths: DEVICE_PREVIEW_WIDTHS, isProtectedEmbedElement: vi.fn(isProtectedEmbedElement), pagePreviewYoutubeIds,
       previewIframeSandbox: PAGE_PREVIEW_IFRAME_SANDBOX,
       pageEditorSurface, videoLink: ({ id }) => `https://www.youtube.com/watch?v=${id}`, isDevMode: false,
@@ -250,6 +258,9 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
   fireEvent.change(screen.getByLabelText("Template"), { target: { value: "page.html" } });
   expect(view.deps.pickerValueToChoice).toHaveBeenCalledWith({ value: "page.html" });
   await waitFor(() => expect(current.value?.templateChoice).toBe("page.html"));
+  fireEvent.change(screen.getByLabelText("Template"), { target: { value: "host-default" } });
+  expect(view.deps.pickerValueToChoice).toHaveBeenCalledWith({ value: "host-default" });
+  await waitFor(() => expect(current.value?.templateChoice).toBeNull());
   const frame = vi.fn(DevicePreviewFrame);
   view.kit.DevicePreviewFrame = frame;
   view.deps.devicePreviewWidths = { ...DEVICE_PREVIEW_WIDTHS, desktop: 1111 };
@@ -303,6 +314,7 @@ test("page editor uses host load, formatting, dirty, preview, recovery and save 
   act(() => editor.result.current.setHtml("<p>pending</p>"));
   expect(calls.accepts).toHaveBeenCalledWith({ page: editorPage, html: "<p>pending</p>" });
   expect(calls.draft).toHaveBeenCalledWith({ page: editorPage, form: { title: "Page", slug: "page", html: "<p>pending</p>" } });
+  expect(binding.scheduleAutosave).toHaveBeenCalledWith({ bodyFormat: "html", bodyHtml: "<p>pending</p>", title: "Page", slug: "page", baseVersion: 3 });
   await act(async () => { await editor.result.current.save(); });
   expect(calls.plan).toHaveBeenCalledWith({ page: editorPage, form: { title: "Page", slug: "page", status: "draft", templateChoice: null, html: "<p>pending</p>" } }, { nextStatus: undefined });
   expect(calls.success).toHaveBeenCalled();
@@ -340,15 +352,15 @@ test("restored drafts format only the display and unchanged saves use the host m
 });
 
 test("page change notices use the host message functions", () => {
-  const stale = vi.fn(pageAutosaveStaleBasisMessage);
-  const conflict = vi.fn(pageVersionConflictMessage);
+  const stale = vi.fn(pageAutosaveStaleBasisMessage).mockReturnValue("HOST STALE V3");
+  const conflict = vi.fn(pageVersionConflictMessage).mockReturnValue("HOST CONFLICT V4");
   const draft = { bodyFormat: "html" as const, bodyHtml: "<p>pending</p>", title: "Page", slug: "page", baseVersion: 3 };
   const t = (key: string) => key;
   const mounted = render(<PageAutosaveStaleBanner staleBasis={{ baseVersion: 3, draft }} t={t} deps={{ pageAutosaveStaleBasisMessage: stale }} />);
   expect(stale).toHaveBeenCalledWith({ t, baseVersion: 3, draft });
-  expect(screen.getByText(/autosaving has paused/).textContent).toContain("version 3");
+  expect(screen.getByText("HOST STALE V3").textContent).toBe("HOST STALE V3");
   mounted.rerender(<PageVersionConflictBanner saveConflict={{ expectedVersion: 3, currentVersion: 4, attemptedStatus: undefined }}
     onSaveAnyway={() => {}} onLoadLatest={() => {}} onDismiss={() => {}} t={t} deps={{ pageVersionConflictMessage: conflict }} />);
   expect(conflict).toHaveBeenCalledWith({ t, expectedVersion: 3, currentVersion: 4, attemptedStatus: undefined });
-  expect(screen.getByText(/Someone else saved/).textContent).toContain("version 4 is now stored");
+  expect(screen.getByText("HOST CONFLICT V4").textContent).toBe("HOST CONFLICT V4");
 });

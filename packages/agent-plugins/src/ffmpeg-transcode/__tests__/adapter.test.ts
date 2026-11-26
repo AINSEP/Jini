@@ -59,10 +59,13 @@ test("Staged conversion passes paths and never reads a whole video.", async () =
     const controller = new AbortController();
     const { counts, lock } = countingLock();
     const allocations: number[] = [];
+    const handles: Awaited<ReturnType<typeof filesystem.open>>[] = [];
     const staging = createStagedFileAdapter({ sniffContentType,
       withTempRoot: async ({ work }) => work({ root }),
       filesystem: { ...filesystem, open: async (...args: Parameters<typeof filesystem.open>) => {
         const file = await filesystem.open(...args);
+        handles.push(file);
+        vi.spyOn(file, "readFile");
         const read = file.read.bind(file);
         vi.spyOn(file, "read").mockImplementation((async (buffer: Uint8Array, offset: number, length: number, position: number | null) => {
           allocations.push(buffer.byteLength);
@@ -91,16 +94,30 @@ test("Staged conversion passes paths and never reads a whole video.", async () =
         published += 1;
         assert.equal(output.byteLength, bytes.length);
         const chunks = [];
-        for await (const chunk of output.openChunks({})) chunks.push(chunk);
+        for await (const chunk of output.openChunks({})) {
+          assert.ok(chunk.byteLength <= 64 * 1024);
+          chunks.push(chunk);
+        }
         assert.deepEqual(Buffer.concat(chunks), bytes);
       } }, { signal: controller.signal, maxOutputBytes: outcome === "oversize" ? 64 * 1024 : bytes.length });
-      assert.equal(result.ok, outcome === "success");
+      if (outcome === "success") assert.equal(result.ok, true);
+      else {
+        const reason = ({ oversize: "too-large", "non-MP4": "invalid", abort: "canceled" } as const)[outcome];
+        assert.deepEqual(result, { ok: false, reason, message: MESSAGES[reason] });
+      }
       assert.equal(published, outcome === "success" ? 1 : 0);
       assert.deepEqual(counts, { acquired: 1, released: 1 });
       assert.equal(wholeRead.mock.calls.length, 0);
+      for (const file of handles) assert.equal(vi.mocked(file.readFile).mock.calls.length, 0);
       assert.ok(allocations.every(size => size <= 64 * 1024));
       if (outcome === "success") assert.ok(allocations.length > 1);
-    } finally { wholeRead.mockImplementation(filesystem.readFile); }
+    } finally {
+      wholeRead.mockImplementation(filesystem.readFile);
+      for (const file of handles) {
+        vi.mocked(file.read).mockRestore();
+        vi.mocked(file.readFile).mockRestore();
+      }
+    }
   }
 });
 

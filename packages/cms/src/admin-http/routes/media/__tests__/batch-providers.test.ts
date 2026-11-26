@@ -80,3 +80,17 @@ it("a failed provider batch leaves the cleared provider and edited provider unch
   expect(JSON.stringify(reply)).not.toContain("sealed");
   expect(JSON.stringify(reply)).not.toContain('"apiKey":');
 });
+
+it("a denied provider batch never reaches the service or changes the vault", async () => {
+  const { vault, deps } = await batchFixture();
+  const scope = { workspaceId: WORKSPACE_ID, kind: "media-provider", ownerKey: "test", principalId: null } as const;
+  const before = await vault.list(scope);
+  const apply = vi.fn(deps.applyProviderChanges);
+  const { authorize } = recordingAuthorize(["admin.integrations.manage"]);
+  const input = { body: { removes: ["cleared"], patches: [{ providerId: "edited", fields: { model: "new" } }] } };
+
+  await expect(mediaBatchProvidersRoute.handle({ input, deps: { ...deps, applyProviderChanges: apply }, context: PRINCIPAL, authorize }))
+    .rejects.toThrow("denied admin.integrations.manage");
+  expect(apply).not.toHaveBeenCalled();
+  expect(await vault.list(scope)).toEqual(before);
+});

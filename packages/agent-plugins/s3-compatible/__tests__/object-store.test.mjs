@@ -29,10 +29,12 @@ const KEY = `ws/ws-1/blobs/${SHA.slice(0, 2)}/${SHA}`;
 const BYTES = new TextEncoder().encode("hello from S3ObjectStore");
 
 test("A staged PUT signs the known digest and sends one bounded body.", async () => {
-  for (const outcome of ["success", "failure", "abort"]) {
+  for (const outcome of ["success", "failure", "abort", "abort after signing"]) {
     const controller = new AbortController();
-    const chunks = [BYTES.subarray(0, 5), BYTES.subarray(5)];
-    const digest = createHash("sha256").update(BYTES).digest("hex");
+    const sentinel = new Error("aborted after signing");
+    const bytes = Buffer.alloc(128 * 1024 + 1, BYTES);
+    const chunks = [bytes.subarray(0, 65536), bytes.subarray(65536, 131072), bytes.subarray(131072)];
+    const digest = createHash("sha256").update(bytes).digest("hex");
     let signs = 0, sends = 0, opens = 0, pulls = 0;
     const created = provider.create({ settings: { bucket: "media", keyPrefix: "private/" },
       credential: { fields: { accessKeyId: "key", region: "us-east-1" }, secret: "secret" },
@@ -41,26 +43,29 @@ test("A staged PUT signs the known digest and sends one bounded body.", async ()
           fetch: () => { assert.fail("retrying byte transport called"); },
           sign: async (url, init) => {
             signs += 1;
-            assert.equal(init.body, undefined);
-            assert.equal(new Headers(init.headers).get("content-length"), String(BYTES.length));
+            assert.deepEqual([url, init.body], [`https://s3.us-east-1.amazonaws.com/media/private/${KEY}`, undefined]);
+            assert.equal(new Headers(init.headers).get("content-length"), String(bytes.length));
             assert.equal(new Headers(init.headers).get("x-amz-content-sha256"), digest);
-            assert.equal(url, `https://s3.us-east-1.amazonaws.com/media/private/${KEY}`);
+            if (outcome === "abort after signing") controller.abort(sentinel);
             return new Request(url, { ...init, headers: { ...init.headers, authorization: "signed" } });
           },
         }),
         sendStaged: async (url, init) => {
           sends += 1;
-          assert.equal(new Headers(init.headers).get("authorization"), "signed");
-          assert.equal(init.redirect, "error");
+          assert.deepEqual([url, init.method, init.redirect], [`https://s3.us-east-1.amazonaws.com/media/private/${KEY}`, "PUT", "error"]);
+          const headers = new Headers(init.headers);
+          assert.deepEqual([headers.get("authorization"), headers.get("content-length"), headers.get("x-amz-content-sha256")], ["signed", String(bytes.length), digest]);
           assert.equal(init.signal, controller.signal);
           assert.equal(pulls, 0);
           const received = [];
           for await (const chunk of init.body) {
             received.push(chunk);
             assert.ok(chunk.length <= 64 * 1024);
+            assert.equal(pulls, received.length);
             if (outcome === "abort") { controller.abort(); throw controller.signal.reason; }
           }
-          assert.deepEqual(Buffer.concat(received), Buffer.from(BYTES));
+          assert.deepEqual(received.map(chunk => chunk.length), [65536, 65536, 1]);
+          assert.deepEqual(Buffer.concat(received), bytes);
           return new Response(null, { status: outcome === "failure" ? 503 : 200 });
         },
       },
@@ -68,12 +73,12 @@ test("A staged PUT signs the known digest and sends one bounded body.", async ()
     assert.equal(created.status, "ok");
     const writer = await created.value.resolveStagedWriter({});
     assert.ok(writer);
-    const pending = writer({ key: KEY, byteLength: BYTES.length, sha256: digest,
+    const pending = writer({ key: KEY, byteLength: bytes.length, sha256: digest,
       openChunks: () => { opens += 1; return (async function* () { for (const chunk of chunks) { pulls += 1; yield chunk; } })(); },
     }, { signal: controller.signal });
     if (outcome === "success") await pending;
-    else await assert.rejects(() => pending);
-    assert.deepEqual([signs, sends, opens], [1, 1, 1]);
+    else await assert.rejects(pending, outcome === "abort after signing" ? error => error === sentinel : undefined);
+    assert.deepEqual([signs, sends, opens], outcome === "abort after signing" ? [1, 0, 0] : [1, 1, 1]);
   }
 });
 

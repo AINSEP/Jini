@@ -86,14 +86,14 @@ it("uses the injected add panel in the add tab", () => {
 });
 
 it("uses the injected disable dialog and clears confirmation before toggling", () => {
-  const events: string[] = [];
+  const events: [string, unknown][] = [];
   const Dialog: typeof AgentPluginDisableConfirmDialog = ({ onConfirm, variant }) => <button onClick={onConfirm}>{variant}</button>;
   const view = renderWithAdminKit(AgentPluginsOverlays({
     props: { ...props, kit: { ...kit, AgentPluginDisableConfirmDialog: Dialog } },
-    controller: { ...controller, onToggleEnabled: async () => { events.push("toggle"); } },
+    controller: { ...controller, onToggleEnabled: async row => { events.push(["toggle", row.pluginId]); } },
     pendingDisable: { pluginId: plugin.pluginId, variant: "remove" }, pendingDisablePlugin: plugin,
-    setPendingDisable: () => { events.push("clear"); },
+    setPendingDisable: next => { events.push(["clear", next]); },
   }));
   view.getByRole("button", { name: "remove" }).click();
-  expect(events).toEqual(["clear", "toggle"]);
+  expect(events).toEqual([["clear", null], ["toggle", "example"]]);
 });

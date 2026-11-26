@@ -97,7 +97,7 @@ test("the bound list uses the injected default, comparators, and sort labels", a
   };
   const BoundPosts = bindPosts({
     hooks: { useLocaleHook: () => "en", usePostsHook: () => ({
-      posts: [post, { ...post, id: "two", title: "Alpha", slug: "two", status: "published", updatedAt: "2025-01-01T00:00:00Z" }],
+      posts: [{ ...post, slug: "zeta", status: "published" }, { ...post, id: "two", title: "Alpha", slug: "alpha", status: "draft", updatedAt: "2025-01-01T00:00:00Z" }],
       error: null, creating: false, rowSavingId: null, pendingDelete: null, setPendingDelete: vi.fn(),
       createPost: vi.fn(), togglePostPublish: vi.fn(), removePost: vi.fn(), rowMenuHandleById: new Map(),
     }) },
@@ -111,8 +111,10 @@ test("the bound list uses the injected default, comparators, and sort labels", a
   expect(injected.compareAdminPostsByTitle).toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Not sorted by Slug. Activate to sort ascending." }));
   expect(injected.compareAdminPostsBySlug).toHaveBeenCalled();
+  expect(screen.getAllByRole("link", { name: /^(Alpha|One)$/ }).map(link => link.textContent)).toEqual(["Alpha", "One"]);
   fireEvent.click(screen.getByRole("button", { name: "Not sorted by Status. Activate to sort ascending." }));
   expect(injected.compareAdminPostsByStatus).toHaveBeenCalled();
+  expect(screen.getAllByRole("link", { name: /^(Alpha|One)$/ }).map(link => link.textContent)).toEqual(["Alpha", "One"]);
   fireEvent.click(screen.getByRole("button", { name: "Not sorted by updated date. Activate to sort newest first." }));
   expect(injected.compareAdminPostsByUpdated).toHaveBeenCalled();
   expect(screen.getAllByRole("row")[1]?.textContent).toContain("One");
