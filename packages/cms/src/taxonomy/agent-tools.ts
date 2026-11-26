@@ -231,15 +231,10 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
   },
 ];
 
-export function createTaxonomyAgentToolCatalog(_required: Record<string, never>, _optional: Record<string, never> = {}): AgentToolDefinition[] {
-  const assignmentProperties = taxonomyAgentToolCatalog.find(tool => tool.name === "taxonomy_assign_terms")?.inputSchema?.properties;
-  if (!assignmentProperties || typeof assignmentProperties !== "object" || !("contentType" in assignmentProperties)) {
-    throw new Error("Taxonomy assignment catalog has no content type schema");
-  }
-
+export function createTaxonomyAgentToolCatalog({ termListToolId }: { termListToolId: string }, _optional: Record<string, never> = {}): AgentToolDefinition[] {
   return [...taxonomyAgentToolCatalog, {
     name: "taxonomy_get_term",
-    description: "Reads one live term by termId, including its taxonomyId, parentId, name, status and version. Use for a tag or category's details before renaming or assigning it. Returns {term}; missing or trashed terms are refused. Requires admin.taxonomy.manage. Use content_read.taxonomy to list available terms.",
+    description: `Reads one live term by termId, including its taxonomyId, parentId, name, status and version. Use for a tag or category's details before renaming or assigning it. Returns {term}; missing or trashed terms are refused. Requires admin.taxonomy.manage. Use ${termListToolId} to list available terms.`,
     sideEffects: "none", authorization: { permission: "admin.taxonomy.manage" },
     inputSchema: { type: "object", additionalProperties: false, required: ["termId"], properties: { termId: { type: "string", minLength: 1 } } },
   }, {
@@ -248,7 +243,7 @@ export function createTaxonomyAgentToolCatalog(_required: Record<string, never>,
     sideEffects: "none",
     authorization: { permission: "admin.taxonomy.manage" },
     inputSchema: { type: "object", additionalProperties: false, required: ["contentType", "contentId"], properties: {
-      contentType: assignmentProperties.contentType,
+      contentType: CONTENT_TYPE_SCHEMA,
       contentId: { type: "string", minLength: 1 },
     } },
   }];

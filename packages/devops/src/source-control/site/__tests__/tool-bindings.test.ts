@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { credentialScopes } from "@jini-ai/integrations/vendor-credentials/project-scope";
 import { createSourceControlAgentToolCatalog } from "../agent-tools.js";
-import { buildSourceControlRegistrations, type SourceControlToolDeps } from "../tool-registrations.js";
+import { bindSourceControlTools, type SourceControlToolDeps } from "../tool-registrations.js";
 import type { ToolExecutionContext } from "@jini-ai/core";
 
 function fixture() {
@@ -18,10 +18,19 @@ function fixture() {
     catalog: new Map(catalog.map(tool => [tool.name, tool])), previewCommitExport, commitSiteToSourceControl,
     siteAssistantSecretSealer: { open }, askThenReport, switchedOffPluginSentence: () => "", gitAdapter: { commit: vi.fn() },
   } as unknown as SourceControlToolDeps;
-  const tools = buildSourceControlRegistrations(deps, { surfaceExchanges: {} as never });
+  const binding = bindSourceControlTools({ deps: deps.deps, catalog: deps.catalog, switchedOffPluginSentence: deps.switchedOffPluginSentence,
+    buildSourceControlProvider: deps.buildSourceControlProvider, previewCommitExport: deps.previewCommitExport, commitSiteToSourceControl: deps.commitSiteToSourceControl,
+    defineSecretCardTool: deps.defineSecretCardTool, applyPluginCredentialCard: deps.applyPluginCredentialCard,
+    findPluginCredentialCard: deps.findPluginCredentialCard, askThenReport: deps.askThenReport,
+    credentialSaveToolId: deps.credentialSaveToolId, credentialFormUriHost: deps.credentialFormUriHost,
+    backupRepositoryRules: deps.backupRepositoryRules, credentialText: deps.credentialText, formatCredentialHint: deps.formatCredentialHint,
+    reportCredentialFailure: deps.reportCredentialFailure, assertCredentialFreeField: deps.assertCredentialFreeField,
+    isProjectKeyCreateConflictError: deps.isProjectKeyCreateConflictError });
+  const surfaces = { surfaceExchanges: {} as never };
+  const tools = binding.buildSourceControlRegistrations(deps, surfaces);
   const ctx: ToolExecutionContext = { executionId: "e", principal: { id: "human" }, run: { id: "run" }, signal: new AbortController().signal,
     input: { provider: "git", owner: "owner", repo: "repo", commitMessage: "Export", dryRun: true } };
-  return { catalog, tools, ctx, authorize, open, askThenReport, previewCommitExport, commitSiteToSourceControl };
+  return { catalog, tools, ctx, authorize, open, askThenReport, previewCommitExport, commitSiteToSourceControl, binding, deps, surfaces };
 }
 
 test("the full catalog has both tools and uses the supplied credential guidance ID", () => {
@@ -29,6 +38,8 @@ test("the full catalog has both tools and uses the supplied credential guidance 
   expect(catalog.map(tool => tool.name)).toEqual(["source_control_get_capabilities", "source_control_execute_commit"]);
   expect(catalog[0]!.description).toContain("call save_connection with kind source-control");
   expect(catalog[1]!.sideEffects).toBe("mutates-durable-state");
+  const f = fixture();
+  expect(f.binding.contributeSourceControlTools().build(f.deps, f.surfaces).map(tool => tool.descriptor.id)).toEqual(f.tools.map(tool => tool.descriptor.id));
 });
 
 test("capabilities report credential presence without opening a secret", async () => {

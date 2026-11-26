@@ -3,6 +3,7 @@ import { toolMetadata } from "@jini-ai/core/tool-metadata/recovery";
 import { humanConfirmedHandler, type ToolExecutionContext } from "@jini-ai/core";
 import { createRecoveryAgentToolCatalog } from "../agent-tools.js";
 import * as orchestrator from "../recovery-orchestrator.js";
+import type { buildRestoreHooks } from "../restore-hooks.js";
 import { buildRecoveryRegistrations, type RecoveryToolDeps, type RecoveryToolHost } from "../tool-registrations.js";
 
 const ctx: ToolExecutionContext = { executionId: "execution", principal: { id: "human" }, run: { id: "run" }, signal: new AbortController().signal, input: { restorePointId: "point" } };
@@ -15,10 +16,11 @@ function fixture() {
     dbOps: { getCapabilities: vi.fn().mockResolvedValue({ restorePoint: { costClass: "cheap", kind: "snapshot" } }) },
     restorePointsRepo: { list: vi.fn().mockResolvedValue([{ id: "point", createdAt: "now" }]) },
     siteStatusRepo: { get: vi.fn() }, disclosureWatermarkSource: { getBaseline: vi.fn().mockResolvedValue({ available: false }), getCategoryCounts: vi.fn().mockResolvedValue({}) },
-    deepLinkRestorePointLookup: { findRestorePointById: vi.fn() }, refuseUnexpectedKeys: vi.fn(),
+    deepLinkRestorePointLookup: { findRestorePointById: vi.fn() },
   };
   const surfaces = { surfaceExchanges: { open: vi.fn(), deliver: vi.fn(), findTypedAnswerTarget: vi.fn(), size: vi.fn() } };
   const host: RecoveryToolHost<RecoveryToolDeps> = {
+    refuseUnexpectedKeys: vi.fn(), buildRestoreHooks: vi.fn(() => ({} as ReturnType<typeof buildRestoreHooks>)),
     catalog: createRecoveryAgentToolCatalog({ backupWorkflowGuidance: "backup", restorePointIdSource: "list" }), metadata: toolMetadata, catalogModule: "host/recovery", readPermission: "read", restorePermission: "restore", coveredCategories: [],
     capabilityGuidance: { fullSiteBackup: { discoveryTool: "discover", planTool: "plan", pushTool: "push", guidance: "backup" }, portableExport: { href: "/export", guidance: "export" } },
     authorize: vi.fn(async () => { calls.push("authorize"); }),
