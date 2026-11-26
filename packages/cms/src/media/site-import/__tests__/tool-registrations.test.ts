@@ -98,3 +98,21 @@ describe("media import execution", () => {
     expect(deps.storage.resolvePublicUrls).not.toHaveBeenCalled();
   });
 });
+
+it("refuses mutually exclusive replacement sources before reading either", async () => {
+  const { deps, ctx, handler } = fixture();
+  await expect(handler("media_replace_file")(ctx({ mediaId: "asset", url: "https://request.example/image", root: "site", path: "image.png" }))).rejects.toThrow();
+  expect(deps.source.fetchRemote).not.toHaveBeenCalled();
+  expect(deps.source.readLocal).not.toHaveBeenCalled();
+  expect(deps.replacement.replace).not.toHaveBeenCalled();
+});
+
+
+it("keeps omitted editorial properties in the storage input", async () => {
+  const { deps, ctx, handler } = fixture();
+  await handler("media_import_local_file")(ctx({ root: "site", path: "image.png" }));
+  expect(deps.storage.upload).toHaveBeenCalledWith({ input: {
+    workspaceId: "workspace", bytes, filename: "image.png", contentType: "image/png", provenance: { kind: "upload", path: "image.png" },
+    alt: undefined, caption: undefined, description: undefined, createdByPrincipal: "agent",
+  } }, {});
+});

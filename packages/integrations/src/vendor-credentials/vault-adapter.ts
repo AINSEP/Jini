@@ -11,7 +11,7 @@ type Kind = "vendor" | "source-control";
 export interface CredentialVaultServiceArgs {
   repo: VaultRepoPort; metaParsers: VaultMetaParsers;
   authorize: (required: { action: "put" | "get" | "list" | "rotate" | "delete"; context: VaultContext | VaultIdentity | VaultQuery }) => Promise<void>;
-  keyring: KeyringPort; sealer: SecretSealerPort;
+  keyring: Pick<KeyringPort, "activeKey">; sealer: SecretSealerPort;
   now: (required: Record<string, never>) => string; newId: (required: Record<string, never>) => string;
 }
 
@@ -149,7 +149,7 @@ export function createCredentialVaultBinding({ policy }: { policy: CredentialVau
     keyring: { activeKey: (options: Parameters<KeyringPort["activeKey"]>[0]) => protect({ operation: () => {
       if (!required.keyring) throw required.storageError();
       return required.keyring.activeKey(options);
-    } }), derive: async () => { throw required.storageError(); }, deriveSigningSecret: async () => { throw required.storageError(); } },
+    } }) },
     sealer: { seal: input => protect({ operation: () => {
       if (!required.sealer) throw required.storageError();
       return required.sealer.seal({ plaintext: input.plaintext, key: input.key, aad: input.aad });

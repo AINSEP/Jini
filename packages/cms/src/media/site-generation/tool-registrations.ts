@@ -53,9 +53,7 @@ async function resolveCredentialForProvider({ routeDeps, providerId }: { routeDe
 async function resolveDefaultImageModel({ routeDeps, imageModelIds, defaultModelId }: { routeDeps: MediaGenerationToolDeps; imageModelIds: readonly string[]; defaultModelId: string }, _optional = {}): Promise<string> {
   const saved = await routeDeps.providers.readSavedSelections({ workspaceId: routeDeps.workspaceId }, {});
   const savedModel = imageModelIds.find((id) => {
-    const model = routeDeps.findModel({ id }, {});
-    if (model == null) throw new Error(`Media generation registry has no model ${id}`);
-    const entry = saved[model.provider];
+    const entry = saved[routeDeps.findModel({ id })?.provider ?? ""];
     return entry?.apiKeyConfigured === true && entry.model === id;
   });
   if (savedModel) return savedModel;
@@ -167,22 +165,17 @@ async function storeGeneratedImage(
   const contentType = "image/png";
   // A started multi-write storage sequence must not be interrupted halfway through.
   ctx.signal.throwIfAborted();
-  const filename = buildGeneratedFilename({ prompt });
-  const alt = optionalString({ input: input, key: "alt" });
-  const caption = optionalString({ input: input, key: "caption" });
-  const credit = optionalString({ input: input, key: "credit" });
-  // A prompt is what was asked for, not what the bytes show, so only an explicit description is stored.
-  const description = optionalString({ input: input, key: "description" });
   const { media } = await routeDeps.storage.upload({
     input: {
       workspaceId: routeDeps.workspaceId,
       bytes: generated.bytes,
-      filename,
+      filename: buildGeneratedFilename({ prompt }),
       contentType,
-      ...(alt === undefined ? {} : { alt }),
-      ...(caption === undefined ? {} : { caption }),
-      ...(credit === undefined ? {} : { credit }),
-      ...(description === undefined ? {} : { description }),
+      alt: optionalString({ input: input, key: "alt" }),
+      caption: optionalString({ input: input, key: "caption" }),
+      credit: optionalString({ input: input, key: "credit" }),
+      // A prompt is what was asked for, not what the bytes show, so only an explicit description is stored.
+      description: optionalString({ input: input, key: "description" }),
       createdByPrincipal: ctx.principal.id,
       provenance,
     },

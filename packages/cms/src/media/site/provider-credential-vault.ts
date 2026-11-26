@@ -31,7 +31,6 @@ export function mediaProviderVault({ vault, providerId, policy }: { vault: Vault
     patchMeta: input => vault.patchMeta(input), delete: input => vault.delete(input),
     findOne: async input => {
       const row = (await vault.list({ ...input, ownerKey: policy.ownerKey, principalId: null, provider: providerId }))[0];
-      if (row) ownedProviderId({ row, policy });
       if (row && row.provider !== providerId) throw new VaultError({ code: "context" });
       return row ?? null;
     } };

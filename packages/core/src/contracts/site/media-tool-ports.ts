@@ -6,10 +6,10 @@ export interface MediaToolUploadInput {
   filename: string;
   contentType: string;
   createdByPrincipal: string;
-  alt?: string;
-  caption?: string;
-  credit?: string;
-  description?: string;
+  alt?: string | undefined;
+  caption?: string | undefined;
+  credit?: string | undefined;
+  description?: string | undefined;
   provenance?: MediaProvenance;
 }
 
@@ -59,8 +59,8 @@ export interface MediaImportRefusalPorts {
 }
 
 export interface ImageGenerationCredential {
-  readonly apiKey?: string;
-  readonly baseUrl?: string;
+  readonly apiKey?: string | undefined;
+  readonly baseUrl?: string | undefined;
 }
 
 export interface GeneratedImageBytes {

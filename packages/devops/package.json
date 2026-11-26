@@ -162,7 +162,15 @@
       "./deploy/site/static-publish/domain-publish-tool": "node",
       "./deploy/site/publish-tool-deps": "universal",
       "./deploy/site/publish-agent-tools": "node",
-      "./deploy/site/tool-registrations": "node"
+      "./deploy/site/tool-registrations": "node",
+      "./backup/site/share-retention": "universal",
+      "./static-export/site/site-exporter": "node",
+      "./source-control/site/store": "universal",
+      "./source-control/site/credential-setup": "universal",
+      "./source-control/site/tool-registrations": "universal",
+      "./backup/site/share-database/projection": "node",
+      "./backup/site/backup-service": "universal",
+      "./backup/site/tool-registrations": "universal"
     },
     "isolation": {
       "shared": [
@@ -931,6 +939,39 @@
       "types": "./dist/deploy/site/tool-registrations.d.ts",
       "import": "./dist/deploy/site/tool-registrations.js",
       "default": "./dist/deploy/site/tool-registrations.js"
+    },
+    "./backup/site/share-retention": {
+      "types": "./dist/backup/site/share-retention.d.ts",
+      "import": "./dist/backup/site/share-retention.js",
+      "default": "./dist/backup/site/share-retention.js"
+    },
+    "./static-export/site/site-exporter": {
+      "types": "./dist/static-export/site/site-exporter.d.ts",
+      "import": "./dist/static-export/site/site-exporter.js"
+    },
+    "./source-control/site/store": {
+      "types": "./dist/source-control/site/store.d.ts",
+      "import": "./dist/source-control/site/store.js"
+    },
+    "./source-control/site/credential-setup": {
+      "types": "./dist/source-control/site/credential-setup.d.ts",
+      "import": "./dist/source-control/site/credential-setup.js"
+    },
+    "./source-control/site/tool-registrations": {
+      "types": "./dist/source-control/site/tool-registrations.d.ts",
+      "import": "./dist/source-control/site/tool-registrations.js"
+    },
+    "./backup/site/share-database/projection": {
+      "types": "./dist/backup/site/share-database/projection.d.ts",
+      "import": "./dist/backup/site/share-database/projection.js"
+    },
+    "./backup/site/backup-service": {
+      "types": "./dist/backup/site/backup-service.d.ts",
+      "import": "./dist/backup/site/backup-service.js"
+    },
+    "./backup/site/tool-registrations": {
+      "types": "./dist/backup/site/tool-registrations.d.ts",
+      "import": "./dist/backup/site/tool-registrations.js"
     }
   },
   "typesVersions": {
@@ -1012,7 +1053,9 @@
     "parse5": "7.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "undici": "^7.30.1"
+    "undici": "^7.30.1",
+    "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/db": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"

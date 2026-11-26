@@ -72,7 +72,10 @@
       "./react/site-key/hooks/use-site-key.hooks": "browser",
       "./react/site-key/hooks/use-site-key-recovery.hooks": "browser",
       "./react/credentials/access-token-forms": "universal",
-      "./react/credentials/other-credential-stores": "universal"
+      "./react/credentials/other-credential-stores": "universal",
+      "./media-providers/catalog-projection": "universal",
+      "./webhooks/site/seal-aad-invariant.node": "node",
+      "./web-screenshot/capture-root-file-lock": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -411,6 +414,21 @@
       "types": "./dist/react/credentials/other-credential-stores.d.ts",
       "import": "./dist/react/credentials/other-credential-stores.js",
       "default": "./dist/react/credentials/other-credential-stores.js"
+    },
+    "./media-providers/catalog-projection": {
+      "types": "./dist/media-providers/catalog-projection.d.ts",
+      "import": "./dist/media-providers/catalog-projection.js",
+      "default": "./dist/media-providers/catalog-projection.js"
+    },
+    "./webhooks/site/seal-aad-invariant.node": {
+      "types": "./dist/webhooks/site/seal-aad-invariant.node.d.ts",
+      "import": "./dist/webhooks/site/seal-aad-invariant.node.js",
+      "default": "./dist/webhooks/site/seal-aad-invariant.node.js"
+    },
+    "./web-screenshot/capture-root-file-lock": {
+      "types": "./dist/web-screenshot/capture-root-file-lock.d.ts",
+      "import": "./dist/web-screenshot/capture-root-file-lock.js",
+      "default": "./dist/web-screenshot/capture-root-file-lock.js"
     }
   },
   "typesVersions": {
