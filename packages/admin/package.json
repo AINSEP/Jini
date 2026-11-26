@@ -24,6 +24,7 @@
       "./react/entities": "browser",
       "./browser/shell-navigation": "browser",
       "./core/module": "universal",
+      "./core/settings-tabs": "universal",
       "./core/i18n-common": "universal",
       "./react/overlays": "browser",
       "./react/kit": "browser",
@@ -806,7 +807,12 @@
       "./shell/lib/paint-admin-accent": "browser",
       "./screens/email/EmailSegments": "browser",
       "./screens/email/EmailTemplateEditor": "browser",
-      "./shell/components/AssistantDock/assistant-dock-props": "browser"
+      "./shell/components/AssistantDock/assistant-dock-props": "browser",
+      "./pages/page-route-rules": "universal",
+      "./pages/PageEditorPreview": "browser",
+      "./posts/hooks/use-posts.hooks": "browser",
+      "./screens/storage/storage-screen-bindings": "browser",
+      "./security/host/AccessTokensTab.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1196,6 +1202,11 @@
       "types": "./dist/browser/shell-navigation.d.ts",
       "import": "./dist/browser/shell-navigation.js",
       "default": "./dist/browser/shell-navigation.js"
+    },
+    "./core/settings-tabs": {
+      "types": "./src/core/settings-tabs.ts",
+      "import": "./src/core/settings-tabs.ts",
+      "default": "./src/core/settings-tabs.ts"
     },
     "./core/module": {
       "types": "./dist/core/module/index.d.ts",
@@ -5048,6 +5059,31 @@
       "types": "./dist/shell/components/AssistantDock/assistant-dock-props.d.ts",
       "import": "./dist/shell/components/AssistantDock/assistant-dock-props.js",
       "default": "./dist/shell/components/AssistantDock/assistant-dock-props.js"
+    },
+    "./pages/page-route-rules": {
+      "types": "./src/pages/page-route-rules.ts",
+      "import": "./src/pages/page-route-rules.ts",
+      "default": "./src/pages/page-route-rules.ts"
+    },
+    "./pages/PageEditorPreview": {
+      "types": "./src/pages/PageEditorPreview.tsx",
+      "import": "./src/pages/PageEditorPreview.tsx",
+      "default": "./src/pages/PageEditorPreview.tsx"
+    },
+    "./posts/hooks/use-posts.hooks": {
+      "types": "./src/posts/hooks/use-posts.hooks.ts",
+      "import": "./src/posts/hooks/use-posts.hooks.ts",
+      "default": "./src/posts/hooks/use-posts.hooks.ts"
+    },
+    "./screens/storage/storage-screen-bindings": {
+      "types": "./src/screens/storage/storage-screen-bindings.tsx",
+      "import": "./src/screens/storage/storage-screen-bindings.tsx",
+      "default": "./src/screens/storage/storage-screen-bindings.tsx"
+    },
+    "./security/host/AccessTokensTab.hooks": {
+      "types": "./src/security/host/AccessTokensTab.hooks.ts",
+      "import": "./src/security/host/AccessTokensTab.hooks.ts",
+      "default": "./src/security/host/AccessTokensTab.hooks.ts"
     }
   },
   "files": [

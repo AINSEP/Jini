@@ -3,6 +3,7 @@ import type { ExecutionConfig } from "@jini-ai/core/contracts/execution";
 import type { CachedLoader, FetchQueryAdapter } from "@jini-ai/core/fetch";
 import { isAbortError } from "@jini-ai/core/text";
 import type { useAdminBootScope } from "../../../lib/admin-boot-scope.js";
+import { subscribeExecutionConfigRefresh, subscribeStoredKeyRefresh } from "./execution-config-refresh.js";
 import type { useExecutionConfigLedger } from "./execution-config-ledger.hooks.js";
 
 export type ExecutionWrite = { previous: ExecutionConfig; next: ExecutionConfig };
@@ -172,3 +173,35 @@ export function useExecutionConfig(
   };
 }
 
+
+export function bindExecutionConfig({ hooks, deps }: {
+  hooks: Pick<Parameters<typeof useExecutionConfig>[0], "useBootScopeHook" | "useCachedLoaderHook" | "useInvalidateHook" | "useLedgerHook" | "useStoredKeyHook">;
+  deps: Pick<Parameters<typeof useExecutionConfig>[0], "port" | "initialConfig" | "namespace" | "applyChange"> & {
+    refresh: Parameters<typeof subscribeExecutionConfigRefresh>[0]["deps"];
+    retry: Parameters<typeof useExecutionConfigLedger>[0]["retry"];
+    onConfigLoadFailure: (error: unknown) => void;
+    onStoredKeyLoadFailure: (error: unknown) => void;
+    persistWrite: (required: { write: ExecutionWrite; failureLog: string }) => Promise<boolean>;
+    modeFailureLog: string;
+  };
+}, _optional = {}) {
+  const ledgerIo = {
+    retry: deps.retry,
+    subscribeRefresh: ({ revalidate }: { revalidate: () => void }) => subscribeExecutionConfigRefresh({ revalidate, deps: deps.refresh }),
+    onLoadFailure: deps.onConfigLoadFailure,
+  };
+  const storedKeyIo = {
+    retry: deps.retry,
+    subscribeRefresh: ({ revalidate }: { revalidate: () => void }) => subscribeStoredKeyRefresh({ revalidate, deps: deps.refresh }),
+    onLoadFailure: deps.onStoredKeyLoadFailure,
+  };
+  return function useBoundExecutionConfig(_required: Record<string, never>, { port = deps.port, persistWrite = deps.persistWrite } = {}): UseExecutionConfig {
+    const persistMode = useCallback(({ write }: { write: ExecutionWrite }) =>
+      persistWrite({ write, failureLog: deps.modeFailureLog }), [persistWrite]);
+    return useExecutionConfig({
+      port, initialConfig: deps.initialConfig, namespace: deps.namespace,
+      ...hooks, ledgerIo, storedKeyIo,
+      applyChange: deps.applyChange, persistWrite: persistMode,
+    });
+  };
+}

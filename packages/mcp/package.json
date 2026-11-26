@@ -32,7 +32,8 @@
       "./react/external-mcp/ExternalMcpAdmissionsBanner": "browser",
       "./react/external-mcp/ExternalMcpSettingsPanel.hooks": "browser",
       "./react/external-mcp/hooks/use-external-mcp-admissions.hooks": "browser",
-      "./external/tool-registrations": "node"
+      "./external/tool-registrations": "node",
+      "./react/external-mcp/hooks/use-external-mcp.hooks": "browser"
     },
     "optionalPeers": {
       "kysely": "opt-in: hosted MCP SQL — Install kysely to use the hosted MCP SQL repository.",
@@ -143,6 +144,11 @@
       "types": "./dist/external/tool-registrations.d.ts",
       "import": "./dist/external/tool-registrations.js",
       "default": "./dist/external/tool-registrations.js"
+    },
+    "./react/external-mcp/hooks/use-external-mcp.hooks": {
+      "types": "./dist/react/external-mcp/hooks/use-external-mcp.hooks.d.ts",
+      "import": "./dist/react/external-mcp/hooks/use-external-mcp.hooks.js",
+      "default": "./dist/react/external-mcp/hooks/use-external-mcp.hooks.js"
     }
   },
   "bin": {

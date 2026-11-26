@@ -192,3 +192,9 @@ export function EmailSenderTab(props: { controller: EmailSenderController; warni
     </>
   );
 }
+
+/** The facts line under the status summary: the sender domain and the provider's verdict on it. */
+export function EmailStatusFacts(props: { status: import("./api/mail-status-api.types.js").AdminMailStatus; locale: string }) {
+  const verification = props.status.senderDomainVerification;
+  return <SenderDomain status={{ senderDomain: verification?.domain ?? null, providerVerification: verification ?? null }} locale={props.locale} />;
+}
