@@ -44,7 +44,7 @@ export interface ConsentServiceDeps {
   consents: MemberConsentRepoPort;
 }
 
-async function assertMemberExists({ deps, workspaceId, memberId }: { deps: ConsentServiceDeps; workspaceId: string; memberId: string }, _optional = {}): Promise<void> {
+async function assertMemberExists({ deps, workspaceId, memberId }: { deps: ConsentServiceDeps; workspaceId: string; memberId: string }, _optional: Record<string, never> = {}): Promise<void> {
   const member = await deps.members.findById({ workspaceId, id: memberId });
   if (!member) {
     throw new MemberNotFoundError(`member '${memberId}' was not found`);

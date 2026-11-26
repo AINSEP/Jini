@@ -45,7 +45,7 @@ export interface UserPurgeSqlPorts {
  */
 export class SqlUserPurge implements UserPurgePort {
   private readonly ports: UserPurgeSqlPorts;
-  constructor(required: { ports: UserPurgeSqlPorts }, _optional = {}) {
+  constructor(required: { ports: UserPurgeSqlPorts }, _optional: Record<string, never> = {}) {
     this.ports = required.ports;
   }
 

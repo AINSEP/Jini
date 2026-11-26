@@ -247,7 +247,7 @@ function memoryUserPassword(ctx: MemoryUsersContext) {
 function memoryOwnerGuard(ctx: MemoryUsersContext) {
     const { users, owners, fail } = ctx;
     /** Disabling or deleting an active owner must leave another active owner behind. */
-    function keepAnotherActiveOwner(u: AdminOperator, _optional = {}): void {
+    function keepAnotherActiveOwner(u: AdminOperator, _optional: Record<string, never> = {}): void {
         if (u.status === 'active' && owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1) {
             fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.');
         }

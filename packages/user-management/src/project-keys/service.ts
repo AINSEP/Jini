@@ -6,10 +6,10 @@ import type { KeyAttachments, ProjectKeyTransaction } from "@jini-ai/core/contra
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 
 import type { ProviderKeyUsage } from "@jini-ai/core/contracts/site/plugins-host";
-export const providerKeyId = ({ pluginId }: { pluginId: string }, _optional = {}) => `plugin-state:${pluginId}:provider.config`;
+export const providerKeyId = ({ pluginId }: { pluginId: string }, _optional: Record<string, never> = {}) => `plugin-state:${pluginId}:provider.config`;
 
-export const providerPluginOf = ({ keyId }: { keyId: string }, _optional = {}) => /^plugin-state:([a-z0-9-]+):provider\.config$/.exec(keyId)?.[1];
-export const isSharedOAuthKey = ({ row }: { row: Pick<VaultRecord, 'kind' | 'meta'> }, _optional = {}) =>
+export const providerPluginOf = ({ keyId }: { keyId: string }, _optional: Record<string, never> = {}) => /^plugin-state:([a-z0-9-]+):provider\.config$/.exec(keyId)?.[1];
+export const isSharedOAuthKey = ({ row }: { row: Pick<VaultRecord, 'kind' | 'meta'> }, _optional: Record<string, never> = {}) =>
   row.kind === 'api-connection' && row.meta.credentialFormat === 'oauth-token-set';
 export interface ProjectKeyRow { keyId: string; name: string; kind: string; usedByThisSite: boolean; usedBy: readonly string[];
   /** Set for a key still saved only on a site; absent for a Shared Key. */
@@ -42,7 +42,7 @@ function createProjectKeyUse({ siteId, siteName, siteKeys, transaction, bindOAut
   /** Shared attachment lifecycle for a submitted card or an explicit project-key choice.
    * Commit the reference before reapplying a provider; restart/failure status retains the reference.
    */
-  const use: ProjectKeysPort["use"] = async (selected, _optional = {}) => {
+  const use: ProjectKeysPort["use"] = async (selected, _optional: Record<string, never> = {}) => {
     if (!siteId) throw new ToolInputError({ message: copy.missingSite });
     // Adoption runs after the card's approval and before the grant; a site key becomes a Shared Key here.
     let input = selected;
@@ -87,7 +87,7 @@ function createProjectKeyListing({ vault, inventory, describeOAuth, owner: owner
   return listRows;
 }
 function createProjectKeySavedResult(vault: VaultRepoPort, usage: (input: { keyId: string }) => Promise<Pick<ProjectKeyRow, 'keyId' | 'usedByThisSite' | 'usedBy'>>, use: ProjectKeysPort['use'], owner: { workspaceId: string; ownerKey: string }): ProjectKeysPort['savedResult'] {
-  return async ({ result }, _optional = {}) => {
+  return async ({ result }, _optional: Record<string, never> = {}) => {
       const identity = savedKeyIdentity({ result });
       if (!identity) return result;
       const { keyId, value } = identity;
@@ -161,7 +161,7 @@ export function createProjectKeys(required: CreateProjectKeysRequired, _optional
 
 
 /** Only successful, identifiable saves can acquire a project attachment. */
-function savedKeyIdentity({ result }: { result: unknown }, _optional = {}): { keyId: string; value: Record<string, unknown> } | undefined {
+function savedKeyIdentity({ result }: { result: unknown }, _optional: Record<string, never> = {}): { keyId: string; value: Record<string, unknown> } | undefined {
   if (!result || typeof result !== "object") return undefined;
   const value = result as Record<string, unknown>;
   if (value.saved !== true && value.created !== true) return undefined;

@@ -36,9 +36,9 @@ export function createOwnerRecoveryClient(
 
   const port: OwnerRecoveryPort = {
     status: () => requestOnce<OwnerRecoveryStatus>({ path: '/auth/owner-recovery', init: { cache: 'no-store' } }),
-    issue: (input, _optional = {}) => post({ path: 'recovery-codes', body: input }),
-    reset: (input, _optional = {}) => post({ path: 'reset-owner', body: input }),
-    recover: (input, _optional = {}) => post({ path: 'recover-owner', body: input }),
+    issue: (input, _optional: Record<string, never> = {}) => post({ path: 'recovery-codes', body: input }),
+    reset: (input, _optional: Record<string, never> = {}) => post({ path: 'reset-owner', body: input }),
+    recover: (input, _optional: Record<string, never> = {}) => post({ path: 'recover-owner', body: input }),
   };
 
   /** Preserve the server's specific explanation and provide selectable, redacted incident evidence.

@@ -59,11 +59,11 @@ export interface CompletedOidcLogin {
   readonly startedAt: string;
 }
 
-function hash({ value }: { value: string }, _optional = {}): string {
+function hash({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   return createHash("sha256").update(value).digest("base64url");
 }
 
-function bindingContext({ input, binding }: { input: LoginContext; binding: string }, _optional = {}) {
+function bindingContext({ input, binding }: { input: LoginContext; binding: string }, _optional: Record<string, never> = {}) {
   if (!/^[A-Za-z0-9_-]{43}$/.test(binding)) throw new MemberLoginError({ code: "LOGIN_INVALID" });
   return { ownerKey: input.connectMemberId ? `member-connect:v1:${input.connectMemberId}:${binding}` : `member-login:v1:${binding}`,
     nonce: hash({ value: `nonce:${binding}` }) };
@@ -108,11 +108,11 @@ async function sealState(required: { deps: OidcLoginDeps; plaintext: string; aad
 }
 
 /** The host's sealer, keyring and `aad` bound to the injected `createSealerStateCodec`; every open error becomes LOGIN_INVALID in the callers. */
-function stateCodec({ deps, aad }: { deps: OidcLoginDeps; aad: string }, _optional = {}) {
+function stateCodec({ deps, aad }: { deps: OidcLoginDeps; aad: string }, _optional: Record<string, never> = {}) {
   return deps.createSealerStateCodec({ sealer: deps.sealer, keyring: deps.keyring, aad });
 }
 
-function redirectState({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext; version: string }, _optional = {}) {
+function redirectState({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext; version: string }, _optional: Record<string, never> = {}) {
   const serverId = `${input.providerId}:${version}`;
   const aad = deps.formatAad({ kind: "member-login-state", version: "v1", parts: [JSON.stringify([input.workspaceId, serverId])] });
   return deps.createSealedAuthorizationState({ clock: deps.clock, workspaceId: input.workspaceId, serverId, codec: stateCodec({ deps, aad }) });
@@ -142,7 +142,7 @@ export async function beginOidcLogin(required: { deps: OidcLoginDeps; input: Log
   }
 }
 
-function authoritativeEmail({ provider, claims, domain }: { provider: LoginProvider; claims: OidcIdTokenClaims; domain: string }, _optional = {}): boolean {
+function authoritativeEmail({ provider, claims, domain }: { provider: LoginProvider; claims: OidcIdTokenClaims; domain: string }, _optional: Record<string, never> = {}): boolean {
   const hosted = provider.hostedDomainClaim ? claims[provider.hostedDomainClaim] : undefined;
   // The pinned issuer's hosted-domain claim establishes mailbox authority, including Workspace
   // aliases whose email domain can differ from the organization's primary hosted domain.
@@ -150,7 +150,7 @@ function authoritativeEmail({ provider, claims, domain }: { provider: LoginProvi
     || (typeof hosted === "string" && hosted.trim().length > 0);
 }
 
-function validEmail({ email }: { email: string }, _optional = {}): boolean {
+function validEmail({ email }: { email: string }, _optional: Record<string, never> = {}): boolean {
   if (email.length > 320 || /\s/.test(email)) return false;
   const parts = email.split("@");
   if (parts.length !== 2 || !parts[0]) return false;
@@ -159,7 +159,7 @@ function validEmail({ email }: { email: string }, _optional = {}): boolean {
   return dot > 0 && dot < domain.length - 1;
 }
 
-function verifiedIdentity({ provider, claims, clock }: { provider: LoginProvider; claims: OidcIdTokenClaims; clock: Clock }, _optional = {}): VerifiedLoginIdentity {
+function verifiedIdentity({ provider, claims, clock }: { provider: LoginProvider; claims: OidcIdTokenClaims; clock: Clock }, _optional: Record<string, never> = {}): VerifiedLoginIdentity {
   if (claims.email_verified !== true || typeof claims.email !== "string") throw new MemberLoginError({ code: "LOGIN_INVALID" });
   const email = claims.email.trim().toLowerCase();
   if (!validEmail({ email })) throw new MemberLoginError({ code: "LOGIN_INVALID" });
@@ -204,12 +204,12 @@ export async function completeOidcLogin(required: {
   }
 }
 
-function continuationAad({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext & { browserBinding: string }; version: string }, _optional = {}) {
+function continuationAad({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext & { browserBinding: string }; version: string }, _optional: Record<string, never> = {}) {
   const { ownerKey } = bindingContext({ input, binding: input.browserBinding });
   return deps.formatAad({ kind: "member-login-email-proof", version: "v1", parts: [JSON.stringify([input.workspaceId, input.providerId, version, hash({ value: ownerKey })])] });
 }
 
-function continuationCodec({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext & { browserBinding: string }; version: string }, _optional = {}) {
+function continuationCodec({ deps, input, version }: { deps: OidcLoginDeps; input: LoginContext & { browserBinding: string }; version: string }, _optional: Record<string, never> = {}) {
   return stateCodec({ deps, aad: continuationAad({ deps, input, version }) });
 }
 

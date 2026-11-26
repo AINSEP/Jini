@@ -42,7 +42,7 @@ export function buildProjectKeyRegistrations({ keys, authorize, loadCards, surfa
     if (!keys) throw new ToolInputError({ message: host.copy.unavailable });
     return keys;
   };
-  const empty = ({ input }: { input: unknown }, _optional = {}) => {
+  const empty = ({ input }: { input: unknown }, _optional: Record<string, never> = {}) => {
     const value = input === undefined ? {} : requireInputRecord({ input });
     if (Object.keys(value).length) throw new ToolInputError({ message: host.copy.noArguments });
   };

@@ -43,7 +43,7 @@ export function memberChallengeStore(required: {
 }
 
 /** Legacy link-only rows normalize to Jini's nullable code hash and zero spent attempts. */
-function asChallenge({ record }: { record: MagicLinkTokenRecord | null }, _optional = {}): AuthChallengeRecord | null {
+function asChallenge({ record }: { record: MagicLinkTokenRecord | null }, _optional: Record<string, never> = {}): AuthChallengeRecord | null {
   return record && { ...record, realm: "member", codeHash: record.codeHash ?? null, failedAttempts: record.failedAttempts ?? 0 };
 }
 

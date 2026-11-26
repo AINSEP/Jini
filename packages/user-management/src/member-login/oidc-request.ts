@@ -9,7 +9,7 @@ import type { MemberSignInResult } from '../members/ports.js';
  */
 export function readOidcCallbackParams({ query, cancelled }: {
   query: Readonly<Record<string, unknown>>; cancelled: (required: Record<string, never>) => Error;
-}, _optional = {}): { code: string; state: string } {
+}, _optional: Record<string, never> = {}): { code: string; state: string } {
   const { code, state, error } = query;
   if (error === 'access_denied') throw cancelled({});
   if (error !== undefined || typeof code !== 'string' || typeof state !== 'string') throw new MemberLoginError({ code: 'LOGIN_INVALID' });
@@ -18,7 +18,7 @@ export function readOidcCallbackParams({ query, cancelled }: {
 }
 
 /** Strict JSON DTO; callers cannot inject claims, intent or proof booleans. O(k) body keys. */
-export function readOidcEmailProof({ body }: { body: unknown }, _optional = {}): { continuation: string; challengeId: string; code: string } {
+export function readOidcEmailProof({ body }: { body: unknown }, _optional: Record<string, never> = {}): { continuation: string; challengeId: string; code: string } {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new MemberLoginError({ code: 'LOGIN_INVALID' });
   const record = body as Record<string, unknown>;
   if (Object.keys(record).length !== 3 || !Object.keys(record).every(key => ['continuation', 'challengeId', 'code'].includes(key))) throw new MemberLoginError({ code: 'LOGIN_INVALID' });
@@ -29,7 +29,7 @@ export function readOidcEmailProof({ body }: { body: unknown }, _optional = {}):
 }
 
 /** Bound opaque handles before cryptography or challenge repository work. O(1). */
-function proofString({ value, maxLength }: { value: unknown; maxLength: number }, _optional = {}): string {
+function proofString({ value, maxLength }: { value: unknown; maxLength: number }, _optional: Record<string, never> = {}): string {
   if (typeof value !== 'string' || !value || value.length > maxLength) throw new MemberLoginError({ code: 'LOGIN_INVALID' });
   return value;
 }
@@ -50,7 +50,7 @@ export async function completeMemberOidcCallback({ context, protocol, links, bro
   userAgent: string | undefined; ip: string;
   deliveryAllowed: (required: { email: string }) => Promise<void>;
   continuationLocation: (required: { providerId: string; challengeId: string; continuation: string }) => string;
-}, _optional = {}): Promise<OidcCallbackResult> {
+}, _optional: Record<string, never> = {}): Promise<OidcCallbackResult> {
   const browserBinding = readBinding({});
   const login = await completeOidcLogin({ deps: protocol, input: { ...context, browserBinding, params: readOidcCallbackParams({ query: query({}), cancelled }) } });
   const linked = await resolveFederatedIdentity({ deps: links, input: { workspaceId: context.workspaceId,
@@ -78,7 +78,7 @@ export async function completeMemberOidcCallback({ context, protocol, links, bro
 export async function verifyMemberOidcEmailProof({ context, protocol, links, browserBinding, proof, userAgent, ip }: {
   context: LoginContext; protocol: OidcLoginDeps; links: MemberLoginLinkDeps; browserBinding: string;
   proof: { continuation: string; challengeId: string; code: string }; userAgent: string | undefined; ip: string;
-}, _optional = {}): Promise<MemberLoginLinkResult> {
+}, _optional: Record<string, never> = {}): Promise<MemberLoginLinkResult> {
   const login = await openLoginEmailContinuation({ deps: protocol, input: { ...context, browserBinding, continuation: proof.continuation } });
   return resolveFederatedIdentity({ deps: links, input: { workspaceId: context.workspaceId,
     identity: login.identity, startedAt: login.startedAt, ...(login.connectMemberId === undefined ? {} : { connectMemberId: login.connectMemberId }),

@@ -28,7 +28,7 @@ function isOwnerKeyIdentity(value: unknown, ownerScope: Parameters<typeof siteGr
   return ownerKeyScope({ value, ownerScope });
 }
 
-function ownerKeyScope({ value, ownerScope }: { value: unknown[]; ownerScope: Parameters<typeof siteGrantedSealer>[0]["ownerScope"] }, _optional = {}): boolean {
+function ownerKeyScope({ value, ownerScope }: { value: unknown[]; ownerScope: Parameters<typeof siteGrantedSealer>[0]["ownerScope"] }, _optional: Record<string, never> = {}): boolean {
   const [, , kind, ownerKey, principalId, binding]: unknown[] = value;
   return typeof kind === 'string' && ownerScope.kinds.includes(kind)
     && ownerKey === ownerScope.ownerKey && principalId === null && binding === null;

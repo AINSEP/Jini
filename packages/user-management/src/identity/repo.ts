@@ -78,7 +78,7 @@ function toPrincipalRecord(row: Selectable<PrincipalsTable>): PrincipalRecord {
 export class SqlPrincipalRepo implements PrincipalRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly table: string;
-  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional = {}) {
+  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional: Record<string, never> = {}) {
     this.kernel = kernel;
     this.table = table;
   }

@@ -9,7 +9,7 @@ export interface LoginLinkMember {
 
 export type LinkDecision = "sign_in" | "link" | "create" | "email_verification_required" | "blocked" | "conflict";
 
-function admission({ member, connectMemberId }: { member: LoginLinkMember | null; connectMemberId: string | undefined }, _optional = {}): "blocked" | "conflict" | undefined {
+function admission({ member, connectMemberId }: { member: LoginLinkMember | null; connectMemberId: string | undefined }, _optional: Record<string, never> = {}): "blocked" | "conflict" | undefined {
   if (member?.status === "disabled" || member?.status === "trash") return "blocked";
   if (connectMemberId && member?.id !== connectMemberId) return "conflict";
   return undefined;

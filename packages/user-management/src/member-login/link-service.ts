@@ -63,18 +63,18 @@ async function resolveTarget(deps: MemberLoginLinkDeps, input: MemberLoginLinkIn
   return target;
 }
 
-function assertEligible({ member, input }: { member: MemberRecord | null; input: MemberLoginLinkInput }, _optional = {}) {
+function assertEligible({ member, input }: { member: MemberRecord | null; input: MemberLoginLinkInput }, _optional: Record<string, never> = {}) {
   if (!Number.isFinite(Date.parse(input.startedAt))) throw new MemberLoginError({ code: "LOGIN_INVALID" });
   if (member?.credentialsRevokedAt && member.credentialsRevokedAt >= input.startedAt) throw new MemberLoginError({ code: "LOGIN_BLOCKED" });
 }
 
-function proofMatchesTarget({ target, input, proof }: { target: LoginTarget; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional = {}) {
+function proofMatchesTarget({ target, input, proof }: { target: LoginTarget; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional: Record<string, never> = {}) {
   if (!proof) return;
   if (proof.email !== (target.member?.email ?? input.identity.email)) throw new MemberLoginError({ code: "LOGIN_INVALID" });
   if (target.member && proof.id !== target.member.id) throw new MemberLoginError({ code: "LOGIN_INVALID" });
 }
 
-function decisionFor({ target, input, proof }: { target: LoginTarget; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional = {}) {
+function decisionFor({ target, input, proof }: { target: LoginTarget; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional: Record<string, never> = {}) {
   return decideMemberLogin({ identity: input.identity, member: target.member, subjectLinked: Boolean(target.subject && !target.subject.unlinkedAt),
     emailProofVerified: proof !== null, unlinked: Boolean(target.pair?.unlinkedAt),
     ...(input.connectMemberId === undefined ? {} : { connectMemberId: input.connectMemberId }) });
@@ -92,7 +92,7 @@ async function verifyInbox(deps: MemberLoginLinkDeps, input: MemberLoginLinkInpu
 
 async function activateAndLink({ deps, input, member, pair, now, proof }: {
   deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; member: MemberRecord; pair: MemberExternalIdentityRecord | null; now: string; proof: InboxProof | null;
-}, _optional = {}): Promise<MemberRecord> {
+}, _optional: Record<string, never> = {}): Promise<MemberRecord> {
   // Only a verified match on the member's own address (or its emailed code) proves that inbox; a
   // connect with a different Google address links the subject without verifying the member email.
   const inbox = proof !== null || member.email === input.identity.email
@@ -108,7 +108,7 @@ async function activateAndLink({ deps, input, member, pair, now, proof }: {
   return active;
 }
 
-async function linkInTransaction({ deps, input, proof }: { deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional = {}): Promise<MemberLoginLinkResult> {
+async function linkInTransaction({ deps, input, proof }: { deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional: Record<string, never> = {}): Promise<MemberLoginLinkResult> {
   // One workspace key serializes new-email and subject races. The member lifecycle lock also
   // fences Trash/restore; S3 unlink must take these same locks in this order.
   await deps.lockKey(`members:external-identities:${input.workspaceId}`);
@@ -127,7 +127,7 @@ async function linkInTransaction({ deps, input, proof }: { deps: MemberLoginLink
 
 async function finishLogin({ deps, input, target, proof, subjectLinked }: {
   deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; target: LoginTarget; proof: InboxProof | null; subjectLinked: boolean;
-}, _optional = {}): Promise<MemberLoginLinkResult> {
+}, _optional: Record<string, never> = {}): Promise<MemberLoginLinkResult> {
   const now = nowIso({ clock: deps.clock });
   let member = target.member;
   if (!member) member = (await createMember({ deps, input: { workspaceId: input.workspaceId, email: input.identity.email } }, { deferCreatedNotification: true })).member;
@@ -159,7 +159,7 @@ export async function resolveFederatedIdentity(required: {
   }
 }
 
-async function retryLink({ deps, input, proof }: { deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional = {}) {
+async function retryLink({ deps, input, proof }: { deps: MemberLoginLinkDeps; input: MemberLoginLinkInput; proof: InboxProof | null }, _optional: Record<string, never> = {}) {
   try {
     return await deps.transaction(async () => linkInTransaction({ deps, input, proof }));
   } catch (error) {

@@ -56,7 +56,7 @@ export function resolvePostMemberAccess({ raw }: { raw: string | null | undefine
  * not import from `write-service.ts`: the read-path resolver has no business
  * depending on the mutation-path module).
  */
-function hashToken({ rawToken }: { rawToken: string }, _optional = {}): string {
+function hashToken({ rawToken }: { rawToken: string }, _optional: Record<string, never> = {}): string {
   return createHash("sha256").update(rawToken).digest("hex");
 }
 

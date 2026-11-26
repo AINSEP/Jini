@@ -11,7 +11,7 @@ export function createSiteOAuthBindings({ vault, repo, identity: resolveIdentity
   identity: (required: { consumerId: string }, optional?: Record<string, never>) => VaultIdentity;
   credentialFormat: string; invalidIdMessage: string;
 }, _optional: Record<string, never> = {}): SiteOAuthBindings {
-  const checkedId = ({ value }: { value: string }, _optional = {}) => {
+  const checkedId = ({ value }: { value: string }, _optional: Record<string, never> = {}) => {
     if (!value || value.length > 512 || value.includes('\0')) throw new ToolInputError({ message: invalidIdMessage });
     return value;
   };

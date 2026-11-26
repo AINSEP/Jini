@@ -32,7 +32,7 @@ export async function unlinkMemberIdentity(required: {
   saveMember: MemberLoginLinkDeps['members']['save'];
   nowIso(required: Record<string, never>): string;
   userAgent: string | undefined; ip: string;
-}, _optional = {}): Promise<Awaited<ReturnType<typeof issueMemberSession>>> {
+}, _optional: Record<string, never> = {}): Promise<Awaited<ReturnType<typeof issueMemberSession>>> {
   const current = await required.readCurrent({});
   if (!current) throw new MemberLoginError({ code: 'LOGIN_INVALID' });
   const providerId = required.readProviderId({ providerId: required.providerId });

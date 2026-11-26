@@ -50,7 +50,7 @@ export class SqlSessionRepo implements SessionRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly table: string;
   private readonly keepStoredRevocation: (required: { table: string }) => RawBuilder<string | null>;
-  constructor({ kernel, table, keepStoredRevocation }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string; keepStoredRevocation: (required: { table: string }) => RawBuilder<string | null> }, _optional = {}) {
+  constructor({ kernel, table, keepStoredRevocation }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string; keepStoredRevocation: (required: { table: string }) => RawBuilder<string | null> }, _optional: Record<string, never> = {}) {
     this.kernel = kernel;
     this.table = table;
     this.keepStoredRevocation = keepStoredRevocation;
@@ -152,7 +152,7 @@ function toApiKeyRecord(row: Selectable<ApiKeysTable>): ApiKeyRecord {
 export class SqlApiKeyRepo implements ApiKeyRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly table: string;
-  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional = {}) {
+  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional: Record<string, never> = {}) {
     this.kernel = kernel;
     this.table = table;
   }

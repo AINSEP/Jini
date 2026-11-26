@@ -227,7 +227,7 @@ function toPolicyPermissionRecord(row: Selectable<PolicyPermissionsTable>): Poli
 export class SqlPolicyPermissionRepo implements PolicyPermissionRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly table: string;
-  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional = {}) {
+  constructor({ kernel, table }: { kernel: StorageKernel<Kysely<unknown>, unknown>; table: string }, _optional: Record<string, never> = {}) {
     this.kernel = kernel;
     this.table = table;
   }
