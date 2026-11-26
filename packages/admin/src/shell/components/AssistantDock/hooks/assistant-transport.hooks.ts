@@ -28,8 +28,8 @@ export interface AssistantTransportOptions {
 export interface AssistantTransportInput {
   agentBridge?: FrontendSessionBridge | null;
   executionConfigRef: React.MutableRefObject<ExecutionConfig>;
-  readExecutionConfigForSend?: () => Promise<ExecutionConfig>;
-  readLocalCliSelectionForSend?: (config: ExecutionConfig) => ChatPaneAgentSelection;
+  readExecutionConfigForSend?: (() => Promise<ExecutionConfig>) | undefined;
+  readLocalCliSelectionForSend?: ((config: ExecutionConfig) => ChatPaneAgentSelection) | undefined;
   ensureConversationId?: () => Promise<string | null>;
   persistUserTurn?: (conversationId: string, message: ChatMessage) => Promise<void>;
   onDaemonStartingChange?: (input: { starting: boolean }, options?: Record<string, never>) => void;

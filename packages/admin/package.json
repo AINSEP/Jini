@@ -823,7 +823,10 @@
       "./pages/PageEditor": "browser",
       "./pages/hooks/use-page-editor.hooks": "browser",
       "./security/host/AccessTokensTab": "browser",
-      "./security/host/hooks/use-access-tokens.hooks": "browser"
+      "./security/host/hooks/use-access-tokens.hooks": "browser",
+      "./shell/components/AssistantDock/AssistantDock": "browser",
+      "./shell/components/AssistantDock/AssistantDock.state.hooks": "browser",
+      "./shell/components/AssistantDock/DockChatPane": "browser"
     },
     "isolation": {
       "shared": [
@@ -5150,6 +5153,21 @@
       "types": "./src/security/host/hooks/use-access-tokens.hooks.ts",
       "import": "./src/security/host/hooks/use-access-tokens.hooks.ts",
       "default": "./src/security/host/hooks/use-access-tokens.hooks.ts"
+    },
+    "./shell/components/AssistantDock/AssistantDock": {
+      "types": "./src/shell/components/AssistantDock/AssistantDock.tsx",
+      "import": "./src/shell/components/AssistantDock/AssistantDock.tsx",
+      "default": "./src/shell/components/AssistantDock/AssistantDock.tsx"
+    },
+    "./shell/components/AssistantDock/AssistantDock.state.hooks": {
+      "types": "./src/shell/components/AssistantDock/AssistantDock.state.hooks.ts",
+      "import": "./src/shell/components/AssistantDock/AssistantDock.state.hooks.ts",
+      "default": "./src/shell/components/AssistantDock/AssistantDock.state.hooks.ts"
+    },
+    "./shell/components/AssistantDock/DockChatPane": {
+      "types": "./src/shell/components/AssistantDock/DockChatPane.tsx",
+      "import": "./src/shell/components/AssistantDock/DockChatPane.tsx",
+      "default": "./src/shell/components/AssistantDock/DockChatPane.tsx"
     }
   },
   "files": [
