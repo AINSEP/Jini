@@ -1,5 +1,5 @@
 import { type CredentialWarning } from "../credential-warnings.js";
-import type { ArchiveMediaCopy, ArchiveMediaSource } from "../archive-media.js";
+import type { ArchiveMediaCopy, ArchiveMediaSource, ArchiveMediaTransformParams } from "../archive-media.js";
 import type { ShareDatabaseProjection as BaseShareDatabaseProjection } from "../share-preparation-steps.js";
 import { statfs, writeFile } from "node:fs/promises";
 
@@ -13,7 +13,7 @@ import { SiteShareRefusal } from "../share-refusal.js";
 import type { DataModuleDecl } from "@jini-ai/core/contracts/site/db-data-modules";
 
 import type { OwnedTempRootScope } from "../owned-temp-root.js";
-export type ShareDatabaseProjection = BaseShareDatabaseProjection<ArchiveMediaSource>;
+export type ShareDatabaseProjection<TParams extends ArchiveMediaTransformParams = ArchiveMediaTransformParams> = BaseShareDatabaseProjection<ArchiveMediaSource<TParams>>;
 
 import { prepareSharePluginTables, refuseUnknownShareTables, copyPortableTables } from "./projection.tables.js";
 import { documentReferences, archiveMediaSources, rewriteMediaRows } from "./projection.media.js";
@@ -83,7 +83,7 @@ export type StagingSpacePort = (path: string) => Promise<{ bavail: number; bsize
  * @throws SiteShareRefusal for caps, unknown populated tables, or unsupported schema.
  * @complexity O(snapshot + portable rows) time/space, bounded to the v1 expanded cap.
  */
-export async function sanitizeShareDatabase(required: { host: {
+export async function sanitizeShareDatabase<TParams extends ArchiveMediaTransformParams = ArchiveMediaTransformParams>(required: { host: {
     deps: {
       listTables(required: { kernel: Kernel }, optional?: Record<string, never>): Promise<string[]>;
       listColumns(required: { kernel: Kernel; table: string }, optional?: Record<string, never>): Promise<ColumnInfo[]>;
@@ -105,7 +105,7 @@ export async function sanitizeShareDatabase(required: { host: {
     sql: ShareSqlTag;
     schemaErasedKernel(required: { store: SqliteConnectionSource }): StorageKernel<unknown, unknown>;
     backfillPostSearchIndex(required: { kernel: StorageKernel<unknown, unknown>; config: PostSearchHostConfig }, optional?: { batchSize?: number }): Promise<number>;
-  };  snapshot: Buffer; omittedMediaIds?: readonly string[]; modules: readonly DataModuleDecl[]; searchHost: PostSearchHostConfig }, optional: { signal?: AbortSignal; statfs?: StagingSpacePort; tempRoot?: OwnedTempRootScope } = {}): Promise<ShareDatabaseProjection> {
+  };  snapshot: Buffer; omittedMediaIds?: readonly string[]; modules: readonly DataModuleDecl[]; searchHost: PostSearchHostConfig }, optional: { signal?: AbortSignal; statfs?: StagingSpacePort; tempRoot?: OwnedTempRootScope } = {}): Promise<ShareDatabaseProjection<TParams>> {
   optional.signal?.throwIfAborted();
   if (required.snapshot.length > required.host.SHARE_LIMITS.maxExpandedBytes) throw new SiteShareRefusal({ code: "LIMIT_EXCEEDED", message: required.host.databaseCapMessage });
   const credentialWarnings: CredentialWarning[] = [];
@@ -134,7 +134,7 @@ export async function sanitizeShareDatabase(required: { host: {
       // Older shares included Trash/orphan sidecars. v2 emits only retained owners, so
       // arbitrary unreferenced archive media must refuse rather than be pruned on import.
       const bytes = required.host.deps.sqliteClientOf({ source: fresh }).serialize();
-      return { bytes, media, documents, credentialWarnings, archiveMedia: await archiveMediaSources({ target }) };
+      return { bytes, media, documents, credentialWarnings, archiveMedia: await archiveMediaSources<TParams>({ target }) };
     } finally {
       await source?.close();
       if (fresh) required.host.deps.closeSqliteConnection({ source: fresh });
@@ -161,4 +161,17 @@ export async function rewriteArchiveMedia(required: { host: Parameters<typeof sa
       return bytes;
     } finally { await target?.close(); }
   } });
+}
+
+export function createShareDatabaseProjection<TParams extends ArchiveMediaTransformParams = ArchiveMediaTransformParams>(required: {
+  host: Parameters<typeof sanitizeShareDatabase>[0]["host"];
+  archiveMediaTempRoot: OwnedTempRootScope;
+}, _optional = {}) {
+  const { host, archiveMediaTempRoot } = required;
+  return {
+    sanitizeShareDatabase: (input: Omit<Parameters<typeof sanitizeShareDatabase>[0], "host">, optional: Parameters<typeof sanitizeShareDatabase>[1] = {}) => sanitizeShareDatabase<TParams>({ ...input, host }, optional),
+    rewriteArchiveMedia: (input: Omit<Parameters<typeof rewriteArchiveMedia>[0], "host">, optional: Omit<Parameters<typeof rewriteArchiveMedia>[1], "tempRoot"> = {}) => rewriteArchiveMedia({ ...input, host }, { ...optional, tempRoot: archiveMediaTempRoot }),
+    prepareSharePluginTables: (input: Omit<Parameters<typeof prepareSharePluginTables>[0], "host">, optional: Parameters<typeof prepareSharePluginTables>[1] = {}) => prepareSharePluginTables({ ...input, host }, optional),
+    refuseUnknownShareTables: (input: Omit<Parameters<typeof refuseUnknownShareTables>[0], "host">, optional: Parameters<typeof refuseUnknownShareTables>[1] = {}) => refuseUnknownShareTables({ ...input, host }, optional),
+  };
 }

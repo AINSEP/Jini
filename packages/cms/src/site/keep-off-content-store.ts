@@ -8,7 +8,8 @@ type Kernel = StorageKernel<Kysely<{
   form_definitions: { id: string; name: string; fields_json: string; status: string };
 }>, unknown>;
 
-export function contentStore({ db }: { db: Kernel }, _optional = {}) {
+export function contentStore({ db: kernel }: { db: StorageKernel<unknown, unknown> }, _optional = {}) {
+  const db = kernel as Kernel;
   return {
     activeThemeIds: async () => (await db.run(query => query.selectFrom("presentation_settings").select("active_theme_id").execute())).map(row => row.active_theme_id),
     reassignActiveTheme: ({ from, to }: { from: string; to: string }) => db.run(query => query.updateTable("presentation_settings").set({ active_theme_id: to }).where("active_theme_id", "=", from).execute()).then(() => undefined),

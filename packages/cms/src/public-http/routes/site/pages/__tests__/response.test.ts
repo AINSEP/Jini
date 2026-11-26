@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { finalizePublicPageHtml, publicPageCache, resolveVisitorPagePolicy } from "../response.js";
+import { finalizePublicPageHtml, publicPageCache, resolveVisitorPagePolicy, sendPublicPage } from "../response.js";
 
 it("does not run document hooks for a listing batch and keeps the finalization order for a full document", async () => {
   const order: string[] = [];
@@ -18,6 +18,54 @@ it("does not run document hooks for a listing batch and keeps the finalization o
   expect(order).toEqual([]);
   await finalizePublicPageHtml({ html: "<html><head></head><body><button data-jini-more='1'></button></body></html>", formResult: undefined, ports: { ...ports, listingBatchBody: () => undefined } });
   expect(order).toEqual(["assert", "head", "hosts", "partials", "form", "static", "tokens", "member"]);
+});
+
+it("writes cache and HTML type before finalization and overrides JSON batch type before one send", async () => {
+  for (const format of ["json", "html"]) {
+    const order: string[] = [];
+    const unreachable = vi.fn(() => { throw new Error("document work reached for batch"); });
+    await sendPublicPage({ html: "page", perVisitor: { result: undefined, cacheControl: "public" },
+      preConsentCacheControl: ({ cacheControl }) => cacheControl, hasConsentGatedScripts: () => true,
+      writer: { vary: name => { order.push(`vary:${name}`); }, set: (name, value) => { order.push(`${name}:${value}`); }, type: value => { order.push(`type:${value}`); }, send: html => { order.push(`send:${html}`); } },
+      ports: { listingBatchBody: () => { order.push("batch"); return { format, body: "batch-body" }; }, assertListingPageServed: unreachable,
+        pluginHead: unreachable, addPluginHosts: unreachable, widgetPartials: unreachable, hasWidgetPartials: unreachable,
+        finishFormResult: unreachable, staticExport: unreachable, memberAuthScript: unreachable,
+        workspaceId: "w", randomUUID: unreachable, nowMs: unreachable, formSubmissionAttempts: unreachable },
+    });
+    expect(order).toEqual(["vary:Cookie", "Cache-Control:public", "type:html", "batch", ...(format === "json" ? ["type:json"] : []), "send:batch-body"]);
+    expect(unreachable).not.toHaveBeenCalled();
+  }
+});
+
+it("assembles assets, conditionally expands widgets and issues tokens only for live documents", async () => {
+  for (const staticExport of [true, false]) {
+    const order: string[] = [];
+    const issue = vi.fn((input: { workspaceId: string; slug: string; attemptToken: string; issuedAtMs: number }) => { order.push("issue"); expect(input).toEqual({ workspaceId: "w", slug: "contact", attemptToken: "token", issuedAtMs: 42 }); });
+    const widgetPartials = vi.fn(async ({ html }: { html: string }) => { order.push("widget"); return html; });
+    let sent = "";
+    await sendPublicPage({ html: '<html><head></head><body><form data-form-slug="contact"></form></body></html>', perVisitor: { result: undefined, cacheControl: "private, no-store" },
+      preConsentCacheControl: ({ cacheControl }) => cacheControl, hasConsentGatedScripts: () => false,
+      writer: { vary: vi.fn(), set: vi.fn(), type: vi.fn(), send: html => { order.push("send"); sent = html; } },
+      ports: { listingBatchBody: () => undefined, assertListingPageServed: () => { order.push("assert"); },
+        pluginHead: () => { order.push("head"); return '<meta name="plugin">'; }, addPluginHosts: () => { order.push("hosts"); },
+        hasWidgetPartials: () => !staticExport, widgetPartials,
+        finishFormResult: ({ html }) => { order.push("form"); return html; }, staticExport: () => staticExport,
+        memberAuthScript: ({ html }) => { order.push("member"); return html; }, workspaceId: "w",
+        randomUUID: () => { order.push("uuid"); return "token"; }, nowMs: () => { order.push("clock"); return 42; }, formSubmissionAttempts: () => ({ issue }),
+      },
+    });
+    expect(sent).toContain('<meta name="plugin">');
+    if (staticExport) { expect(order).toEqual(["assert", "head", "hosts", "form", "send"]); expect(sent).not.toContain('name="_attempt"'); expect(issue).not.toHaveBeenCalled(); }
+    else { expect(order).toEqual(["assert", "head", "hosts", "widget", "form", "uuid", "clock", "issue", "member", "send"]); expect(sent).toContain('name="_attempt" value="token"'); expect(issue).toHaveBeenCalledOnce(); }
+  }
+});
+
+it("clears consumed flash and keeps the clearing response private even without a query result", () => {
+  const clearFlash = vi.fn(); const memberCookiePresent = vi.fn();
+  const flash = { slug: "contact", values: {} };
+  expect(resolveVisitorPagePolicy({ queryResult: undefined, flash, clearFlash, memberCookiePresent, staticExport: () => false,
+    cache: { form: "private, no-store", member: "member", staticExport: "export", public: "public" } })).toEqual({ result: undefined, cacheControl: "private, no-store" });
+  expect(clearFlash).toHaveBeenCalledWith({}); expect(memberCookiePresent).not.toHaveBeenCalled();
 });
 
 it("keeps invalid consent with gated content private and member-cookie presence private without visible gating", () => {

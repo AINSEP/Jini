@@ -5,7 +5,7 @@ import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { CredentialSetRepoPort as BaseCredentialRepo, CredentialSetConnectionInput as CustomProviderConnectionInput } from "@jini-ai/core/contracts/credentials";
 
 import type { SecretSealerPort } from "@jini-ai/core/contracts/vault";
-import type { CredentialedRepositoryTarget, InspectBackupRepositoryResult, SourceControlProvider, SourceControlKitHttpClient as HttpClientPort } from "../../source-control/site/provider-module.js";
+import type { SourceControlProvider, SourceControlKitHttpClient as HttpClientPort } from "../../source-control/site/provider-module.js";
 
 import type { BackupRepositoryState } from "../../source-control/contracts.js";
 import { type LoadSourceControlProviders } from "../../source-control/site/store.js";
@@ -21,6 +21,8 @@ import { type formatByteSize, type skipOversizedFiles, type SiteBackupSources, t
 import type { CredentialWarning } from "./credential-warnings.js";
 type CustomCredentialSetRepoPort = BaseCredentialRepo<string>;
 
+import { PLAN_TOOL_ID, SITE_BACKUP_PUSH_TOOL_ID, PUSH_WAIT_MS, inspect } from "./backup-service.shared.js";
+export { PLAN_TOOL_ID, SITE_BACKUP_PUSH_TOOL_ID, PUSH_WAIT_MS } from "./backup-service.shared.js";
 import { backupTarget, resolveBackupCredential } from "./backup-service.credentials.js";
 import { requireUnreservedFolder, parsePlanInput, planResult, savePlan, prepareContent } from "./backup-service.plan.js";
 import { runObservedBackupPush, PLAN_TAKE_MESSAGES, inProgressResult, pushWaitBudget } from "./backup-service.push.js";
@@ -67,8 +69,6 @@ import { runObservedBackupPush, PLAN_TAKE_MESSAGES, inProgressResult, pushWaitBu
 
 export const SITE_BACKUP_DOMAIN = "site-backup";
 const DOMAIN = SITE_BACKUP_DOMAIN;
-export const PLAN_TOOL_ID = "site_backup_plan";
-export const SITE_BACKUP_PUSH_TOOL_ID = "site_backup_push";
 /** The one permission that names this feature. Not in any built-in role but the owner's `*`. */
 export const PUSH_PERMISSION = "site-backup.push";
 /** Also required: the push sends a saved credential's token to its provider, which is exactly what
@@ -94,7 +94,7 @@ export interface SiteBackupToolDeps {
     validateCommitMessage(required: { value: string }): string;
     buildAuthorizationHeader(required: { connection: CustomProviderConnectionInput; schemes: readonly never[] }): string;
   };
-  readonly planVersion: Readonly<Record<string, string>>;
+  readonly producer: Readonly<Record<string, string>>;
   readonly siteImportBackend?: SiteImportBackend; readonly siteShareBackend?: SiteShareBackend;
   readonly authorize: AuthorizeFn; readonly workspaceId: string;
   readonly customCredentialSetRepo: CustomCredentialSetRepoPort;
@@ -105,7 +105,8 @@ export interface SiteBackupToolDeps {
   readonly dbOps: DbOpsPort; readonly siteBackupSources?: SiteBackupSources;
   readonly siteBackupSanitize: ShareDatabaseSanitizer;
   readonly siteBackupPlanStore: Pick<SiteBackupPlanStore<Omit<SiteBackupPlan, "planId" | "workspaceId" | "principalId" | "expiresAtMs">>, "save" | "take">;
-  readonly siteBackupSiteKeyStatus: () => { active: boolean; invalid?: boolean };
+  readonly siteBackupSiteKeyStatus: (required: { siteDir: string }) => { active: boolean; invalid?: boolean };
+  readonly serverSiteKeyStatus: () => { active: boolean; invalid?: boolean };
   readonly siteBackupFailureLog: (line: string) => void; readonly siteBackupNow: () => Date;
   readonly siteBackupPushJobs: SiteBackupPushJobs<PushResult>;
   readonly siteBackupPushWaitMs?: number; readonly siteBackupSleep?: (ms: number) => Promise<void>;
@@ -116,10 +117,10 @@ export interface SiteBackupToolDeps {
   readonly buildSourceControlProviders: (required: { load: LoadSourceControlProviders; workspaceId: string; httpClient: HttpClientPort; observability?: ObservabilityPort; sleep?: (ms: number) => Promise<void> }) => Promise<{ providers: readonly SourceControlProvider[]; refusals: readonly string[]; noProviderMessage: string }>;
   readonly validateRepositoryTarget: (required: { owner: unknown; repo: unknown }, optional: { validateTarget?: SourceControlProvider["validateTarget"] }) => { owner: string; repo: string };
   readonly siteFolderName: (required: { siteDir: string }) => string;
-  readonly readSiteName: (required: { siteDir: string }) => Promise<string>;
+  readonly readConfigText: (required: { siteDir: string }) => Promise<string>;
   readonly runtimeSchemaVersion: () => { index: number; tag: string };
   readonly defaultCommitMessage: (required: { siteName: string; createdAt: string }) => string;
-  readonly planNextStep: (required: { plan: SiteBackupPlan; files: readonly { path: string; bytes: number }[] }) => string;
+  readonly manifestName: string;
   readonly captureDatabaseSnapshot: (required: { dbOps: DbOpsPort; scopeId: string }) => Promise<DatabaseSnapshotResult>;
   readonly collectSiteBackupFiles: (required: { sources: SiteBackupSources; include: SiteBackupInclude }) => Promise<CollectedSiteBackupFiles>;
   readonly checkSiteBackupLimits: (required: { files: readonly { path: string; bytes: number }[]; host: SiteBackupHostLimit }) => SiteBackupLimitsResult;
@@ -143,6 +144,7 @@ export type SiteBackupPlan = BaseBackupPlan<{
   readonly skipped: readonly SkippedSiteBackupFile[]; readonly scopeNotes: Partial<Record<SiteBackupScope, string>>;
   readonly totalBytes: number; readonly site: { name: string; folderName: string }; readonly schema: { index: number; tag: string }; readonly createdAt: string;
   readonly credentialWarnings?: readonly CredentialWarning[];
+  readonly producer: Readonly<Record<string, string>>;
 }>;
 
 /** Every refusal both tools return, as `{code, message}`. */
@@ -150,45 +152,6 @@ export interface Refusal {
   readonly ok: false;
   readonly code: string;
   readonly message: string;
-}
-
-export function failureLog(deps: SiteBackupToolDeps): (line: string) => void {
-  return deps.siteBackupFailureLog;
-}
-
-/** Logs a failure's server-only detail (a network failure's class and code). Never the token. */
-export function logFailureDetail({ deps, toolId, failure }: { deps: SiteBackupToolDeps; toolId: string; failure: { readonly code: string; readonly logDetail?: string } }, _optional: Record<string, never> = {}): void {
-  if (failure.logDetail !== undefined) failureLog(deps)(`[site-backup] ${toolId}: failed code=${failure.code} detail=${failure.logDetail}`);
-}
-
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
-const INSPECT_CODES: Record<string, string> = {
-  "repo-not-found": "REPOSITORY_NOT_FOUND",
-  "repo-not-private": "REPOSITORY_NOT_PRIVATE",
-  "no-push-permission": "NO_PUSH_PERMISSION",
-  "repo-empty": "REPOSITORY_EMPTY",
-  "branch-not-found": "BRANCH_NOT_FOUND",
-  "folder-is-file": "FOLDER_IS_FILE",
-  "provider-error": "PROVIDER_ERROR",
-  "network-unreachable": "NETWORK_UNREACHABLE",
-  diverged: "DIVERGED_BRANCH",
-};
-
-/** A provider failure as this tool's `{code, message}`, logging any server-only detail. */
-export function providerRefusal({ deps, toolId, failure }: { deps: SiteBackupToolDeps; toolId: string; failure: { readonly code: string; readonly message: string; readonly logDetail?: string } }, _optional: Record<string, never> = {}): Refusal {
-  logFailureDetail({ deps, toolId, failure });
-  return { ok: false, code: INSPECT_CODES[failure.code] ?? "PROVIDER_ERROR", message: failure.message };
-}
-
-export async function inspect(
-  { deps, provider, toolId, input }: { deps: SiteBackupToolDeps; provider: SourceControlProvider; toolId: string; input: CredentialedRepositoryTarget & { branch?: string; folder: string } },
-  _optional: Record<string, never> = {}
-): Promise<Extract<InspectBackupRepositoryResult, { ok: true }> | Refusal> {
-  const result = await provider.inspectBackupRepository(input);
-  return result.ok ? result : providerRefusal({ deps, toolId, failure: result });
 }
 
 async function requireBackupPermissions(deps: SiteBackupToolDeps, ctx: SiteBackupCall): Promise<void> {
@@ -232,10 +195,6 @@ export async function planSiteBackup(required: { deps: SiteBackupToolDeps; call:
 // ---------------------------------------------------------------------------
 // site_backup_push
 // ---------------------------------------------------------------------------
-
-/** How long one push call waits for its job before reporting progress: under the 6-minute cut-off
- *  of a delegated tool call (`push-jobs.ts`), with room for the checks before the upload. */
-export const PUSH_WAIT_MS = 4 * 60 * 1000;
 
 export type PushResult =
   | { pushed: true; commitSha: string; commitUrl: string; repository: string; branch: string; folder: string; filesWritten: number; totalBytes: number; credentialWarnings?: readonly CredentialWarning[] }

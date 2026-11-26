@@ -9,7 +9,8 @@ import { resolveDefaultForSourceControl, SourceControlCredentialSecretStoreUncon
 import type { SourceControlCredentialSetRepoPort, SourceControlProviderId } from "@jini-ai/core/contracts/site/source-control-credentials";
 
 
-import { type SiteBackupToolDeps, type Refusal, failureLog } from "./backup-service.js";
+import type { SiteBackupToolDeps, Refusal } from "./backup-service.js";
+import { failureLog } from "./backup-service.shared.js";
 
 // ---------------------------------------------------------------------------
 // Credential
@@ -88,8 +89,27 @@ async function pickCredentialLabel({ deps, providers, requested }: { deps: SiteB
   return { ok: false, code: "CREDENTIAL_AMBIGUOUS", message: `${matching.length} saved credentials point at ${where} (${labelList(matching)}); name one with 'credential'.` };
 }
 
+/**
+ * This site's own site key status ({@link inspectSiteKeyMaterial}), resolved over THIS site's
+ * site-aware source ordering ({@link siteKeySourcesForSiteDir} — site-key plan §A3b, the same
+ * composed helper the admin site key route's `resolveSiteKeySources` reuses) rather than the
+ * module-wide env-then-legacy-file default `inspectSiteKeyMaterial()` falls back to when called
+ * bare. That default cannot see a per-site key file at all (the per-site key folder), so a site
+ * whose OWN key is active but has no env var and no legacy shared file would be reported `active:
+ * false` — the exact gap {@link unreadableCredentialMessage} used to surface as "this server has no
+ * site key" for a site that in fact has one.
+ *
+ * Falls back to the bare, non-site-aware status only when this runtime has no site folder at all
+ * (`deps.siteBackupSources` absent — the in-memory `app.ts` runtime; in practice the plan tool's own
+ * `UNAVAILABLE` check already refuses before this is ever reached for that case, but the push path
+ * re-resolves the credential independently and must not throw if it ever is).
+ *
+ * @complexity O(1) — one `.site-meta.json` read plus a fixed-size source list, matching
+ *   {@link inspectSiteKeyMaterial}'s own cost.
+ */
 function unreadableCredentialMessage({ deps, label }: { deps: SiteBackupToolDeps; label: string }, _optional: Record<string, never> = {}): string {
-  const status = deps.siteBackupSiteKeyStatus();
+  const siteDir = deps.siteBackupSources?.siteDir;
+  const status = siteDir === undefined ? deps.serverSiteKeyStatus() : deps.siteBackupSiteKeyStatus({ siteDir });
   if (status.active) return deps.credentialMessages.active({ label });
   if (status.invalid) return deps.credentialMessages.invalid({ label });
   return deps.credentialMessages.missing({ label });

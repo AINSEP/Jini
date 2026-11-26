@@ -1,5 +1,5 @@
 
-import type { ArchiveMediaCopy, ArchiveMediaSource } from "../archive-media.js";
+import type { ArchiveMediaCopy, ArchiveMediaSource, ArchiveMediaTransformParams } from "../archive-media.js";
 
 
 import { SiteShareRefusal, archiveRefusalName } from "../share-refusal.js";
@@ -119,7 +119,7 @@ export async function documentReferences(required: { host: Parameters<typeof san
 }
 
 /** Snapshot metadata for the archive selector. Three bulk reads, then indexed lookups per item. */
-export async function archiveMediaSources({ target }: { target: Kernel }): Promise<ArchiveMediaSource[]> {
+export async function archiveMediaSources<TParams extends ArchiveMediaTransformParams = ArchiveMediaTransformParams>({ target }: { target: Kernel }): Promise<ArchiveMediaSource<TParams>[]> {
   const rows = await target.run(db => db.selectFrom("media").selectAll().execute());
   const blobs = await target.run(db => db.selectFrom("asset_blobs").selectAll().execute());
   const renditions = await target.run(db => db.selectFrom("asset_renditions").selectAll().where("transform_name", "=", "public").execute());

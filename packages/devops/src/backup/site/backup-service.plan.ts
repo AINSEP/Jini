@@ -10,7 +10,8 @@ import { SiteShareRefusal } from "./share-refusal.js";
 import type { SiteBackupScope, SiteBackupSources, SiteBackupHostLimit, SiteBackupInclude } from "./sources.js";
 import type { CredentialWarning } from "./credential-warnings.js";
 
-import { PLAN_TOOL_ID, type SiteBackupCall, type SiteBackupToolDeps, type SiteBackupPlan, type Refusal, logFailureDetail } from "./backup-service.js";
+import type { SiteBackupCall, SiteBackupToolDeps, SiteBackupPlan, Refusal } from "./backup-service.js";
+import { PLAN_TOOL_ID, logFailureDetail } from "./backup-service.shared.js";
 
 /** The restore-point name the database snapshot is captured under, so an orphan is recognizable. */
 const SNAPSHOT_SCOPE_ID = "site-backup";
@@ -103,6 +104,17 @@ export function parsePlanInput({ rawInput, SITE_BACKUP_SCOPES, deps }: { deps: S
   };
 }
 
+/** The site's display name from its `config.json`, falling back to the folder name. */
+async function readSiteName({ siteDir, deps }: { siteDir: string; deps: SiteBackupToolDeps }, _optional: Record<string, never> = {}): Promise<string> {
+  try {
+    const config = JSON.parse(await deps.readConfigText({ siteDir })) as { name?: unknown };
+    if (typeof config.name === "string" && config.name.trim() !== "") return config.name;
+  } catch {
+    // A missing or unreadable config.json only costs the nicer name.
+  }
+  return deps.siteFolderName({ siteDir });
+}
+
 /** What the plan tool returns on success: every fact the human should see before confirming. */
 export function planResult(plan: SiteBackupPlan, deps: SiteBackupToolDeps): Record<string, unknown> {
   const files = [...(plan.database ? [{ path: deps.siteBackupDatabasePath, bytes: plan.database.bytes.length }] : []), ...plan.files.map((file) => ({ path: file.path, bytes: file.bytes }))];
@@ -124,7 +136,10 @@ export function planResult(plan: SiteBackupPlan, deps: SiteBackupToolDeps): Reco
     skipped: plan.skipped,
     credentialWarnings: plan.credentialWarnings ?? [],
     notes: deps.siteBackupScopes.flatMap((scope) => (plan.scopeNotes[scope] ? [plan.scopeNotes[scope]] : [])),
-    nextStep: deps.planNextStep({ plan, files }),
+    nextStep:
+      `Show the human this plan: ${plan.owner}/${plan.repo}, branch '${plan.repository.branch}', folder '${plan.folder}' ` +
+      `(${plan.repository.folderExists ? "its current contents will be replaced" : "new"}), ${files.length} files (${deps.formatByteSize({ bytes: plan.totalBytes })}), plus anything skipped. ` +
+      `Then call site_backup_push with this planId within 10 minutes; it pushes the planned backup immediately (a large one may return inProgress: call it again with the same planId). A ${deps.manifestName} manifest is added at push time.`,
   };
 }
 
@@ -142,7 +157,7 @@ export async function savePlan(required: {
 }): Promise<SiteBackupPlan> {
   const { deps, input, content } = required;
   const createdAt = deps.siteBackupNow().toISOString();
-  const siteName = await deps.readSiteName({ siteDir: required.sources.siteDir });
+  const siteName = await readSiteName({ siteDir: required.sources.siteDir, deps });
   return deps.siteBackupPlanStore.save({
     principalId: required.ctx.principal.id,
     workspaceId: deps.workspaceId,
@@ -163,7 +178,7 @@ export async function savePlan(required: {
       totalBytes: content.totalBytes,
       site: { name: siteName, folderName: required.folderName },
       schema: deps.runtimeSchemaVersion(),
-      ...deps.planVersion,
+      producer: { ...deps.producer },
       createdAt,
     },
   });

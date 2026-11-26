@@ -44,7 +44,10 @@ export interface KeepOffNotices {
   setAside(required: { fallback: string }): string;
   themeKeptOff(required: { themeId: string }): string;
   pageDrafted(required: { title: string }): string;
-  morePagesDrafted(required: { count: number }): string;
+  morePagesDrafted: {
+    singular(required: { count: number }): string;
+    plural(required: { count: number }): string;
+  };
   menuKeptOff(required: { title: string; id: RowId }): string;
   moreMenusKeptOff(required: { count: number }): string;
   formDisabled(required: { name: string; id: RowId }): string;
@@ -159,7 +162,8 @@ async function keepPagesOff(required: Ctx): Promise<string[]> {
   for (const page of kept) await store.draftPage({ id: page.id });
   const notices = kept.slice(0, MAX_PAGE_NOTICES).map(page => host.notices.pageDrafted({ title: String(page.title).slice(0, MAX_NOTICE_TITLE) }));
   const more = kept.length - MAX_PAGE_NOTICES;
-  return more > 0 ? [...notices, host.notices.morePagesDrafted({ count: more })] : notices;
+  const morePagesDrafted = more === 1 ? host.notices.morePagesDrafted.singular : host.notices.morePagesDrafted.plural;
+  return more > 0 ? [...notices, morePagesDrafted({ count: more })] : notices;
 }
 
 /**
