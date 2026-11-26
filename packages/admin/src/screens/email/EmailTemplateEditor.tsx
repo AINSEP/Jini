@@ -1,13 +1,11 @@
 import { useEffect } from "react";
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import type { ComponentType } from "react";
+import type { ComponentType, ComponentProps } from "react";
 import type { useDirtyGuard, useTabBarKeyboard, AdminKitValues } from "../../react/kit.js";
 
-import { DEVICE_PREVIEW_WIDTHS } from "../../shell/components/DevicePreview/DevicePreview.hooks.js";
-import { DevicePreviewFrame } from "../../shell/components/DevicePreview/DevicePreviewFrame.js";
-import { DevicePreviewToggle } from "../../shell/components/DevicePreview/DevicePreviewToggle.js";
+import type { DevicePreviewFrame } from "../../shell/components/DevicePreview/DevicePreviewFrame.js";
+import type { DevicePreviewToggle } from "../../shell/components/DevicePreview/DevicePreviewToggle.js";
 import { ADMIN_BASE, adminHref } from "../../shell/lib/router.js";
-import { PAGE_PREVIEW_IFRAME_SANDBOX } from "../../pages/page-editor-rules.js";
 import { t } from "./email-i18n.js";
 import { Chip, Loaded } from "./EmailParts.js";
 import type { EmailTemplateEditorController } from "./hooks/use-email-template-editor.hooks.js";
@@ -77,20 +75,20 @@ function AsSentToggle(props: { controller: EmailTemplateEditorController; locale
   );
 }
 
-function Preview(props: { controller: EmailTemplateEditorController; view: EmailTemplateViewState; locale: string }) {
-  const { controller, view, locale } = props;
+function Preview(props: { controller: EmailTemplateEditorController; view: EmailTemplateViewState; locale: string; kit: Parameters<typeof EmailTemplateEditor>[0]["kit"]; deps: Parameters<typeof EmailTemplateEditor>[0]["deps"] }) {
+  const { controller, view, locale, kit: { DevicePreviewFrame }, deps: { devicePreviewWidths, previewIframeSandbox } } = props;
   const { data, error, pending } = controller.preview;
   return (
     <div className="email-template-preview">
       <Fields controller={controller} locale={locale} />
       {error ? <p className="jini-field-error" role="alert">{t({ locale, key: error })}</p> : null}
       {controller.mode === "sent" ? <p className="jini-field-hint">{t({ locale, key: "Mail apps don't run scripts, so they are removed when it sends." })}</p> : null}
-      <DevicePreviewFrame width={DEVICE_PREVIEW_WIDTHS[view.device]} frameRef={view.frameRef} paneWidth={view.paneWidth}>
+      <DevicePreviewFrame width={devicePreviewWidths[view.device]} frameRef={view.frameRef} paneWidth={view.paneWidth}>
         {data ? (
           <iframe
             className="page-preview-iframe"
             title={t({ locale, key: "Email preview" })}
-            sandbox={PAGE_PREVIEW_IFRAME_SANDBOX}
+            sandbox={previewIframeSandbox}
             srcDoc={data.html}
             {...agentHandle({ handle: "email-template-preview" }, { role: "region", label: "Live preview of this email" })}
           />
@@ -143,7 +141,7 @@ function Header(props: { controller: EmailTemplateEditorController; locale: stri
 function Toolbar({ useTabBarKeyboardHook, ...props }: { controller: EmailTemplateEditorController; view: EmailTemplateViewState; locale: string; useTabBarKeyboardHook: typeof useTabBarKeyboard; pageEditorT: (key: string) => string; kit: Parameters<typeof EmailTemplateEditor>[0]["kit"] }) {
   const { controller, view, locale } = props;
   const pageT = props.pageEditorT;
-  const { resolveTabBarTabIndex } = props.kit;
+  const { resolveTabBarTabIndex, DevicePreviewToggle } = props.kit;
   const { onKeyDown } = useTabBarKeyboardHook({ tabs: TABS, activeId: view.tab, onChange: (id) => view.setTab(id as EmailTemplateTab) });
   return (
     <div className="page-editor-toolbar">
@@ -259,14 +257,23 @@ export function editorStatus(controller: Pick<EmailTemplateEditorController, "sa
 /**
  * The editor page. `useEditorHook` is the DI seam — a test mounts it over a fake controller.
  */
-export function EmailTemplateEditor({ useEditorHook, useAdminLocaleHook, useEmailTemplateViewHook, useTabBarKeyboardHook, useDirtyGuardHook, pageEditorT, kit }: {
+export function EmailTemplateEditor({ useEditorHook, useAdminLocaleHook, useEmailTemplateViewHook, useTabBarKeyboardHook, useDirtyGuardHook, pageEditorT, kit, deps }: {
   useEditorHook: () => EmailTemplateEditorController;
   useAdminLocaleHook: () => string;
   pageEditorT: (key: string) => string;
   useEmailTemplateViewHook: typeof useEmailTemplateView;
   useTabBarKeyboardHook: typeof useTabBarKeyboard;
   useDirtyGuardHook: typeof useDirtyGuard;
-  kit: { Icon: ComponentType<{ name: "arrow-left"; size: number; "aria-hidden"?: boolean | "true" | "false" }>; resolveTabBarTabIndex: AdminKitValues["resolveTabBarTabIndex"] };
+  kit: {
+    Icon: ComponentType<{ name: "arrow-left"; size: number; "aria-hidden"?: boolean | "true" | "false" }>;
+    resolveTabBarTabIndex: AdminKitValues["resolveTabBarTabIndex"];
+    DevicePreviewFrame: ComponentType<ComponentProps<typeof DevicePreviewFrame>>;
+    DevicePreviewToggle: ComponentType<ComponentProps<typeof DevicePreviewToggle>>;
+  };
+  deps: {
+    devicePreviewWidths: Readonly<Record<import("../../shell/components/DevicePreview/DevicePreview.hooks.js").DevicePreviewDevice, number>>;
+    previewIframeSandbox: string;
+  };
 }, _optional = {}) {
   const controller = useEditorHook();
   const locale = useAdminLocaleHook();
@@ -293,7 +300,7 @@ export function EmailTemplateEditor({ useEditorHook, useAdminLocaleHook, useEmai
                 {...agentHandle({ handle: "email-template-html" }, { role: "field", label: "This email template's raw HTML" })}
               />
             ) : (
-              <Preview controller={controller} view={view} locale={locale} />
+              <Preview controller={controller} view={view} locale={locale} kit={kit} deps={deps} />
             )}
           </>
         )}

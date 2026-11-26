@@ -1,17 +1,13 @@
 import { useCallback } from "react";
 import type { AdminPost } from "../../posts/api/posts-api.types.js";
 
-import { prettifyHtml } from "../lib/prettify-html.js";
-
-import { unchangedSaveHandlers } from "../../shell/lib/unchanged-save-warning.js";
-import { pageDirtyGuardBaseline, pageRefreshMayHaveUnsavedEdits } from "../page-editor-rules.js";
 import type { usePageEditorPreview } from "./page-editor-preview.hooks.js";
 import type { usePageEditorPreviewSubmit } from "./page-editor-preview.hooks.js";
 import type { usePageEditorFlush } from "./page-editor-workspace.hooks.js";
 export function usePageEditorRecovery(input: ReturnType<typeof usePageEditorPreview>, _optional = {}) {
   const { routeSlug, deps, navigate, t, locale, readPage, page, setError, title, slug, status, templateChoice, savedTemplateChoice, html, savedHtml, view, interactiveEditorRef, saving, saveSettlement, autosave, flushInteractiveSafely, applyExternalPage, dirty } = input;
   const { useDirtyGuard, useSettlementGeneration, useExternalEntryRefresh, useContentRefreshSubscription } = deps.hooks;
-  const { PAGES_RESOURCE, window } = deps;
+  const { PAGES_RESOURCE, window, pageDirtyGuardBaseline, pageRefreshMayHaveUnsavedEdits } = deps;
 
   // Content refresh (2026-09-16) — see `use-external-entry-refresh.hooks.ts`'s file header for the
   // clean/dirty/saving decision this wraps, and `PAGES_RESOURCE`'s own doc (`rules.ts`) for the bug
@@ -65,7 +61,8 @@ export function usePageEditorRecovery(input: ReturnType<typeof usePageEditorPrev
 }
 
 export function usePageEditorRestore(input: ReturnType<typeof usePageEditorPreviewSubmit>, _optional = {}) {
-  const { t, locale, setError, setTitle, setSlug, setHtml, autosave, setDraftHtml, setContentRevision } = input;
+  const { deps, t, locale, setError, setTitle, setSlug, setHtml, autosave, setDraftHtml, setContentRevision } = input;
+  const { prettifyHtml } = deps;
 
   const restoreRecoveredDraft = useCallback(() => {
     const draft = autosave.recoverableDraft;
@@ -81,7 +78,7 @@ export function usePageEditorRestore(input: ReturnType<typeof usePageEditorPrevi
       setContentRevision((n) => n + 1);
     }
     autosave.dismissRecoverable();
-  }, [autosave.recoverableDraft, autosave.dismissRecoverable]);
+  }, [autosave.recoverableDraft, autosave.dismissRecoverable, prettifyHtml]);
 
   const discardRecoveredDraft = useCallback(async () => {
     // keepOnFailure: the banner stays until the server confirms, so a failed discard is retryable.
@@ -92,6 +89,7 @@ export function usePageEditorRestore(input: ReturnType<typeof usePageEditorPrevi
 }
 
 export function pageEditorRecoveryView(input: ReturnType<typeof usePageEditorFlush>, _optional = {}) {
+  const { unchangedSaveHandlers } = input.deps;
   const { confirmingDelete, setConfirmingDelete, confirmingUnchangedSave, setConfirmingUnchangedSave, deleting, saveConflict, autosave, contentRevision, flushPendingEdits, save, saveOverwritingConflict, dismissSaveConflict, remove, previewFormRef, previewFormTarget, contentDirty, dirty, externalRefresh, confirmLeave, onBackLinkClick, restoreRecoveredDraft, discardRecoveredDraft, templatePreviewUrl, canvasStyling } = input;
   return {
     // HTML changes only count when they're actually savable (see `save()`'s `canSaveHtml`) — for a

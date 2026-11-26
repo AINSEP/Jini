@@ -3,12 +3,7 @@ import type { Translate } from "@jini-ai/core/text";
 import type { AdminPost } from "../../posts/api/posts-api.types.js";
 import type { AdminPagePluginEmbed } from "../api/pages-api.types.js";
 import type { PageEditorDependencies } from "./use-page-editor.hooks.js";
-import { createEmbedPlaceholderDescriber } from "../lib/embed-placeholder.js";
 
-import { slugRedirectPath } from "../../shell/lib/slug-redirect-path.js";
-import { editorTemplateOptions } from "../../shell/lib/editor-template-options.rules.js";
-
-import { pageEditableHtml } from "../page-editor-rules.js";
 import type { usePageEditorWorkspace } from "./page-editor-workspace.hooks.js";
 /**
  * Applies a loaded row into the working copy AND the saved baseline — the mount effect's own
@@ -24,7 +19,7 @@ import type { usePageEditorWorkspace } from "./page-editor-workspace.hooks.js";
  * @complexity Time/space: O(1).
  */
 export function applyLoadedPage(
-  post: AdminPost,
+  { post, setters, pageEditableHtml }: { post: AdminPost; pageEditableHtml: PageEditorDependencies["pageEditableHtml"];
   setters: {
     setPage: (page: AdminPost) => void;
     setTitle: (value: string) => void;
@@ -34,7 +29,8 @@ export function applyLoadedPage(
     setSavedTemplateChoice: (value: string | null) => void;
     setHtml: (value: string) => void;
     setSavedHtml: (value: string) => void;
-  },
+  } },
+  _optional = {},
 ): void {
   setters.setPage(post);
   setters.setTitle(post.title);
@@ -48,7 +44,7 @@ export function applyLoadedPage(
 }
 
 function canonicalPageRedirect({ post, routeSlug, deps }: { post: AdminPost; routeSlug: string; deps: PageEditorDependencies }, _options = {}): string | null {
-  const { HOME_PAGE_HANDLE, pageAdminPath } = deps;
+  const { HOME_PAGE_HANDLE, pageAdminPath, slugRedirectPath } = deps;
   if (post.slug === "/") return routeSlug === post.id ? pageAdminPath(post) : null;
   if (post.slug === HOME_PAGE_HANDLE) return null;
   return slugRedirectPath({ base: "/pages", requestedId: routeSlug, item: post });
@@ -57,7 +53,7 @@ function canonicalPageRedirect({ post, routeSlug, deps }: { post: AdminPost; rou
 export function usePageEditorLoad(input: { routeSlug: string; deps: PageEditorDependencies }, _optional = {}) {
   const { routeSlug, deps } = input;
   const { useCachedLoader, useInvalidate, useFetchMutation } = deps.hooks;
-  const { HOME_PAGE_HANDLE, parseEmbedMarkerConfig, embedMarkerTarget, PageBodyWriteError } = deps;
+  const { HOME_PAGE_HANDLE, parseEmbedMarkerConfig, embedMarkerTarget, PageBodyWriteError, createEmbedPlaceholderDescriber } = deps;
 
   const { port, themeCanvasPort, navigate, t, locale } = deps;
   // Memoized (not a plain `const` closure) so `embedPlaceholderDescriber` below has a stable
@@ -74,7 +70,7 @@ export function usePageEditorLoad(input: { routeSlug: string; deps: PageEditorDe
    */
   // The canvas captures its describer at mount; a ref supplies the latest server readiness.
   const pluginEmbeds = useRef<readonly AdminPagePluginEmbed[]>([]);
-  const embedPlaceholderDescriber = useMemo(() => createEmbedPlaceholderDescriber({ t: boundT, parseEmbedMarkerConfig, embedMarkerTarget }, { pluginEmbeds: () => pluginEmbeds.current }), [boundT]);
+  const embedPlaceholderDescriber = useMemo(() => createEmbedPlaceholderDescriber({ t: boundT, parseEmbedMarkerConfig, embedMarkerTarget }, { pluginEmbeds: () => pluginEmbeds.current }), [boundT, createEmbedPlaceholderDescriber, parseEmbedMarkerConfig, embedMarkerTarget]);
   const pageKey = useMemo(() => ["pages", "detail", routeSlug] as const, [routeSlug]);
   const fetchPage = useCallback(async () => {
     const result = await port.getPage({ routeSlug: routeSlug === HOME_PAGE_HANDLE ? "/" : routeSlug });
@@ -110,6 +106,8 @@ export function usePageEditorLoad(input: { routeSlug: string; deps: PageEditorDe
 export function usePageEditorHydration(input: ReturnType<typeof usePageEditorWorkspace>, _optional = {}) {
   const { routeSlug, deps, navigate, t, locale, initial, hydratedRoute, setPage, setError, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, setAvailableTemplates, setActiveThemeId, setActiveThemeApiVersion, setActiveThemeTier, setHtml, setSavedHtml } = input;
 
+  const { editorTemplateOptions, pageEditableHtml, slugRedirectPath } = deps;
+
   // The previous load effect ran only for the route, even when locale changed. Keep the draft
   // captured once per route; locale changes may refresh the loader without replacing typed text.
   // `port` is stable in production (`useWiredPageEditor` uses a module-level singleton).
@@ -133,7 +131,7 @@ export function usePageEditorHydration(input: ReturnType<typeof usePageEditorWor
         setActiveThemeId(themeId);
         setActiveThemeApiVersion(themeApiVersion);
         setActiveThemeTier(themeTier);
-        applyLoadedPage(post, { setPage, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, setHtml, setSavedHtml });
+        applyLoadedPage({ post, setters: { setPage, setTitle, setSlug, setStatus, setTemplateChoice, setSavedTemplateChoice, setHtml, setSavedHtml }, pageEditableHtml });
         // Old id bookmarks catch up to the canonical URL. Keep the root page out of the generic
         // slug redirect (`/pages//` cannot match), and keep a real `home` page on its id so it
         // cannot redirect into the root alias.
@@ -146,6 +144,6 @@ export function usePageEditorHydration(input: ReturnType<typeof usePageEditorWor
     return () => {
       cancelled = true;
     };
-  }, [routeSlug, initial]);
+  }, [routeSlug, initial, editorTemplateOptions, pageEditableHtml, slugRedirectPath]);
   return { ...input, loadInputs };
 }

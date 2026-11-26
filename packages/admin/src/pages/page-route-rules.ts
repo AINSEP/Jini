@@ -1,6 +1,5 @@
 import type { RowMenuItem } from "../react/index.js";
 import type { Translate } from "@jini-ai/core/text";
-import { THEME_DEFAULT_SENTINEL } from "./page-editor-rules.js";
 
 /** The subset of a page {@link pageAdminPath} reads — kept narrow, same reasoning as
  *  {@link SavablePage} below, so a collision record (`ThemePageSlugCollision`/
@@ -103,10 +102,11 @@ function themePageRowMenuItems({ row, handlers, t, deps }: { row: { pageId: stri
 function pagePickerValue({ templateChoice, availableTemplates, deps }: { templateChoice: string | null; availableTemplates: string[]; deps: Parameters<typeof createPageRouteRules>[0]["deps"] }, _options = {}): string {
   if (templateChoice !== null) return templateChoice;
   const shipped = deps.shellNames.find((name) => availableTemplates.includes(name));
-  return shipped ?? THEME_DEFAULT_SENTINEL;
+  return shipped ?? deps.THEME_DEFAULT_SENTINEL;
 }
 
 export function createPageRouteRules({ deps }: { deps: {
+  THEME_DEFAULT_SENTINEL: string;
   routeBase: string; rootAlias: string; shellNames: readonly string[];
   actions: { details: { key: string; label: string }; edit: { key: string; label: string } };
 } }, _optional = {}) {

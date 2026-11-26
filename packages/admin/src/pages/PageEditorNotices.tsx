@@ -4,7 +4,6 @@ import type { PageEditorProps } from "./PageEditor.js";
 import type { PageEditorController } from "./hooks/use-page-editor.hooks.js";
 import type { StandingDraftAutosaveSnapshot, StandingDraftStaleBasis } from "../react/kit.js";
 import type { SaveConflict as PageSaveConflict } from "../shell/lib/version-conflict.js";
-import { pageAutosaveStaleBasisMessage, pageVersionConflictMessage } from "./page-editor-rules.js";
 
 /**
  * Standing-draft autosave (2026-09-06) — the "restore or discard" recovery banner. Never rendered
@@ -57,13 +56,15 @@ export function PageAutosaveRecoveryBanner({ deps, recoverableDraft, serverUpdat
  * hardcoded English, matching every other string in this file — `PageEditor.tsx` is out of the
  * pages dictionary's declared scope (see `pages-i18n.ts`'s own header).
  */
-export function PageVersionConflictBanner({ saveConflict, onSaveAnyway, onLoadLatest, onDismiss, t }: {
+export function PageVersionConflictBanner({ deps, saveConflict, onSaveAnyway, onLoadLatest, onDismiss, t }: {
+  deps: Pick<PageEditorProps["deps"], "pageVersionConflictMessage">;
   saveConflict: PageSaveConflict;
   onSaveAnyway: () => void;
   onLoadLatest: () => void;
   onDismiss: () => void;
   t: Translate;
 }, _optional = {}) {
+  const { pageVersionConflictMessage } = deps;
   return (
     <div
       className="notice error"
@@ -100,7 +101,8 @@ export function PageVersionConflictBanner({ saveConflict, onSaveAnyway, onLoadLa
  *   a guarantee this component can make on their behalf (`localStorage` throws outright in some
  *   privacy modes). The message tells them to copy their work first and leaves the choice with them.
  */
-export function PageAutosaveStaleBanner({ staleBasis, t }: { staleBasis: StandingDraftStaleBasis; t: Translate }, _optional = {}) {
+export function PageAutosaveStaleBanner({ deps, staleBasis, t }: { deps: Pick<PageEditorProps["deps"], "pageAutosaveStaleBasisMessage">; staleBasis: StandingDraftStaleBasis; t: Translate }, _optional = {}) {
+  const { pageAutosaveStaleBasisMessage } = deps;
   return (
     <div
       className="notice warning"
@@ -168,7 +170,7 @@ export function PageEditorNotices({ kit, deps,
         />
       ) : null}
       {/* Waits while the outside-change notice is up: one moved version, one banner — see `PostEditorNotices`. */}
-      {autosaveStaleBasis && pendingExternalVersion === null && !saveConflict ? <PageAutosaveStaleBanner staleBasis={autosaveStaleBasis} t={t} /> : null}
+      {autosaveStaleBasis && pendingExternalVersion === null && !saveConflict ? <PageAutosaveStaleBanner deps={deps} staleBasis={autosaveStaleBasis} t={t} /> : null}
       <PageEditorChangeNotices kit={kit} deps={deps} saveConflict={saveConflict} onSaveAnyway={onSaveAnyway} onLoadExternalChange={onLoadExternalChange} onDismissConflict={onDismissConflict} onDismissExternalChange={onDismissExternalChange} pendingExternalVersion={pendingExternalVersion} t={t} />
     </>
   );
@@ -245,7 +247,7 @@ function PageEditorChangeNotices({ kit, deps, saveConflict, onSaveAnyway, onLoad
   return (
     <>
       {saveConflict ? (
-        <PageVersionConflictBanner saveConflict={saveConflict} onSaveAnyway={onSaveAnyway} onLoadLatest={onLoadExternalChange} onDismiss={() => { onDismissConflict(); onDismissExternalChange(); }} t={t} />
+        <PageVersionConflictBanner deps={deps} saveConflict={saveConflict} onSaveAnyway={onSaveAnyway} onLoadLatest={onLoadExternalChange} onDismiss={() => { onDismissConflict(); onDismissExternalChange(); }} t={t} />
       ) : null}
       {pendingExternalVersion !== null && !saveConflict ? (
         <PageExternalChangeBanner onLoadLatest={onLoadExternalChange} onKeepEdits={onDismissExternalChange} t={t} {...pageExternalChangeBindings} />
