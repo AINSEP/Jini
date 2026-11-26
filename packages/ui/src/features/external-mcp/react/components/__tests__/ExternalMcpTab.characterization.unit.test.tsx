@@ -201,6 +201,8 @@ it('the empty external-tool view retains its layout', async () => {
   for (const node of container.querySelectorAll('[class]')) {
     for (const token of node.classList) if (token.startsWith('jini-ui-external-mcp-')) expect(css).toContain(`.${token}`);
   }
-  await userEvent.click(screen.getByRole('button', { name: 'Add server' }));
-  expect(screen.getByRole('button', { name: 'Add server' })).toHaveAttribute('aria-expanded', 'true');
+  // Opening the form adds its own "Add server" submit button, so hold the header toggle itself.
+  const toggle = screen.getByRole('button', { name: 'Add server' });
+  await userEvent.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
 });
