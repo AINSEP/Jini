@@ -190,6 +190,7 @@ describe("followDurableRun behind an accepted AG-UI start", () => {
           followDurableRun({ runId, signal, binding: { messageId, conversationId }, ports, notices: NOTICES, bindings, handlers: { ...follow, onCheckpoint } });
         },
         cancelAcceptedRun: async () => {},
+        cancelPendingRun: async () => {},
       },
     } });
     const started = client.startAgUiRun({ input: { history: [{ id: "u", role: "user", content: "hi" }], conversationId: "c1", signal: new AbortController().signal },
