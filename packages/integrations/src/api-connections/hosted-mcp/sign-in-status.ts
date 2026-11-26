@@ -19,9 +19,8 @@ const CLEAR_TOKEN_RESEAL_ATTEMPTS = 3;
  *  status and expiry beside it. One place, so the plaintext metadata cannot drift from the blob.
  *  @complexity O(1) — one unseal, one seal, one runtime write. */
 export async function persistTokens(
-  deps: SignInDeps,
-  record: ExternalMcpServerRecord,
-  tokens: OAuthTokenSet,
+  { deps, record, tokens }: { deps: SignInDeps; record: ExternalMcpServerRecord; tokens: OAuthTokenSet },
+  options: { expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version"> } = {},
 ): Promise<void> {
   const existing = await deps.ports.store.openPayload(deps.sealer, record);
   const { sealedOAuth, oauthAadVersion } = await deps.ports.store.sealPayload(deps, record, {
@@ -40,7 +39,7 @@ export async function persistTokens(
   // Runtime write: only the token columns, fenced on the credential read above (see oauth-row-writes.ts).
   // `oauthAadVersion` is carried from the seal, never from `record` — it holds the row's OLD version.
   await writeOAuthRuntime({ repo: deps.repo, ports: deps.ports, record, patch: { oauthStatus: "connected" satisfies ExternalMcpOAuthStatus,
-    oauthExpiresAt: tokens.expiresAt, oauthRefreshLeaseUntil: null, sealedOAuth, oauthAadVersion, updatedAt: readNowIso({ clock: deps.clock }) } });
+    oauthExpiresAt: tokens.expiresAt, oauthRefreshLeaseUntil: null, sealedOAuth, oauthAadVersion, updatedAt: readNowIso({ clock: deps.clock }) } }, options);
 }
 
 /** The row-patch fields {@link setOAuthStatus} merges on top of `status`/`oauthRefreshLeaseUntil`
@@ -53,6 +52,7 @@ type ClearedTokenPatch = Partial<Pick<ExternalMcpServerRecord, "sealedOAuth" | "
 interface SetOAuthStatusOptions {
   readonly clearToken?: boolean;
   readonly forgetSelfRegisteredClient?: boolean;
+  readonly callbackRecord?: ExternalMcpServerRecord;
 }
 
 /**
@@ -155,7 +155,7 @@ export async function setOAuthStatus(
   options: SetOAuthStatusOptions = {},
 ): Promise<void> {
   const key = { workspaceId: deps.workspaceId, serverId };
-  const record = await deps.repo.findByServerId(key);
+  const record = options.callbackRecord ?? await deps.repo.findByServerId(key);
   if (!record) return;
   const forgetClient = options.forgetSelfRegisteredClient === true && isSelfRegisteredClient(record, readStoredEndpoints(record));
   const nextRow = async (current: ExternalMcpServerRecord): Promise<ExternalMcpServerRecord> => {
@@ -170,7 +170,23 @@ export async function setOAuthStatus(
       updatedAt: readNowIso({ clock: deps.clock }),
     };
   };
+  if (options.callbackRecord) {
+    await writeCallbackCleanup({ deps, record, next: await nextRow(record), forgetClient });
+    return;
+  }
   // Forgetting the client is an edit (version-compared, M4); every other state change is a runtime write (S1).
   if (forgetClient) await updateRowOnce({ repo: deps.repo, key, build: nextRow });
   else await writeOAuthRuntime({ repo: deps.repo, ports: deps.ports, record, patch: runtimePatchOf(await nextRow(record)) });
+}
+
+async function writeCallbackCleanup({ deps, record, next, forgetClient }: {
+  deps: SignInDeps; record: ExternalMcpServerRecord; next: ExternalMcpServerRecord; forgetClient: boolean;
+}, _optional = {}): Promise<void> {
+  if (forgetClient) {
+    await deps.repo.updateIfVersion({ record: next, expectedVersion: record.version, expectedCreatedAt: record.createdAt,
+      replaces: { sealedEnv: record.sealedEnv, sealedOAuth: record.sealedOAuth } });
+    return;
+  }
+  await deps.repo.updateOAuthRuntime({ key: record, expectedSealedOAuth: record.sealedOAuth,
+    expectedConfig: { createdAt: record.createdAt, version: record.version }, patch: runtimePatchOf(next) });
 }

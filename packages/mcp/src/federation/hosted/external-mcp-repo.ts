@@ -199,11 +199,11 @@ export class SqlExternalMcpServerRepo implements ExternalMcpServerRepoPort {
     return insertRow({ kernel: this.kernel, vaultRepo: this.vaultRepo, tables: this.tables, vaultErrors: this.vaultErrors, record });
   }
 
-  async updateIfVersion(required: { record: ExternalMcpServerRecord; expectedVersion: number; replaces: ExternalMcpReplacedSecrets }): Promise<boolean> {
+  async updateIfVersion(required: { record: ExternalMcpServerRecord; expectedVersion: number; expectedCreatedAt?: string; replaces: ExternalMcpReplacedSecrets }): Promise<boolean> {
     return updateRowIfVersion({ kernel: this.kernel, vaultRepo: this.vaultRepo, tables: this.tables, vaultErrors: this.vaultErrors, ...required });
   }
 
-  async updateOAuthRuntime(required: { key: ServerKey; expectedSealedOAuth: SealedSecret | null; patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean> {
+  async updateOAuthRuntime(required: { key: ServerKey; expectedSealedOAuth: SealedSecret | null; expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version">; patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean> {
     return updateRuntime({ kernel: this.kernel, vaultRepo: this.vaultRepo, tables: this.tables, vaultErrors: this.vaultErrors, ...required });
   }
 

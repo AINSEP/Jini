@@ -36,10 +36,10 @@ export function runtimePatchOf(row: ExternalMcpServerRecord): ExternalMcpOAuthRu
  */
 export async function writeOAuthRuntime(
   { repo, ports, record, patch }: { repo: Pick<ExternalMcpServerRepoPort, "updateOAuthRuntime">; ports: Pick<HostedMcpSignInPorts, "errors">; record: ExternalMcpServerRecord; patch: ExternalMcpOAuthRuntimePatch },
-  _options = {},
+  options: { expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version"> } = {},
 ): Promise<void> {
   const key: ExternalMcpServerKey = { workspaceId: record.workspaceId, serverId: record.serverId };
-  if (await repo.updateOAuthRuntime({ key, expectedSealedOAuth: record.sealedOAuth, patch })) return;
+  if (await repo.updateOAuthRuntime({ key, expectedSealedOAuth: record.sealedOAuth, patch, ...options })) return;
   throw ports.errors.reauthRequired({
     serverId: record.serverId,
     label: record.label,
@@ -60,6 +60,9 @@ export async function updateRowOnce(
   { repo, key, build }: { repo: RowRepo; key: ExternalMcpServerKey; build: (record: ExternalMcpServerRecord) => Promise<ExternalMcpServerRecord | null> },
   _options = {},
 ): Promise<ExternalMcpServerRecord | null> {
-  return applyInternalChange<ExternalMcpServerRecord>({ recordKind: "MCP server", recordId: key.serverId, read: () => repo.findByServerId(key), build,
+  return applyInternalChange<ExternalMcpServerRecord>({ recordKind: "MCP server", recordId: key.serverId, read: () => repo.findByServerId(key), build: async current => {
+    const next = await build(current);
+    return next === null ? null : { ...next, version: current.version + 1 };
+  },
     write: ({ current, next }) => repo.updateIfVersion({ record: next, expectedVersion: current.version, replaces: { sealedEnv: current.sealedEnv, sealedOAuth: current.sealedOAuth } }) });
 }

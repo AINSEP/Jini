@@ -62,7 +62,7 @@ function pointerOf({ sealed, key, kind, vaultErrors }: { vaultErrors: WriteDeps[
 }
 
 async function readPointers({ kernel, key, tables }: { kernel: WriteDeps["kernel"]; key: ServerKey; tables: WriteDeps["tables"] }) {
-  return kernel.run(db => db.withTables<Record<string, ExternalMcpServersTable>>().selectFrom(tables.servers).select(["env_secret_id", "oauth_secret_id", "version"])
+  return kernel.run(db => db.withTables<Record<string, ExternalMcpServersTable>>().selectFrom(tables.servers).select(["env_secret_id", "oauth_secret_id", "version", "created_at"])
     .where("workspace_id", "=", key.workspaceId).where("server_id", "=", key.serverId).executeTakeFirst());
 }
 
@@ -97,17 +97,22 @@ export async function insertRow({ kernel, vaultRepo, tables, vaultErrors, record
 }
 
 /** The edit write: version and both credential pointers compared in the `WHERE`, version + 1 set. */
-export async function updateRowIfVersion({ kernel, vaultRepo, tables, vaultErrors, record, expectedVersion, replaces }: WriteDeps & { record: ExternalMcpServerRecord; expectedVersion: number; replaces: ExternalMcpReplacedSecrets }, _optional = {}): Promise<boolean> {
+export async function updateRowIfVersion({ kernel, vaultRepo, tables, vaultErrors, record, expectedVersion, expectedCreatedAt, replaces }: WriteDeps & { record: ExternalMcpServerRecord; expectedVersion: number; expectedCreatedAt?: string; replaces: ExternalMcpReplacedSecrets }, _optional = {}): Promise<boolean> {
   const replacedEnv = pointerOf({ sealed: replaces.sealedEnv, key: record, kind: "mcp-env", vaultErrors });
   const replacedAuth = pointerOf({ sealed: replaces.sealedOAuth, key: record, kind: "mcp-auth", vaultErrors });
   return lockedWrite({ kernel, workspaceId: record.workspaceId, body: async () => {
     const previous = await readPointers({ kernel, tables, key: record });
     if (!previous || Number(previous.version) !== expectedVersion || previous.env_secret_id !== replacedEnv || previous.oauth_secret_id !== replacedAuth) return false;
+    if (expectedCreatedAt !== undefined && previous.created_at !== expectedCreatedAt) return false;
     const pointers = await stagePointers({ vaultRepo, record, vaultErrors });
     const { workspace_id: _workspace, server_id: _server, ...columns } = toRow({ record: { ...record, version: expectedVersion + 1 }, pointers });
-    const result = await kernel.run(db => db.withTables<Record<string, ExternalMcpServersTable>>().updateTable(tables.servers).set(columns)
-      .where("workspace_id", "=", record.workspaceId).where("server_id", "=", record.serverId).where("version", "=", expectedVersion)
-      .where("env_secret_id", replacedEnv === null ? "is" : "=", replacedEnv).where("oauth_secret_id", replacedAuth === null ? "is" : "=", replacedAuth).executeTakeFirst());
+    const result = await kernel.run(db => {
+      let update = db.withTables<Record<string, ExternalMcpServersTable>>().updateTable(tables.servers).set(columns)
+        .where("workspace_id", "=", record.workspaceId).where("server_id", "=", record.serverId).where("version", "=", expectedVersion)
+        .where("env_secret_id", replacedEnv === null ? "is" : "=", replacedEnv).where("oauth_secret_id", replacedAuth === null ? "is" : "=", replacedAuth);
+      if (expectedCreatedAt !== undefined) update = update.where("created_at", "=", expectedCreatedAt);
+      return update.executeTakeFirst();
+    });
     if (Number(result.numUpdatedRows) !== 1) throw new WriteMissed();
     // The update unlinked the old pointers; RESTRICT foreign keys are satisfied.
     if (previous.env_secret_id !== pointers.env_secret_id) await deleteExternalMcpVaultEnvelope({ repo: vaultRepo, workspaceId: record.workspaceId, id: previous.env_secret_id });
@@ -117,16 +122,21 @@ export async function updateRowIfVersion({ kernel, vaultRepo, tables, vaultError
 }
 
 /** The runtime write: OAuth pointer, status, expiry, lease only, while the credential is the one read. */
-export async function updateRuntime({ kernel, vaultRepo, tables, vaultErrors, key, expectedSealedOAuth, patch }: WriteDeps & { key: ServerKey; expectedSealedOAuth: SealedSecret | null; patch: ExternalMcpOAuthRuntimePatch }, _optional = {}): Promise<boolean> {
+export async function updateRuntime({ kernel, vaultRepo, tables, vaultErrors, key, expectedSealedOAuth, expectedConfig, patch }: WriteDeps & { key: ServerKey; expectedSealedOAuth: SealedSecret | null; expectedConfig?: Pick<ExternalMcpServerRecord, "createdAt" | "version">; patch: ExternalMcpOAuthRuntimePatch }, _optional = {}): Promise<boolean> {
   const expectedAuth = pointerOf({ sealed: expectedSealedOAuth, key, kind: "mcp-auth", vaultErrors });
   return lockedWrite({ kernel, workspaceId: key.workspaceId, body: async () => {
     const previous = await readPointers({ kernel, tables, key });
     if (!previous || previous.oauth_secret_id !== expectedAuth) return false;
+    if (expectedConfig !== undefined && (Number(previous.version) !== expectedConfig.version || previous.created_at !== expectedConfig.createdAt)) return false;
     const oauth_secret_id = await persistExternalMcpVaultEnvelope({ repo: vaultRepo, vaultErrors, sealed: patch.sealedOAuth, identity: key, kind: "mcp-auth" });
-    const result = await kernel.run(db => db.withTables<Record<string, ExternalMcpServersTable>>().updateTable(tables.servers)
-      .set({ oauth_secret_id, oauth_status: patch.oauthStatus, oauth_expires_at: patch.oauthExpiresAt, oauth_refresh_lease_until: patch.oauthRefreshLeaseUntil, updated_at: patch.updatedAt })
-      .where("workspace_id", "=", key.workspaceId).where("server_id", "=", key.serverId)
-      .where("oauth_secret_id", expectedAuth === null ? "is" : "=", expectedAuth).executeTakeFirst());
+    const result = await kernel.run(db => {
+      let update = db.withTables<Record<string, ExternalMcpServersTable>>().updateTable(tables.servers)
+        .set({ oauth_secret_id, oauth_status: patch.oauthStatus, oauth_expires_at: patch.oauthExpiresAt, oauth_refresh_lease_until: patch.oauthRefreshLeaseUntil, updated_at: patch.updatedAt })
+        .where("workspace_id", "=", key.workspaceId).where("server_id", "=", key.serverId)
+        .where("oauth_secret_id", expectedAuth === null ? "is" : "=", expectedAuth);
+      if (expectedConfig !== undefined) update = update.where("version", "=", expectedConfig.version).where("created_at", "=", expectedConfig.createdAt);
+      return update.executeTakeFirst();
+    });
     if (Number(result.numUpdatedRows) !== 1) throw new WriteMissed();
     if (previous.oauth_secret_id !== oauth_secret_id) await deleteExternalMcpVaultEnvelope({ repo: vaultRepo, workspaceId: key.workspaceId, id: previous.oauth_secret_id });
     return true;

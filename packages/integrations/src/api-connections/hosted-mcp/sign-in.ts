@@ -94,7 +94,7 @@ function createConnectionTokenRefresher(deps: ExternalMcpOAuthServiceDeps) {
 
       async persist({ key: serverId, tokens }) {
         const record = await requireOAuthRecord(deps, serverId);
-        await persistTokens(deps, record, tokens);
+        await persistTokens({ deps, record, tokens });
       },
 
       async markNeedsReauth({ key: serverId }) {
@@ -168,7 +168,7 @@ async function beginConnectionAuthorization({ deps, shared }: SignInContext, inp
         };
       }
       const started = await deps.ports.withCopy({ call: () => deps.ports.flow.beginAuthorizationCode(
-        { provider, stateless: sealedRedirectState({ deps, serverId: record.serverId, browserBinding: input.browserBinding }), guard: deps.httpPorts.guard,
+        { provider, stateless: sealedRedirectState({ deps, serverId: record.serverId, browserBinding: input.browserBinding, config: record }), guard: deps.httpPorts.guard,
           randomBytesFn: ({ byteLength }) => randomBytes(byteLength),
           options: oauthClientOptions(deps.ports, record, redirectUri),
           ownerKey: ownerKeyOf(deps.workspaceId, record.serverId),
@@ -193,7 +193,7 @@ async function completeConnectionAuthorization({ deps, shared }: SignInContext, 
       let tokens: OAuthTokenSet;
       try {
         tokens = await deps.ports.withCopy({ call: () => deps.ports.flow.completeAuthorizationCode(
-          { ...deps.httpPorts, provider, stateless: sealedRedirectState({ deps, serverId: record.serverId, browserBinding: input.browserBinding }), clock: deps.clock,
+          { ...deps.httpPorts, provider, stateless: sealedRedirectState({ deps, serverId: record.serverId, browserBinding: input.browserBinding, config: record }), clock: deps.clock,
             redirectUri: input.redirectUri,
             ownerKey: ownerKeyOf(deps.workspaceId, record.serverId),
             client,
@@ -207,13 +207,11 @@ async function completeConnectionAuthorization({ deps, shared }: SignInContext, 
         // so a self-registered one is dropped and the next connect mints a fresh one. The provider's
         // error still reaches the caller.
         if (deps.ports.errors.isOAuthError(error) && CLIENT_REJECTED_PROVIDER_CODES.includes(error.providerErrorCode ?? "")) {
-          await setOAuthStatus(deps, record.serverId, "disconnected", { clearToken: true, forgetSelfRegisteredClient: true });
+          await setOAuthStatus(deps, record.serverId, "disconnected", { clearToken: true, forgetSelfRegisteredClient: true, callbackRecord: record });
         }
         throw error;
       }
-      // Re-read rather than reusing `record`: `beginConnect` wrote `pending` to it, and persisting a
-      // stale copy would resurrect the pre-connect row wholesale.
-      await persistTokens(deps, await requireOAuthRecord(deps, input.serverId), tokens);
+      await persistTokens({ deps, record, tokens }, { expectedConfig: { createdAt: record.createdAt, version: record.version } });
       await notifyConnected(deps, input.serverId);
     }
 
@@ -244,7 +242,7 @@ async function pollConnectionAuthorization({ deps, shared }: SignInContext, inpu
           },
         ) });
         await deps.devices.delete(input.serverId);
-        await persistTokens(deps, record, tokens);
+        await persistTokens({ deps, record, tokens });
         await notifyConnected(deps, input.serverId);
         return { status: "connected" };
       } catch (error) {

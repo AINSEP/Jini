@@ -34,7 +34,7 @@ export interface HostedMcpSignInCopy {
  * `errors.validation` constructs the canonical `ExternalMcpValidationError` and `errors.isUnconfigured` recognizes the canonical `ExternalMcpSecretStoreUnconfiguredError` (both from `@jini-ai/mcp/federation/hosted`), so `isSignInRefusal`/`classifyError` keep recognizing them;
  * `errors.reauthRequired` is the host's ONE canonical re-authorization factory, the same function the connection gate receives.
  * `store` is the same store module the host's repository was built with (same envelope instance); the repository itself is `deps.repo`, which MUST be the store's repo instance, and every find/upsert/lease/CAS call goes through it in the original order.
- * `aad.format` produces the persisted `oauth-redirect-state` v1 AAD bytes; `registrationIdentity` is stable (changing it registers a new client at every provider); `signInLink` builds the host route link (routes and browser binding stay in the host).
+ * `aad.format` produces the configuration-bound `oauth-redirect-state` v2 AAD bytes; `registrationIdentity` is stable (changing it registers a new client at every provider); `signInLink` builds the host route link (routes and browser binding stay in the host).
  */
 export interface HostedMcpSignInPorts {
   readonly flow: OAuthFlowOperations;
@@ -58,7 +58,7 @@ export interface HostedMcpSignInPorts {
   };
   /** @agent-note Pure row projections (the canonical resolvers); no I/O. */
   readonly projections: { readonly authMode: (record: Pick<ExternalMcpServerRecord, 'authMode'>) => ExternalMcpAuthMode; readonly oauthStatus: (record: Pick<ExternalMcpServerRecord, 'oauthStatus'>) => ExternalMcpOAuthStatus };
-  /** @agent-note Persisted AAD format; must stay byte-identical for already-issued state. */
+  /** @agent-note Redirect-state AAD format; v2 binds the saved creation time and version. */
   readonly aad: { readonly format: (input: { readonly kind: string; readonly version: string; readonly parts: readonly string[] }) => string };
   /** @agent-note Host route link for the hosted browser hop; no provider URL leaves it. */
   readonly signInLink: (input: { readonly callbackUrl: string; readonly workspaceId: string; readonly serverId: string }) => string;

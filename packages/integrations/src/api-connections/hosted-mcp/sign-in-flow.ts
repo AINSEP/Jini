@@ -44,11 +44,11 @@ export async function beginDeviceCodeConnect({ deps, record, provider, client, s
  * failure is the same `OAUTH_INVALID_STATE`, so a guessed or tampered state is not an oracle.
  * @complexity O(state bytes), bounded by Jini; one site-key seal/open, no pending-store I/O.
  */
-export function sealedRedirectState({ deps, serverId, browserBinding }: { deps: SignInDeps; serverId: string; browserBinding?: string | undefined }, _optional: Record<string, never> = {}) {
+export function sealedRedirectState({ deps, serverId, browserBinding, config }: { deps: SignInDeps; serverId: string; browserBinding?: string | undefined; config: Pick<ExternalMcpServerRecord, "createdAt" | "version"> }, _optional: Record<string, never> = {}) {
   // The HTTP callback always supplies browser proof. Unbound pre-upgrade links cannot decrypt
   // there; persisted grants use their existing vault AAD and remain usable across reconnects.
   const parts = browserBinding === undefined ? [deps.workspaceId, serverId] : [deps.workspaceId, serverId, browserBinding];
-  const aad = deps.ports.aad.format({ kind: "oauth-redirect-state", version: "v1", parts: [JSON.stringify(parts)] });
+  const aad = deps.ports.aad.format({ kind: "oauth-redirect-state", version: "v2", parts: [JSON.stringify([...parts, config.createdAt, config.version])] });
   return deps.ports.flow.createSealedAuthorizationState({ clock: deps.clock, workspaceId: deps.workspaceId, serverId, codec: {
     async seal({ plaintext }, _options = {}) {
       const sealed = await deps.sealer.seal({ plaintext, key: await deps.keyring.activeKey({}), aad });

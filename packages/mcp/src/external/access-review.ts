@@ -31,8 +31,19 @@ async function authorizeMcpAccess({ routeDeps, principalId, id }: { routeDeps: E
  * @complexity O(t) source-label/target bytes; no I/O.
  */
 function externalMcpAccessSubject({ record, id }: { record: ExternalMcpServerRecord; id: string }) {
+  const target = record.transport === 'stdio' ? `${record.command ?? ""} ${record.args ?? ""}` : remoteEndpointOrigin({ url: record.url });
   return { label: redactSecrets({ input: record.label ?? id }, { redactPii: false }),
-    target: redactSecrets({ input: record.url ?? `${record.command ?? ""} ${record.args ?? ""}` }, { redactPii: false }) };
+    target: redactSecrets({ input: target }, { redactPii: false }) };
+}
+
+function remoteEndpointOrigin({ url }: { url: string | null }, _optional = {}): string {
+  if (url === null) return 'Remote endpoint unavailable.';
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : 'Remote endpoint unavailable.';
+  } catch {
+    return 'Remote endpoint unavailable.';
+  }
 }
 
 /** New permissions must name tools actually advertised by this exact admitted endpoint.
