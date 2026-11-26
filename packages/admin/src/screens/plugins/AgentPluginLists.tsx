@@ -1,12 +1,10 @@
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import type { Translate } from "@jini-ai/core/text";
 import type { AgentPluginListRow } from "../../agent-plugins/models.js";
-import { AgentPluginRow, type AgentPluginRowStateControl } from "./AgentPluginRow.js";
-import { AgentPluginManageButton } from "./AgentPluginManageButton.js";
+import type { AgentPluginRowStateControl } from "./AgentPluginRow.js";
 import { MarketplaceIcon } from "./agent-plugins-visuals.js";
 import type { AgentPluginInstallPort } from "../integrations/agent-plugin-ports.js";
 import type { AgentPluginsProps, AgentPluginsController } from "./AgentPlugins.js";
-import { AgentPluginUpdateSlot } from "./AgentPluginUpdateControl.js";
 const AGENT_PLUGINS_SPEC_URL = "https://agent-plugins.org/specification";
 /**
  * The panel's non-row messages: a failed load, an unsettled first load, a refused toggle, and a
@@ -67,8 +65,9 @@ function AgentPluginsStatus({
 
 /** A row's Update slot, or nothing. Bundled rows never get one: they update with the host itself
  *  (`updatableAgentPluginDigest`). @complexity O(1). */
-function updateSlotFor(required: { plugin: AgentPluginListRow; controller: AgentPluginsController; agentHandleBase: string; port: AgentPluginInstallPort; hooks: AgentPluginsProps["hooks"]; deps: AgentPluginsProps["deps"] }, _optional: Record<string, never> = {}) {
-  const { plugin, controller, agentHandleBase, port, hooks, deps } = required;
+function updateSlotFor(required: { plugin: AgentPluginListRow; controller: AgentPluginsController; agentHandleBase: string; port: AgentPluginInstallPort; hooks: AgentPluginsProps["hooks"]; deps: AgentPluginsProps["deps"]; kit: AgentPluginsProps["kit"] }, _optional: Record<string, never> = {}) {
+  const { plugin, controller, agentHandleBase, port, hooks, deps, kit } = required;
+  const { AgentPluginUpdateSlot } = kit;
   const { updatableAgentPluginDigest } = deps;
   const expectedOldDigest = updatableAgentPluginDigest({ plugin });
   if (!expectedOldDigest) return undefined;
@@ -85,7 +84,7 @@ function updateSlotFor(required: { plugin: AgentPluginListRow; controller: Agent
  * `AgentPluginRowStateControl` values, not the same callback rendered two ways — so this list asks
  * its caller (a factory, computed once per tab in `AgentPlugins`) for one, per plugin, rather than
  * hard-coding either shape itself. */
-function AgentPluginList({ hooks, deps,
+function AgentPluginList({ hooks, deps, kit,
   agentPlugins,
   controller,
   uninstallNoteId,
@@ -99,7 +98,7 @@ function AgentPluginList({ hooks, deps,
   stateControlFor: (plugin: AgentPluginListRow) => AgentPluginRowStateControl;
   /** The upload transport an operator-installed row's Update control sends through. */
   updatePort: AgentPluginInstallPort;
-} & Pick<AgentPluginsProps, "hooks" | "deps">) {
+} & Pick<AgentPluginsProps, "hooks" | "deps" | "kit">) {
 
   // Plugin ids are stable and unique, same per-row-handle derivation every other list on this
   // workstream uses (`buildAgentListHandles`). Derived from each id alone (see that function's own
@@ -110,7 +109,7 @@ function AgentPluginList({ hooks, deps,
   return (
     <ul className="agent-plugin-rows">
       {agentPlugins.map((plugin, index) => (
-        AgentPluginListRowView({ hooks, deps, plugin, controller, uninstallNoteId, stateControlFor, updatePort, agentHandleBase: rowHandles[index]! })
+        AgentPluginListRowView({ hooks, deps, kit, plugin, controller, uninstallNoteId, stateControlFor, updatePort, agentHandleBase: rowHandles[index]! })
       ))}
     </ul>
   );
@@ -129,7 +128,7 @@ function AgentPluginList({ hooks, deps,
  * when Installed stopped filtering to enabled rows — `null` while the underlying load hasn't settled
  * yet, same convention `AgentPluginsController.agentPlugins` uses.
  */
-function AgentPluginListPanel({ hooks, deps,
+function AgentPluginListPanel({ hooks, deps, kit,
   controller,
   uninstallNoteId,
   stateControlFor,
@@ -148,7 +147,7 @@ function AgentPluginListPanel({ hooks, deps,
   lede: string;
   emptyMessage: string;
   visiblePlugins: AgentPluginListRow[] | null;
-} & Pick<AgentPluginsProps, "hooks" | "deps">) {
+} & Pick<AgentPluginsProps, "hooks" | "deps" | "kit">) {
 
   const { t, agentPlugins, error, toggleError } = controller;
 
@@ -165,7 +164,7 @@ function AgentPluginListPanel({ hooks, deps,
       />
       {visiblePlugins && visiblePlugins.length > 0 ? (
         <AgentPluginList
-          {...{ hooks, deps }}
+          {...{ hooks, deps, kit }}
           agentPlugins={visiblePlugins}
           controller={controller}
           uninstallNoteId={uninstallNoteId}
@@ -180,7 +179,7 @@ function AgentPluginListPanel({ hooks, deps,
 
 type AgentPluginListPanelProps = Pick<
   Parameters<typeof AgentPluginListPanel>[0],
-  "controller" | "uninstallNoteId" | "stateControlFor" | "updatePort" | "hooks" | "deps"
+  "controller" | "uninstallNoteId" | "stateControlFor" | "updatePort" | "hooks" | "deps" | "kit"
 >;
 
 /**
@@ -296,8 +295,9 @@ function AgentPluginFootnotes({ uninstallNoteId, t, deps }: { uninstallNoteId: s
   </>;
 }
 
-function AgentPluginListRowView({ hooks, deps, plugin, controller, uninstallNoteId, stateControlFor, updatePort, agentHandleBase }: Omit<Parameters<typeof AgentPluginList>[0], "agentPlugins"> & { plugin: AgentPluginListRow; agentHandleBase: string }, _optional = {}) {
+function AgentPluginListRowView({ hooks, deps, kit, plugin, controller, uninstallNoteId, stateControlFor, updatePort, agentHandleBase }: Omit<Parameters<typeof AgentPluginList>[0], "agentPlugins"> & { plugin: AgentPluginListRow; agentHandleBase: string }, _optional = {}) {
   const { agentPluginDisplayName, defaultAgentPluginSurfacesPort } = deps;
+  const { AgentPluginRow, AgentPluginManageButton } = kit;
   return (
         <AgentPluginRow
           key={plugin.pluginId}
@@ -323,7 +323,7 @@ function AgentPluginListRowView({ hooks, deps, plugin, controller, uninstallNote
           ) : undefined}
           uninstallNoteId={uninstallNoteId}
           agentHandleBase={agentHandleBase}
-          update={updateSlotFor({ plugin, controller, agentHandleBase: agentHandleBase, port: updatePort, hooks, deps })}
+          update={updateSlotFor({ plugin, controller, agentHandleBase: agentHandleBase, port: updatePort, hooks, deps, kit })}
         />
   );
 }

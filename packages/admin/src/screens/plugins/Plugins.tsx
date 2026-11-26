@@ -5,8 +5,12 @@ import { resolveActiveTabId } from "@jini-ai/core/text";
 import type { TabBarTab, TabBarProps } from "../../react/kit.js";
 import { UploadIcon } from "./agent-plugins-visuals.js";
 import { addPluginTabSoonTag, marketplaceTabSoonTag } from "./add-plugin-tab-soon.js";
-import { DownloadedTabIcon, InstalledTabIcon, MarketplaceTabIcon } from "./plugins-visuals.js";
-import { PluginRulesProvider } from "./rules-context.js";
+import type { DownloadedTabIcon, InstalledTabIcon, MarketplaceTabIcon, PluginTrashIcon } from "./plugins-visuals.js";
+import type { PluginRulesProvider } from "./rules-context.js";
+import type { PluginPackageFilesModal } from "./PluginPackageFilesModal.js";
+import type { PluginRemoveConfirmDialog } from "./PluginRemoveConfirmDialog.js";
+import type { PluginRow } from "./PluginRow.js";
+import type { AddPluginPanel } from "./AddPluginPanel.js";
 import type { PluginRules } from "./rules.js";
 import type { PluginsController } from "./hooks/use-plugins.hooks.js";
 import type { PluginPackageFilesController } from "./hooks/use-plugin-package-files.hooks.js";
@@ -108,6 +112,15 @@ export interface PluginsProps {
     useProviderSettingsFocus: (required: { card: AdminPluginProviderSettings | null; fieldId: string }, optional?: Record<string, never>) => void;
   };
   kit: {
+    PluginRulesProvider: typeof PluginRulesProvider;
+    PluginPackageFilesModal: typeof PluginPackageFilesModal;
+    PluginRemoveConfirmDialog: typeof PluginRemoveConfirmDialog;
+    PluginRow: typeof PluginRow;
+    AddPluginPanel: typeof AddPluginPanel;
+    InstalledTabIcon: typeof InstalledTabIcon;
+    DownloadedTabIcon: typeof DownloadedTabIcon;
+    MarketplaceTabIcon: typeof MarketplaceTabIcon;
+    PluginTrashIcon: typeof PluginTrashIcon;
     Toast: ComponentType<{ message: string; role: "status"; tone: "success"; ttlMs: number; onDismiss: () => void }>;
     TabBar: ComponentType<TabBarProps>;
     PluginProviderSettingsDialog: ComponentType<{
@@ -174,8 +187,9 @@ function deriveRowHandles(
 }
 
 /** The four tabs, in order; "Add a plugin" is disabled (and tagged soon) where folder install is unavailable. */
-function buildPluginTabs({ t, locale, canInstall, deps }: { t: PluginsController["t"]; locale: PluginsController["locale"]; canInstall: boolean; deps: PluginsProps["deps"] }, _options: Record<string, never> = {}): TabBarTab[] {
+function buildPluginTabs({ t, locale, canInstall, deps, kit }: { t: PluginsController["t"]; locale: PluginsController["locale"]; canInstall: boolean; deps: PluginsProps["deps"]; kit: PluginsProps["kit"] }, _options: Record<string, never> = {}): TabBarTab[] {
   const { translateAdminNavLabel } = deps;
+  const { InstalledTabIcon, DownloadedTabIcon, MarketplaceTabIcon } = kit;
   return [
     { id: "installed", label: t("Installed"), icon: <InstalledTabIcon />, handle: "plugins-tab-installed", handleLabel: "Switch to the Installed tab — every plugin installed for this site, on or off" },
     { id: "downloaded", label: t("Downloaded"), icon: <DownloadedTabIcon />, handle: "plugins-tab-downloaded", handleLabel: "Switch to the Downloaded tab — every plugin on disk for this site, regardless of whether it's turned on" },
@@ -197,7 +211,7 @@ function LoadedPlugins({ kit, hooks, deps, plugins, controller, activeTabId, foc
   const ActivePanel = PLUGINS_TAB_PANELS[activeTabId];
   const canInstall = controller.canInstallFolder === true;
 
-  const tabs = buildPluginTabs({ t, locale, canInstall, deps });
+  const tabs = buildPluginTabs({ t, locale, canInstall, deps, kit });
 
   return (
     <div className="page plugins-page">
@@ -205,7 +219,7 @@ function LoadedPlugins({ kit, hooks, deps, plugins, controller, activeTabId, foc
 
       <TabBar ariaLabel={t("Plugins")} tabs={tabs} activeId={activeTabId} onChange={navigateToPluginsTab} containerHandle="plugins-tab-bar" />
 
-      <ActivePanel {...{ hooks, deps }} plugins={plugins} controller={controller} rowHandleById={rowHandleById} focusPluginId={focusPluginId} />
+      <ActivePanel {...{ hooks, deps, kit }} plugins={plugins} controller={controller} rowHandleById={rowHandleById} focusPluginId={focusPluginId} />
 
       {PluginsOverlays({ kit, hooks, deps, controller, settingsHandle, removeHandle })}
     </div>
@@ -215,6 +229,7 @@ function LoadedPlugins({ kit, hooks, deps, plugins, controller, activeTabId, foc
 /** The plugins screen under the host-bound rule functions the Jini rows and dialogs read. */
 export function Plugins(props: PluginsProps, _optional = {}) {
   const { pluginRules } = props.deps;
+  const { PluginRulesProvider } = props.kit;
   return (
     <PluginRulesProvider rules={pluginRules}>
       <PluginsScreen {...props} />

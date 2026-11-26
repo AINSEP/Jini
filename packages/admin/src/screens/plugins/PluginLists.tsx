@@ -1,15 +1,12 @@
 import type { ComponentType } from "react";
 import type { AdminPluginDto } from "@jini-ai/core/contracts/site/cms-plugins";
-import { PluginRow } from "./PluginRow.js";
-import { AddPluginPanel } from "./AddPluginPanel.js";
-import { MarketplaceTabIcon, PluginTrashIcon } from "./plugins-visuals.js";
 import type { PluginRules } from "./rules.js";
 import type { PluginsController } from "./hooks/use-plugins.hooks.js";
 import type { PluginsProps, PluginsTabId } from "./Plugins.js";
 /** The Installed tab's own row list — the Enable/Disable toggle unchanged from the pre-split table,
  *  now living in the row's action slot instead of a `DataTable` cell. */
 export function InstalledPluginRows({
-  hooks, deps,
+  hooks, deps, kit,
   plugins,
   controller,
   expandedIds,
@@ -23,7 +20,7 @@ export function InstalledPluginRows({
   onToggleExpanded: (required: { id: string }, optional?: Record<string, never>) => void;
   rowHandleById: Map<string, string>;
   focusPluginId?: string | null | undefined;
-} & Pick<PluginsProps, "hooks" | "deps">) {
+} & Pick<PluginsProps, "hooks" | "deps" | "kit">) {
 
   const { useAdminLocale } = hooks;
   const { pluginToggleAriaLabel, pluginToggleControl } = deps;
@@ -34,7 +31,7 @@ export function InstalledPluginRows({
         const control = pluginToggleControl({ plugin, rowSavingId, locale });
         const handle = rowHandleById.get(plugin.id);
         if (handle === undefined) throw new Error(`plugin ${plugin.id} has no row handle`);
-        return installedPluginRow({ plugin, controller, expandedIds, onToggleExpanded, focusPluginId, handle, control, t, locale, onToggleEnabled, useAdminLocale, pluginToggleAriaLabel });
+        return installedPluginRow({ plugin, controller, expandedIds, onToggleExpanded, focusPluginId, handle, control, t, locale, onToggleEnabled, useAdminLocale, pluginToggleAriaLabel, kit });
       })}
     </ul>
   );
@@ -51,7 +48,7 @@ export function InstalledPluginRows({
  *  on-disk artifact, so a built-in row's Remove stays honestly disabled), turning a plugin back on
  *  has no comparable cost, so a built-in row gets the same direct control a site-sourced one does. */
 export function DownloadedPluginRows({
-  hooks, deps,
+  hooks, deps, kit,
   plugins,
   controller,
   expandedIds,
@@ -65,9 +62,10 @@ export function DownloadedPluginRows({
   onToggleExpanded: (required: { id: string }, optional?: Record<string, never>) => void;
   rowHandleById: Map<string, string>;
   onRequestRemove: (plugin: AdminPluginDto) => void;
-} & Pick<PluginsProps, "hooks" | "deps">) {
+} & Pick<PluginsProps, "hooks" | "deps" | "kit">) {
 
   const { useAdminLocale } = hooks;
+  const { PluginRow } = kit;
   const { pluginRemoveBlocker } = deps;
   const { t, locale, rowSavingId, onToggleEnabled } = controller;
   return (
@@ -77,7 +75,7 @@ export function DownloadedPluginRows({
         if (handle === undefined) throw new Error(`plugin ${plugin.id} has no row handle`);
         const removeBlocker = pluginRemoveBlocker(plugin);
         const busy = rowSavingId === plugin.id;
-        const action = DownloadedPluginAction({ plugin, t, locale, onToggleEnabled, onRequestRemove, removeBlocker, busy, deps });
+        const action = DownloadedPluginAction({ plugin, t, locale, onToggleEnabled, onRequestRemove, removeBlocker, busy, deps, kit });
         return (
           <PluginRow
             key={plugin.id}
@@ -98,7 +96,7 @@ export function DownloadedPluginRows({
 }
 
 /** Every tab panel's inputs — one shape, so {@link PLUGINS_TAB_PANELS} can pick a panel by tab id. */
-interface PluginsTabPanelProps extends Pick<PluginsProps, "hooks" | "deps"> {
+interface PluginsTabPanelProps extends Pick<PluginsProps, "hooks" | "deps" | "kit"> {
   plugins: AdminPluginDto[];
   controller: PluginsController;
   rowHandleById: Map<string, string>;
@@ -113,7 +111,7 @@ const PLUGINS_REMOVE_NOTE_IDS = {
 } as const;
 
 /** Installed: every installed plugin, on or off, or an honest empty note when there are none. */
-function InstalledPanel({ hooks, deps, plugins, controller, rowHandleById, focusPluginId }: PluginsTabPanelProps) {
+function InstalledPanel({ hooks, deps, kit, plugins, controller, rowHandleById, focusPluginId }: PluginsTabPanelProps) {
 
   const { t } = controller;
   if (plugins.length === 0) {
@@ -128,7 +126,7 @@ function InstalledPanel({ hooks, deps, plugins, controller, rowHandleById, focus
   }
   return (
     <InstalledPluginRows
-      {...{ hooks, deps }}
+      {...{ hooks, deps, kit }}
       plugins={plugins}
       controller={controller}
       expandedIds={controller.expandedIds}
@@ -141,7 +139,7 @@ function InstalledPanel({ hooks, deps, plugins, controller, rowHandleById, focus
 
 /** Downloaded: the two remove notes as compact helper text under the tabs, then every plugin — or
  *  its own empty state. The notes sat under the list until the owner moved them up (2026-10-07). */
-function DownloadedPanel({ hooks, deps, plugins, controller, rowHandleById }: PluginsTabPanelProps) {
+function DownloadedPanel({ hooks, deps, kit, plugins, controller, rowHandleById }: PluginsTabPanelProps) {
 
   const { t } = controller;
   if (plugins.length === 0) {
@@ -169,7 +167,7 @@ function DownloadedPanel({ hooks, deps, plugins, controller, rowHandleById }: Pl
         </p>
       </div>
       <DownloadedPluginRows
-      {...{ hooks, deps }}
+      {...{ hooks, deps, kit }}
         plugins={plugins}
         controller={controller}
         expandedIds={controller.expandedIds}
@@ -184,9 +182,10 @@ function DownloadedPanel({ hooks, deps, plugins, controller, rowHandleById }: Pl
 /** Marketplace: a designed empty state — see this file's header for why nothing is listed. Same
  *  capped, centered card as Agent Plugins' Marketplace (owner, 2026-10-17: it ran the full column),
  *  so it reuses that screen's `agent-plugins-marketplace-*` classes rather than a second copy. */
-function MarketplacePanel({ deps, controller }: PluginsTabPanelProps) {
+function MarketplacePanel({ deps, kit, controller }: PluginsTabPanelProps) {
 
   const { t } = controller;
+  const { MarketplaceTabIcon } = kit;
   return (
     <div className="agent-plugins-marketplace-empty" role="note">
       <span className="agent-plugins-marketplace-glyph">
@@ -204,9 +203,10 @@ function MarketplacePanel({ deps, controller }: PluginsTabPanelProps) {
 /** Add a plugin: the shared install card. Without an install controller (a test hook that omits
  *  it) the tab is empty; on a server that refuses local installs the tab is disabled and never
  *  resolves here. */
-function AddPanel({ deps, controller }: PluginsTabPanelProps) {
+function AddPanel({ deps, kit, controller }: PluginsTabPanelProps) {
 
   const { productName } = deps;
+  const { AddPluginPanel } = kit;
   return controller.install ? <AddPluginPanel controller={controller.install} productName={productName} /> : null;
 }
 
@@ -217,11 +217,12 @@ export const PLUGINS_TAB_PANELS: Record<PluginsTabId, ComponentType<PluginsTabPa
   marketplace: MarketplacePanel,
 };
 
-function DownloadedPluginAction({ plugin, t, locale, onToggleEnabled, onRequestRemove, removeBlocker, busy, deps }: Pick<Parameters<typeof DownloadedPluginRows>[0], "onRequestRemove" | "deps"> & {
+function DownloadedPluginAction({ plugin, t, locale, onToggleEnabled, onRequestRemove, removeBlocker, busy, deps, kit }: Pick<Parameters<typeof DownloadedPluginRows>[0], "onRequestRemove" | "deps" | "kit"> & {
   t: PluginsController["t"]; locale: string; onToggleEnabled: PluginsController["onToggleEnabled"];
   plugin: AdminPluginDto; removeBlocker: ReturnType<PluginRules["pluginRemoveBlocker"]>; busy: boolean;
 }, _optional = {}) {
   const { pluginRemoveAriaLabel, pluginToggleAriaLabel } = deps;
+  const { PluginTrashIcon } = kit;
   return (
           <>
             {plugin.enabled ? null : (
@@ -243,11 +244,12 @@ function DownloadedPluginAction({ plugin, t, locale, onToggleEnabled, onRequestR
         );
 }
 
-function installedPluginRow({ plugin, controller, expandedIds, onToggleExpanded, focusPluginId, handle, control, t, locale, onToggleEnabled, useAdminLocale, pluginToggleAriaLabel }: Pick<Parameters<typeof InstalledPluginRows>[0], "controller" | "expandedIds" | "onToggleExpanded" | "focusPluginId"> & {
+function installedPluginRow({ plugin, controller, expandedIds, onToggleExpanded, focusPluginId, handle, control, t, locale, onToggleEnabled, useAdminLocale, pluginToggleAriaLabel, kit }: Pick<Parameters<typeof InstalledPluginRows>[0], "controller" | "expandedIds" | "onToggleExpanded" | "focusPluginId" | "kit"> & {
   plugin: AdminPluginDto; handle: string; control: ReturnType<PluginRules["pluginToggleControl"]>;
   t: PluginsController["t"]; locale: string; onToggleEnabled: PluginsController["onToggleEnabled"];
   useAdminLocale: PluginsProps["hooks"]["useAdminLocale"]; pluginToggleAriaLabel: PluginRules["pluginToggleAriaLabel"];
 }, _optional = {}) {
+  const { PluginRow } = kit;
   return (
           <PluginRow
             key={plugin.id}

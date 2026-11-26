@@ -1,11 +1,9 @@
-import { PluginPackageFilesModal } from "./PluginPackageFilesModal.js";
-import { PluginRemoveConfirmDialog } from "./PluginRemoveConfirmDialog.js";
 import type { PluginsController } from "./hooks/use-plugins.hooks.js";
 import type { PluginsProps } from "./Plugins.js";
 /** The package-files viewer, provider settings dialog and its toast, and the Remove confirm dialog. */
 export function PluginsOverlays({ kit, hooks, deps, controller, settingsHandle, removeHandle }: { controller: PluginsController; settingsHandle: string | undefined; removeHandle: string | undefined } & Pick<PluginsProps, "kit" | "hooks" | "deps">) {
 
-  const { Toast, PluginProviderSettingsDialog } = kit;
+  const { Toast, PluginProviderSettingsDialog, PluginPackageFilesModal, PluginRemoveConfirmDialog } = kit;
   const { useWiredPluginPackageFiles, useWiredPluginProviderSettings, useProviderSettingsFocus } = hooks;
   const { pluginRules } = deps;
   const { t, inspectedPlugin, pendingRemovePlugin, settingsPlugin } = controller;

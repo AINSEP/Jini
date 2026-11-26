@@ -1,12 +1,11 @@
 import { buildAgentListHandles } from "@jini-ai/core/agent-handles";
-import { AgentPluginDisableConfirmDialog } from "./AgentPluginDisableConfirmDialog.js";
 import type { useAgentPluginConfirmation } from "./AgentPlugins.hooks.js";
 import type { AgentPluginsProps, AgentPluginsController } from "./AgentPlugins.js";
 export function AgentPluginsOverlays({ props, controller, pendingDisable, pendingDisablePlugin, setPendingDisable }: {
   props: AgentPluginsProps;
   controller: AgentPluginsController;
 } & Pick<ReturnType<typeof useAgentPluginConfirmation>, "pendingDisable" | "pendingDisablePlugin" | "setPendingDisable">, _optional = {}) {
-  const { AgentPluginDetailsModal } = props.kit;
+  const { AgentPluginDetailsModal, AgentPluginDisableConfirmDialog } = props.kit;
   const { pluginRules, agentPluginDisplayName } = props.deps;
   const { inspectedPlugin, closeInspector, onToggleEnabled, t } = controller;
   return <>
