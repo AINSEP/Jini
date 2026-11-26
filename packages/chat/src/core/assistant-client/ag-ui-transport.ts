@@ -59,6 +59,7 @@ export interface AgUiDurableLocalCliBinding {
   followAcceptedRun(required: AcceptedAgUiRun & { handlers: RunHandlers; signal: AbortSignal }, optional?: Record<string, never>): void;
   /** Explicit Stop of the canonical run. Called at most once per accepted run. */
   cancelAcceptedRun(required: AcceptedAgUiRun, optional?: Record<string, never>): Promise<void>;
+  cancelPendingRun(required: { messageId: string; conversationId: string }, optional?: Record<string, never>): Promise<void>;
 }
 
 /** What `startAgUiRun` needs to bind a durable start: the prepared launch and the binding store. */
@@ -120,6 +121,7 @@ interface DurableTurn {
   readonly cancelSignal: AbortSignal | undefined;
   readonly requestStop: () => void;
   stopRequested: boolean;
+  pendingCancel?: Promise<void>;
   accepted?: AcceptedEntry;
 }
 
@@ -138,6 +140,7 @@ function handleAgUiEvent({ event, ctx, onLiveEvent }: { event: AgUiEvent; ctx: A
       return;
     }
     ctx.handlers.onError(new Error(event.message || "AG-UI run failed"));
+    ctx.finish();
     return;
   }
   if (event.type === EventType.RUN_FINISHED) {
@@ -179,22 +182,28 @@ function toRunAgentInput(
   };
 }
 
-/** Drops the turn's two handles: its registry entry (so `stopAgUiRun` cannot reach a dead agent) and
- *  its listener on the host signal. Safe to repeat. */
+/** Drops the segment's registry entry so `stopAgUiRun` cannot reach a dead agent; an accepted
+ *  follower keeps its signal listeners until completion or detach. Safe to repeat. */
 function forgetRun({ turn }: { turn: AgUiRunTurn }, _optional: Record<string, never> = {}): void {
   turn.agents.delete(turn.runId);
+  if (turn.durable?.accepted) return;
   turn.signal.removeEventListener("abort", turn.abort);
+  turn.durable?.cancelSignal?.removeEventListener("abort", turn.durable.requestStop);
 }
 
 /** The one place a turn is finished: `onDone` receives the collected events exactly once, however
  *  many of RUN_FINISHED, an abort, a stream error and `complete` arrive. */
-function settleRunOnce({ turn }: { turn: AgUiRunTurn }, _optional: Record<string, never> = {}): void {
+function settleRunOnce({ turn, error }: { turn: AgUiRunTurn; error?: Error }, _optional: Record<string, never> = {}): void {
   if (turn.settled) return;
   turn.settled = true;
   forgetRun({ turn });
-  turn.durable?.cancelSignal?.removeEventListener("abort", turn.durable.requestStop);
   // An accepted turn's follower owns the one final transcript and usage.
-  if (!turn.durable?.accepted) turn.handlers.onDone(turn.collected);
+  if (turn.durable?.accepted) return;
+  // Error THEN finish: an errored Observable never calls `complete`, so without this the turn
+  // is never settled and the events collected before the failure never reach `onDone`. Same
+  // order as `subscribeToRun`'s `end` listener, so the run is still recorded as failed.
+  if (error) turn.handlers.onError(error);
+  turn.handlers.onDone(turn.collected);
 }
 
 /** Stop through the cancel signal or `stopAgUiRun` converges here: one cancel per accepted run. */
@@ -203,12 +212,20 @@ function cancelAcceptedOnce({ entry, binding }: { entry: AcceptedEntry; binding:
   return entry.cancel;
 }
 
-/** Explicit Stop. Before acceptance it only latches: the accepted run is cancelled when it is known,
- *  so a Stop racing acceptance never leaves a run executing and never launches it again. */
+/** Explicit Stop cancels the prepared message before acceptance and latches the result for the
+ *  accepted run, so a Stop racing acceptance never leaves a run executing or launches it again. */
 function requestDurableStop({ durable }: { durable: DurableTurn }, _optional: Record<string, never> = {}): void {
   if (durable.stopRequested) return;
   durable.stopRequested = true;
-  if (durable.accepted) void cancelAcceptedOnce({ entry: durable.accepted, binding: durable.binding }).catch(() => undefined);
+  if (durable.accepted) {
+    void cancelAcceptedOnce({ entry: durable.accepted, binding: durable.binding }).catch(() => undefined);
+    return;
+  }
+  const { messageId, conversationId } = durable.start.launch;
+  if (messageId && conversationId) {
+    durable.pendingCancel = durable.binding.cancelPendingRun({ messageId, conversationId }, {});
+    void durable.pendingCancel.catch(() => undefined);
+  }
 }
 
 /**
@@ -223,25 +240,40 @@ function acceptDurableTurn(
 ): AcceptedAgUiRun | undefined {
   const accepted = durable.binding.readAcceptedRun({ event, input: runAgentInput }, {});
   if (!accepted) return undefined;
-  const entry: AcceptedEntry = { accepted };
+  const entry: AcceptedEntry = { accepted, ...(durable.pendingCancel ? { cancel: durable.pendingCancel.catch(() => durable.binding.cancelAcceptedRun(accepted, {})) } : {}) };
   durable.accepted = entry;
   durable.acceptedRuns.set(accepted.runId, entry);
   durable.start.bindRun({ runId: accepted.runId, binding: { messageId: accepted.messageId, conversationId: accepted.conversationId } }, {});
   if (durable.stopRequested) void cancelAcceptedOnce({ entry, binding: durable.binding }).catch(() => undefined);
-  durable.binding.followAcceptedRun({ ...accepted, handlers: turn.handlers, signal: turn.signal }, {});
+  durable.binding.followAcceptedRun({ ...accepted, handlers: { ...turn.handlers, onDone: (final) => {
+    turn.handlers.onDone(final);
+    durable.acceptedRuns.delete(accepted.runId);
+    durable.cancelSignal?.removeEventListener("abort", durable.requestStop);
+    turn.signal.removeEventListener("abort", turn.abort);
+  } }, signal: turn.signal }, {});
+  if (turn.signal.aborted) {
+    durable.cancelSignal?.removeEventListener("abort", durable.requestStop);
+    if (entry.cancel) void entry.cancel.finally(() => durable.acceptedRuns.delete(accepted.runId)).catch(() => undefined);
+    else durable.acceptedRuns.delete(accepted.runId);
+  }
   return accepted;
 }
 
 /** Durable mode settles start only on acceptance; returns the canonical ID once, else undefined. */
 function durableStartEvent(
-  { turn, event, runAgentInput }: { turn: AgUiRunTurn; event: AgUiEvent; runAgentInput: RunAgentInput },
+  { turn, event, runAgentInput, ports }: { turn: AgUiRunTurn; event: AgUiEvent; runAgentInput: RunAgentInput; ports: AgUiClientPorts },
   _optional: Record<string, never> = {},
 ): { accepted?: AcceptedAgUiRun; drop: boolean } {
   const durable = turn.durable;
   if (!durable) return { drop: false };
-  if (durable.accepted) return { drop: true };
+  if (durable.accepted) {
+    ports.onLiveEvent?.({ event });
+    if (event.type === EventType.RUN_FINISHED || event.type === EventType.RUN_ERROR) settleRunOnce({ turn });
+    return { drop: true };
+  }
   if (event.type !== EventType.RUN_STARTED) return { drop: false };
   const accepted = acceptDurableTurn({ turn, durable, event, runAgentInput });
+  if (accepted) ports.onLiveEvent?.({ event });
   return accepted ? { accepted, drop: true } : { drop: false };
 }
 
@@ -256,51 +288,46 @@ function subscribeRun(
   { turn, runAgentInput, state, ports }: { turn: AgUiRunTurn; runAgentInput: RunAgentInput; state: AgUiToAgentTranslationState; ports: AgUiClientPorts },
   _optional: Record<string, never> = {},
 ): Promise<{ runId: string }> {
-  const finish = () => settleRunOnce({ turn });
   return new Promise<{ runId: string }>((resolve, reject) => {
     let startSettled = false;
+    const finish = (error?: Error) => {
+      if (turn.settled) return;
+      if (!startSettled) {
+        turn.settled = true;
+        forgetRun({ turn });
+        reject(error ?? new DOMException("Run cancelled", "AbortError"));
+        return;
+      }
+      settleRunOnce({ turn, ...(error ? { error } : {}) });
+    };
     turn.agent.run(runAgentInput).subscribe({
       next: (event) => {
-        const step = durableStartEvent({ turn, event: event as AgUiEvent, runAgentInput });
+        if (turn.settled) return;
+        const frame = event as AgUiEvent;
+        const step = durableStartEvent({ turn, event: frame, runAgentInput, ports });
         if (step.accepted) {
           startSettled = true;
           resolve({ runId: step.accepted.runId });
         }
         if (step.drop) return;
-        if (!startSettled && !turn.durable) {
+        if (frame.type === EventType.RUN_ERROR && frame.code !== "abort") { finish(new Error(frame.message || "AG-UI run failed")); return; }
+        if (!startSettled) {
+          const launch = turn.durable?.start.launch;
+          if (launch?.messageId && launch.conversationId && !(frame.type === EventType.RUN_STARTED && frame.runId === runAgentInput.runId)) return;
           startSettled = true;
           resolve({ runId: turn.runId });
         }
-        handleAgUiEvent({ event: event as AgUiEvent, onLiveEvent: ports.onLiveEvent, ctx: { collected: turn.collected, handlers: turn.handlers, state, finish } });
+        handleAgUiEvent({ event: frame, onLiveEvent: ports.onLiveEvent, ctx: { collected: turn.collected, handlers: turn.handlers, state, finish } });
       },
       error: (error: unknown) => {
-        forgetRun({ turn });
-        const err = runStreamError({ error });
-        if (!startSettled) {
-          startSettled = true;
-          reject(err);
-          return;
-        }
         // Aborting BEFORE headers arrive rejects the underlying fetch() itself, surfacing here
         // rather than through `handleAgUiEvent`'s `code: "abort"` check (module doc). After a
         // durable acceptance a lost segment is not a failed run: the follower owns the outcome.
-        if (turn.agent.abortController.signal.aborted || turn.durable?.accepted) {
-          finish();
-          return;
-        }
-        // Error THEN finish: an errored Observable never calls `complete`, so without this the turn
-        // is never settled and the events collected before the failure never reach `onDone`. Same
-        // order as `subscribeToRun`'s `end` listener, so the run is still recorded as failed.
-        turn.handlers.onError(err);
-        finish();
+        finish(turn.agent.abortController.signal.aborted || turn.durable?.accepted ? undefined : runStreamError({ error }));
       },
       complete: () => {
         // An empty stream has no first notification to settle the start promise.
-        if (!startSettled) {
-          startSettled = true;
-          resolve({ runId: turn.runId });
-        }
-        finish();
+        finish(turn.agent.abortController.signal.aborted || turn.durable?.accepted ? undefined : new Error("The agent run stream ended before a terminal verdict; send the message again."));
       },
     });
   });
@@ -330,10 +357,16 @@ async function startRun(
   const agent = ports.createAgent({ url: ports.endpoint, threadId }, {});
   if (input.signal.aborted) throw new DOMException("Run cancelled", "AbortError");
   agents.set(runId, agent);
-  const abort = () => agent.abortRun();
-  input.signal.addEventListener("abort", abort, { once: true });
-
   const durable = ports.durableLocalCli && start ? durableTurn({ binding: ports.durableLocalCli, start, acceptedRuns, input }) : undefined;
+  const abort = () => {
+    agent.abortRun();
+    if (!durable?.accepted) return;
+    const entry = durable.accepted;
+    durable.cancelSignal?.removeEventListener("abort", durable.requestStop);
+    if (entry.cancel) void entry.cancel.finally(() => acceptedRuns.delete(entry.accepted.runId)).catch(() => undefined);
+    else acceptedRuns.delete(entry.accepted.runId);
+  };
+  input.signal.addEventListener("abort", abort, { once: true });
   const turn: AgUiRunTurn = { runId, agent, signal: input.signal, abort, handlers, collected: [], agents, settled: false, ...(durable ? { durable } : {}) };
   const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
   return subscribeRun({ turn, runAgentInput: requestBody({ input, runId, threadId, resume, durable }), state, ports });
@@ -355,7 +388,7 @@ function durableTurn(
   _optional: Record<string, never> = {},
 ): DurableTurn {
   const durable: DurableTurn = { binding, start, acceptedRuns, input, cancelSignal: input.cancelSignal, stopRequested: false, requestStop: () => requestDurableStop({ durable }) };
-  if (input.cancelSignal?.aborted) durable.stopRequested = true;
+  if (input.cancelSignal?.aborted) durable.requestStop();
   else input.cancelSignal?.addEventListener("abort", durable.requestStop, { once: true });
   return durable;
 }

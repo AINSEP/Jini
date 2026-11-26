@@ -7,9 +7,9 @@
  * of the same thread (fresh run id, the interrupted run as parent), and settles the turn once.
  *
  * Why the interrupt is read from the agent's own event stream (`observe`) rather than Jini's
- * `onLiveEvent` port: after a durable acceptance Jini drops every later segment frame before that
- * port is consulted (`ag-ui-transport.ts` `durableStartEvent`), because the checkpoint follower owns
- * the transcript. The interrupt is addressing data, not transcript, so it is tapped before that drop.
+ * `onLiveEvent` port: the tap also supplies the request and thread identity needed to address the
+ * interrupted segment, while the checkpoint follower owns the transcript. The interrupt is
+ * addressing data, not transcript, so it is tapped before that drop.
  *
  * Why-comments to keep: the pause is a one-use right to answer an already-running call; the
  * exchange id addresses a decision but cannot authenticate it (the server checks the owner from
@@ -50,7 +50,7 @@ export interface AgUiApprovalRelayPorts {
   isAccepted(required: { runId: string }, optional: Record<string, never>): boolean;
 }
 
-interface ParkedInterrupt { readonly interruptId: string; readonly parentRunId: string; readonly exchangeId: string; claimed: boolean }
+interface ParkedInterrupt { readonly interruptId: string; readonly parentRunId: string; readonly exchangeId: string; claimed: boolean; answer?: Promise<boolean> }
 
 interface LogicalTurn {
   readonly threadId: string;
@@ -170,7 +170,12 @@ export function createAgUiApprovalRelay({ ports }: { ports: AgUiApprovalRelayPor
   };
   const answer = async ({ exchangeId, allow }: { exchangeId: string; allow: boolean }, _optional: Record<string, never> = {}): Promise<boolean> => {
     const entry = exchanges.get(exchangeId);
-    return entry ? resumeParked({ entry, allow, resume: ports.resume, handlers: durable(entry.turn) ? DURABLE_RESUME_SINK : segmentHandlersFor({ turn: entry.turn, durable, settle }), refuse }) : false;
+    if (!entry) return false;
+    if (entry.parked.answer) return entry.parked.answer;
+    let resolveAnswer!: (sent: boolean) => void;
+    entry.parked.answer = new Promise(resolve => { resolveAnswer = resolve; });
+    void resumeParked({ entry, allow, resume: ports.resume, handlers: durable(entry.turn) ? DURABLE_RESUME_SINK : segmentHandlersFor({ turn: entry.turn, durable, settle }), refuse }).then(resolveAnswer);
+    return entry.parked.answer;
   };
   return {
     answersExchange: ({ exchangeId }) => exchanges.has(exchangeId),

@@ -20,6 +20,7 @@ export * from './util/index.js';
 export * from './transcript.js';
 export * from './run-activity.js';
 export * from './surface-expiry.js';
+export { SURFACE_EXCHANGE_META } from './surface-recovery.js';
 export * from './assistant-content.js';
 export * from './compact-events.js';
 /** Chat-pane capability manifest. Generic agent-control vocabulary, markup and projections are
