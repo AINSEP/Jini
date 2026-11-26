@@ -1,6 +1,4 @@
-import { expect, it } from "vitest";
-import { buildCredentialConnectionInput } from "@jini-ai/devops/deploy/react/rules";
-import { buildSourceControlConnectionInput } from "@jini-ai/devops/source-control/react/rules";
+import { expect, it, vi } from "vitest";
 import { buildAccessTokenUpdatePatch } from "../access-token-forms.js";
 
 /** Test-local copy of the host's `accessTokenWorksForChanged` rule (it lives in
@@ -12,7 +10,12 @@ function accessTokenWorksForChanged({ draft, saved = [] }: { draft: string[] | u
   return draft.length !== saved.length || draft.some(id => !savedIds.has(id));
 }
 
+/** The two connection builders are injected host deps (devops owns them; integrations must not depend on
+ *  devops — devops already depends on integrations). With no new token typed neither may run, so the test
+ *  supplies spies and asserts they stay untouched. */
 it("omits connection material when a replacement leaves the saved token blank", () => {
+  const buildCredentialConnectionInput = vi.fn();
+  const buildSourceControlConnectionInput = vi.fn();
   const patch = buildAccessTokenUpdatePatch({
     fields: { ref: { kind: "publish", providerId: "provider" }, name: "Renamed", token: "", values: {}, username: "" },
     nameChanged: true, hasToken: false,
@@ -22,4 +25,6 @@ it("omits connection material when a replacement leaves the saved token blank", 
   });
   expect(patch).toEqual({ label: "Renamed" });
   expect(patch).not.toHaveProperty("connection");
+  expect(buildCredentialConnectionInput).not.toHaveBeenCalled();
+  expect(buildSourceControlConnectionInput).not.toHaveBeenCalled();
 });
