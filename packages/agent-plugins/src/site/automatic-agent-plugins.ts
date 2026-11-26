@@ -1,4 +1,4 @@
-import { createAutomaticAgentPluginUse, readChatAgentPluginState, type AutomaticAgentPluginPorts, type ChatAgentPluginState, type ChatAgentPlugins } from '../lifecycle/index.js';
+import type { createAutomaticAgentPluginUse, readChatAgentPluginState, AutomaticAgentPluginPorts, ChatAgentPluginState, ChatAgentPlugins } from '../lifecycle/index.js';
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, optionalString, ToolInputError, type AgentToolDefinition, type Principal, type SurfaceEmitter, type ToolHandler } from '@jini-ai/core';
 import type { AgentPluginGuidanceAttempt, AgentPluginGuidanceOffer, PrepareToolGuidance } from '@jini-ai/core/contracts/site/daemon';
 import type { ChatDeleteSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-surface-exchanges';
@@ -7,6 +7,8 @@ import type { AgentPluginPreferencesPort } from './service-ports.js';
 import type { AgentPluginWorkspaceLayout } from '@jini-ai/core/contracts/headless/plugin-host';
 
 export interface AutomaticPluginDeps {
+  createAutomaticAgentPluginUse: typeof createAutomaticAgentPluginUse;
+  readChatAgentPluginState: typeof readChatAgentPluginState;
   workspaceId: string;
   preferences: Pick<AgentPluginPreferencesPort, 'mode' | 'snapshot' | 'saveAuto'>;
   siteTitleReady: Promise<void>;
@@ -127,7 +129,7 @@ export function bindAutomaticGuidanceResolver<Layout extends Pick<AgentPluginWor
     const maturities = new Map<string, PluginMaturity | undefined>();
     let approvedPreferenceRevisionSeq: number | undefined;
     let entry: Entry;
-    const controller = createAutomaticAgentPluginUse({ mode, state: readChatAgentPluginState({ value: context.state }), ports: {
+    const controller = deps.createAutomaticAgentPluginUse({ mode, state: deps.readChatAgentPluginState({ value: context.state }), ports: {
       formatPluginToolPointer: deps.formatPluginToolPointer,
       list: async () => {
         const candidates = await deps.list({});

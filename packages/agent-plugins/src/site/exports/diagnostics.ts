@@ -1,6 +1,6 @@
 /** Editor diagnostics; CMS deliberately exposes only public fallback. */
 import { ToolInputError } from "@jini-ai/core";
-import { validateAgentPluginExportProps } from "@jini-ai/agent-plugins/manifest";
+import { validateAgentPluginExportProps } from "../../core/export-props.js";
 import type { PluginExportPackage } from "./source.js";
 import type { AgentPluginExport } from "@jini-ai/core/contracts/site/agent-plugins-manifest";
 

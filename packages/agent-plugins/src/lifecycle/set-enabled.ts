@@ -1,6 +1,7 @@
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createPersistentStateModule } from './persistent-state.js';
-import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
+import { describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
+import { AgentPluginHostIncompatibleError } from '../core/host-incompatible-error.js';
 import { createActivationModule, type AgentPluginActivationVerdict } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";

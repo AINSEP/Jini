@@ -1,3 +1,4 @@
+import * as hostedMcp from "../../federation/hosted/index.js";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { ExternalMcpServerRecord } from '@jini-ai/core/contracts/hosted-mcp';
@@ -24,7 +25,7 @@ test('a changed connection after the card requires a new approval and performs n
       throw new Error('old approval reached the writer');
     },
   });
-  const deps = { workspaceId: 'ws', authorize: async () => ({ allowed: true }), clock: { nowMs: () => 0 },
+  const deps = { ...hostedMcp, workspaceId: 'ws', authorize: async () => ({ allowed: true }), clock: { nowMs: () => 0 },
     externalMcpServerRepo: { findByServerId: async () => { reads++; return record; } },
     catalog: createExternalMcpAgentToolCatalog({ copy: { settingsLocation: 'Settings', listToolName: 'external_mcp_list' } }),
     requireToolPermission: async () => {}, assertCredentialFreeField: () => {}, defineSecretCardTool,
@@ -54,7 +55,7 @@ test('access review never falls back to a raw remote endpoint', async () => {
     captured = description.details.find(detail => detail.label === 'Source target')?.value;
     return {};
   };
-  const routeDeps = { workspaceId: 'ws', authorize: async () => ({ allowed: true }),
+  const routeDeps = { ...hostedMcp, accessErrorCode: 'EXTERNAL_MCP', workspaceId: 'ws', authorize: async () => ({ allowed: true }),
     externalMcpServerRepo: { findByServerId: async () => record }, requireToolPermission: async () => {}, approvalToolHandler,
   } as unknown as ExternalMcpToolDeps;
   const handler = externalMcpAccessHandler({ routeDeps, surfaces: { surfaceExchanges: {} as never } });

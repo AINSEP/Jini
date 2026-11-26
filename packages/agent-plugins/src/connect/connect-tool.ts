@@ -57,17 +57,6 @@ const DEFAULT_POLL_INTERVAL_MS = 3000;
  *  the call parked beyond its own deadline. */
 const DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 
-/** "supabase" -> "Supabase", "higgsfield-media" -> "Higgsfield Media". There is no separate
- *  display-name field in `plugin.json` (agent-plugins.org has none) — `uninstall-confirmation-ui.ts`'s
- *  own dialog makes the identical choice, naming the plugin by its id. */
-export function titleCaseFromPluginId(required: { pluginId: string }, _optional: Record<string, never> = {}): string {
-  return required.pluginId
-    .split(/[-_]+/)
-    .filter((word) => word.length > 0)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 /** Only a remote server can carry `authMode` (`manifest.ts`); a stdio entry never needs a sign-in. */
 function isOAuthServer(config: McpServerConfig): config is RemoteMcpServerConfig {
   return config.type !== "stdio" && config.authMode === "oauth";

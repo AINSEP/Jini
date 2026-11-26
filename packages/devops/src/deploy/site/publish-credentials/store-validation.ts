@@ -1,7 +1,10 @@
 import { VaultError, type VaultSummary } from '@jini-ai/core/contracts/vault';
 import type { DeployTargetRegistry, DeployTargetCredentialSpec, DeployTargetFieldSpec } from '../deploy-targets/types.js';
 import type { PublishConnectionInput, PublishProviderId } from './types.js';
-import { PublishCredentialValidationError, type PublishCredentialReadDeps } from './store.js';
+import type { PublishCredentialReadDeps } from './store.js';
+
+/** Thrown for any caller-supplied value that fails shape validation — the route maps this to `400`. */
+export class PublishCredentialValidationError extends Error {}
 
 const MAX_LABEL_LENGTH = 200;
 

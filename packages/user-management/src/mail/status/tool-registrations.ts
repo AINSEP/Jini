@@ -1,5 +1,5 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/mail-status';
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { UserRepoPort } from "@jini-ai/core/contracts/site/user-management";
@@ -98,7 +98,7 @@ export interface MailStatusToolDeps {
   mailLaneReady?: MailTestSendDeps["mailLaneReady"];
   mailTestRequests?: MailTestSendDeps["mailTestRequests"];
 }
-export const mailStatusDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mailStatusDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> mailer.capabilities() only; the adapter may refresh configuration, but sends/writes nothing.
   ["system_get_mail_status", "none"],
   // -> mailProviderControl.select: one settings-ledger write of core.mail.provider.

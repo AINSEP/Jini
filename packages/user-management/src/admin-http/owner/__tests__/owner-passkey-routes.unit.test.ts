@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { ownerPasskeySite } from '../passkey-routes.js';
+import { ownerPasskeySite } from '../passkey-route-deps.js';
 
 it('uses the configured relying-party origin including its port', () => {
   const copy = { unavailable: 'unavailable', insecure: 'insecure' };
@@ -8,7 +8,7 @@ it('uses the configured relying-party origin including its port', () => {
 });
 
 it('sets no-store before refusals and admits management separately from login', async () => {
-  const { ownerPasskeyActionRoute } = await import('../passkey-routes.js');
+  const { ownerPasskeyActionRoute } = await import('../passkey-route-deps.js');
   for (const action of ['enroll', 'begin-login'] as const) {
     const order: string[] = [];
     const deps = { site: { origin: 'https://configured.example' }, mfa: { seededOwnerPrincipalId: 'owner' } } as Awaited<ReturnType<Parameters<typeof ownerPasskeyActionRoute>[0]['admission']['passkeyDeps']>>;

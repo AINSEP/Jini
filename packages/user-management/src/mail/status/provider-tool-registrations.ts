@@ -1,5 +1,5 @@
 import { toolMetadata } from "@jini-ai/core/tool-metadata/mail-status";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, ToolPermissionDeniedError as ForbiddenError, requireToolPermission } from "@jini-ai/core";
 import { describeErrorForLog, forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { ToolContributor } from "@jini-ai/core";
@@ -29,7 +29,7 @@ export interface MailProviderToolDeps {
   issueCredentialSetup: (required: { setupToolId: string; prefill: Readonly<Record<string, string>> }, optional: Record<string, never>) => ToolFailureDiagnostic;
 }
 
-export const mailProviderDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mailProviderDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> mailProviderControl.describe: one catalog load and one credential-row list; no decrypt.
   ["mail_list_providers", "none"],
   // -> the same read; the key itself is written later by credential_save's human form.

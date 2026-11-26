@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 
 import { buildZipFixture } from "../fixtures/build-zip.js";
 import { forceRemove } from "../fixtures/force-remove.js";
-import { AgentPluginInstallError } from "../../install.js";
+import { AgentPluginInstallError } from "../../../core/install-errors.js";
 import { createAgentPluginLifecycle, type InstallAgentPluginFromUrlRequired } from "../../index.js";
 import { ports, resolveAgentPluginLayout } from "../test-support.js";
 import { createYauzlAgentPluginArchiveReader, type YauzlPort } from "../../yauzl-archive-reader.js";

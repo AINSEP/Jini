@@ -8,7 +8,7 @@ import { type Translate } from '@jini-ai/core/text';
  * @file State for the Agent Plugins screen, so `AgentPlugins.tsx` is only markup — same split as
  * this directory's own `use-plugins.hooks.ts` (`Plugins.tsx`'s hook).
  *
- * REWRITTEN 2026-09-09: this hook used to return the static, checked-in `TOVU_BUNDLED_AGENT_PLUGINS`
+ * REWRITTEN 2026-09-09: this hook used to return the static, checked-in `BUNDLED_AGENT_PLUGINS`
  * constant with no I/O at all (the module's own prior header said so explicitly: "a port would be
  * ceremony with nothing to inject"). That premise is gone — `AGENT_PLUGINS_LIST`
  * (`server/inbound/admin-http/routes/agent-plugins/list.ts`) now exists, so this hook has a real

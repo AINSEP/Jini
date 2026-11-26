@@ -192,7 +192,7 @@ test("The streamed reader rejects growth and closes the checked descriptor.", as
     const { rootPath } = fixture(t);
     const target = path.join(rootPath, "clip.mov");
     fs.writeFileSync(target, Buffer.alloc(16, 7));
-    const filesystem = createNodeGuardedReaderFilesystem({});
+    const filesystem = { ...createNodeGuardedReaderFilesystem({}) };
     const fstat = filesystem.fstatSync!;
     const close = vi.spyOn(filesystem, "closeSync");
     vi.spyOn(filesystem as Required<typeof filesystem>, "fstatSync").mockImplementation(((fd: number) => {
@@ -212,12 +212,12 @@ test("The streamed reader rejects growth and closes the checked descriptor.", as
     assert.equal(close.mock.calls.length, 1);
 });
 
-for (const outcome of ["shrinkage", "early exit", "abort"] as const) {
+for (const outcome of ["success", "shrinkage", "early exit", "abort"] as const) {
     test(`streamed descriptor closes once after ${outcome}`, async (t) => {
         const { rootPath } = fixture(t);
         const target = path.join(rootPath, "clip.mov");
         fs.writeFileSync(target, Buffer.alloc(128 * 1024, 9));
-        const filesystem = createNodeGuardedReaderFilesystem({});
+        const filesystem = { ...createNodeGuardedReaderFilesystem({}) };
         const fstat = filesystem.fstatSync!;
         const close = vi.spyOn(filesystem, "closeSync");
         vi.spyOn(filesystem as Required<typeof filesystem>, "fstatSync").mockImplementation(((fd: number) => {
@@ -236,7 +236,7 @@ for (const outcome of ["shrinkage", "early exit", "abort"] as const) {
                 }
             },
         }, { signal: controller.signal });
-        if (outcome === "early exit") await pending;
+        if (outcome === "early exit" || outcome === "success") await pending;
         else await assert.rejects(() => pending);
         assert.equal(close.mock.calls.length, 1);
     });

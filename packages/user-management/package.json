@@ -13,6 +13,8 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./admin-http/owner/passkey-route-deps": "universal",
+      "./newsletter/tool-registrations.deps": "universal",
       "./identity/tool-registrations": "node",
       "./members/public-member-auth-response": "universal",
       "./members/public-member-response": "universal",
@@ -153,6 +155,7 @@
       "./identity/user-purge": "universal",
       "./project-keys/sql/attachments": "node",
       "./identity/sql/user-trash-adapter": "universal",
+      "./identity/sql/kernel-user-trash-store": "universal",
       "./admin-http/owner/passkey-routes": "node",
       "./react/auth/RecoveryCodesCard": "browser",
       "./mail/status/provider-operations": "universal",
@@ -211,6 +214,16 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./admin-http/owner/passkey-route-deps": {
+      "types": "./dist/admin-http/owner/passkey-route-deps.d.ts",
+      "import": "./dist/admin-http/owner/passkey-route-deps.js",
+      "default": "./dist/admin-http/owner/passkey-route-deps.js"
+    },
+    "./newsletter/tool-registrations.deps": {
+      "types": "./dist/newsletter/tool-registrations.deps.d.ts",
+      "import": "./dist/newsletter/tool-registrations.deps.js",
+      "default": "./dist/newsletter/tool-registrations.deps.js"
+    },
     "./identity/tool-registrations": {
       "types": "./dist/identity/tool-registrations.d.ts",
       "import": "./dist/identity/tool-registrations.js",
@@ -905,6 +918,11 @@
       "types": "./dist/project-keys/sql/attachments.d.ts",
       "import": "./dist/project-keys/sql/attachments.js",
       "default": "./dist/project-keys/sql/attachments.js"
+    },
+    "./identity/sql/kernel-user-trash-store": {
+      "types": "./dist/identity/sql/kernel-user-trash-store.d.ts",
+      "import": "./dist/identity/sql/kernel-user-trash-store.js",
+      "default": "./dist/identity/sql/kernel-user-trash-store.js"
     },
     "./identity/sql/user-trash-adapter": {
       "types": "./dist/identity/sql/user-trash-adapter.d.ts",

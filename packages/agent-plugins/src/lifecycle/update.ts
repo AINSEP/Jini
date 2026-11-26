@@ -7,9 +7,11 @@ import { createResolveAgentPluginRefsModule } from './resolve-agent-plugin-refs.
 import { createPersistentStateModule } from './persistent-state.js';
 import { createInstalledPackageIndex } from './installed-package-index.js';
 import { provisionAgentPluginMcp } from './mcp-provisioning.js';
-import { planAgentPluginUpdate, type AgentPluginUpdatePlan } from './update-plan.js';
-import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
-import { AgentPluginUpdateError, createAgentPluginUpdateStore, isMissing, settleAgentPluginUpdateJournal, type AgentPluginUpdateJournal } from './update-store.js';
+import { planAgentPluginUpdate, type AgentPluginUpdatePlan } from '../core/update-plan.js';
+import { describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
+import { AgentPluginHostIncompatibleError } from '../core/host-incompatible-error.js';
+import { createAgentPluginUpdateStore, isMissing, settleAgentPluginUpdateJournal, type AgentPluginUpdateJournal } from './update-store.js';
+import { AgentPluginUpdateError } from '../core/update-error.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
 import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 

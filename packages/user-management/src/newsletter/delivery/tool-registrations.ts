@@ -5,7 +5,7 @@ import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
  * Subscriber delivery uses browser-only confirmation; test recipients resolve from the owner profile.
  */
 import { ToolInputError, type ToolHandler } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import type { UserRepoPort } from "@jini-ai/core/contracts/site/user-management";
 import type { ToolContributor } from "@jini-ai/core";
@@ -22,7 +22,8 @@ import type { CampaignRecord } from "@jini-ai/user-management/newsletter/types";
 import { NewsletterCampaignNotEditableError, NewsletterCampaignNotFoundError, NewsletterLaunchGateBlockedError, NewsletterValidationError } from "@jini-ai/user-management/newsletter/errors";
 import { evaluateLaunchGate } from "@jini-ai/user-management/newsletter/launch-gate";
 import { authorizeSend, claimBatch, completeIfDrained, freezeAudience, resumeCampaign, sendTestCampaign } from "@jini-ai/user-management/newsletter/send-pipeline";
-import { toNewsletterSendPipelineDeps, type NewsletterToolDeps } from "../tool-registrations.js";
+import type { NewsletterToolDeps } from "../tool-registrations.js";
+import { toNewsletterSendPipelineDeps } from "../tool-registrations.deps.js";
 
 const MUTATES_DURABLE_STATE = "mutates-durable-state" as const;
 
@@ -76,7 +77,7 @@ export const newsletterDeliveryAgentToolCatalog: AgentToolDefinition[] = [
   },
 ];
 
-export const newsletterDeliveryDerivedRisk: DerivedRiskByToolId = new Map([
+export const newsletterDeliveryDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // sendTestCampaign -> mailer.send (externally visible mail, provider dedup state).
   ["newsletter_send_test", MUTATES_DURABLE_STATE],
   // authorizeSend -> campaign/revision writes; freezeAudience -> snapshot/send/outbox writes; claimBatch -> mail.

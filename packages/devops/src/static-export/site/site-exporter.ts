@@ -25,6 +25,7 @@ export interface ExportSiteRouteDeps {
   readonly cookieConsent?: SiteCookieConsentDeps;
   readonly createSiteApp: (optional?: { themeId?: string }) => RequestListener;
   readonly observability: ObservabilityPort;
+  readonly fetch: typeof globalThis.fetch;
   readonly trackFetch: (required: { fetch: typeof globalThis.fetch; observability: ObservabilityPort }) => typeof globalThis.fetch;
   readonly preflightCopy: ExportPreflightCopy;
   readonly buildPreviewExportManifest: (required: { routeDeps: ExportSiteRouteDeps & { resolveActiveThemeId?: () => Promise<string> } }, optional: Pick<ExportSiteOptions, "includeThemePreviews">) => Promise<{ manifest: RouteManifest; themeCount: number }>;
@@ -102,7 +103,7 @@ async function resolveExportIdentity({ routeDeps, publicUrl }: Pick<ExportSiteOp
 
 /** Compose the real CMS manifest/theme/security policy with Jini's export engine. */
 export async function exportHostSite({ routeDeps, outputDir, clean, basePath, includeThemePreviews, themeId, publicUrl }: ExportSiteOptions, _options = {}) {
-  const tracedFetch = routeDeps.trackFetch({ fetch: (input, init) => fetch(input, init), observability: routeDeps.observability });
+  const tracedFetch = routeDeps.trackFetch({ fetch: (input, init) => routeDeps.fetch(input, init), observability: routeDeps.observability });
   const { manifest, themeCount } = await exportManifestForTheme({ routeDeps }, { themeId, includeThemePreviews });
   const { publicOrigin, publicBaseUrl, sourceOrigin } = await resolveExportIdentity({ routeDeps, publicUrl });
   // The resolved destination owns its prefix: custom domains and user Pages sites can be at root.

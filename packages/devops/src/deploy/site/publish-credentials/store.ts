@@ -1,5 +1,6 @@
-import { validatedWorksFor, updatedWorksFor, validateLabel, optionalBoolean, validateConnection, connectionCredentialSpec, isSecretField, preservedMove, type ValidatedConnection } from './store-validation.js';
-import { decryptRecord, ownerOf, type PublishCredentialResolveDeps } from './store-resolution.js';
+import { PublishCredentialValidationError, validatedWorksFor, updatedWorksFor, validateLabel, optionalBoolean, validateConnection, connectionCredentialSpec, isSecretField, preservedMove, type ValidatedConnection } from './store-validation.js';
+import type { PublishCredentialResolveDeps } from './store-resolution.js';
+import { ownerOf } from './store-owner.js';
 import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
 
 import { isUniqueViolation } from "@jini-ai/core/contracts/storage";
@@ -18,9 +19,6 @@ import type { PublishConnectionInput, PublishCredentialScope, PublishCredentialS
  * are shared with an agent-facing caller, so provider probes stay in the human-gated verify path.
  * Migration 0012 folds legacy rows once; there is no recurring backfill to resurrect deletions. */
 
-
-/** Thrown for any caller-supplied value that fails shape validation — the route maps this to `400`. */
-export class PublishCredentialValidationError extends Error {}
 
 /** A `(workspaceId, vendor, label)` collision — the route maps this to `409 DUPLICATE_LABEL`. */
 export class PublishCredentialDuplicateLabelError extends Error {}
@@ -468,3 +466,15 @@ export async function healAccountLabel(deps: { repo: VendorCredentialSetRepoPort
   const owner = await ownerOf(deps.repo, input);
   await owner.repo.updateAccountLabel({ ...input, workspaceId: owner.workspaceId });
 }
+
+/** Jini checks exact ownership before opening. Keep the typed error used by HTTP and daemon
+ * boundaries: a missing key must not become an unhandled rejection in a publishing process. */
+export async function decryptRecord({ deps, record, providerId }: { deps: PublishCredentialResolveDeps; record: VendorCredentialSetRecord; providerId: PublishProviderId }, _options = {}): Promise<PublishConnectionInput> {
+  try {
+    const resolved = await vault(deps).get({ ...bound(deps).scope({ workspaceId: record.workspaceId, kind: "vendor" }), id: record.id });
+    if (!resolved?.payload) throw new PublishCredentialSecretStoreUnconfiguredError(deps.storageMessage);
+    const { vendorId: _vendorId, ...fields } = resolved.payload as Record<string, string>;
+    return { ...fields, providerId };
+  } catch { throw new PublishCredentialSecretStoreUnconfiguredError(deps.storageMessage); }
+}
+

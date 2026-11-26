@@ -1,7 +1,7 @@
 import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 /** Read-side owner of installed package metadata; never constructs a mutation lifecycle. */
 import path from "node:path";
-import { AgentPluginInstallError } from "./install-errors.js";
+import { AgentPluginInstallError } from "../core/install-errors.js";
 import { parseAgentPluginManifest as parseAgentPluginManifestValue, type AgentPluginManifest } from "./manifest.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";

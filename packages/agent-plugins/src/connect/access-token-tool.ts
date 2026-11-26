@@ -13,7 +13,7 @@ import {
   buildAgentPluginAccessTokenFormWithPorts, buildAgentPluginAccessTokenOutcomeWithPorts, resolveAgentPluginCardIdentity,
   type AgentPluginAccessTokenFormMessages, type AgentPluginCardIdentity,
 } from "./connect-card-ui.js";
-import { titleCaseFromPluginId } from "./connect-tool.js";
+import { titleCaseFromPluginId } from "../core/plugin-display-name.js";
 import type { ResolvedAgentPluginForConnect } from "./installed-plugin.js";
 
 /**

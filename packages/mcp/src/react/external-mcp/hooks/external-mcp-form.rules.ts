@@ -4,18 +4,18 @@ type SourceConfigItem = Awaited<ReturnType<ExternalMcpController["dependencies"]
 
 /**
  * @file The real transport behind Settings → External MCP, replacing the empty in-memory fake that
- * tab mounted while Tovu had no config store.
+ * tab mounted while the host had no config store.
  *
  * ## Why field rendering is NOT driven by a fixed `SourceFieldSpec[]` here anymore
  *
- * Earlier versions of this file exported a single static `TOVU_MCP_FIELD_SPECS` array and Tovu
+ * Earlier versions of this file exported a single static `MCP_FIELD_SPECS` array and the host
  * mounted `@jini-ai/ui`'s assembled `ExternalMcpTab` directly against it. That stopped being viable
  * once a server could be `stdio` OR `streamable_http`, with credentials `none`/`static_env`/`oauth`:
  * a static spec list has no way to hide `url`/`command` or the OAuth block depending on what the
  * operator is currently choosing, and showing every field for every combination unconditionally is
  * exactly the "here are all the fields, figure out which apply" experience this tab exists to avoid.
  * `../rules.ts`'s `buildExternalMcpFieldSpecs(values)` now computes the visible/required field set
- * from the draft's current values, and `../components/ExternalMcpSettingsPanel.tsx` — Tovu's own
+ * from the draft's current values, and `../components/ExternalMcpSettingsPanel.tsx` — the host's own
  * replacement for `ExternalMcpTab` — recomputes it live as the operator types. This hook stays
  * unchanged in shape (still a `SourceConfigDependencies` port), it just no longer also hands back one
  * frozen spec list.

@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolExecutionContext, type ToolContributor } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, type ToolExecutionContext, type ToolContributor } from "@jini-ai/core";
 import { withModelFacingErrors, type ModelFacingErrorRule } from "@jini-ai/core/model-facing-tool-errors";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
@@ -117,7 +117,7 @@ export function createSiteBackupCatalog(required: { importDescription: string; c
 }
 
 /** This wiring layer's own risk classification, cross-checked against the catalog's `sideEffects`. */
-export const siteBackupDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const siteBackupDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   ["site_import_backup", MUTATES_DURABLE_STATE],
   ["site_import_list", "none"],
   // -> a non-decrypting credential list, one decrypting resolve, four read-only host GETs, a

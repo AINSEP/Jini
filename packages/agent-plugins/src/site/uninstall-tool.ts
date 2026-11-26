@@ -3,7 +3,8 @@ import { requireToolPermission } from "@jini-ai/core";
 import { ToolInputError, type ToolExecutionOptions, type ToolExecutionContext, type ToolHandler } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 
-import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError, AgentPluginUpdateError } from "../lifecycle/index.js";
+import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError} from "../lifecycle/index.js";
+import { AgentPluginUpdateError } from "../core/update-error.js";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 import {
   AgentPluginChangedSincePreviewError,

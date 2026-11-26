@@ -3,7 +3,8 @@ import { test, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import type { AgentPluginUninstallPreview } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
-import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError, AgentPluginUpdateError } from "../../lifecycle/index.js";
+import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError} from "../../lifecycle/index.js";
+import { AgentPluginUpdateError } from "../../core/update-error.js";
 import { runAgentPluginUninstall, type AgentPluginUninstallHost, type AgentPluginUninstallToolDeps } from "../uninstall-tool.js";
 
 /** The host's copy: the engine names no product or host tool in a note, so every one comes from here. */

@@ -2,7 +2,7 @@ import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.
 /** Chat customization reuses Jini's package fork and the admin upload preview/install owner. */
 import { requireInputRecord, requireString, ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 import type { AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
-import { FolderZipError } from "@jini-ai/agent-plugins/folder-zip";
+import { FolderZipError } from "../core/folder-zip-error.js";
 import { zipCustomizedAgentPluginFolder } from "@jini-ai/agent-plugins/folder-zip/node";
 
 /** The install tool's deps this fork reads: the site layout and the bound workspace. */

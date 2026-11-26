@@ -11,7 +11,8 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { FOLDER_MAX_FILES, FolderZipError, zipFolderFiles } from '../folder-zip.js';
+import { FOLDER_MAX_FILES, zipFolderFiles } from '../folder-zip.js';
+import { FolderZipError } from '../core/folder-zip-error.js';
 import { zipLocalFolder } from '../folder-zip-node.js';
 import { isMcpManifest } from '../manifest.js';
 

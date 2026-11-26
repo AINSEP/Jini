@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
-import { followProviderActivations, linkedProviderOf, syncProviderFaces, type ProviderFacePorts } from "../provider-plugin-link.js";
+import { followProviderActivations, syncProviderFaces, type ProviderFacePorts } from "../provider-plugin-link.js";
+import { linkedProviderOf } from "../../core/provider-plugin-link.js";
 
 const WS = "11111111-1111-4111-8111-111111111111";
 const row = (pluginId: string, enabled: boolean, workspaceId = WS) => ({ pluginId, workspaceId, version: "1.0.0", enabled, updatedAt: "2026-10-25T00:00:00.000Z" });

@@ -1,3 +1,4 @@
+import { PublishCredentialValidationError } from './publish-credentials/store-validation.js';
 import { deployTargetsLoader, requireStaticPublishTarget } from './publish-tool-execution.js';
 import { ToolInputError, requireInputRecord, type ToolHandler, type ToolRegistration } from '@jini-ai/core';
 import { adaptLegacyAuthorize } from '@jini-ai/core';
@@ -7,7 +8,7 @@ import type { AssistantSurfaceDeps } from '@jini-ai/core/contracts/site/daemon-s
 import type { SecretCardField, SecretCardForm } from '@jini-ai/core/contracts/cards';
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { DeployTargetCredentialSpec, DeployTargetDescriptor, DeployTargetRegistry } from './deploy-targets/types.js';
-import { PublishCredentialDuplicateLabelError, PublishCredentialValidationError, listPublishCredentials, createPublishCredential, updatePublishCredential, type PublishCredentialWriteDeps } from './publish-credentials/store.js';
+import { PublishCredentialDuplicateLabelError, listPublishCredentials, createPublishCredential, updatePublishCredential, type PublishCredentialWriteDeps } from './publish-credentials/store.js';
 import { verifyPublishCredentialById, verifySubmittedPublishCredential } from './static-publish/verify.js';
 
 const SITE_PUBLISH_ENTITY = "site-publish";

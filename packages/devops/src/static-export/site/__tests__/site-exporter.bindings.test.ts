@@ -22,6 +22,7 @@ function fixture() {
   const buildPreviewExportManifest = vi.fn(async (_required: Parameters<ExportSiteRouteDeps["buildPreviewExportManifest"]>[0], _optional: Parameters<ExportSiteRouteDeps["buildPreviewExportManifest"]>[1]) => ({ manifest: { routes: [], skipped: [], activeTheme: { id: "active" } }, themeCount: 1 }));
   const routeDeps = { workspaceId: "site", clock: { nowIso: () => "now" },
     originRegistry: { canonicalOrigin: async () => { throw new Error("none"); } },
+    fetch: globalThis.fetch,
     trackFetch: ({ fetch }: { fetch: typeof globalThis.fetch }) => fetch,
     createSiteApp: vi.fn(() => () => {}), buildPreviewExportManifest,
     cookieConsent: { exportAssets: async () => ["/_consent/runtime.js"] },

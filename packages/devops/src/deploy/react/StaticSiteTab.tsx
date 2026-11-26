@@ -20,12 +20,12 @@ import { StaticPublishForm } from "./StaticPublishForm.js";
  * The second pass's own header traced a grep (`runExportCommand|exportSite\b` against
  * `src/server/routes`) that returned nothing, and concluded the build button had to stay inert. That
  * grep is now stale for a second time, the same way it was corrected once already: a concurrent
- * agent landed `apps/website/src/server/inbound/admin-http/routes/system/export-site.ts` (`POST`/`GET .../system/export`,
- * trigger+poll, `system.export`-gated) the same session, registered in `apps/website/src/server/runtime/composition/app.ts`, tested in
+ * agent landed `the host system routes/export-site.ts` (`POST`/`GET .../system/export`,
+ * trigger+poll, `system.export`-gated) the same session, registered in `the host composition root`, tested in
  * `export-site-route.test.ts`. The build button below now calls it for real, through
  * `useWiredStaticExport` (`hooks/use-static-export.hooks.ts`).
  *
- * The publish half tells the same story a second time over: `apps/website/src/server/inbound/admin-http/routes/system/
+ * The publish half tells the same story a second time over: `the host system routes/
  * publish-site.ts` (preview + trigger + poll, wrapping `features/deployments/static-publish/`) also
  * landed the same session, cookie-authed — a HUMAN clicking Publish in this admin, not the AI
  * assistant (`deployment_execute_static_publish`, the agent-tool half of this same feature, stays

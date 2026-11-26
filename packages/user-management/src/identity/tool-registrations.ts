@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { ChatDeleteSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import { toolMetadata } from '@jini-ai/core/tool-metadata/identity';
 import { withToolMetadata } from '@jini-ai/core';
-import { type assertUserAccountAction, SelfDeleteError } from "@jini-ai/user-management/identity/delete-user-service";
+import type { assertUserAccountAction, SelfDeleteError } from "@jini-ai/user-management/identity/delete-user-service";
 import { IdentityConflictError, OwnerRequiredError } from "@jini-ai/user-management";
 /**
  * @file Identity tools built by Jini, with host human-confirmation and password-entry adapters.
@@ -15,8 +15,8 @@ import { IdentityConflictError, OwnerRequiredError } from "@jini-ai/user-managem
  * importing this feature must not register them or create an assistant runtime cycle.
  */
 import type { ToolContributor } from "@jini-ai/core";
-import { buildIdentityRegistrations, identityDerivedRisk, type IdentityToolDeps as BaseIdentityToolDeps } from "../server/agent-tool-registrations.js";
-import { type assertCallerHasAnyPermission, normalizeUsername, parseIdentityToolInput } from "../server/index.js";
+import type { buildIdentityRegistrations, identityDerivedRisk, IdentityToolDeps as BaseIdentityToolDeps } from "../server/agent-tool-registrations.js";
+import type { assertCallerHasAnyPermission, normalizeUsername, parseIdentityToolInput } from "../server/index.js";
 import { ToolInputError, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { SurfaceCardsPort, SurfaceCardSecretRun as SecretCardRun, SurfaceCardSecretOptions, SurfaceCardSecretDeps } from '@jini-ai/core/contracts/cards';
@@ -24,7 +24,7 @@ import type { HumanConfirmSpec } from '@jini-ai/core/contracts/site/human-confir
 import type { ToolExecutionContext, ToolExecutionOptions, HumanConfirmer } from '@jini-ai/core';
 import type { SecretCardForm } from "@jini-ai/core/contracts/cards";
 import type { SurfaceOutcomeSpec } from "@jini-ai/core/contracts/cards";
-import { createUsernameChangePort } from "@jini-ai/user-management/identity/username-change-ports";
+import type { createUsernameChangePort } from "@jini-ai/user-management/identity/username-change-ports";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
 
 
@@ -32,6 +32,12 @@ import type { OutboxPort } from "@jini-ai/core/contracts/events";
 /** The host keeps its ISO clock ABI at this adapter; shared service/rationale live in user-management/server. */
 export type IdentityToolDeps = Omit<BaseIdentityToolDeps, "clock"> & {
   clock: Clock | { nowIso(): string };
+  buildIdentityRegistrations: typeof buildIdentityRegistrations;
+  identityDerivedRisk: typeof identityDerivedRisk;
+  normalizeUsername: typeof normalizeUsername;
+  parseIdentityToolInput: typeof parseIdentityToolInput;
+  createUsernameChangePort: typeof createUsernameChangePort;
+  SelfDeleteError: typeof SelfDeleteError;
   outbox: OutboxPort;
   isInTrash: (required: { principalId: string }, optional?: Record<string, never>) => Promise<boolean>;
   assertUserAccountAction: typeof assertUserAccountAction;
@@ -62,7 +68,7 @@ export const USER_CREATE_DESCRIPTION_SUFFIX =
  * Validates `input` against the tool's published schema BEFORE any dialog is drawn, with the same
  * schema-bearing message Jini's own handlers give, so a malformed call never reaches the human.
  */
-function validated({ toolId, schema, input }: { toolId: string; schema: unknown; input: unknown }, _options = {}): Readonly<Record<string, string>> {
+function validated({ toolId, schema, input, parseIdentityToolInput }: { toolId: string; schema: unknown; input: unknown; parseIdentityToolInput: IdentityToolDeps["parseIdentityToolInput"] }, _options = {}): Readonly<Record<string, string>> {
   const parsed = parseIdentityToolInput({ schema: schema as Record<string, unknown>, input });
   if (!parsed.ok) {
     throw new ToolInputError({ message: `${parsed.error.message}. Fix the input and retry — this will not resolve on retry without an input change. ` +
@@ -147,7 +153,7 @@ function createConfirmedIdentityDelete({ routeDeps, surfaces, identity, deleteRe
     ...registration,
     handler: routeDeps.approvalToolHandler({ surfaces,
       prepare: async ({ ctx }) => {
-        const input = validated({ toolId: registration.descriptor.id, schema: registration.descriptor.inputSchema, input: ctx.input });
+        const input = validated({ parseIdentityToolInput: routeDeps.parseIdentityToolInput, toolId: registration.descriptor.id, schema: registration.descriptor.inputSchema, input: ctx.input });
         await routeDeps.assertCallerHasAnyPermission({ deps: identity, workspaceId: routeDeps.workspaceId,
           // Jini owns both role and policy deletion under role.manage.
           callerPrincipalId: ctx.principal.id, permissions: ["role.manage"] });
@@ -183,7 +189,7 @@ function createHumanPasswordUserHandler({ routeDeps, surfaces, identity }: { rou
       throw new ToolInputError({ message: `IDENTITY_PASSWORD_NOT_ACCEPTED: ${USER_CREATE_TOOL_ID}: do not pass a password. The user types the new ` +
           "user's first password into the form this tool shows. Nothing was created." });
     }
-    const input = validated({ toolId: USER_CREATE_TOOL_ID, schema: publishedSchema, input: ctx.input });
+    const input = validated({ parseIdentityToolInput: routeDeps.parseIdentityToolInput, toolId: USER_CREATE_TOOL_ID, schema: publishedSchema, input: ctx.input });
     const username = input["username"];
     if (username === undefined) throw new ToolInputError({ message: `${USER_CREATE_TOOL_ID}: username is missing. Nothing was created.` });
     const emailSuffix = input["email"] ? ` (${input["email"]})` : "";
@@ -208,7 +214,7 @@ function createHumanPasswordUserHandler({ routeDeps, surfaces, identity }: { rou
     }, {
       ...routeDeps.secretCardOptions,
       // Rebuild the known conflict from public input; hasher/repository exceptions can contain the password.
-      safeError: error => error instanceof IdentityConflictError ? `username '${normalizeUsername({ raw: username })}' is already in use` : undefined,
+      safeError: error => error instanceof IdentityConflictError ? `username '${routeDeps.normalizeUsername({ raw: username })}' is already in use` : undefined,
     });
     const result = await card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: routeDeps.askThenReport })(ctx, options);
     // Preserve the domain's rejection contract after the engine has delivered the safe failure card.
@@ -223,7 +229,7 @@ function gateAccountActionTool({ registration, routeDeps, identity, action }: { 
   identity: Parameters<typeof assertUserAccountAction>[0]['deps']; action: "disable" | "enable" }, _optional = {}): ToolRegistration {
   const toolId = registration.descriptor.id;
   return { ...registration, handler: async (ctx, options = {}) => {
-    const input = validated({ toolId, schema: registration.descriptor.inputSchema, input: ctx.input });
+    const input = validated({ parseIdentityToolInput: routeDeps.parseIdentityToolInput, toolId, schema: registration.descriptor.inputSchema, input: ctx.input });
     const principalId = input["principalId"];
     if (principalId === undefined) throw new ToolInputError({ message: `${toolId}: principal ID is missing. Nothing was changed.` });
     try {
@@ -233,8 +239,8 @@ function gateAccountActionTool({ registration, routeDeps, identity, action }: { 
         return registration.handler(ctx, options);
       } });
     } catch (error) {
-      if (error instanceof SelfDeleteError || error instanceof OwnerRequiredError) {
-        const code = error instanceof SelfDeleteError ? "SELF_DELETE" : "OWNER_REQUIRED";
+      if (error instanceof routeDeps.SelfDeleteError || error instanceof OwnerRequiredError) {
+        const code = error instanceof routeDeps.SelfDeleteError ? "SELF_DELETE" : "OWNER_REQUIRED";
         throw new ToolInputError({ message: `${toolId}: ${code}: ${error.message}. Nothing was changed.` });
       }
       throw error;
@@ -292,13 +298,13 @@ export function buildGatedIdentityRegistrations(
       principalRoles: routeDeps.principalRoleRepo, principalPolicies: routeDeps.principalPolicyRepo },
     hasher: routeDeps.passwordHasher, clock, idGen: routeDeps.idGen, tokens: routeDeps.tokens,
   };
-  const usernameChanges = createUsernameChangePort({ outbox: routeDeps.outbox, isInTrash: routeDeps.isInTrash, idGen: routeDeps.idGen,
+  const usernameChanges = routeDeps.createUsernameChangePort({ outbox: routeDeps.outbox, isInTrash: routeDeps.isInTrash, idGen: routeDeps.idGen,
     seededOwnerPrincipalId: routeDeps.ownerPrincipalId });
   const deleteReferences = createIdentityDeleteReferences(routeDeps);
   const confirmedDelete = createConfirmedIdentityDelete({ routeDeps, surfaces, identity, deleteReferences });
   const createUserWithHumanPassword = createHumanPasswordUserHandler({ routeDeps, surfaces, identity });
 
-  return withToolMetadata({ registrations: buildIdentityRegistrations({ ...routeDeps, clock, usernameChanges }), metadata: toolMetadata }).map(registration => gateIdentityRegistration(registration, { routeDeps, identity, confirmedDelete, createUserWithHumanPassword }));
+  return withToolMetadata({ registrations: routeDeps.buildIdentityRegistrations({ ...routeDeps, clock, usernameChanges }), metadata: toolMetadata }).map(registration => gateIdentityRegistration(registration, { routeDeps, identity, confirmedDelete, createUserWithHumanPassword }));
 }
 
 /**
@@ -307,6 +313,6 @@ export function buildGatedIdentityRegistrations(
  * module. `assistant/tool-registrations.ts` no longer imports `buildIdentityRegistrations`/
  * `identityDerivedRisk` by name; this is the seam that replaced it.
  */
-export function contributeIdentityTools(): ToolContributor<IdentityToolDeps, ChatDeleteSurfaceDeps> {
-  return { domain: "identity", build: buildGatedIdentityRegistrations, risk: identityDerivedRisk };
+export function contributeIdentityTools(required: Pick<IdentityToolDeps, 'identityDerivedRisk'>, _optional = {}): ToolContributor<IdentityToolDeps, ChatDeleteSurfaceDeps> {
+  return { domain: "identity", build: buildGatedIdentityRegistrations, risk: required.identityDerivedRisk };
 }

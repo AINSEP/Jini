@@ -3,7 +3,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/source-control';
 import { normalizeRepositoryFolder, prefixRepositoryPath } from "../repository-path.js";
 import { type Clock } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
-import { buildDomainRegistrations, optionalBoolean, requireInputRecord, requireNoInput, requireString, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, optionalBoolean, requireInputRecord, requireNoInput, requireString, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 // `ToolInputError` specifically — see `features/post/tool-registrations.ts`'s identical import
 // for why: the marker `@jini-ai/daemon`'s `ToolExecutor` reads to classify a rejection 400 rather
@@ -165,7 +165,7 @@ async function resolveSavedApiKey({ deps, workspaceId, providerId }: {
  * This wiring layer's OWN risk classification, independent of the catalog's `sideEffects` declaration
  * (`@jini-ai/cms/core`'s `assertToolIsWirable` cross-checks the two).
  */
-export const sourceControlDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const sourceControlDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> source-control inventory plus declared saved API-key metadata. No decrypt, no network call.
   ["source_control_get_capabilities", "none"],
   // -> proposeSourceControlCredential -> createSourceControlCredential: seals and inserts a saved connection after human submit.

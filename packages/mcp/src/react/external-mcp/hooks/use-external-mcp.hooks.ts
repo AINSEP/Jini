@@ -24,15 +24,6 @@ export interface ExternalMcpPort {
 
 type SourceConfigItem = Awaited<ReturnType<ExternalMcpController["dependencies"]["port"]["fetchSources"]>>[number];
 
-export async function checkSavedServer({ item, server, locale, port, deps }: { item: SourceConfigItem; server: AdminExternalMcpServer; locale: string; port: ExternalMcpPort; deps: Parameters<typeof useExternalMcp>[0]["deps"] }): Promise<SourceConfigItem> {
-  let message = deps.credentialText({ id: 'saved', locale });
-  if (server.transport !== 'stdio' && server.enabled) {
-    try { await port.probeExternalMcpServer({ serverId: server.serverId }); message = deps.credentialText({ id: 'connected', locale }); }
-    catch (err) { message = deps.translateCredentialMessage({ message: deps.describeApiError({ e: err, fallback: deps.credentialText({ id: 'unreachable', locale }) }), locale }); }
-  }
-  return { ...item, statusMessage: [item.statusMessage, message].filter(Boolean).join(' · ') };
-}
-
 export function useExternalMcp({ hooks, deps }: {
   hooks: {
     useAdminLocaleHook: () => string;

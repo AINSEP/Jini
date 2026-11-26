@@ -39,7 +39,8 @@ import type { NotifyToolAccessChanged } from '@jini-ai/core/tool-access-change';
 
 import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
 import type { SetAgentPluginEnabledResult } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
-import { linkedProviderOf, type ProviderFacePorts } from "@jini-ai/agent-plugins/site/provider-plugin-link";
+import type { ProviderFacePorts } from "@jini-ai/agent-plugins/site/provider-plugin-link";
+import { linkedProviderOf } from "../core/provider-plugin-link.js";
 import type { SetAgentPluginEnabledInput } from '@jini-ai/core/contracts/headless/plugin-host';
 
 /**

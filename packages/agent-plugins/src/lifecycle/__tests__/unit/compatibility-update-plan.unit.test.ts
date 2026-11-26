@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import { parseAgentPluginManifest } from '../../manifest.js';
 import {
-  AGENT_PLUGIN_CONTRACT_VERSION, INVALID_AGENT_PLUGIN_HOST_RANGE, AgentPluginHostIncompatibleError, agentPluginDependentWarnings,
+  AGENT_PLUGIN_CONTRACT_VERSION, INVALID_AGENT_PLUGIN_HOST_RANGE, agentPluginDependentWarnings,
   checkAgentPluginCompatibility, describeAgentPluginCompatibility, isValidAgentPluginHostRange, readAgentPluginCompatibilityMetadata,
 } from '../../compatibility.js';
-import { planAgentPluginUpdate } from '../../update-plan.js';
+import { AgentPluginHostIncompatibleError } from '../../../core/host-incompatible-error.js';
+import { planAgentPluginUpdate } from '../../../core/update-plan.js';
 import type { AgentPluginActivations } from '../../activation.js';
 import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 

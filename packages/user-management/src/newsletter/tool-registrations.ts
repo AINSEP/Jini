@@ -12,7 +12,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/newsletter';
  * the kit's `requireToolPermission` — ADR-021 §2's single evaluation, located where the real route
  * locates it.
  */
-import { buildDomainRegistrations, indexCatalogById, resolveHostReadRefs, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, resolveHostReadRefs, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 
 import { type AuthorizeFn, type EventBusPort, type OutboxPort } from "@jini-ai/core/contracts/events";
 import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mail";
@@ -79,21 +79,14 @@ export interface NewsletterToolDeps {
   mailSenderIdentity?: MailSenderIdentityPort;
 }
 
-/**
- * Assembles `send-pipeline.ts`'s deps bundle — the local twin of `toCampaignWriteServiceDeps` above.
- * The optional launch-setting binding defaults to false, preserving the admin routes' existing
- * fail-closed behavior. Runtime composition still has no sending toggle or consent binding.
- */
-export function toNewsletterSendPipelineDeps(deps: NewsletterToolDeps, _optional: Record<string, never> = {}): SendPipelineDeps {
-  return deps.buildSendPipelineDeps({ deps, isSendingEnabled: deps.newsletterSendingEnabled ?? (async () => false) });
-}
+
 
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const newsletterDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const newsletterDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> newsletterCampaignRepo.list / .findById: read only.
   ["newsletter_list_campaigns", "none"],
   ["newsletter_get_campaign", "none"],

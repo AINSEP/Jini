@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { decodeTokenSignInEntries, parsePluginTokenMap, tokensForCreate, type TokenMapLimits } from '../token-map.js';
+import { decodeTokenSignInEntries, parsePluginTokenMap, tokensForCreate, type TokenMapLimits } from '../../core/token-map.js';
 
 const limits: TokenMapLimits = { pluginIdPattern: /^[a-z0-9][a-z0-9-]{0,63}$/, maxTokens: 8, maxTokenLength: 4096 };
 const parse = (raw: unknown, over: Partial<TokenMapLimits> = {}) => parsePluginTokenMap({ raw, limits: { ...limits, ...over } });

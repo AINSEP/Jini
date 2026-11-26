@@ -116,7 +116,7 @@ test("the saved Tools count renders without a probe; opening mounts the picker f
       resolveExternalMcpEffectiveAuthMode: () => "none", parseSavedToolNames: ({ value }) => value?.split(",") ?? [],
       grantWriteFieldValue: ({ remoteName }) => remoteName, describeDriftHeadline: () => "drift",
       buildExternalMcpRemoveConfirmCopy: () => ({ title: "Remove", body: "Confirm removal" }),
-      EXTERNAL_MCP_DRIFT_COPY: {
+      driftCopy: {
         refusal: {
           "remote-declares-destructive": { kind: "destructive", key: "destructive" },
           "remote-declares-not-read-only": { kind: "needs-write-grant", key: "grant" },
@@ -129,7 +129,7 @@ test("the saved Tools count renders without a probe; opening mounts the picker f
         disabledButRunning: "disabled", removedButStillRunning: "removed", decryptFailed: "decrypt", failedToStart: "start",
         launcherMissing: "launcher", restartHeadline: "restart", noRestartHeadline: "no restart", needsSignIn: "sign in",
       },
-      EXTERNAL_MCP_PICKER_COLLABORATORS: { useExternalMcpDriftCopyHook: () => key => key, useTHook: () => key => key,
+      pickerCollaborators: { useExternalMcpDriftCopyHook: () => key => key, useTHook: () => key => key,
         productVars: { productName: "Host" }, useWiredExternalMcpToolPickerHook: unusedHook, useToolRowHandlesHook: unusedHook, useToolPickerFilterHook: unusedHook },
       EXTERNAL_MCP_PRODUCT_VARS: { productName: "Host" }, EXTERNAL_MCP_ADD_FORM_HANDLE: "mcp-add",
     },

@@ -1,11 +1,12 @@
+import { executeMigrateForward } from "../../recovery/migrate-forward-execute.js";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { getDatabaseAgentToolCatalog, defaultDbMessages } from '../../tools/index.js';
+import { createDatabaseReadTools, getDatabaseAgentToolCatalog, defaultDbMessages } from '../../tools/index.js';
 import { buildDatabaseRegistrations, type DatabaseToolDeps } from '../tool-registrations.js';
 
 function fixture(confirmed: boolean, costClass = 'cheap') {
   const order: string[] = []; const confirmedAs: unknown[] = []; const executedAs: unknown[] = []; let locked = false;
-  const deps = { workspaceId: 'ws', clock: { nowMs: () => 0 }, idGen: { newId: () => 'id' }, gatedMutations: { gatewayDeps: {} },
+  const deps = { createDatabaseReadTools, executeMigrateForward, workspaceId: 'ws', clock: { nowMs: () => 0 }, idGen: { newId: () => 'id' }, gatedMutations: { gatewayDeps: {} },
     authorize: async () => ({ allowed: true, reason: 'fixture' }), adaptLegacyAuthorize: ({ authorize }: { authorize: unknown }) => authorize,
     catalog: getDatabaseAgentToolCatalog({}), messages: defaultDbMessages,
     migrateForwardDialog: { errorCode: 'DATABASE', title: 'Update?', details: [], confirmLabel: 'Update' },

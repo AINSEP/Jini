@@ -1,4 +1,4 @@
-import { EXECUTE_STATIC_PUBLISH_SCHEMA } from './publish-agent-tools.js';
+import { EXECUTE_STATIC_PUBLISH_SCHEMA } from './publish-tool-schema.js';
 import { optionalPublishPorts } from "./publish-tool-deps.js";
 import { ToolInputError, requireInputRecord, requireString, type ToolHandler, type SurfaceEmission } from '@jini-ai/core';
 import { adaptLegacyAuthorize } from '@jini-ai/core';

@@ -10,7 +10,7 @@ import { runObservedBackupPush } from "../backup-service.push.js";
 import { initialPushProgress, uploadBackupPlan, commitBackupPlan } from "../push-content.js";
 import type { SiteBackupSources } from "../sources.js";
 import { resolveBackupCredential } from "../backup-service.credentials.js";
-import { pickSourceControlProviderForApi } from "../../../source-control/registry.js";
+import { findReservedPath, pickSourceControlProviderForApi } from "../../../source-control/registry.js";
 import { SITE_BACKUP_SCOPES } from "../sources.js";
 
 function fixture() {
@@ -22,7 +22,7 @@ function fixture() {
   const captureDatabaseSnapshot = vi.fn(); const collectSiteBackupFiles = vi.fn();
   const save = vi.fn();
   const request = { workspaceId: "w", authorize: async () => ({ allowed: true }), dbOps: {}, siteBackupSources: { siteDir: "/site" } } as unknown as SiteBackupRequestDeps;
-  const deps = { request, deps: { CustomCredentialValidationError, buildAuthorizationHeader, normalizeWriteFilePath, validateBranch, validateCommitMessage }, initialPushProgress, uploadBackupPlan, commitBackupPlan, siteBackupScopes: SITE_BACKUP_SCOPES, siteFolderName: () => "site",
+  const deps = { request, deps: { findReservedPath, CustomCredentialValidationError, buildAuthorizationHeader, normalizeWriteFilePath, validateBranch, validateCommitMessage }, initialPushProgress, uploadBackupPlan, commitBackupPlan, siteBackupScopes: SITE_BACKUP_SCOPES, siteFolderName: () => "site",
     pickSourceControlProviderForApi, buildSourceControlProviders: async () => ({ providers: [provider], refusals: [], noProviderMessage: "none" }),
     listCustomCredentials: async () => [{ label: "key", baseUrl: "https://git.example" }], resolveCustomCredentialByLabel: async () => ({ baseUrl: "https://git.example", connection: { token: "token" } }),
     validateRepositoryTarget: (input: unknown) => input, captureDatabaseSnapshot, collectSiteBackupFiles, siteBackupPlanStore: { save, take: () => ({ ok: true, plan }) }, siteBackupPushJobs: new SiteBackupPushJobs({}),

@@ -1,3 +1,4 @@
+import { FolderZipError } from "./core/folder-zip-error.js";
 /**
  * @file Packs a folder the operator picked (`<input type=file webkitdirectory>`) into one `.zip`
  * `File`, so "Upload a folder" travels the exact path a `.zip` upload does: same size limit, same
@@ -16,10 +17,6 @@ export const FOLDER_UNREADABLE = "Could not read that folder. Try again.";
 /** The archive readers' entry cap (`install-archive.ts`, the Agent Plugins reader): refused here
  *  before any bytes are read. */
 export const FOLDER_MAX_FILES = 4096;
-
-export class FolderZipError extends Error {
-  constructor(readonly reason: "empty" | "too-large" | "too-many" | "unreadable", message: string) { super(message); }
-}
 
 /** 1980-01-01, the earliest DOS date: a fixed stamp, so the same folder always zips to the same
  *  bytes (an all-zero date is month 0, which some readers refuse). */

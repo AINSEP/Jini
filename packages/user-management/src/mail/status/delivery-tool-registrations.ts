@@ -68,7 +68,7 @@ type MailUseReadinessHostDeps = Omit<MailUseReadinessDeps, "newsletterLaunchGate
 type MailPurposeGateProbe = (required: { capabilityName: string; lane: "interactive" | "notification" }) => Promise<boolean>;
 
 import { toolMetadata } from "@jini-ai/core/tool-metadata/mail-status";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolSideEffect, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, ToolPermissionDeniedError as ForbiddenError, requireToolPermission } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
@@ -90,7 +90,7 @@ import type { MailCaptureClearPlan, MailCaptureClearResult } from "@jini-ai/core
 /** `contentKernel` holds `mail_capture` for `mail_clear_captured`; absent, that tool answers unavailable. */
 export type MailDeliveryToolDeps = MailHostActivityDeps & MailUseReadinessHostDeps & MailFeedbackSetupDeps;
 
-export const mailDeliveryDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mailDeliveryDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> owner checks (sender read, launch gate, form list, gate probe that sends nothing) + one activity row per use.
   ["mail_get_readiness", "none"],
   // -> one ledger page read joined with feedback.

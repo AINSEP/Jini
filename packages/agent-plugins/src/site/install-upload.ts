@@ -1,6 +1,8 @@
 import { toObjectArgArchiveReader, toZeroArgArchiveReader } from './archive-reader-abi.js';
 export { toObjectArgArchiveReader, toZeroArgArchiveReader } from './archive-reader-abi.js';
-import { planAgentPluginUpdate, AgentPluginUpdateError, type AgentPluginMcpProvisioningPort } from "@jini-ai/agent-plugins/lifecycle";
+import type { AgentPluginMcpProvisioningPort } from "@jini-ai/agent-plugins/lifecycle";
+import { planAgentPluginUpdate } from "../core/update-plan.js";
+import { AgentPluginUpdateError } from "../core/update-error.js";
 import type { readInstalledAgentPluginIdentity } from "@jini-ai/agent-plugins/lifecycle/host-tools";
 import type { PluginHostPort, AgentPluginLayout } from "@jini-ai/core/contracts/headless/plugin-host";
 /**
@@ -34,11 +36,11 @@ import type { PluginStateEffects } from "@jini-ai/agent-plugins/persistent-state
 
 import type { parseAgentPluginManifest } from "@jini-ai/agent-plugins/lifecycle";
 
-import {
-  AgentPluginInstallError,
-  type AgentPluginArchiveEntry,
-  type AgentPluginArchiveReaderPort,
+import type {
+  AgentPluginArchiveEntry,
+  AgentPluginArchiveReaderPort,
 } from "../lifecycle/index.js";
+import { AgentPluginInstallError } from "../core/install-errors.js";
 import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 
@@ -46,7 +48,7 @@ const MANIFEST = "plugin.json";
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_PREPASS_ENTRIES = 4096;
 /** Archiver metadata a wrapping-folder zip may carry beside the folder. Never part of a package. */
-const IGNORED_TOP_LEVEL = new Set(["__MACOSX"]);
+const IGNORED_TOP_LEVEL: ReadonlySet<string> = new Set(["__MACOSX"]);
 
 export type AgentPluginUploadErrorCode = "ARCHIVE_UNREADABLE" | "PLUGIN_ID_TAKEN" | "PLUGIN_ENABLED" | "PLUGIN_BUNDLED";
 

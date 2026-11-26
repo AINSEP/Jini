@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { constants } from "node:fs";
 import path from "node:path";
 import { beforeEach, test, vi } from "vitest";
-import { FOLDER_MAX_FILES, FolderZipError, zipFolderFiles } from "../folder-zip.js";
+import { FOLDER_MAX_FILES, zipFolderFiles } from "../folder-zip.js";
+import { FolderZipError } from "../core/folder-zip-error.js";
 import { zipLocalFolder } from "../folder-zip-node.js";
 
 type Entry = { name: string; isDirectory(): boolean; isFile(): boolean };

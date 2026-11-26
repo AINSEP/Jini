@@ -25,7 +25,8 @@ import { archiveList, saveList, type ListsDeps } from "@jini-ai/user-management/
 import { pauseCampaign } from "@jini-ai/user-management/newsletter/send-pipeline";
 import { saveSubscription, unsubscribeSubscription, type UnsubscribeSubscriptionDeps } from "@jini-ai/user-management/newsletter/subscriptions";
 import type { SubscriptionRow } from "@jini-ai/user-management/newsletter/types";
-import { toNewsletterSendPipelineDeps, type NewsletterToolDeps } from "./tool-registrations.js";
+import type { NewsletterToolDeps } from "./tool-registrations.js";
+import { toNewsletterSendPipelineDeps } from "./tool-registrations.deps.js";
 import { toCampaignToolView, toListToolView, toSubscriptionToolView } from "./tool-registrations.read.js";
 
 /**

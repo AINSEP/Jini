@@ -237,7 +237,7 @@ function ExternalMcpSourceTools({ toolsOpen, setToolsOpen, rowLabel, cardHandle,
           useExternalMcpToolsModalEscapeHook={hooks.useExternalMcpToolsModalEscape}
           useTHook={hooks.useKitT}
           useExternalMcpDriftCopyHook={hooks.useExternalMcpDriftCopyHook}
-          pickerCollaborators={deps.EXTERNAL_MCP_PICKER_COLLABORATORS}
+          pickerCollaborators={deps.pickerCollaborators}
         />
       ) : null}
   </>;

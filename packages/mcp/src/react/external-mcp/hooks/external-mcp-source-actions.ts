@@ -1,7 +1,16 @@
 import type { useExternalMcp, ExternalMcpPort, ExternalMcpController } from "./use-external-mcp.hooks.js";
 import { toItem, toWriteBody, fieldOrEmpty, expectedVersionOf } from "./external-mcp-form.rules.js";
-import { checkSavedServer } from "./use-external-mcp.hooks.js";
+import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
 type SourceConfigItem = Awaited<ReturnType<ExternalMcpController["dependencies"]["port"]["fetchSources"]>>[number];
+
+export async function checkSavedServer({ item, server, locale, port, deps }: { item: SourceConfigItem; server: AdminExternalMcpServer; locale: string; port: ExternalMcpPort; deps: Parameters<typeof useExternalMcp>[0]["deps"] }): Promise<SourceConfigItem> {
+  let message = deps.credentialText({ id: 'saved', locale });
+  if (server.transport !== 'stdio' && server.enabled) {
+    try { await port.probeExternalMcpServer({ serverId: server.serverId }); message = deps.credentialText({ id: 'connected', locale }); }
+    catch (err) { message = deps.translateCredentialMessage({ message: deps.describeApiError({ e: err, fallback: deps.credentialText({ id: 'unreachable', locale }) }), locale }); }
+  }
+  return { ...item, statusMessage: [item.statusMessage, message].filter(Boolean).join(' · ') };
+}
 
 /** The plain-words reason a save failed: the stale-version copy for a lost compare-and-set, else the server's own. @complexity O(1). */
 function describeSaveFailure({ err, t, deps }: { err: unknown; t: (key: string) => string; deps: Parameters<typeof useExternalMcp>[0]["deps"] }, _options = {}): string {

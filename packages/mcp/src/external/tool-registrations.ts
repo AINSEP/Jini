@@ -1,6 +1,6 @@
 import { ToolAccessLoweringError } from '@jini-ai/core/tool-access-change';
 import { toolMetadata } from '@jini-ai/core/tool-metadata/external-mcp';
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolContributor, type ToolExecutionContext, type ToolExecutionOptions, type HumanConfirmer } from '@jini-ai/core';
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, type ToolContributor, type ToolExecutionContext, type ToolExecutionOptions, type HumanConfirmer } from '@jini-ai/core';
 import { adaptLegacyAuthorize } from '@jini-ai/core';
 import type { requireToolPermission } from '@jini-ai/core';
 import { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
@@ -10,7 +10,7 @@ import type { HumanConfirmSpec } from '@jini-ai/core/contracts/site/human-confir
 import type { SurfaceCardsPort, SurfaceCardSecretRun as SecretCardRun, SurfaceCardSecretDeps, SurfaceCardSecretOptions } from '@jini-ai/core/contracts/cards';
 import type { ToolFailureDiagnostic } from '@jini-ai/core/contracts/site/daemon-tool-recovery';
 import type { ExternalMcpAccessSnapshot, ExternalMcpStoreDeps, ExternalMcpServerView, SaveExternalMcpServerInput } from '@jini-ai/core/contracts/hosted-mcp';
-import { externalMcpAccessSnapshot, ExternalMcpValidationError } from '../federation/hosted/index.js';
+import type { externalMcpAccessSnapshot, ExternalMcpValidationError, applyExternalMcpAccess, parseArgs, parseAllowedToolNames, parseWriteAllowedToolNames, readExternalMcpToolGrants } from '../federation/hosted/index.js';
 import type { HostedMcpTokenHint } from '../federation/hosted/store-ports.js';
 import { EXTERNAL_MCP_MANAGE_PERMISSION } from './agent-tools.js';
 import { buildExternalMcpSaveForm, mergeExternalMcpSavePrefill, EXTERNAL_MCP_SAVE_TOOL_ID, type ExternalMcpSaveInput } from './save-form.js';
@@ -18,6 +18,18 @@ import { buildModelSaveInput, buildSaveExternalMcpServerInputFromFormParams } fr
 import { isExternalMcpAccessInput, externalMcpAccessHandler, requireMcpSaveApprover, requireKnownMcpSave, currentMcpSaveRecord, ExternalMcpSaveBasisChangedError } from './access-review.js';
 
 export interface ExternalMcpToolDeps extends BaseExternalMcpToolDeps {
+  externalMcpAccessSnapshot: typeof externalMcpAccessSnapshot;
+  ExternalMcpValidationError: typeof ExternalMcpValidationError;
+  applyExternalMcpAccess: typeof applyExternalMcpAccess;
+  parseArgs: typeof parseArgs;
+  parseAllowedToolNames: typeof parseAllowedToolNames;
+  parseWriteAllowedToolNames: typeof parseWriteAllowedToolNames;
+  readExternalMcpToolGrants: typeof readExternalMcpToolGrants;
+  unverifiedAccessMessage(required: { serverId: string }): string;
+  unverifiedConnectionMessage: string;
+  staleApprovalMessage: string;
+  oauthUnavailableMessage(required: { serverId: string }): string;
+  accessErrorCode: string;
   catalog: readonly AgentToolDefinition[];
   requireToolPermission: typeof requireToolPermission;
   resolveOperatorLocale: typeof resolveOperatorLocale;
@@ -69,7 +81,7 @@ async function saveSubmittedExternalMcpConfiguration(
   // The field set is fixed per call. A submitted routing value cannot change the credential's
   // destination or switch to an auth/transport mode whose fields the human never reviewed.
   if (values.id !== undefined && values.id !== save.id) {
-    throw new ExternalMcpValidationError("The server ID must match the connection form. Nothing was saved.", "id");
+    throw new routeDeps.ExternalMcpValidationError("The server ID must match the connection form. Nothing was saved.", "id");
   }
   const params = { ...values, id: save.id, transport: save.transport, authMode: save.authMode, enabled: save.enabled ?? true,
     allowedToolNames: save.allowedToolNames ?? "", writeAllowedToolNames: save.writeAllowedToolNames ?? "" };
@@ -168,7 +180,7 @@ function externalMcpSaveHandler({ routeDeps, surfaces }: { routeDeps: ExternalMc
         const existing = views.find(view => view.serverId === modelInput.id);
         const save = mergeExternalMcpSavePrefill({ input: modelInput, existing });
         requireKnownMcpSave({ routeDeps, record, input: buildSaveExternalMcpServerInputFromFormParams({ params: { ...save, enabled: save.enabled ?? true }, workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id }) });
-        return { save, expected: record ? externalMcpAccessSnapshot({ record }) : null, isUpdate: existing !== undefined, locale, principalId: ctx.principal.id };
+        return { save, expected: record ? routeDeps.externalMcpAccessSnapshot({ record }) : null, isUpdate: existing !== undefined, locale, principalId: ctx.principal.id };
       },
       form: ({ prep }) => buildExternalMcpSaveForm({ save: prep.save, isUpdate: prep.isUpdate, appName: routeDeps.appName }),
       save: ({ values, prep, signal }) => saveSubmittedExternalMcpConfiguration({ routeDeps, surfaces, values, ...prep, signal }),
@@ -194,12 +206,12 @@ function externalMcpSaveHandler({ routeDeps, surfaces }: { routeDeps: ExternalMc
  * is fixed copy or names a field, never a submitted value. Any other error gets fixed storage copy:
  * an arbitrary `Error.message` can carry internals or the submitted values themselves.
  * @complexity O(m) in the message length; no I/O. */
-function externalMcpSaveSafeError({ error, locale, onField, routeDeps }: { routeDeps: Pick<ExternalMcpToolDeps, "ForbiddenError" | "credentialText" | "translateCredentialMessage">; error: unknown; locale: string; onField: (field: string) => void }, _optional = {}): string {
+function externalMcpSaveSafeError({ error, locale, onField, routeDeps }: { routeDeps: Pick<ExternalMcpToolDeps, "ForbiddenError" | "credentialText" | "translateCredentialMessage" | "ExternalMcpValidationError" | "staleApprovalMessage">; error: unknown; locale: string; onField: (field: string) => void }, _optional = {}): string {
   if (error instanceof routeDeps.ForbiddenError) return 'Your permission to save this connection changed. Reopen the chat in your signed-in admin session. Nothing was saved.';
-  if (error instanceof ExternalMcpSaveBasisChangedError) return 'This connection or your access approval is no longer current. Review the connection and its allowed tools in Settings → External MCP, then request the card again. Nothing was saved.';
+  if (error instanceof ExternalMcpSaveBasisChangedError) return routeDeps.staleApprovalMessage;
   if (error instanceof ToolAccessLoweringError) return error.message;
   // Checked before `ToolInputError` in case the validation class ever becomes its subclass: the field path must stay live.
-  if (error instanceof ExternalMcpValidationError) {
+  if (error instanceof routeDeps.ExternalMcpValidationError) {
     onField(error.field);
     return routeDeps.translateCredentialMessage({ message: error.message, locale });
   }
@@ -225,7 +237,7 @@ async function resolveExternalMcpConfigurationCheck(
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const externalMcpDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const externalMcpDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> routeDeps.listExternalMcpServerViews(): a repo read, never unseals.
   ["external_mcp_list", "none"],
   // -> routeDeps.saveExternalMcpServer(): repo.upsert() plus a seal, gated behind the human's own form
@@ -251,8 +263,7 @@ async function connectExternalMcpOAuth({ routeDeps, ctx }: { routeDeps: External
 
   if (!routeDeps.externalMcpOAuth) {
     throw new Error(
-      `external_mcp_oauth_connect: this execution context has no OAuth service wired, so an authorization ` +
-        `cannot be started here. Ask the operator to connect '${id}' from Settings → External MCP instead.`,
+      routeDeps.oauthUnavailableMessage({ serverId: id }),
     );
   }
 
@@ -266,7 +277,7 @@ async function connectExternalMcpOAuth({ routeDeps, ctx }: { routeDeps: External
     // bare `Error` those all reach the model redacted, which is how a clearly-worded refusal
     // naming the configured public URL became, in practice, a silent one. Nothing internal is in these
     // messages beyond the server id the caller already sent.
-    if (error instanceof ExternalMcpValidationError) throw new ToolInputError({ message: error.message });
+    if (error instanceof routeDeps.ExternalMcpValidationError) throw new ToolInputError({ message: error.message });
     throw error;
   }
 }

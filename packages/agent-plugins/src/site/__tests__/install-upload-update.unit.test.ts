@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { parseAgentPluginManifest } from '../../lifecycle/manifest.js';
 import { readInstalledAgentPluginIdentity } from '../../lifecycle/host-tools/index.js';
-import { AgentPluginUpdateError } from '../../lifecycle/index.js';
+import { AgentPluginUpdateError } from '../../core/update-error.js';
 import { createAgentPluginSiteLayout } from '../../lifecycle/layout.js';
 import { installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional } from '../install-upload.js';
 

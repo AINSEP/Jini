@@ -65,7 +65,7 @@ function CopyLine({
 
 /** The counts half of a completed export run's detail — routes/assets succeeded-vs-failed, and
  *  where the export landed. Split out of {@link ExportRunResult} purely for the complexity gate:
- *  this repo's real `apps/admin` ESLint gate is a hard 9/9 cyclomatic/cognitive ceiling
+ *  this repo's real `admin app` ESLint gate is a hard 9/9 cyclomatic/cognitive ceiling
  *  (`eslint.config.mjs`'s own `F06 option B` block), and this block's three independent ternaries
  *  (two failed-count checks, one optional `outputDir`) counted directly in `ExportRunResult` pushed
  *  it to 11 — same reasoning `PublishPreviewAction`'s own doc gives for splitting the publish half of
@@ -201,7 +201,7 @@ export function BuildExportCard({ controller, t: translate , deps, hooks }: { co
  *  end in (a rejected trigger, a poll that gave up — {@link StaticExportController.pollError}, added
  *  this pass, see this file's header — and a settled run's own result). Split out of
  *  {@link BuildExportCard} for the same complexity-gate reason `PublishPreviewAction`'s own doc gives
- *  for the publish half of this tab: this repo's real `apps/admin` ESLint gate is a HARD 9/9
+ *  for the publish half of this tab: this repo's real `admin app` ESLint gate is a HARD 9/9
  *  cyclomatic/cognitive ceiling (`eslint.config.mjs`'s own `F06 option B` block — not the 15/warn the
  *  rest of the repo tolerates), and adding `pollError` as one more branch directly in
  *  `BuildExportCard` pushed it from 9 to 10 against that real gate. */

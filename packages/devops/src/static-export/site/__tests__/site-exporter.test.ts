@@ -11,6 +11,7 @@ vi.mock("../../entry.js", async importOriginal => ({ ...await importOriginal<obj
 function fixture() {
   const routes = [{ path: "/", kind: "home", label: "Home" }, { path: "/sitemap.xml", kind: "well-known", label: "Sitemap" }, { path: "/feed.xml", kind: "well-known", label: "Feed" }];
   const deps = { workspaceId: "w", clock: { nowIso: () => "2026-11-25T00:00:00Z" }, originRegistry: { canonicalOrigin: async () => { throw new Error("none"); } },
+    fetch: globalThis.fetch,
     trackFetch: ({ fetch }: { fetch: typeof globalThis.fetch }) => fetch, createSiteApp: () => () => {},
     buildPreviewExportManifest: async () => ({ manifest: { routes, skipped: [] }, themeCount: 1 }),
     cookieConsent: { exportWarning: async () => "Consent first.", exportAssets: async () => ["/_consent/runtime.js"] },
