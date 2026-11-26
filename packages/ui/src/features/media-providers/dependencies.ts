@@ -68,6 +68,14 @@ export function createFakeMediaProviderRowsPort(options: FakeMediaProvidersPortO
       if (options.unreachable) return delay({ value: null });
       return delay({ value: { ...providers } });
     },
+    applyProviderChanges({ removes, patches }, _optional = {}) {
+      return write(() => {
+        const next = { ...providers };
+        for (const providerId of removes) delete next[providerId];
+        for (const { providerId, fields } of patches) next[providerId] = { ...next[providerId], ...fields };
+        providers = next;
+      });
+    },
     patchProvider({ providerId, fields }) {
       return write(() => {
         providers = { ...providers, [providerId]: { ...providers[providerId], ...fields } };

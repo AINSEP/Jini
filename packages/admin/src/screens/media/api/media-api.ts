@@ -50,6 +50,11 @@ function createMediaProviderCalls({ request }: Pick<MediaApiDeps, "request">, _o
      *  Bare map, not a `{ data }` envelope, matching `MediaProvidersPort.fetchMediaProviders`. */
     getMediaProviders: () =>
       request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }),
+    applyMediaProviderChanges: ({ removes, patches }: { removes: readonly string[]; patches: readonly { providerId: string; fields: MediaProviderFields }[] }, _optional = {}) =>
+      request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }, { init: {
+        method: "PATCH",
+        body: JSON.stringify({ removes, patches }),
+      } }),
     /** The host's live, configurable provider cards (one per public provider, aliases merged), projected
      *  from the registry generation uses. Vendor names, base URLs and model ids only — never keys. */
     getMediaProviderCatalog: () =>

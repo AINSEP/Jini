@@ -573,6 +573,14 @@ describe('useMediaProvidersTab — per-provider port', () => {
     const calls: unknown[] = [];
     const port: MediaProviderRowsPort = {
       fetchMediaProviders: async () => ({ ...stored }),
+      applyProviderChanges: async ({ removes, patches }) => {
+        calls.push(['batch', { removes, patches }]);
+        const next = { ...stored };
+        for (const providerId of removes) delete next[providerId];
+        for (const { providerId, fields } of patches) next[providerId] = { ...next[providerId], ...fields };
+        stored = next;
+        return { ...stored };
+      },
       patchProvider: async ({ providerId, fields }) => {
         calls.push(['patch', providerId, fields]);
         stored = { ...stored, [providerId]: { ...stored[providerId], ...fields } };
@@ -587,7 +595,34 @@ describe('useMediaProvidersTab — per-provider port', () => {
     return { port, calls, stored: () => stored };
   }
 
-  it("saving or removing one provider calls only that provider's operation", async () => {
+  it('one flush sends clears and edits as a single atomic request', async () => {
+    const seed = { a: { apiKeyConfigured: true, model: 'old' }, b: { apiKeyConfigured: true } };
+    const { port, calls, stored } = recordingRowsPort({ seed });
+    const apply = vi.spyOn(port, 'applyProviderChanges').mockRejectedValueOnce(new Error('batch conflict'));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.updateProvider('a', { model: 'new' });
+    result.current.clearProvider('b');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'save-error', message: 'batch conflict' }));
+    const changes = { removes: ['b'], patches: [{ providerId: 'a', fields: { model: 'new' } }] };
+    expect(apply.mock.calls).toEqual([[changes]]);
+    expect(calls).toEqual([]);
+    expect(stored()).toEqual(seed);
+    await waitFor(() => expect(result.current.providers.b).toEqual(seed.b));
+    expect(result.current.providers.a).toEqual({ ...seed.a, model: 'new' });
+    expect([...result.current.pendingProviderIds]).toEqual(['a']);
+
+    result.current.clearProvider('b');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    expect(apply.mock.calls).toEqual([[changes], [changes]]);
+    expect(calls).toEqual([['batch', changes]]);
+    expect(stored()).toEqual({ a: { ...seed.a, model: 'new' } });
+    expect(result.current.providers).toEqual(stored());
+    expect(result.current.pendingProviderIds.size).toBe(0);
+  });
+
+  it("saving or removing one provider sends only that provider's intent", async () => {
     const { port, calls, stored } = recordingRowsPort({
       seed: { a: { apiKeyConfigured: true, apiKeyTail: '1111' }, b: { apiKeyConfigured: true, apiKeyTail: '2222', model: 'm-b' } },
     });
@@ -599,13 +634,13 @@ describe('useMediaProvidersTab — per-provider port', () => {
     result.current.saveChanges();
     await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
     // Only the edited provider's editable fields: no markers, and nothing for `b`.
-    expect(calls).toEqual([['patch', 'a', { apiKey: 'test-token-a' }]]);
+    expect(calls).toEqual([['batch', { removes: [], patches: [{ providerId: 'a', fields: { apiKey: 'test-token-a' } }] }]]);
     expect(result.current.pendingProviderIds.size).toBe(0);
 
     result.current.clearProvider('b');
     await waitFor(() => expect(calls).toHaveLength(2));
     await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
-    expect(calls[1]).toEqual(['remove', 'b']);
+    expect(calls[1]).toEqual(['batch', { removes: ['b'], patches: [] }]);
     expect(Object.keys(stored())).toEqual(['a']);
     expect(result.current.providers.b).toBeUndefined();
   });
@@ -625,12 +660,12 @@ describe('useMediaProvidersTab — per-provider port', () => {
     expect(stored()).toEqual(seed);
   });
 
-  it('migrates local-only providers to an empty daemon one provider at a time', async () => {
+  it('migrates local-only providers to an empty daemon in one batch', async () => {
     const { port, calls } = recordingRowsPort({ seed: {} });
     const initialProviders: MediaProviderMap = { a: { apiKey: 'test-token-a', model: 'm-a' }, b: { apiKeyConfigured: true } };
     const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
 
     await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
-    expect(calls).toEqual([['patch', 'a', { apiKey: 'test-token-a', model: 'm-a' }]]);
+    expect(calls).toEqual([['batch', { removes: [], patches: [{ providerId: 'a', fields: { apiKey: 'test-token-a', model: 'm-a' } }] }]]);
   });
 });

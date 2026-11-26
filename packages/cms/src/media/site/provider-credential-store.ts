@@ -174,7 +174,7 @@ function trimmedOrNull({ value }: { value: string | undefined }, _optional: Reco
 }
 
 /** Only a credential-policy refusal is an operator mistake; anything else surfaces unchanged. */
-function rethrowAsValidation<T>({ run, credentialInputMessage }: { run: () => T; credentialInputMessage: MediaProviderCredentialWriteDeps["credentialInputMessage"] }, _options = {}): T {
+export function rethrowAsValidation<T>({ run, credentialInputMessage }: { run: () => T; credentialInputMessage: MediaProviderCredentialWriteDeps["credentialInputMessage"] }, _options = {}): T {
   try { return run(); }
   catch (err) {
     const message = credentialInputMessage({ error: err });
@@ -218,7 +218,7 @@ function assertEntryField({ providerId, field, value, policy, credentialInputMes
 }
 
 /** Rejects anything the row cannot faithfully hold, before a single write happens. */
-function assertValidEntry({ providerId, entry, catalog, policy, builtInProviderIds, credentialInputMessage }: { providerId: string; entry: MediaProviderCredentialInput; catalog: MediaProviderIdCatalog | undefined; policy: MediaProviderCredentialPolicy; builtInProviderIds: ReadonlySet<string>; credentialInputMessage: MediaProviderCredentialWriteDeps["credentialInputMessage"] }, _optional: Record<string, never> = {}): void {
+export function assertValidEntry({ providerId, entry, catalog, policy, builtInProviderIds, credentialInputMessage }: { providerId: string; entry: MediaProviderCredentialInput; catalog: MediaProviderIdCatalog | undefined; policy: MediaProviderCredentialPolicy; builtInProviderIds: ReadonlySet<string>; credentialInputMessage: MediaProviderCredentialWriteDeps["credentialInputMessage"] }, _optional: Record<string, never> = {}): void {
   assertKnownProviderId({ providerId, policy, catalog, builtInProviderIds, credentialInputMessage });
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
     throw new MediaProviderCredentialValidationError(`provider "${providerId}" must be an object`);
@@ -230,7 +230,7 @@ function assertValidEntry({ providerId, entry, catalog, policy, builtInProviderI
  * CURRENT rows for all preserved keys, so a rotation during this await cannot be resurrected.
  * @complexity Catalogue-bounded reads/seals; no writes or per-row opens.
  */
-async function sealNewProviderKeys(
+export async function sealNewProviderKeys(
   deps: MediaProviderCredentialSaveDeps,
   input: SaveMediaProviderCredentialsInput,
   policy: MediaProviderCredentialPolicy,
@@ -280,7 +280,7 @@ async function migrateLegacyProviderKeys(deps: MediaProviderCredentialSaveDeps, 
 }
 
 /** Pure merge against the transaction's snapshot; hints and envelope travel as one private unit. */
-function buildProviderUpsertRow(input: {
+export function buildProviderUpsertRow(input: {
   workspaceId: UUID; providerId: string; entry: MediaProviderCredentialInput;
   existing: MediaProviderCredentialRecord | undefined; fresh: VaultPutRecord | undefined; now: ISODateTime; vaultPolicy: MediaCredentialVaultPolicy;
 }, _options = {}): MediaProviderCredentialRecord {
@@ -385,7 +385,7 @@ export type MediaProviderCredentialRowDeps = Omit<MediaProviderCredentialWriteDe
 };
 
 /** One provider's PATCH merged over its stored row: a field the PATCH omits keeps its stored value. @complexity O(1). */
-function mergedPatchEntry({ fields, existing }: { fields: MediaProviderCredentialInput; existing: MediaProviderCredentialRecord | undefined }, _optional: Record<string, never> = {}): MediaProviderCredentialInput {
+export function mergedPatchEntry({ fields, existing }: { fields: MediaProviderCredentialInput; existing: MediaProviderCredentialRecord | undefined }, _optional: Record<string, never> = {}): MediaProviderCredentialInput {
   const baseUrl = fields.baseUrl ?? existing?.baseUrl ?? undefined;
   const model = fields.model ?? existing?.model ?? undefined;
   return { ...(baseUrl === undefined ? {} : { baseUrl }), ...(model === undefined ? {} : { model }) };

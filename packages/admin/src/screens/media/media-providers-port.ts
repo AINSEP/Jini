@@ -17,6 +17,7 @@ import type { AdminMediaProviderMap } from "./api/media-api.js";
 export interface MediaProvidersPortDeps {
   mediaApi: {
     getMediaProviders: () => Promise<AdminMediaProviderMap>;
+    applyMediaProviderChanges: (required: { removes: readonly string[]; patches: readonly { providerId: string; fields: MediaProviderFields }[] }) => Promise<AdminMediaProviderMap>;
     patchMediaProvider: (required: { providerId: string; fields: MediaProviderFields }) => Promise<AdminMediaProviderMap>;
     removeMediaProvider: (required: { providerId: string }) => Promise<AdminMediaProviderMap>;
   };
@@ -72,6 +73,7 @@ async function removeProvider({ mediaApi }: MediaProvidersPortDeps, { providerId
 export function createMediaProvidersPort(deps: MediaProvidersPortDeps, _optional: Record<string, never> = {}): MediaProviderRowsPort {
   return {
     fetchMediaProviders: () => fetchMediaProviders(deps),
+    applyProviderChanges: (required, _optional = {}) => deps.mediaApi.applyMediaProviderChanges(required),
     patchProvider: (required: { providerId: string; fields: MediaProviderFields }) => patchProvider(deps, required),
     removeProvider: (required: { providerId: string }) => removeProvider(deps, required),
   };
