@@ -43,3 +43,41 @@ describe('asDeployTargetModule', () => {
     expect(asDeployTargetModule({ exported: [] })).toBe('its module has no create() function');
   });
 });
+
+describe('descriptor guidance validation', () => {
+  const host = { id: 'host', label: 'Static host', module: 'host.mjs' };
+  const credential = { vendorId: 'vendor', fields: [{ name: 'token', label: 'Token', required: true }] };
+
+  it('refuses a malformed token link with the exact field path', () => {
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, credential: { ...credential, tokenPageUrl: 'https://' } }]) }))
+      .toEqual({ ok: false, reason: 'targets[0].credential.tokenPageUrl must be an https URL' });
+  });
+
+  it('requires an explicit boolean opt-in for public account labels', () => {
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, credential: { ...credential, yieldsAccountLabel: 'true' } }]) }))
+      .toEqual({ ok: false, reason: 'targets[0].credential.yieldsAccountLabel must be a boolean' });
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, credential: { ...credential, yieldsAccountLabel: true } }]) }))
+      .toEqual({ ok: true, descriptors: [{ ...host, configFields: [], credential: { ...credential, tokenField: 'token', yieldsAccountLabel: true } }] });
+  });
+
+  it('rejects malformed help before projecting a credential form', () => {
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, credential: { ...credential, userHelp: 'x'.repeat(501) } }]) }))
+      .toEqual({ ok: false, reason: 'targets[0].credential.userHelp must be a string of at most 500 characters' });
+  });
+});
+
+it('rejects each malformed environment token list without accepting a valid neighbour', () => {
+  const host = { id: 'host', label: 'Host', module: 'host.mjs' };
+  for (const tokenVars of ['TOKEN', [], Array.from({ length: 17 }, (_, i) => `TOKEN_${i}`), ['FIRST_TOKEN', 'bad-token', 'LAST_TOKEN']]) {
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, env: { tokenVars } }]) }))
+      .toEqual({ ok: false, reason: 'targets[0].env.tokenVars must be a non-empty array of env var names' });
+  }
+});
+
+it('rejects invalid environment field names and values independently', () => {
+  const host = { id: 'host', label: 'Host', module: 'host.mjs' };
+  for (const fields of [[], { 'bad-name': 'HOST_ACCOUNT' }, { account: 'bad-env' }, Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`field${i}`, `VAR_${i}`]))]) {
+    expect(parseDeployTargetsFile({ raw: file([{ ...host, env: { tokenVars: ['HOST_TOKEN'], fields } }]) }))
+      .toEqual({ ok: false, reason: 'targets[0].env.fields must map field names to env var names' });
+  }
+});

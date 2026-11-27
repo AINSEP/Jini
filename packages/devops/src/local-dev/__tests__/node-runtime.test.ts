@@ -72,3 +72,28 @@ test('both candidate probes receive the supplied env object by identity', () => 
   expect(seen[0]).toBe(env);
   expect(seen[1]).toBe(env);
 });
+
+test('default Electron discovery skips a non-binary export and resolves the next workspace', async () => {
+  const { mkdir, mkdtemp, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'jini-runtime-'));
+  try {
+    const broken = join(root, 'root');
+    const desktop = join(root, 'desktop');
+    const command = join(desktop, 'runtime with spaces');
+    for (const [directory, exported] of [[broken, { path: command }], [desktop, command]] as const) {
+      const moduleDir = join(directory, 'node_modules', 'electron');
+      await mkdir(moduleDir, { recursive: true });
+      await writeFile(join(moduleDir, 'package.json'), '{"name":"electron","main":"index.cjs"}');
+      await writeFile(join(moduleDir, 'index.cjs'), `module.exports = ${JSON.stringify(exported)};`);
+    }
+    const env = { PROBE_MARKER: 'desktop' };
+    const usable = vi.fn(() => true);
+    expect(selectNodeRuntime({ searchFrom: [broken, desktop], nodePath: '/fallback', env }, { usable }))
+      .toEqual({ command, env: { ELECTRON_RUN_AS_NODE: '1' }, fallback: false });
+    expect(usable.mock.calls).toEqual([[{ command, env }]]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import ts from 'typescript';
-import { createTypeScriptImportReader } from '../typescript.js';
+import { createTypeScriptImportReader, runtimeImportReferences } from '../typescript.js';
 test('AST adapter recognizes static exports and literal dynamic imports but ignores comments/local require/nonliteral import', () => {
   const imports = createTypeScriptImportReader({ compiler: ts });
   assert.deepEqual(imports.imports({ file: 'built.js', source: [
@@ -41,4 +41,24 @@ test('a local function declaration named require is a capability check, not a mo
     'require("outer");',
     '{ class require {} require("class-local"); }',
   ].join('\n') }), ['outer']);
+});
+
+test('keeps runtime imports distinct from type-only references in a pre-parsed TSX tree', () => {
+  const source = [
+    'import defaultValue, { type T } from "kept";',
+    'import { type S } from "erased";',
+    'import type Alias = require("types");',
+    'import runtime = require("runtime");',
+    'export function render() { return <div>{import("lazy")}</div>; }',
+  ].join('\n');
+  const file = 'built.tsx';
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  assert.deepEqual(runtimeImportReferences({ compiler: ts, file, source: 'throw new Error("not the parsed file");' }, { tree }), [
+    { specifier: 'kept', kind: 'import', syntax: 'import', typeOnly: false, line: 1, deferred: false },
+    { specifier: 'erased', kind: 'import', syntax: 'import', typeOnly: true, line: 2, deferred: false },
+    { specifier: 'types', kind: 'require', syntax: 'import-equals', typeOnly: true, line: 3, deferred: false },
+    { specifier: 'runtime', kind: 'require', syntax: 'import-equals', typeOnly: false, line: 4, deferred: false },
+    { specifier: 'lazy', kind: 'import', syntax: 'dynamic', typeOnly: false, line: 5, deferred: true },
+  ]);
+  assert.deepEqual(createTypeScriptImportReader({ compiler: ts }).imports({ file, source }), ['kept', 'runtime', 'lazy']);
 });

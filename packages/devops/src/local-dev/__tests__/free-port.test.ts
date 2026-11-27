@@ -31,3 +31,14 @@ test('isPortFree reports a port held on the probed host as taken and an unused o
 test('a host whose address family is unavailable does not make a port look taken', async () => {
   expect(await isPortFree({ port: 1 }, { hosts: ['192.0.2.1'] })).toBe(true); // TEST-NET-1: EADDRNOTAVAIL, not EADDRINUSE
 });
+
+test('the default scan skips a port occupied on IPv4 loopback', async () => {
+  const server = net.createServer();
+  open.push(server);
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen({ port: 0, host: '127.0.0.1' }, resolve);
+  });
+  const { port } = server.address() as net.AddressInfo;
+  expect(await pickFreePort({ start: port, span: 1 })).toBeNull();
+});

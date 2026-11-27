@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { createDevServerRetirement } from '../server-retirement.js';
 
 test('a completed background operation releases its server for automatic eviction', async () => {
@@ -27,4 +27,33 @@ test('an idle server rejects new work once its eviction has been accepted', asyn
   const guard = createDevServerRetirement({ hasWork: async () => false });
   expect(await guard.retire({})).toBe(true);
   expect(() => guard.begin({})).toThrow('intake is fenced');
+});
+
+test('activity probe errors reopen intake so retirement can be retried', async () => {
+  const hasWork = vi.fn<() => Promise<boolean>>()
+    .mockRejectedValueOnce(new Error('activity owner disconnected'))
+    .mockResolvedValueOnce(false);
+  const guard = createDevServerRetirement({ hasWork });
+  expect(await guard.retire({})).toBe(false);
+  expect(guard.accepting({})).toBe(true);
+  expect(await guard.retire({})).toBe(true);
+  expect(guard.accepting({})).toBe(false);
+  expect(hasWork.mock.calls).toEqual([[], []]);
+});
+
+test('an unresponsive activity owner times out and late completion cannot fence intake', async () => {
+  vi.useFakeTimers();
+  try {
+    let finish!: (busy: boolean) => void;
+    const guard = createDevServerRetirement({ hasWork: () => new Promise(resolve => { finish = resolve; }) }, { activityTimeoutMs: 25 });
+    const retirement = guard.retire({});
+    expect(guard.accepting({})).toBe(false);
+    await vi.advanceTimersByTimeAsync(25);
+    expect(await retirement).toBe(false);
+    finish(false);
+    expect(guard.accepting({})).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });

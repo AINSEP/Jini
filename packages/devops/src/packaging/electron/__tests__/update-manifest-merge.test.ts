@@ -88,3 +88,15 @@ test("malformed input and no input are refused with the input's label", () => {
   );
 });
 
+
+test('validates version, files array and individual entries independently', () => {
+  const good = manifest("x64");
+  for (const invalid of [{ ...good, version: 2 }, { ...good, files: { zip: good.files[0] } }]) {
+    assert.throws(() => mergeMacManifests({ inputs: [{ label: "intel.yml", manifest: invalid }] }),
+      { message: "intel.yml: not an update manifest (needs version and files)" });
+  }
+  for (const invalid of [null, { url: 50, sha512: "known" }, { url: "last.zip", sha512: false }]) {
+    assert.throws(() => mergeMacManifests({ inputs: [{ label: "intel.yml", manifest: { ...good, files: [...good.files, invalid] } }] }),
+      { message: "intel.yml: every files entry needs url and sha512" });
+  }
+});

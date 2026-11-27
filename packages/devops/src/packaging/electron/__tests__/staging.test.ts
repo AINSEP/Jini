@@ -443,3 +443,15 @@ test('packaged siblings keep the dependency version they resolved before a later
   assert.equal(versionSeenFrom('/out/node_modules/b/node_modules/a'), '1');
   assert.equal(versionSeenFrom('/out/node_modules/b/node_modules/c'), '2');
 });
+
+test('closure checking refuses a dependency symlink that resolves to the checkout rather than the payload', () => {
+  const fs = memoryFs({
+    files: {
+      '/out/node_modules/main/package.json': manifestOf('main', '1', { 'worker': '2' }),
+      '/out/node_modules/worker/package.json': manifestOf('worker', '2'),
+    },
+  }, { realpaths: { '/out/node_modules/worker': '/checkout/node_modules/worker' } });
+  assert.throws(() => assertClosureComplete({ outDir: '/out', fs, excluded: new Set() }), {
+    message: 'staged tree is missing 1 declared dependencies:\n  main -> worker',
+  });
+});
