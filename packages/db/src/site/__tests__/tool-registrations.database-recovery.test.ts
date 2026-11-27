@@ -1,7 +1,7 @@
 import { executeMigrateForward } from "../../recovery/migrate-forward-execute.js";
 import assert from 'node:assert/strict';
 import { expect, test, vi } from 'vitest';
-import { adaptLegacyAuthorize, ToolInputError, ToolPermissionDeniedError } from '@jini-ai/core';
+import { adaptLegacyAuthorize, humanConfirmedHandler, ToolInputError, ToolPermissionDeniedError, type ToolExecutionContext } from '@jini-ai/core';
 import { InMemoryDatabaseIntrospectionAdapter, InMemoryDatabaseLedgerRepo, InMemoryDbOpsAdapter, InMemoryRestorePointsRepo } from '../repo.memory.js';
 import { createDatabaseReadTools, getDatabaseAgentToolCatalog, defaultDbMessages } from '../../tools/index.js';
 import { buildDatabaseRegistrations, contributeDatabaseTools, type DatabaseToolDeps } from '../tool-registrations.js';
@@ -18,11 +18,13 @@ function fixture(confirmed: boolean, costClass = 'cheap') {
     gatewayConfirm: async (input: unknown) => { confirmedAs.push(input); order.push('confirm'); return { confirmationToken: 'token' }; },
     gatewayExecute: async (input: unknown) => { assert.equal(locked, true); executedAs.push(input); order.push('restore-point', 'execute'); return { migrated: true }; },
     operationLock: { acquireOperationLock: async () => { order.push('lock'); locked = true; return { ok: true, value: { siteId: 'ws', operationKind: 'migration', acquiredAt: 'now' } }; }, releaseOperationLock: async () => { order.push('unlock'); locked = false; } },
-    humanConfirmedToolHandler: (_surfaces: unknown, steps: { prepare(input: { ctx: unknown }): Promise<unknown>; run(input: { ctx: unknown; prepared: unknown; confirmer: { id: string; kind: 'user' } }): Promise<unknown> }) => async (ctx: unknown) => {
-      const prepared = await steps.prepare({ ctx });
-      if (!confirmed) return { migrated: false };
-      return steps.run({ ctx, prepared, confirmer: { id: 'human', kind: 'user' } });
-    },
+    // core refuses to wire a confirmer-must-equal-own-delegatedBy tool unless its handler comes from
+    // humanConfirmedHandler, so the host fake builds it there and only stands in for the human's answer.
+    humanConfirmedToolHandler: (_surfaces: unknown, steps: { prepare(input: { ctx: ToolExecutionContext }): Promise<unknown>; run(input: { ctx: ToolExecutionContext; prepared: unknown; confirmer: { id: string; kind: 'user' } }): Promise<unknown> }) => humanConfirmedHandler({
+      prepare: steps.prepare,
+      askHuman: async () => (confirmed ? { confirmed: true } : { confirmed: false, result: { migrated: false } }),
+      run: steps.run,
+    }),
   } as unknown as DatabaseToolDeps;
   const tool = buildDatabaseRegistrations(deps).find(tool => tool.descriptor.id === 'database_execute_migrate_forward')!;
   const call = () => tool.handler({ executionId: 'exec', principal: { id: 'agent' }, run: { id: 'run' }, input: {}, signal: new AbortController().signal });
@@ -39,10 +41,12 @@ test('a refused restore-point plan never executes', async () => {
 });
 test('confirmation belongs to the human and execution to the agent inside the operation lock', async () => {
   const f = fixture(true); assert.deepEqual(await f.call(), { migrated: true });
-  assert.equal((f.confirmedAs[0] as { principalId: string }).principalId, 'human');
+  // The confirmer is the run's own delegating principal (humanConfirmedHandler), confirming as a user.
+  assert.equal((f.confirmedAs[0] as { principalId: string }).principalId, 'agent');
   assert.equal((f.confirmedAs[0] as { principalKind: string }).principalKind, 'user');
   assert.equal((f.executedAs[0] as { confirmationToken: string }).confirmationToken, 'token');
   assert.equal((f.executedAs[0] as { principalId: string }).principalId, 'agent');
+  assert.equal((f.executedAs[0] as { principalKind: string }).principalKind, 'agent');
   assert.deepEqual(f.order, ['plan', 'confirm', 'lock', 'restore-point', 'execute', 'unlock']);
 });
 
@@ -85,16 +89,16 @@ test('the human confirmation layer receives the migration-specific dialog and va
     humanConfirmedToolHandler: (surfaces, steps) => {
       assert.equal(surfaces, f.deps.surfaces);
       assert.equal(steps.flag, 'migrated');
-      return async ctx => {
-        await steps.prepare({ ctx });
-        dialogs.push(steps.dialog());
-        return { migrated: false };
-      };
+      return humanConfirmedHandler({
+        prepare: steps.prepare,
+        askHuman: async () => { dialogs.push(steps.dialog()); return { confirmed: false, result: { migrated: false } }; },
+        run: steps.run,
+      });
     },
   };
   const call = bind(deps, 'database_execute_migrate_forward');
   await expect(call({ unsafe: 1 })).rejects.toThrow('unexpected migration input');
-  await expect(call([])).rejects.toBeInstanceOf(ToolInputError);
+  await expect(call('not-an-object')).rejects.toBeInstanceOf(ToolInputError);
   expect(f.order).toEqual([]);
   expect(await call(undefined)).toEqual({ migrated: false });
   expect(refuseUnexpectedKeys.mock.calls).toEqual([[{ unsafe: 1 }, []], [{}, []]]);
@@ -113,7 +117,7 @@ test('contributed database tools validate filters and authorize the right entity
   const deps: DatabaseToolDeps = { ...f.deps, authorize, adaptLegacyAuthorize, databaseLedgerRepo: ledger,
     restorePointsRepo: restorePoints, dbOps: new InMemoryDbOpsAdapter(), databaseIntrospection: new InMemoryDatabaseIntrospectionAdapter() };
   const timeline = bind(deps, 'database_query_timeline');
-  await expect(timeline([])).rejects.toThrow('input must be an object');
+  await expect(timeline('not-an-object')).rejects.toThrow('input must be an object');
   expect(authorize.mock.calls).toEqual([]);
   expect(await timeline({ kind: 'restore', outcome: 'ok', limit: 1 })).toEqual({ items: [row], nextCursor: null });
   expect(await timeline({ kind: 'migration', limit: 1 })).toEqual({ items: [], nextCursor: null });

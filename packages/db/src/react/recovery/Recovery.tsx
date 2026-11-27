@@ -321,7 +321,7 @@ function RestorePointsPanel(props: {
         <h2>{t({ locale: locale, key: "Restore points" })}</h2>
         <button
           type="button"
-          onClick={props.onCreate}
+          onClick={() => props.onCreate()}
           disabled={props.creating}
           {...agentHandle({ handle: "recovery-create-restore-point" }, { role: "button", label: "Create a new restore point now" })}
         >

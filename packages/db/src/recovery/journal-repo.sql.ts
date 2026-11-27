@@ -204,6 +204,7 @@ export class SqliteMigrationRunsRepo implements MigrationRunsRepoPort {
       db
         .updateTable("migration_runs")
         .set({ status: "RESTORED", updated_at: new Date().toISOString() })
+        .where("site_id", "=", this.deps.siteId)
         .where("id", "=", params.id)
         .execute()
     );

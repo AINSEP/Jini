@@ -93,7 +93,7 @@ test("a malformed internal confirm result must not proceed to execute", async ()
   f.host.confirm = vi.fn(async () => ({ ok: true, value: { token: "wrong-field" } })) as unknown as typeof f.host.confirm;
   const registration = buildRecoveryRegistrations(f).find(row => row.descriptor.id === "backup_execute_restore");
   if (!registration) throw new Error("restore missing");
-  await expect(registration.handler(ctx, { emitSurface: vi.fn() })).rejects.toThrow();
+  await expect(registration.handler(ctx, { emitSurface: vi.fn() })).rejects.toThrow("RESTORE_CONFIRM_MALFORMED: the confirmation step returned no confirmation token, so nothing was restored.");
   expect(f.host.execute).not.toHaveBeenCalled();
   expect(f.host.operationLock.acquireOperationLock).not.toHaveBeenCalled();
 });

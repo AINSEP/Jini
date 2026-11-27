@@ -202,6 +202,15 @@ async function resolveRecoveryDeepLink<D extends RecoveryToolDeps>(routeDeps: D,
         input: { principalId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND, envelope },
       });
     }
+/** The confirm step's token, refused when the host returns any other shape: a restore never runs on a missing token. */
+function readConfirmationToken(value: unknown): string {
+  const token = typeof value === "object" && value !== null ? (value as { confirmationToken?: unknown }).confirmationToken : undefined;
+  if (typeof token !== "string" || token.length === 0) {
+    throw new Error("RESTORE_CONFIRM_MALFORMED: the confirmation step returned no confirmation token, so nothing was restored.");
+  }
+  return token;
+}
+
 function createRecoveryRestoreRun<D extends RecoveryToolDeps>(routeDeps: D, host: RecoveryToolHost<D>): Parameters<RecoveryToolHost<D>["confirmedRestore"]>[0]["run"] {
   return async ({ ctx, prepared: { restorePointId, plan }, confirmer }) => {
         const hooks = host.buildRestoreHooks({ deps: routeDeps, actorId: ctx.principal.id, restorePointId });
@@ -212,7 +221,7 @@ function createRecoveryRestoreRun<D extends RecoveryToolDeps>(routeDeps: D, host
           input: { principalId: confirmer.id, principalKind: confirmer.kind, planId: plan.planId, planHash: plan.planHash, disclosureAcknowledged: true },
         });
         if (!confirmed.ok) throw new Error(confirmed.error.message ?? confirmed.error.code);
-        const { confirmationToken } = confirmed.value as { confirmationToken: string };
+        const confirmationToken = readConfirmationToken(confirmed.value);
 
         const executed = await executeRestore({
           deps: {

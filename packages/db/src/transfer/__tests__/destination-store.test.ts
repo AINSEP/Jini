@@ -99,6 +99,18 @@ it("address saves normalize plaintext, preserve a blank re-save, and reset last-
   expect(await store.get("another-workspace")).toBeNull();
 });
 
+it("a blank first save has no saved address to keep, so address validation refuses it and nothing is stored", async () => {
+  const { make, saved, normalizeAddress } = sealedFixture();
+  normalizeAddress.mockImplementationOnce(({ value }) => {
+    if (value.trim() === "") throw new Error("database address is required");
+    return value;
+  });
+  const store = make();
+  await expect(store.save("ws", { ...initial, connectionString: "" })).rejects.toThrow("database address is required");
+  expect(normalizeAddress.mock.calls).toEqual([[{ value: "" }]]);
+  expect(await saved()).toBeNull();
+});
+
 it.each([null, 42])("redacts an invalid sealed connection string (%j) without blocking status metadata", async invalid => {
   const { make, service } = sealedFixture();
   const store = make();
