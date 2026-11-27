@@ -4,6 +4,7 @@ import type { MessageBlock } from '../message-blocks.js';
 import {
   applyToolCallDisplay,
   isFailedToolRow,
+  retriedToolRowIds,
   summarizeToolGroup,
   toolGroupLabel,
   toolRowsForDisplay,
@@ -156,4 +157,16 @@ describe('summarizeToolGroup + toolGroupLabel', () => {
     expect(failed).toEqual({ kind: 'done', count: 3, failed: 2 });
     expect(toolGroupLabel({ summary: failed, t })).toBe('Used 3 tools · 2 failed');
   });
+});
+
+it('matches a retry by numeric target zero without merging it with blank or string targets', () => {
+  const write = (id: string, status: ToolStatus, input: unknown): ToolDisplayRow => ({ id, name: 'content_post_update', status, use: { input } });
+  const rows = [
+    write('numeric', 'error', { postId: 0, slug: 'previous' }),
+    write('string', 'error', { postId: '0', slug: 'current' }),
+    write('blank', 'error', { postId: '', slug: 'current' }),
+    write('retry', 'complete', { post_id: 0, slug: 'current' }),
+  ];
+  expect([...retriedToolRowIds({ rows })]).toEqual(['numeric']);
+  expect(summarizeToolGroup({ rows })).toEqual({ kind: 'done', count: 4, failed: 2 });
 });

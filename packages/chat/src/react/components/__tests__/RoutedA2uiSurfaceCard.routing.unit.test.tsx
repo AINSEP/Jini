@@ -27,3 +27,30 @@ test("live refusals stay inline while successful portal surfaces dismiss", () =>
   fireEvent.click(dismiss);
   expect(setDismissed).toHaveBeenCalledWith({ value: true });
 });
+
+test('keeps historical cards inline without a canvas and hides a dismissed canvas card', () => {
+  const target = document.body.appendChild(document.createElement('div'));
+  const handleAgentAction = vi.fn();
+  const setDismissed = vi.fn();
+  const state = { target: null as HTMLElement | null, dismissed: false, setDismissed, hasError: false, handleAgentAction };
+  const props = {
+    name: 'a2ui', runId: 'run', clock: { nowMs: () => 0 }, events: [], runStreaming: false, runSucceeded: true,
+    SurfaceCard: () => <article aria-label="Generated surface">Saved forecast</article>,
+    useTHook: () => (key: string) => key,
+    useRoutedA2uiSurfaceCardHook: () => state,
+    useChartRegistryHook: () => ({ registry: { list: () => [], resolveById: () => null }, generation: 'g1', stylesheets: ['/forecast.css'] }),
+  } satisfies RoutedA2uiSurfaceCardProps;
+  const view = render(<RoutedA2uiSurfaceCard {...props} />);
+  try {
+    expect(view.getByRole('article', { name: 'Generated surface' }).textContent).toBe('Saved forecast');
+    expect(view.container.querySelector('link[rel="stylesheet"]')?.getAttribute('href')).toBe('/forecast.css');
+    expect(view.queryByRole('button', { name: 'Remove from canvas' })).toBeNull();
+    state.target = target;
+    view.rerender(<RoutedA2uiSurfaceCard {...props} />);
+    expect(target.querySelector('article')?.textContent).toBe('Saved forecast');
+    state.dismissed = true;
+    view.rerender(<RoutedA2uiSurfaceCard {...props} />);
+    expect(view.queryByRole('article', { name: 'Generated surface' })).toBeNull();
+    expect(target.childElementCount).toBe(0);
+  } finally { view.unmount(); target.remove(); }
+});

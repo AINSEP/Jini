@@ -40,3 +40,19 @@ it('opens a mid-run message attachment in the preview modal and closes it', asyn
   await userEvent.click(screen.getByRole('button', { name: 'Close' }));
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('inherits a receipt’s queued state only for inputs without a more specific delivery state', () => {
+  const events = [{ id: 'batch', text: 'summary', deliveryState: 'queued', inputs: [
+    { id: 'waiting', text: 'Second instruction', folders: ['/repo/notes'] },
+    { id: 'consumed', text: 'First instruction', deliveryState: 'consumed' },
+  ] }];
+  const view = render(<MidRunUserMessage events={events} runStreaming />);
+  const waiting = screen.getByText('Second instruction').closest('.jini-message-user');
+  const consumed = screen.getByText('First instruction').closest('.jini-message-user');
+  expect(waiting?.querySelector('[role="status"]')?.textContent).toBe('Queued — read after the current step');
+  expect(waiting?.querySelector('[title="/repo/notes"]')?.textContent).toBe('notes');
+  expect(consumed?.querySelector('[role="status"]')).toBeNull();
+  view.rerender(<MidRunUserMessage events={events} runStreaming={false} />);
+  expect(screen.getByText('Second instruction')).toBeInTheDocument();
+  expect(screen.queryByRole('status')).toBeNull();
+});

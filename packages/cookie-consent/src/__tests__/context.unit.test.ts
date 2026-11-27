@@ -79,3 +79,14 @@ test('a cached page reloads once for its policy across repeated document boots',
   await bootWithContext({ win: window }, { ports: supplied });
   expect(supplied.reload).toHaveBeenCalledTimes(2);
 });
+
+test('an HTTP refusal ignores even a valid-looking context and leaves the consent runtime inactive', async () => {
+  const cookie = vi.spyOn(document, 'cookie', 'get');
+  const supplied = ports();
+  supplied.fetch.mockResolvedValue(Response.json({ enabled: true, policy: 'snapshot', regionMode: 'auto' }, { status: 503 }));
+  expect(await bootWithContext({ win: window }, { ports: supplied })).toBeUndefined();
+  expect(supplied.fetch.mock.calls).toEqual([['/_consent/context', { credentials: 'same-origin', cache: 'no-store' }]]);
+  expect(window.jiniConsent).toBeUndefined();
+  expect(cookie).not.toHaveBeenCalled();
+  expect(supplied.reload).not.toHaveBeenCalled();
+});

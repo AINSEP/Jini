@@ -38,3 +38,11 @@ describe('consent contribution file', () => {
       .toEqual({ pluginId: 'p', entry: { id: 'tags', kind: 'declared-scripts', scripts: [{ src: '/t.js' }] } });
   });
 });
+
+it('reports the plugin and rejects unserved or malformed declared asset paths', () => {
+  expect(declaredScriptsContribution({ pluginId: 'metrics', entry: { kind: 'declared-scripts', id: 'assets', scripts: [{ src: './relative.js' }] } }))
+    .toBe("Script declarations 'assets' from 'metrics' need already-served HTTP(S) or site-relative URLs; unresolved relative paths are not supported.");
+  expect(declaredScriptsContribution({ pluginId: 'metrics', entry: { kind: 'declared-scripts', id: 'assets', scripts: [{ src: '/served.js', consent: 'analytics' }] } }))
+    .toBe("Script declarations 'assets' from 'metrics' were refused: scripts[0] needs an HTTP(S) or relative src and known consent categories.");
+  expect(consentBridgeContribution({ entry: { kind: 'consent-bridge', id: 'broken', src: 'https://[bad' } })).toBeUndefined();
+});

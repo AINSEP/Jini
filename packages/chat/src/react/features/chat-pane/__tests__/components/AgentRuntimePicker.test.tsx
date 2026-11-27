@@ -7,7 +7,7 @@ import {
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
-import { runtimeAgentStatus } from '../../components/RuntimePickerSections.js';
+import { RuntimeRescanFooter, runtimeAgentStatus } from '../../components/RuntimePickerSections.js';
 import { runtimeDropUpPosition } from '../../hooks/useRuntimeDropUp.hooks.js';
 import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';
@@ -872,4 +872,13 @@ it('offers the selected model effort levels with the advertised Default and norm
   expect(onChange).toHaveBeenLastCalledWith({ agentId: 'codex', model: 'gpt-b', reasoning: 'default' });
   rerender(<AgentRuntimePicker agents={[{ ...agent, reasoningInModelId: { levels: [{ id: 'high', label: 'High' }] } }]} value={{ agentId: 'codex', model: 'gpt-a' }} onChange={onChange} />);
   expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+});
+
+it('shows a pending scan even when the host cannot trigger one, then removes the notice', () => {
+  const label = (key: string) => key;
+  const view = render(<RuntimeRescanFooter base="runtime" onRescan={undefined} scanning t={label} />);
+  expect(screen.getByText('Scanning PATH…')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).toBeNull();
+  view.rerender(<RuntimeRescanFooter base="runtime" onRescan={undefined} scanning={false} t={label} />);
+  expect(screen.queryByText('Scanning PATH…')).toBeNull();
 });

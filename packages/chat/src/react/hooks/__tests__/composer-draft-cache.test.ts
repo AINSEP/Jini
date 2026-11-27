@@ -7,9 +7,11 @@ import {
   MAX_CACHED_CONVERSATION_DRAFTS,
   readCachedAttachmentBatchId,
   readCachedDraft,
+  readCachedFolders,
   writeCachedAttachmentBatchId,
   writeCachedAttachments,
   writeCachedDraft,
+  writeCachedFolders,
 } from '../composer-draft-cache.js';
 
 describe('composer-draft-cache', () => {
@@ -241,4 +243,23 @@ describe('composer-draft-cache attachment batch ids', () => {
     expect(readCachedAttachmentBatchId({ conversationId: `convo-${MAX_CACHED_CONVERSATION_DRAFTS}` }))
       .toBe(`batch-${MAX_CACHED_CONVERSATION_DRAFTS}`);
   });
+});
+
+it('keeps ordered folder paths exact across reload and refuses a corrupt stored folder list', () => {
+  __resetComposerDraftCacheForTests();
+  const conversationId = 'folder-cache';
+  const storageKey = `jini.chat.composer-folders.v1.${conversationId}`;
+  const folders = ['/', 'C:\\work\\notes', '/path with spaces'];
+  try {
+    expect(writeCachedFolders({ conversationId: null, folders })).toBe(false);
+    expect(readCachedFolders({ conversationId: undefined })).toEqual([]);
+    expect(writeCachedFolders({ conversationId, folders })).toBe(true);
+    folders.reverse();
+    expect(readCachedFolders({ conversationId })).toEqual(['/', 'C:\\work\\notes', '/path with spaces']);
+    __resetComposerDraftCacheForTests({ keepStorage: true });
+    expect(readCachedFolders({ conversationId })).toEqual(['/', 'C:\\work\\notes', '/path with spaces']);
+    localStorage.setItem(storageKey, JSON.stringify({ v: 1, folders: ['/valid', 5] }));
+    expect(readCachedFolders({ conversationId })).toEqual([]);
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  } finally { __resetComposerDraftCacheForTests(); }
 });

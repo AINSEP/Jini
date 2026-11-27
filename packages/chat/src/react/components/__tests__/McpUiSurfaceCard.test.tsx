@@ -14,6 +14,8 @@
  * invoking the real callback function, in `@jini-ai/ui`'s `useMcpUiHost.test.tsx`.
  */
 import { waitFor } from '@testing-library/react';
+import { SURFACE_EXCHANGE_META } from '../../../core/surface-recovery.js';
+import type { RecoverableMcpUiToolCaller } from '../../features/chat-pane/create-mcp-ui-tool-caller.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -427,4 +429,22 @@ describe('registerMcpUiSurfaceRenderer', () => {
     expect(getExtEventRenderer({ name: 'mcp-ui-secondary' })).toBeTypeOf('function');
     expect(getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME })).toBeUndefined();
   });
+});
+
+it('replaces the expired question with the restored view instead of applying the old tool result to it', async () => {
+  const info = { exchangeId: 'exchange-old', runId: 'run-1', toolId: 'save' };
+  const original = resourceEvent('ui://old', '<h1>Old question</h1>', { [SURFACE_EXCHANGE_META]: info });
+  const restored = resourceEvent('ui://new', '<h1>New question</h1>');
+  const restore = vi.fn<RecoverableMcpUiToolCaller['restore']>(async ({ onSurface }) => {
+    onSurface({ channel: 'mcp-ui', payload: { resource: restored, surfaceExchange: { ...info, exchangeId: 'exchange-new' } } });
+  });
+  const onToolCall: RecoverableMcpUiToolCaller = Object.assign(async () => ({}), { restore, answer: async () => ({ delivered: true }) });
+  const view = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[original]} onToolCall={onToolCall}
+    call={{ name: 'save', input: { title: 'Old question' }, result: { content: 'expired', isError: true } }} />);
+  const frame = await view.findByTitle('New question');
+  expect(frame.getAttribute('srcdoc')).toBe('<h1>New question</h1>');
+  expect(frame.getAttribute('data-tool')).toBe('ui://new');
+  expect(view.queryByText('This question expired')).toBeNull();
+  expect(view.queryByTitle('Old question')).toBeNull();
+  expect(restore.mock.calls).toEqual([[{ ...info, signal: expect.any(AbortSignal), onSurface: expect.any(Function) }]]);
 });

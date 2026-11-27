@@ -6,3 +6,7 @@ describe('toolRowTarget', () => {
     expect(toolRowTarget({ input: { family: 'agent-plugin', pluginId: 'composio', enabled: true } })).toBe('composio');
   });
 });
+
+it('keeps the operation target readable when a JSON-looking result is truncated', () => {
+  expect(toolRowTarget({ input: { entityType: 'article' }, resultContent: '{"title":"Half-written' })).toBe('article');
+});

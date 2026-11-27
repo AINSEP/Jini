@@ -56,3 +56,11 @@ describe('FolderChips handle forwarding', () => {
     expect(container.querySelector('[data-agent-element]')).toBeNull();
   });
 });
+
+it('shows the filesystem root as a folder name rather than dropping its separators', () => {
+  const { rerender } = render(<FolderChips />);
+  expect(screen.queryByRole('list')).toBeNull();
+  rerender(<FolderChips folders={['/']} />);
+  expect(screen.getByText('/')).toHaveAttribute('title', '/');
+  expect(screen.getByRole('button', { name: 'Copy folder path: /' })).toBeEnabled();
+});

@@ -275,3 +275,11 @@ describe('history tool boundaries', () => {
   });
 });
 
+
+it('returns an exhausted forward page without inventing a continuation position', async () => {
+  const h = harness({ history: reader([]) });
+  expect(await h.call('assistant_chat_read', { chatId: 'c', fromPosition: 17, limit: 2 })).toEqual({
+    chatId: 'c', messages: [], truncated: false, hasMore: false, hasMoreBefore: false,
+  });
+  expect(h.getCalls).toEqual(['c']);
+});

@@ -1477,3 +1477,31 @@ describe('ChatPane per-message queue', () => {
     expect(transport.calls).toHaveLength(1);
   });
 });
+
+it('describes a failed file upload without rendering an empty details section, then allows retry', async () => {
+  const transport = createFakeChatTransport();
+  const attachment = { path: 'attachment:retry-file', name: 'notes.txt', kind: 'file' as const };
+  const uploadAttachments = vi.fn().mockRejectedValueOnce(new Error('  ')).mockResolvedValueOnce([attachment]);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+  const user = userEvent.setup();
+  const input = screen.getByLabelText('Attach files', { selector: 'input' });
+  await user.upload(input, new File(['first'], 'notes.txt', { type: 'text/plain' }));
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toBe('Attachment upload failed. The file was not attached. Choose it again to retry.');
+  expect(screen.queryByText('notes.txt')).toBeNull();
+  await user.upload(input, new File(['retry'], 'notes.txt', { type: 'text/plain' }));
+  expect(await screen.findByText('notes.txt')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('hides the manual working-directory control when the host requests no control and provides no native picker', async () => {
+  const transport = createFakeChatTransport();
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} workingDirectoryControlPlacement="none" />);
+  expect(screen.queryByTestId('working-dir-trigger')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Select working directory' })).toBeNull();
+  await userEvent.type(screen.getByRole('textbox'), 'Use the host default directory');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(transport.calls).toHaveLength(1));
+  expect(transport.calls[0]?.input.history).toMatchObject([{ content: 'Use the host default directory' }]);
+  act(() => transport.finish([]));
+});

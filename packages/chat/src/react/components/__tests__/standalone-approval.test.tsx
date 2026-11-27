@@ -73,3 +73,14 @@ it('keeps readable receipt text and displays the updated outcome after history r
   expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
   expect(screen.getByRole('region', { name: 'Saved' })).toBeInTheDocument();
 });
+
+it('preserves explicit tool choices and reads wrapping labels only for forms without choices', () => {
+  const documentResource = { ...resource, resource: { ...resource.resource, _meta: {},
+    text: '<h1>A form</h1><label><input type="checkbox" id="wrap" value="yes"> Keep the changes </label><input type="radio" id="unlabeled" value="later">',
+  } };
+  const explicit = { title: 'Tool question', singleSelect: { options: [{ value: 'tool', label: 'Tool option' }] } };
+  expect(surfaceQuestionInput({ resource: documentResource, input: explicit })).toBe(explicit);
+  expect(surfaceQuestionInput({ resource: documentResource, input: { title: 'Call title', hint: 'read' } })).toEqual({
+    title: 'Call title', hint: 'read', options: [{ value: 'yes', label: 'Keep the changes' }, { value: 'later', label: '' }],
+  });
+});

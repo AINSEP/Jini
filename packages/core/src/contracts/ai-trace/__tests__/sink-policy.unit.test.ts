@@ -87,3 +87,19 @@ describe('lazy sink delivery and cleanup', () => {
     expect(recording.events).toEqual([events[3]]);
   });
 });
+
+it('reports a synchronous loader failure once and drops later work without buffering', async () => {
+  const failure = new Error('tracing plugin failed during import');
+  const load = vi.fn(() => { throw failure; });
+  const onLoadError = vi.fn();
+  const sink = createLazyAiTraceSink({ load }, { maxQueued: 1, onLoadError });
+  sink.record(events[0]);
+  await sink.ready;
+  sink.record(events[1]);
+  sink.record(events[2]);
+  await sink.flush!();
+  await sink.shutdown!();
+  expect(load).toHaveBeenCalledExactlyOnceWith();
+  expect(onLoadError).toHaveBeenCalledExactlyOnceWith(failure);
+  expect(sink.dropped()).toBe(0);
+});

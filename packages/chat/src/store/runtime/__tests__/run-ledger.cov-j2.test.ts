@@ -305,3 +305,34 @@ describe('createChatRunLedger().reconcileInterrupted', () => {
     expect(recover).not.toHaveBeenCalled();
   });
 });
+
+it('publishes the delta checkpoint receipt after commit and invalidates it when a saved tool barrier must be kept', async () => {
+  const { ledger, history } = setup();
+  await seed(history());
+  type Receipt = import('../../../core/durable-runs/ledger-contracts.js').CheckpointState;
+  const reports: Array<{ receipt: Receipt | undefined; storedContent: string; commits: number }> = [];
+  let commits = 0;
+  const transaction = f.kernel.transaction.bind(f.kernel);
+  vi.spyOn(f.kernel, 'transaction').mockImplementation(async (work) => {
+    const result = await transaction(work);
+    commits += 1;
+    return result;
+  });
+  const onPersisted = (receipt: Receipt | undefined) => { reports.push({ receipt, storedContent: row().content, commits }); };
+  const first = { ...run, content: 'Draft 🚀', events: [{ kind: 'text', text: 'Draft 🚀' }] } as const;
+  expect(await ledger.checkpoint(first, { onPersisted })).toBe(true);
+  const previous = reports[0]?.receipt;
+  if (previous === undefined) throw new Error('the exact checkpoint lost its receipt');
+  expect(previous).toMatchObject({ content: 'Draft 🚀', contentLength: 7 });
+  const next = { ...run, content: 'Draft 🚀 plus', events: [{ kind: 'text', text: 'Draft 🚀 plus' }, toolUse] } as const;
+  expect(await ledger.checkpoint(next, { previous, expected: previous.length, onPersisted })).toBe(true);
+  expect(events()).toEqual(next.events);
+  expect(reports.map(({ storedContent, commits }) => [storedContent, commits])).toEqual([['Draft 🚀', 1], ['Draft 🚀 plus', 2]]);
+  const advanced = reports[1]?.receipt;
+  if (advanced === undefined) throw new Error('the exact delta lost its receipt');
+  expect(advanced).toMatchObject({ content: 'Draft 🚀 plus', events: next.events });
+  const third = { ...run, content: 'Draft 🚀 plus a conclusion', events: [{ kind: 'text', text: 'Draft 🚀 plus a conclusion' }] } as const;
+  expect(await ledger.checkpoint(third, { previous: advanced, expected: advanced.length, onPersisted })).toBe(true);
+  expect(events()).toContainEqual(toolUse);
+  expect(reports[2]).toEqual({ receipt: undefined, storedContent: 'Draft 🚀 plus a conclusion', commits: 3 });
+});

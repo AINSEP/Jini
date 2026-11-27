@@ -169,3 +169,18 @@ describe('passive conversation refresh', () => {
     } finally { report.mockRestore(); }
   });
 });
+
+it('routes passive load failures only through the pane’s injected logger and keeps the prior transcript', async () => {
+  vi.useFakeTimers();
+  try {
+    const previous = [message('prior', 'Saved conversation')];
+    const error = new Error('refresh offline');
+    const h = signal(async () => { throw error; });
+    const report = { error: vi.fn() };
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents: [], initialMessages: previous, refreshSignal: h.refreshSignal, report }));
+    await act(() => h.emit());
+    expect(report.error.mock.calls).toEqual([[{ message: '[chat] conversation refresh failed' }, { error }]]);
+    expect(result.current.conversation.messages).toEqual(previous);
+  } finally { vi.useRealTimers(); }
+});

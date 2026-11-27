@@ -157,3 +157,11 @@ test('banner preview never emits executable declared or runtime assets', () => {
   expect(head).not.toMatch(/<script[^>]+src=/);
   expect(body).toContain('id="jini-consent"');
 });
+
+test('applies the same escaped CSP nonce to core and optional extension assets', () => {
+  const out = renderBanner(config(), { clientSrc: '/core.js?a=1&b=2', extensionSrc: '/features.js', nonce: 'abc"123' });
+  expect(out.head).toContain('<script src="/core.js?a=1&amp;b=2" defer nonce="abc&quot;123"></script><script src="/features.js" defer nonce="abc&quot;123"></script>');
+  const preview = renderBanner(config(), { clientSrc: '/core.js', extensionSrc: '/features.js', nonce: 'abc"123', preview: { region: 'opt-in' } });
+  expect(preview.head).toContain('<style data-jini-consent-style nonce="abc&quot;123">');
+  expect(preview.head).not.toContain('<script src=');
+});

@@ -41,3 +41,12 @@ it('a dropped folder whose path contains a space is inserted quoted', () => {
   result.current.onDropCapture(folderDrop({ path: '/Users/x/My Site' }) as unknown as DragEvent<HTMLElement>);
   expect(inserted).toEqual(['"/Users/x/My Site"']);
 });
+
+it('leaves drops available to the host when there is no file-to-path port', () => {
+  const fake = fakeHooks();
+  const { result } = renderHook(() => useConversationChatPane(fake.hooks));
+  const calls: string[] = [];
+  result.current.onDropCapture(folderDrop({ path: '/Users/x/Site' }, calls) as unknown as DragEvent<HTMLElement>);
+  expect(calls).toEqual([]);
+  expect(result.current.composerHandle.current).toBeNull();
+});

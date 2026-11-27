@@ -60,3 +60,12 @@ test('the preview of "None" still shows the Jini banner, scriptless, for the ask
   assert.match(preview.htmlAttrs, /data-consent-region="opt-out"/);
   assert.doesNotMatch(preview.head, /<script src=/);
 });
+
+test('uses appearance tokens without changing banner mode or inventing missing CSS', () => {
+  const { customCss: _missing, ...config } = saved;
+  const appearance = { borderRadius: '11px' };
+  const { banner, options } = toSiteCookieConsent({ config: { ...config, appearance, bannerMode: 'headless' }, policy: 'published:19' });
+  assert.equal(banner.mode, 'headless');
+  assert.equal(banner.client.policy, 'published:19');
+  assert.deepEqual(options, { reopen: 'link', placement: 'bottom-right', appearance });
+});

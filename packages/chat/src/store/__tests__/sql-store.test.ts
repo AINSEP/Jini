@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { sqliteFixture } from './fixtures.js';
 import { createSqliteChatStore } from '../sqlite/index.js';
+import { validatedEventsJson } from '../sql/store.js';
 import { ChatStoreError } from '../errors.js';
 import type { ChatOwnerScope } from '../ports.js';
 import type { RedactUserText } from '../../core/user-text-redaction.js';
@@ -186,4 +187,19 @@ describe('writeMessage atomicity (M-split-write-transaction pin)', () => {
       expect((await storedRows(fixture)).map(row => [row.id, row.position])).toEqual([['m2', 0]]);
     } finally { await fixture.close(); }
   });
+});
+
+it('treats corrupted stored events as absent without dropping valid raw JSON or its message metadata', async () => {
+  const fixture = await sqliteFixture();
+  try {
+    const store = createSqliteChatStore({ clock: { nowMs: () => 12 }, kernel: fixture.kernel, scope });
+    await store.create({ id: 'c' });
+    await store.appendMessage({ conversationId: 'c', message: { id: 'corrupt', role: 'assistant', content: 'saved body' } });
+    await fixture.kernel.execute(sql`UPDATE ai_chat_messages SET events_json = '[incomplete' WHERE id = 'corrupt'`);
+    expect(await store.message!({ conversationId: 'c', messageId: 'corrupt' })).toMatchObject({ id: 'corrupt', content: 'saved body' });
+    expect(await store.message!({ conversationId: 'c', messageId: 'corrupt' })).not.toHaveProperty('events');
+    // PostgreSQL 14 may have to validate the raw column itself instead of trusting SQLite json_valid.
+    expect(validatedEventsJson({ row: { events_json: '[incomplete', events_json_valid: null } })).toBeUndefined();
+    expect(validatedEventsJson({ row: { events_json: '[ {"kind":"text","text":"ready"} ]', events_json_valid: null } })).toBe('[ {"kind":"text","text":"ready"} ]');
+  } finally { await fixture.close(); }
 });

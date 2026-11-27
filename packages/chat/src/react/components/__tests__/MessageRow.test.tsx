@@ -1,11 +1,11 @@
-import { I18nContext } from '../../hooks/context.js';
+import { ExtEventRendererRegistryContext, I18nContext } from '../../hooks/context.js';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
 import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
-import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import { clearExtEventRenderers, createExtEventRendererRegistry, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import {
   __resetAttachmentPreviewCacheForTests,
   cacheAttachmentPreviewSource,
@@ -889,4 +889,24 @@ it('keeps a stale plugin-choice refusal visible after the following reply succee
   expect(screen.getByText(notice, { exact: false })).toBeVisible();
   expect(screen.getByText('I can continue with the current preference.', { exact: false })).toBeVisible();
   expect(document.querySelector('.jini-message-error')).toBeNull();
+});
+
+it('renders an unregistered mid-run receipt inline and preserves the host sending copy until acceptance', () => {
+  const message: ChatMessage = { id: 'active-reply', role: 'assistant', content: 'Drafting', runStatus: 'running', events: [
+    { kind: 'text', text: 'Drafting' },
+    { kind: 'ext', name: 'user_message', data: { id: 'steer', text: 'Use the revised outline' } },
+  ] };
+  const registry = createExtEventRendererRegistry();
+  const row = (sending: boolean) => <ExtEventRendererRegistryContext.Provider value={registry}>
+    <MessageRow message={message} runStreaming runSending={sending} sendingLabel="Submitting to workspace…" />
+  </ExtEventRendererRegistryContext.Provider>;
+  const view = render(row(true));
+  const receipt = screen.getByText('Use the revised outline').closest('.jini-message-user');
+  expect(receipt).toHaveClass('jini-message-user');
+  expect(receipt).not.toHaveClass('jini-message-user--mid-run');
+  expect(screen.getByText('Drafting')).toBeInTheDocument();
+  expect(screen.getByText('Submitting to workspace…')).toBeInTheDocument();
+  view.rerender(row(false));
+  expect(screen.queryByText('Submitting to workspace…')).toBeNull();
+  expect(screen.getByText('Use the revised outline')).toBeInTheDocument();
 });

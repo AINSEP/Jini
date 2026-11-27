@@ -12,3 +12,13 @@ it("malformed configured scripts force no-store without relaxing private directi
   expect(hasConsentGatedScripts({ html: '<script type="application/json" id="c">{"scripts":[]}</script>', configId: "c" })).toBe(false);
   expect(hasConsentGatedScripts({ html: '<script type="application/json" id="c">{"scripts":[{}]}</script>', configId: "c" })).toBe(true);
 });
+
+it("leaves public caching alone when no scripts are gated or a consent choice already exists", () => {
+  const cacheControl = "public, max-age=36";
+  const html = '<script type="application/json" id="site-consent">{"scripts":[{"src":"/stats.js","consent":["analytics"]}]}</script>';
+  const hasConsentChoice = vi.fn(() => true);
+  expect(preConsentCacheControl({ html, cacheControl, configId: "site-consent", hasConsentChoice })).toBe(cacheControl);
+  expect(hasConsentChoice.mock.calls).toEqual([[{}]]);
+  expect(preConsentCacheControl({ html, cacheControl, configId: "other-page-consent", hasConsentChoice: () => false })).toBe(cacheControl);
+  expect(hasConsentGatedScripts({ html: '<script type="application/json" id="site-consent">{"scripts":"not-an-array"}</script>', configId: "site-consent" })).toBe(false);
+});

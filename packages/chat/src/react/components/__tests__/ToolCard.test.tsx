@@ -1270,3 +1270,12 @@ describe('ToolCard', () => {
     });
   });
 });
+
+it.each([false, null, undefined])('uses the built-in Bash card when a registered renderer declines with %s', (nothing) => {
+  const renderer = vi.fn(() => nothing);
+  registerToolRenderer({ name: 'Bash', renderer });
+  const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'bash-fallback', name: 'Bash', input: { command: 'printf fallback' } }} runSucceeded />);
+  expect(screen.getByText('Bash')).toBeInTheDocument();
+  expect(container.textContent).toContain('printf fallback');
+  expect(renderer.mock.calls).toHaveLength(1);
+});

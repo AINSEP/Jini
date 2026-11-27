@@ -34,3 +34,65 @@ test('a saved card never re-executes its tool when the owner opens the chat', ()
   expect(restore).not.toHaveBeenCalled();
   unmount();
 });
+
+test('submits through the recovery answer port and aborts a pending answer when the card closes', async () => {
+  type Caller = import('../../features/chat-pane/create-mcp-ui-tool-caller.js').RecoverableMcpUiToolCaller;
+  const fallback = vi.fn(() => ({ saved: false }));
+  const restore = vi.fn(async () => undefined);
+  const answer = vi.fn<Caller['answer']>()
+    .mockResolvedValueOnce({ saved: true, revision: 7 })
+    .mockImplementationOnce(({ signal }) => new Promise((resolve) => {
+      signal.addEventListener('abort', () => resolve({ saved: false, canceled: true }), { once: true });
+    }));
+  const caller: Caller = Object.assign(fallback, { restore, answer });
+  const { result, unmount } = renderHook(() => useSurfaceRecovery({
+    resource, call: { name: 'save', input: {} }, runStreaming: true, onToolCall: caller,
+  }));
+
+  const submit = result.current.onToolCall;
+  if (!submit) throw new Error('recoverable card lost its submit callback');
+  const first = { name: 'save', arguments: { choice: 'keep' } };
+  expect(await submit(first)).toEqual({ saved: true, revision: 7 });
+  const second = { name: 'save', arguments: { choice: 'discard' } };
+  const pending = submit(second);
+  expect(answer.mock.calls).toEqual([
+    [{ call: first, signal: expect.any(AbortSignal), onSurface: expect.any(Function) }],
+    [{ call: second, signal: expect.any(AbortSignal), onSurface: expect.any(Function) }],
+  ]);
+  const completedSignal = answer.mock.calls[0]![0].signal;
+  const pendingSignal = answer.mock.calls[1]![0].signal;
+  expect(pendingSignal.aborted).toBe(false);
+  expect(fallback).not.toHaveBeenCalled();
+  unmount();
+  expect(completedSignal.aborted).toBe(false);
+  expect(pendingSignal.aborted).toBe(true);
+  expect(await pending).toEqual({ saved: false, canceled: true });
+});
+
+test('closing the card aborts its second answer after the first settles while the second is pending', async () => {
+  type Caller = import('../../features/chat-pane/create-mcp-ui-tool-caller.js').RecoverableMcpUiToolCaller;
+  let finishFirst!: (value: { saved: boolean }) => void;
+  const firstResult = new Promise<{ saved: boolean }>((resolve) => { finishFirst = resolve; });
+  // Leave answer two pending until after checking teardown, then settle it in the test regardless of its signal.
+  let finishSecond!: (value: { saved: boolean }) => void;
+  const secondResult = new Promise<{ saved: boolean }>((resolve) => { finishSecond = resolve; });
+  const answer = vi.fn<Caller['answer']>().mockReturnValueOnce(firstResult).mockReturnValueOnce(secondResult);
+  const caller: Caller = Object.assign(() => ({ saved: false }), { restore: async () => undefined, answer });
+  const { result, unmount } = renderHook(() => useSurfaceRecovery({
+    resource, call: { name: 'save', input: {} }, runStreaming: true, onToolCall: caller,
+  }));
+  const submit = result.current.onToolCall;
+  if (!submit) throw new Error('recoverable card lost its submit callback');
+  const first = submit({ name: 'save', arguments: { choice: 'first' } });
+  const second = submit({ name: 'save', arguments: { choice: 'second' } });
+  const firstSignal = answer.mock.calls[0]![0].signal;
+  const secondSignal = answer.mock.calls[1]![0].signal;
+  finishFirst({ saved: true });
+  expect(await first).toEqual({ saved: true });
+  expect(firstSignal.aborted).toBe(false);
+  expect(secondSignal.aborted).toBe(false);
+  unmount();
+  finishSecond({ saved: false });
+  expect(await second).toEqual({ saved: false });
+  expect(secondSignal.aborted).toBe(true);
+});

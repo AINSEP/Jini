@@ -253,3 +253,15 @@ describe('createAttemptBaseTrimPolicy', () => {
     }
   });
 });
+
+it('does not claim reclaimed bytes when storage skips a chosen attempt; retries once it can be trimmed', async () => {
+  const { fixture } = await seeded([{ id: 'old', status: 'succeeded', deadline: OLD_DEADLINE }]);
+  const policy = createAttemptBaseTrimPolicy({ kernel: fixture.kernel, now: () => NOW, readerProof: proven });
+  fixture.sql(`CREATE TRIGGER keep_attempt_base BEFORE UPDATE OF attempt_base_json ON assistant_run_attempts
+    WHEN OLD.message_id = 'old' BEGIN SELECT RAISE(IGNORE); END`);
+  expect(await policy.sweep({ now: NOW })).toEqual({ freedBytes: null, removed: 0 });
+  expect(await policy.measure()).toEqual({ bytes: JSON.stringify(BASE).length, items: 1 });
+  fixture.sql('DROP TRIGGER keep_attempt_base');
+  expect(await policy.sweep({ now: NOW })).toEqual({ freedBytes: JSON.stringify(BASE).length - 2, removed: 1 });
+  expect(await policy.measure()).toEqual({ bytes: 0, items: 0 });
+});

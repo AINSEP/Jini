@@ -565,3 +565,17 @@ it('honors explicit cancellation saved while the uncertain probe awaited', async
   expect(h.settlements[0]!.status).toBe('canceled');
   expect(h.attached).toEqual([]);
 });
+
+it("continues a proven-dead run even when the old attempt cannot be cancelled", async () => {
+  const cancelled: string[] = [];
+  const h = harness({ ports: { cancelAttempt: async (run) => {
+    cancelled.push(run.runId);
+    throw new Error("daemon did not acknowledge cancellation");
+  } } });
+  expect(await h.recover()).toBe("continued");
+  expect(cancelled).toEqual(["old"]);
+  expect(h.advances.map(({ run, nextRunId }) => [run.runId, nextRunId])).toEqual([["old", "next"]]);
+  expect(h.launches.map(({ run }) => run.runId)).toEqual(["next"]);
+  expect(h.attached).toEqual(["next"]);
+  expect(h.settlements).toEqual([]);
+});

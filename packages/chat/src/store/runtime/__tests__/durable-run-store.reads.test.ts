@@ -206,3 +206,18 @@ describe('conditional progress polling', () => {
     }
   });
 });
+
+it('returns poll metadata without corrupt historical events and resumes event delivery when storage is repaired', async () => {
+  const store = await conversation({ turns: 0 });
+  const input = { messageId: 'a1', principalId: 'alice', workspaceId: 'ws' };
+  f.sql("UPDATE ai_chat_messages SET run_status = 'running', content = ?, events_json = ? WHERE id = 'a1'", 'answer so far', '{bad');
+  const corrupt = await store.poll!(input, {});
+  if (!corrupt?.messageJson) throw new Error('lost the run metadata with the corrupt events');
+  expect(JSON.parse(corrupt.messageJson)).toMatchObject({ id: 'a1', content: 'answer so far', runStatus: 'running' });
+  expect(JSON.parse(corrupt.messageJson)).not.toHaveProperty('events');
+  const good = JSON.stringify([{ kind: 'text', text: 'answer so far' }]);
+  f.sql("UPDATE ai_chat_messages SET events_json = ? WHERE id = 'a1'", good);
+  const repaired = await store.poll!(input, { cursor: corrupt.cursor });
+  expect(repaired?.cursor).not.toBe(corrupt.cursor);
+  expect(JSON.parse(repaired?.messageJson ?? 'null')).toMatchObject({ id: 'a1', events: [{ kind: 'text', text: 'answer so far' }] });
+});

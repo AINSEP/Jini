@@ -38,3 +38,16 @@ describe('delivered answers (owner, 2026-10-11: "Waiting for your answer" outliv
     expect(onAnswered).not.toHaveBeenCalled();
   });
 });
+
+it('reports a delivered answer without inventing transcript text for an opaque value', async () => {
+  const onAnswerText = vi.fn();
+  const onAnswered = vi.fn();
+  const receipt = { delivered: true, requestId: 'receipt-19' };
+  const call = { name: 'answer', arguments: { __exchangeId: 'private' } };
+  const onToolCall = vi.fn(async () => receipt);
+  const handler = reportDeliveredAnswer({ onToolCall, onAnswerText, onAnswered });
+  expect(await handler(call)).toBe(receipt);
+  expect(onToolCall.mock.calls).toEqual([[call]]);
+  expect(onAnswered.mock.calls).toEqual([[]]);
+  expect(onAnswerText).not.toHaveBeenCalled();
+});

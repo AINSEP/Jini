@@ -352,3 +352,16 @@ test('useConversationDeleteConfirmation: declining resolves false, and a second 
   assert.equal(await asked, false);
   assert.equal(hook.current().pendingTitle, null);
 });
+
+test('useStoredConversations: sends mount-read failures to the host logger and keeps an empty switcher', async (t) => {
+  const { bridge } = conversationStore([convo('original')]);
+  const problem = new Error('bridge temporarily unavailable');
+  const logCalls: unknown[][] = [];
+  const log: NonNullable<Parameters<typeof useStoredConversations>[1]>['log'] = (...args) => { logCalls.push(args); };
+  const broken = { ...bridge, listConversations: async () => { throw problem; } };
+  const hook = renderHook(t, () => useStoredConversations({ getStore: getBroken }, { log }));
+  function getBroken() { return broken; }
+  await settle();
+  assert.deepEqual(hook.current().conversations, []);
+  assert.deepEqual(logCalls, [['could not load conversations —', problem]]);
+});

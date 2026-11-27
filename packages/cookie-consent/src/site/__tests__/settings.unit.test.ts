@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { test, vi } from 'vitest';
-import { InMemorySettingsRepo } from '@jini-ai/core/settings';
+import { expect, test, vi } from 'vitest';
+import { InMemorySettingsRepo, type SettingValueRecord } from '@jini-ai/core/settings';
 import { SITE_CONSENT_DEFAULTS, SITE_CONSENT_NAMESPACE } from '../config.js';
-import { createSiteConsentConfig, createSiteConsentReadiness, resolveSiteConsentActivation, SITE_CONSENT_OFF } from '../settings.js';
+import { createSiteConsentConfig, createSiteConsentReadiness, readSiteConsentAuthoringSettings, resolveSiteConsentActivation, SITE_CONSENT_OFF } from '../settings.js';
 
 /**
  * @file Characterization of site consent readiness moved from the host: definitions register before
@@ -50,4 +50,49 @@ test('a repair failure reaches only the injected reporter, does not block readin
   } finally {
     consoleError.mockRestore();
   }
+});
+
+async function configuredLedger() {
+  const deps = ledgerDeps();
+  const workspaceId = 'site-settings';
+  await createSiteConsentReadiness({ ...deps, after: Promise.resolve(), systemPrincipalId: 'system-test' });
+  async function write(key: string, valueJson: SettingValueRecord['valueJson']) {
+    const definition = await deps.settingsRepo.findActiveDefinition({ namespace: SITE_CONSENT_NAMESPACE, key, workspaceId: null });
+    if (!definition) throw new Error(`No definition for ${key}`);
+    // Write the value row directly to model older owner choices that predate current validation.
+    await deps.settingsRepo.saveWorkspaceValue({
+      settingId: definition.settingId, defVersion: definition.version, scope: 'workspace', state: 'set',
+      workspaceId, principalId: null, valueJson, seq: 1, updatedBy: 'owner', updatedAt: clock.nowIso(), originPluginId: null,
+    });
+  }
+  const input = { settingsRepo: deps.settingsRepo, workspaceId };
+  return { input, write, publicConfig: createSiteConsentConfig(input) };
+}
+
+test('honors explicit activation and preserves owner text while public delivery rolls back', async () => {
+  const h = await configuredLedger();
+  await h.write('title', 'Owner cookie choices');
+  await h.write('enabled', true);
+  expect(await resolveSiteConsentActivation(h.input)).toEqual({ enabled: true, source: 'owner' });
+  expect(await h.publicConfig.get()).toMatchObject({ enabled: true, title: 'Owner cookie choices', privacyPolicyUrl: '/privacy', reopen: 'link' });
+  await h.write('enabled', false);
+  expect(await resolveSiteConsentActivation(h.input)).toEqual({ enabled: false, source: 'owner' });
+  expect(await h.publicConfig.get()).toMatchObject({ enabled: false, title: 'Your cookie choices', reopen: 'link' });
+  expect(await readSiteConsentAuthoringSettings(h.input)).toMatchObject({ enabled: false, title: 'Owner cookie choices' });
+});
+
+test.each([
+  { key: 'enabled', bad: 'yes', message: 'Invalid cookie consent setting: enabled.' },
+  { key: 'title', bad: false, message: 'Invalid cookie consent setting: title.' },
+  { key: 'privacyPolicyUrl', bad: '/' + 'a'.repeat(2000), message: 'Cookie consent setting privacyPolicyUrl exceeds 2000 characters.' },
+  { key: 'regionMode', bad: 'all-opt-out', message: 'Choose automatic, opt-in, or opt-out cookie consent region mode.' },
+  { key: 'placement', bad: 'middle', message: 'Choose a cookie banner placement: bottom-bar, bottom-left, bottom-right, top-bar.' },
+  { key: 'policyVersion', bad: ' '.repeat(5), message: 'Cookie consent policy version must contain 1–128 characters.' },
+])('refuses the malformed legacy value for $key instead of guessing', async ({ key, bad, message }) => {
+  const h = await configuredLedger();
+  await h.write('enabled', true);
+  await h.write(key, bad);
+  await expect(h.publicConfig.get()).rejects.toThrow(message);
+  await h.write('enabled', false);
+  expect(await h.publicConfig.get()).toMatchObject({ enabled: false, reopen: 'link' });
 });

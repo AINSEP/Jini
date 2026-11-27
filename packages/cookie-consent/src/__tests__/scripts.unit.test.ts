@@ -44,3 +44,12 @@ test('malformed absolute URLs are refused while HTTP(S) and existing relative pa
   expect(accepted.problems).toEqual([]);
   expect(accepted.scripts.map(script => script.src)).toEqual(valid);
 });
+
+test('keeps exact declarations and reports each malformed neighbour at its original position', () => {
+  const accepted = { src: '/valid.js', consent: ['necessary', 'analytics'] };
+  expect(validateScripts({ scripts: undefined })).toEqual({ scripts: [], problems: [] });
+  expect(validateScripts({ scripts: { src: '/single.js' } })).toEqual({ scripts: [], problems: ['scripts must be an array'] });
+  const scripts = [null, { src: ' ' }, accepted, { src: '/invalid.js', consent: 'analytics' }, { src: '/spaced path.js' }, { src: '/plain.js', consent: [] }];
+  expect(validateScripts({ scripts })).toEqual({ scripts: [accepted, { src: '/plain.js', consent: [] }], problems: [0, 1, 3, 4]
+    .map((index) => `scripts[${index}] needs an HTTP(S) or relative src and known consent categories`) });
+});

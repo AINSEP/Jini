@@ -521,3 +521,26 @@ describe('createDaemonAttachmentUploader without an injected fetch', () => {
     );
   });
 });
+
+it('keeps the first file error when aborting the sibling upload also produces an error', async () => {
+  let rejectFirst!: (error: Error) => void;
+  const firstResponse = new Promise<Response>((_resolve, reject) => { rejectFirst = reject; });
+  const firstError = new Error('The first file exceeds the server quota.');
+  const fetch = vi.fn<typeof globalThis.fetch>((url, options) => {
+    if (url === '/api/attachments?batch=overlap&name=first.txt' && options?.method === 'POST') return firstResponse;
+    if (url === '/api/attachments?batch=overlap&name=second.txt' && options?.method === 'POST' && options.signal) {
+      const { signal } = options;
+      return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('Sibling aborted.')), { once: true }));
+    }
+    throw new Error(`Unexpected upload request ${url}`);
+  });
+  const upload = createDaemonAttachmentUploader({ baseUrl: '', fetch });
+  const pending = upload([new File(['abc'], 'first.txt'), new File(['def'], 'second.txt')], signalOptions('overlap'));
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+    '/api/attachments?batch=overlap&name=first.txt', '/api/attachments?batch=overlap&name=second.txt',
+  ]);
+  rejectFirst(firstError);
+  await expect(pending).rejects.toBe(firstError);
+  expect(fetch.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

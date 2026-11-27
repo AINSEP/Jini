@@ -179,3 +179,14 @@ describe('createChainedBatchHandler', () => {
     expect(host.store.readCount()).toBe(0);
   });
 });
+
+it('refuses an already-cancelled batch before preparing or writing any item', async () => {
+  const host = fakeHost({ files: { 'a.css': 'original' }, hooks: {
+    prepare: async () => { throw new Error('must not prepare cancelled changes'); },
+  } });
+  const controller = new AbortController();
+  controller.abort();
+  await expect(host.handler(toolContext({ input: items(['a.css', '1']), signal: controller.signal })))
+    .rejects.toThrow('This tool call was abandoned before the next change. Retry the remaining changes when ready.');
+  expect(host.store.bytes({ key: 'a.css' })).toBe('original');
+});

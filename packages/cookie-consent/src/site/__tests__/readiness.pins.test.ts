@@ -68,3 +68,12 @@ test('full-document loading-slot gap is separately labelled, even at the diagnos
   assert.equal(result.declarations.length + result.warnings.length, 200);
   assert.equal(result.truncated, true);
 });
+
+test('a loaded runtime slot caps declaration-only evidence and reports that review is incomplete', () => {
+  const scripts = Array.from({ length: 201 }, (_, i) => ({ src: `/tracked-${i}.js` }));
+  const result = inspect('<p>Page</p>', scripts);
+  assert.deepEqual(result.declarations, scripts.slice(0, 200));
+  assert.equal(result.truncated, true);
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(result.problems, [{ code: 'INVENTORY_TRUNCATED', message: 'More than 200 diagnostic entries. Inspect a smaller page sample.' }]);
+});

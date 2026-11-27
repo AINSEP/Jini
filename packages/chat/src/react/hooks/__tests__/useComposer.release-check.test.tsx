@@ -123,3 +123,27 @@ describe('composer release safety', () => {
     expect(restored.result.current.folders).toEqual([]);
   });
 });
+
+it('blocks release when the host draft writer throws and allows a retry after it recovers', () => {
+  let writable = false;
+  let saved = '';
+  const { result } = renderHook(() => useComposer({
+    conversationId: 'throwing-host',
+    persistence: {
+      read: () => saved,
+      write: (draft) => {
+        if (!writable) throw new Error('host file is locked');
+        saved = draft;
+      },
+    },
+  }));
+  act(() => result.current.setDraft('keep this release draft'));
+  expect(release()).toBe(false);
+  expect(saved).toBe('');
+  expect(result.current.draft).toBe('keep this release draft');
+
+  writable = true;
+  act(() => result.current.setDraft('keep this edited release draft'));
+  expect(release()).toBe(true);
+  expect(saved).toBe('keep this edited release draft');
+});

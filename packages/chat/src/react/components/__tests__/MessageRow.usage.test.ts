@@ -83,3 +83,10 @@ it.each<{ name: string; usage: ChatUsageSummary; showTotal: boolean; text: strin
   expect(result.current.title).toBe(usage.outputTokens === undefined ? undefined : '93 output tokens');
   expect(result.current.ariaLabel).toBe(usage.outputTokens === undefined ? undefined : `Done · ${text} · 93 output tokens`);
 });
+
+it('pairs a known reply cost with itself when no conversation total was supplied', () => {
+  const { result } = renderHook(() => useUsageSummary({
+    usage: { kind: 'usage', durationMs: 65_000, costUsd: 0.35 },
+  }));
+  expect(result.current).toEqual({ text: '1m 5s · $0.35 · total $0.35', title: undefined, ariaLabel: undefined });
+});

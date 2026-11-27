@@ -73,3 +73,15 @@ it('bulk delete of an active chat keeps it and names it', async () => {
   const { bulk, open } = await setup(); open.add('old');
   expect(await bulk.apply({ ids: ['old'] }, {})).toMatchObject({ kept: [{ id: 'old', title: 'Old', reason: 'open' }], deleted: [] });
 });
+
+it('reports a chat kept when the database declines its guarded delete', async () => {
+  const { store, bulk } = await setup();
+  const preview = await bulk.preview({ before: 10 });
+  expect(preview.ids).toEqual(['old']);
+  f.sql(`CREATE TRIGGER retain_old_chat BEFORE DELETE ON ai_chats
+    WHEN OLD.id = 'old' BEGIN SELECT RAISE(IGNORE); END`);
+  expect(await bulk.apply({ ids: preview.ids, before: 10 })).toEqual({
+    deleted: [], kept: [{ id: 'old', title: 'Old', reason: 'changed' }],
+  });
+  expect(await store.get({ id: 'old' })).toMatchObject({ id: 'old', title: 'Old' });
+});

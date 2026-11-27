@@ -39,3 +39,10 @@ describe('accepted run request storage', () => {
     expect(JSON.parse(acceptedJson)).toEqual({ agentId: 'codex', contextRef: JSON.stringify(context) });
   });
 });
+
+it('masks a legacy prompt without inventing a user message or modifying its conversation id', async () => {
+  const { run, acceptedJson } = await acceptWith({ conversationId: 'c', prompt: 'user: password=Hx7short' });
+  expect(JSON.parse(JSON.parse(acceptedJson).contextRef)).toEqual({ conversationId: 'c', prompt: 'user: password=[token removed]' });
+  expect(run?.transcript.map(({ id, role }) => ({ id, role }))).toEqual([{ id: 'a1', role: 'assistant' }]);
+  expect(f.rows('SELECT role FROM ai_chat_messages WHERE conversation_id = ?', 'c')).toEqual([{ role: 'assistant' }]);
+});

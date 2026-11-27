@@ -130,3 +130,19 @@ function harnessPorts(h: Awaited<ReturnType<typeof harness>>): RunAcceptancePort
   return { store: h.store, sanitizeContextRef: ({ contextRef }) => contextRef, now: () => 100, mintRunId: () => 'daemon-entry',
     launch: async (launch) => { h.launched.push(launch); }, attach: () => {} };
 }
+
+it('dispatches and attaches the committed run even when the acceptance observer throws', async () => {
+  const observed: string[] = [];
+  const h = await harness({
+    onAccepted: ({ run }) => {
+      observed.push(run.runId);
+      throw new Error('observer offline');
+    },
+  });
+  const run = await h.acceptance.accept(input());
+  expect(observed).toEqual(['daemon-1']);
+  expect(run).toMatchObject({ runId: 'daemon-1', messageId: 'a1' });
+  expect(h.launched.map(({ run: launched }) => launched.runId)).toEqual(['daemon-1']);
+  expect(h.attached.map(({ runId }) => runId)).toEqual(['daemon-1']);
+  expect((await h.store.load({ messageId: 'a1' }, {}))?.runId).toBe('daemon-1');
+});

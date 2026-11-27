@@ -17,3 +17,13 @@ test('reports every bad name without echoing its value', () => {
   expect(String(error)).not.toContain(env.M_MODE);
   expect(String(error)).not.toContain(env.A_TOKEN);
 });
+
+test('returns frozen parsed values and gives the parser an absent variable', () => {
+  const schema = defineEnvSchema({ vars: {
+    APP_PORT: { description: 'port', parse: ({ raw }) => ({ ok: true, value: Number(raw) }) },
+    APP_FEATURE: { description: 'feature', parse: ({ raw }) => ({ ok: true, value: raw === undefined ? 'automatic' : raw }) },
+  } });
+  const values = readEnv({ schema, env: { APP_PORT: '4873', UNRELATED: 'ignored' } });
+  expect(values).toStrictEqual({ APP_PORT: 4873, APP_FEATURE: 'automatic' });
+  expect(Object.isFrozen(values)).toBe(true);
+});

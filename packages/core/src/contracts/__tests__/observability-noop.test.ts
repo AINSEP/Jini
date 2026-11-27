@@ -53,3 +53,31 @@ test("isNoopObservabilityPort is true for the shared port and false for a hand-b
   assert.equal(isNoopObservabilityPort({ ...shared }), false);
   assert.equal(isNoopObservabilityPort({ ...shared, supportsMetric: true }), false);
 });
+
+test("disabled observability declines incidents and never invents correlation", () => {
+  const port = createNoopObservabilityPort({});
+  assert.equal(port.supportsMetric, false);
+  assert.equal(port.activeTraceIds?.(), undefined);
+  assert.equal(port.activeTraceparent?.(), undefined);
+  assert.equal(port.reportError({ error: new Error("disk unavailable"), context: { operation: "backup.write" } }), false);
+  assert.equal(port.metric({ name: "backup.completed", value: 2 }, { kind: "counter" }), undefined);
+});
+
+test("disabled trackers execute scoped work exactly once and share the signal tracker", () => {
+  const port = createNoopObservabilityPort({});
+  const db = port.trackDbQuery({ system: "sqlite" });
+  const outbound = port.trackOutboundCall({ method: "GET", url: "https://example.test/ping" });
+  const agent = port.trackAgentRun({ runId: "run-7" });
+  const operation = port.trackOperation({ name: "example.lookup" });
+  const request = port.trackRequest({ method: "GET", path: "/items" });
+  let executed = 0;
+  assert.equal(request.run?.(() => ++executed), 1);
+  assert.equal(db.run(() => ++executed), 2);
+  assert.equal(outbound.run(() => ++executed), 3);
+  assert.equal(agent.run(() => ++executed), 4);
+  assert.equal(operation.run(() => ++executed), 5);
+  assert.equal(outbound, db);
+  assert.equal(agent, db);
+  assert.equal(operation, db);
+  assert.equal(db.end({ operation: "select", table: "items" }), undefined);
+});

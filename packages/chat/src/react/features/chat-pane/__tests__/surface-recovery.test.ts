@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { createMcpUiToolCaller } from '../create-mcp-ui-tool-caller.js';
+import { readSurfaceFrames, readSurfaceRecoveryStream } from '../surface-recovery-stream.js';
 
 const info = { exchangeId: 'expired', toolId: 'external_mcp_save', runId: 'run' };
 const emission = { channel: 'mcp-ui', payload: { resource: { type: 'resource', resource: { uri: 'ui://new-card', text: '<form></form>' } }, surfaceExchange: { ...info, exchangeId: 'new' } } };
@@ -30,4 +31,40 @@ test('a late credential answer is sent once and a reissued card is streamed befo
   finish();
   expect(await answer).toEqual({ delivered: true });
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test('reconstructs split UTF-8 and emits the final frame without a newline', async () => {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode('  \n{"value":"café"}\n{"value":"last"}');
+  const split = bytes.indexOf(0xc3) + 1;
+  const stream = new ReadableStream<Uint8Array>({ start(controller) {
+    controller.enqueue(bytes.slice(0, split));
+    controller.enqueue(bytes.slice(split));
+    controller.close();
+  } });
+  const onFrame = vi.fn();
+  await readSurfaceFrames({ response: new Response(stream), onFrame });
+  expect(onFrame.mock.calls).toEqual([[{ value: 'café' }], [{ value: 'last' }]]);
+  expect(stream.locked).toBe(false);
+});
+
+test('rejects a non-object frame, cancels the open response and emits nothing after it', async () => {
+  const cancel = vi.fn();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new TextEncoder().encode('[]\n{"value":"not delivered"}\n')); },
+    cancel,
+  });
+  const onFrame = vi.fn();
+  await expect(readSurfaceFrames({ response: new Response(stream), onFrame })).rejects.toThrow('The interactive response contains an invalid frame.');
+  expect(onFrame).not.toHaveBeenCalled();
+  expect(cancel.mock.calls).toEqual([[undefined]]);
+  expect(stream.locked).toBe(false);
+});
+
+test('requires a stream body and a positive restoration confirmation', async () => {
+  const onSurface = vi.fn();
+  await expect(readSurfaceRecoveryStream({ response: new Response(null), onSurface })).rejects.toThrow('The interactive page response stream is unavailable.');
+  await expect(readSurfaceRecoveryStream({ response: new Response('{"type":"surface"}\n{"type":"restored","ok":false}'), onSurface }))
+    .rejects.toThrow('The card could not be restored.');
+  expect(onSurface).not.toHaveBeenCalled();
 });

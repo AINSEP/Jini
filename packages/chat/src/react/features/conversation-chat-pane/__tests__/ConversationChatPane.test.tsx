@@ -101,3 +101,12 @@ it('every visible string comes from labels; the pane renders no built-in product
     expect([...container.querySelectorAll('[class]')].every((el) => [...el.classList].every((c) => c.startsWith('jini-')))).toBe(true);
   }
 });
+
+it('uses the default chat composition and appends the host class without replacing the pane class', () => {
+  const fake = fakeHooks({ connected: false });
+  render(<ConversationChatPane conversationListHooks={defaultConversationListHooks} onClose={() => {}}
+    labels={LABELS} variant="workspace" className="host-dock" useConversationChatPaneHook={useConversationChatPane} {...fake.hooks} />);
+  const pane = screen.getByRole('complementary', { name: 'L-pane' });
+  expect([...pane.classList]).toEqual(['jini-conversation-chat-pane', 'host-dock']);
+  expect(pane.textContent).toContain('L-unavailable');
+});

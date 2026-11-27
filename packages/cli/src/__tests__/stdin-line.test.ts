@@ -72,3 +72,20 @@ describe('readStdinRequestLine', () => {
     await expect(refused).rejects.toThrow(RangeError);
   });
 });
+
+it('discards bytes after the request and aborts on EOF with the default reason', async () => {
+  const input = Object.assign(new PassThrough(), { unrefCalls: 0, unref() { this.unrefCalls += 1; } });
+  const stop = new AbortController();
+  const request = readStdinRequestLine({ input, stop }, { maxBytes: 4 });
+  input.write('open\n');
+  expect(await request).toBe('open');
+  input.write('more than four bytes');
+  expect(input.unrefCalls).toBe(1);
+  expect(stop.signal.aborted).toBe(false);
+
+  const aborted = new Promise<void>((resolve) => stop.signal.addEventListener('abort', () => resolve(), { once: true }));
+  input.end();
+  await aborted;
+  expect(stop.signal.reason).toBeInstanceOf(Error);
+  expect(stop.signal.reason.message).toBe('The input ended, so the operation was stopped.');
+});

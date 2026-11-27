@@ -136,3 +136,27 @@ it.each(['declined', 'expired', 'abandoned'] as const)('an awaiting proposal set
   expect(scheduler.pending.size).toBe(0);
   await expect(store.respond({ approvalId: 'human', approved: true }, { source: 'human' })).rejects.toThrow('missing');
 });
+
+it('consumes a failed proposal and publishes its failure to subscribers without allowing replay', async () => {
+  const store = createApprovalProposalStore<{ target: string }>({
+    responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' },
+    ids: fixedIds('proposal-failure'), scheduler: fakeScheduler(),
+  });
+  const listener = vi.fn(() => store.getSnapshot());
+  const unsubscribe = store.subscribe({ listener });
+  const error = new Error('target changed');
+  const execute = vi.fn(async () => { throw error; });
+  expect(store.propose({ description: { target: 'a' }, signal: new AbortController().signal, execute })).toMatchObject({ approvalId: 'proposal-failure' });
+  await expect(store.respond({ approvalId: 'proposal-failure', approved: true })).rejects.toBe(error);
+  expect(store.getSnapshot()).toMatchObject({ pending: null, error: expect.stringContaining('target changed') });
+  expect(listener.mock.results.map(({ value }) => value?.pending?.approvalId ?? null)).toEqual(['proposal-failure', null, null]);
+  await expect(store.respond({ approvalId: 'proposal-failure', approved: true })).rejects.toThrow('missing');
+  expect(execute).toHaveBeenCalledTimes(1);
+
+  unsubscribe();
+  const controller = new AbortController();
+  store.propose({ description: { target: 'b' }, signal: controller.signal, execute });
+  controller.abort();
+  expect(store.getSnapshot()).toEqual({ pending: null, error: null });
+  expect(listener).toHaveBeenCalledTimes(3);
+});

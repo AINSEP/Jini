@@ -68,3 +68,19 @@ describe('createRunGuardedChatStore', () => {
     expect(stored()).toEqual({ content: 'finalized', run_status: 'succeeded', run_id: 'daemon-1' });
   });
 });
+
+it('fences stale daemon snapshots for hosts that only expose the transcript read', async () => {
+  const { ledger } = await setup();
+  const transcript = createChatHistoryStore({ kernel: f.kernel, scope: alice, isDaemonRunId });
+  const { message: _indexedRead, ...legacyStore } = transcript;
+  const store = createRunGuardedChatStore({ store: legacyStore, ledger, isDaemonRunId });
+  await transcript.appendMessage({ conversationId: 'c', message: {
+    id: 'u1', role: 'user', content: 'question', createdAt: 1,
+  } });
+  expect(await store.appendMessage({ conversationId: 'c', message: answer({ content: 'server checkpoint' }) }))
+    .toMatchObject({ id: 'a1', content: 'server checkpoint' });
+  expect(await store.appendMessage({ conversationId: 'c', message: answer({ runId: 'daemon-old', content: 'stale browser' }) }))
+    .toMatchObject({ id: 'a1', runId: 'daemon-1', content: 'server checkpoint' });
+  expect((await transcript.messages({ conversationId: 'c' })).map(({ id, content }) => ({ id, content })))
+    .toEqual([{ id: 'u1', content: 'question' }, { id: 'a1', content: 'server checkpoint' }]);
+});

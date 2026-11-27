@@ -418,3 +418,26 @@ describe('withoutBatchGuidance', () => {
     expect(withoutBatchGuidance({ description: unterminated })).toBe(unterminated);
   });
 });
+
+it('uses the tool’s configured plan mode unless the caller explicitly requests per-item execution', async () => {
+  const handler = vi.fn<ToolHandler>(async () => 'whole plan');
+  const registration = registrationWith({ handler });
+  const tool = { toolId: 'edit', mode: 'plan' as const };
+  const plan = withBatchInput({ registration, tool });
+  const options = { items: [{ path: 'first' }, { path: 'second' }] };
+  expect(await plan.handler(context(options))).toBe('whole plan');
+  expect(handler.mock.calls).toHaveLength(1);
+  const items = withBatchInput({ registration, tool }, { mode: 'items' });
+  const invokeTool = vi.fn<Invoke>(async ({ toolId, input }) => {
+    if (toolId !== 'edit') throw new Error('wrong delegated tool');
+    return input;
+  });
+  await expect(items.handler(context(options), { invokeTool })).resolves.toEqual({
+    batch: true, outcome: 'completed', total: 2, succeeded: 2, failed: 0,
+    results: [{ index: 0, ok: true, result: { path: 'first' } }, { index: 1, ok: true, result: { path: 'second' } }],
+  });
+  expect(invokeTool.mock.calls.map(([request]) => request)).toEqual([
+    { toolId: 'edit', input: { path: 'first' } }, { toolId: 'edit', input: { path: 'second' } },
+  ]);
+  expect(handler).toHaveBeenCalledTimes(1);
+});

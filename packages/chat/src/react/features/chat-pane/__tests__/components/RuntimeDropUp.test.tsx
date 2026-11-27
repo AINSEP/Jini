@@ -1,5 +1,6 @@
 import { useRuntimeDropUp } from '../../hooks/useRuntimeDropUp.hooks.js';
 import { useInfoTip } from '@jini-ai/ui';
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -87,4 +88,22 @@ it('uses the injected menu and tooltip controllers independently', () => {
   expect(show).toHaveBeenCalledOnce();
   fireEvent.keyDown(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }), { key: 'Escape' });
   expect(hide).toHaveBeenCalledOnce();
+});
+
+it('focuses the first choice when the model is unset, then accepts a different choice by keyboard', async () => {
+  const user = userEvent.setup();
+  const onSelect = vi.fn();
+  render(<RuntimeDropUp {...props} value="" valueLabel="Default" options={[
+    { id: 'terra', label: 'Terra' }, { id: 'sol', label: 'Sol' },
+  ]} onSelect={onSelect} />);
+  const trigger = screen.getByRole('button', { name: 'Model: Default' });
+  trigger.focus();
+  await user.keyboard('{ArrowDown}');
+  expect(screen.getByRole('menuitemradio', { name: 'Terra' })).toHaveFocus();
+  await user.keyboard('{ArrowDown}');
+  expect(screen.getByRole('menuitemradio', { name: 'Sol' })).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(onSelect.mock.calls).toEqual([['sol']]);
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(trigger).toHaveFocus();
 });

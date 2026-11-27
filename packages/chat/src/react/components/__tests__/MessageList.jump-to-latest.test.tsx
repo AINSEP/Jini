@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
@@ -109,4 +110,21 @@ describe('MessageList "Jump to latest"', () => {
     rerender(<MessageList messages={[...messages, { id: '3', role: 'user', content: 'next' }]} scrollIntent />);
     expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
   });
+});
+
+it.each([false, true])('jumps in both directions with the motion preference respected (reduced=%s)', async (reduced) => {
+  const matchMedia = vi.fn((media: string) => ({ matches: reduced, media }));
+  vi.stubGlobal('matchMedia', matchMedia);
+  try {
+    const user = userEvent.setup();
+    const { el, scrollTo } = overflowingList();
+    scrollList(el, 200);
+    await user.click(screen.getByRole('button', { name: 'Jump to top' }));
+    expect(el.scrollTop).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Jump to latest' }));
+    expect(el.scrollTop).toBe(300);
+    const behavior = reduced ? 'auto' : 'smooth';
+    expect(scrollTo.mock.calls).toEqual([[{ top: 0, behavior }], [{ top: 300, behavior }]]);
+    expect(matchMedia.mock.calls).toEqual([['(prefers-reduced-motion: reduce)'], ['(prefers-reduced-motion: reduce)']]);
+  } finally { vi.unstubAllGlobals(); }
 });

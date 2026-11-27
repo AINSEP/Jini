@@ -43,3 +43,36 @@ it('reports authentication refusals and preserves the caller cancellation signal
   await expect(call({ capabilityId: 'page.click', input: {}, signal })).rejects.toThrow('Sign in');
   expect(fetch.mock.calls[0]![1]!.signal).toBe(signal);
 });
+
+it('ignores unknown and empty surface frames, then returns the single completed output', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => response([{ type: 'heartbeat' }, { type: 'surface' }, result]));
+  const onSurface = vi.fn();
+  const call = createFrontendRequestCaller({ path: '/page-request', fetch, bindToken: () => 'fresh', onSurface });
+  const signal = new AbortController().signal;
+  await expect(call({ capabilityId: 'page.click', input: { handle: 'ok' }, signal })).resolves.toEqual({ clicked: true });
+  expect(onSurface).not.toHaveBeenCalled();
+  expect(fetch.mock.calls).toEqual([['/page-request', {
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+    body: '{"capabilityId":"page.click","input":{"handle":"ok"},"bindToken":"fresh"}', signal,
+  }]]);
+});
+
+it.each([
+  { frames: [result, { ...result, result: { status: 'completed', output: { clicked: false } } }], message: 'The page action returned more than one result.' },
+  { frames: [{ type: 'throw', error: {} }], message: 'The page action could not be executed.' },
+  { frames: [{ type: 'result', result: { status: 'denied' } }], message: 'The page action was denied.' },
+  { frames: [{ type: 'result' }], message: 'The page action was not completed.' },
+])('refuses an ambiguous execution: $message', async ({ frames, message }) => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => response(frames));
+  const call = createFrontendRequestCaller({ path: '/page-request', fetch, bindToken: () => 'token', onSurface: vi.fn() });
+  await expect(call({ capabilityId: 'page.click', input: {}, signal: new AbortController().signal })).rejects.toThrow(message);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it('uses the HTTP status when a refused request has no error text', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({}, { status: 429 }));
+  const call = createFrontendRequestCaller({ path: '/page-request', fetch, bindToken: () => 'token', onSurface: vi.fn() });
+  await expect(call({ capabilityId: 'page.click', input: {}, signal: new AbortController().signal }))
+    .rejects.toThrow('The page request was refused (HTTP 429).');
+  expect(fetch).toHaveBeenCalledTimes(1);
+});

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
 import { createSiteConsentService, type ConsentServicePorts } from '../service.js';
-import { buildConsentRegistrations } from '../tool-registrations.js';
+import { consentRevisionToken, readConsentRequest } from "../request.js";
+import { buildConsentRegistrations, contributeConsentTools, type ConsentToolHost } from '../tool-registrations.js';
 import type { SiteConsentState } from '../revisions.js';
 import { SITE_CONSENT_DEFAULTS, SITE_CONSENT_TEXT_LIMITS } from '../config.js';
 import { consentConfigProblems, parseConsentConfig } from '../validation.js';
@@ -116,4 +117,47 @@ test('draft and assistant preparation use the bound banner-mode refusal', async 
   const publish = registrations.find(item => item.descriptor.id === 'consent_publish_settings')!;
   await assert.rejects(publish.handler({ ...ctx, input: { draftId: 'draft', expectedPublishedId: null } }), { constructor: ToolInputError, message: bannerModeRefusal });
   assert.equal(saveDraft.mock.calls.length, 0);
+});
+
+test('the consent diagnostic tools preserve the caller’s path and refuse malformed requests or absent service', async () => {
+  const readiness = vi.fn(async ({ principalId, path }: { principalId: string; path?: string | undefined }) => ({ principalId, sampledPaths: [path], ready: false }));
+  const service = {
+    readiness: readiness as unknown as ReturnType<typeof createSiteConsentService>['readiness'],
+    read: vi.fn(), deploymentCheck: vi.fn(), publish: vi.fn(), preview: vi.fn(), saveDraft: vi.fn(),
+  } satisfies ReturnType<typeof createSiteConsentService>;
+  const host: ConsentToolHost = {
+    approvalToolHandler: () => async () => { throw new Error('diagnostics must not require write confirmation'); },
+    readConsentRequest, consentRevisionToken,
+  };
+  const surfaces = { surfaceExchanges: {
+    open: () => { throw new Error('unexpected confirmation'); },
+    deliver: () => { throw new Error('unexpected delivery'); },
+    findTypedAnswerTarget: () => undefined, size: () => 0,
+  } };
+  const contributor = contributeConsentTools({ host });
+  const ctx = { executionId: 'e2', principal: { id: 'reader-2' }, run: { id: 'r2' }, signal: new AbortController().signal, input: { path: '/sample' } };
+  const registrations = contributor.build({ siteConsent: service }, surfaces);
+  const read = registrations.find(({ descriptor }) => descriptor.id === 'consent_get_readiness')!;
+  const explain = registrations.find(({ descriptor }) => descriptor.id === 'consent_explain_blocked')!;
+  assert.deepEqual(await read.handler(ctx), { principalId: 'reader-2', sampledPaths: ['/sample'], ready: false });
+  assert.deepEqual(await explain.handler(ctx), {
+    principalId: 'reader-2', sampledPaths: ['/sample'], ready: false,
+    explanation: 'Declared optional scripts wait until all their consent categories are effectively allowed. Unmanaged content and missing runtime slots need review; they are not automatically controlled. Durable grants wait for receipt confirmation.',
+  });
+  await assert.rejects(read.handler({ ...ctx, input: { path: 5 } }), { constructor: ToolInputError, message: 'path must be a local page path.' });
+  await assert.rejects(read.handler({ ...ctx, input: { path: '/sample', force: true } }), { constructor: ToolInputError, message: 'Unknown consent request field.' });
+  assert.deepEqual(readiness.mock.calls, [[{ principalId: 'reader-2', path: '/sample' }], [{ principalId: 'reader-2', path: '/sample' }]]);
+  const missing = contributor.build({}, surfaces).find(({ descriptor }) => descriptor.id === 'consent_get_readiness')!;
+  await assert.rejects(missing.handler({ ...ctx, input: undefined }), { constructor: ToolInputError, message: 'The site consent service is unavailable. Nothing was changed.' });
+});
+
+test('validates appearance fields as a separate shape boundary', () => {
+  const valid = { ...SITE_CONSENT_DEFAULTS, customCss: '#jini-consent{padding:16px}', appearance: { borderRadius: '8px' } };
+  assert.deepEqual(parseConsentConfig({ value: valid }), valid);
+  for (const appearance of [null, [], 'theme']) {
+    assert.throws(() => parseConsentConfig({ value: { ...valid, appearance } }), { constructor: ToolInputError, message: 'appearance must be a token object.' });
+  }
+  for (const customCss of [false, 'x'.repeat(16_385)]) {
+    assert.throws(() => parseConsentConfig({ value: { ...valid, customCss } }), { constructor: ToolInputError, message: 'customCss must be a string of at most 16384 characters.' });
+  }
 });

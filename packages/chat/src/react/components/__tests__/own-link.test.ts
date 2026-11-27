@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { isOwnLinkHref } from '../own-link.js';
+import { describe, expect, it, vi } from 'vitest';
+import { currentOrigin, isOwnLinkHref } from '../own-link.js';
 
 /**
  * @file Which links count as "the owner's own site or admin" for the chat's link rule (owner
@@ -36,4 +36,15 @@ describe('isOwnLinkHref', () => {
   it('treats a same-document anchor as not own so it keeps its in-place jump with no icon', () => {
     expect(isOwnLinkHref({ href: '#details', origin })).toBe(false);
   });
+});
+
+it('uses the real browser origin but does not claim absolute URLs before hydration', () => {
+  expect(currentOrigin()).toBe(window.location.origin);
+  vi.stubGlobal('window', undefined);
+  try {
+    const serverOrigin = currentOrigin();
+    expect(serverOrigin).toBe('');
+    expect(isOwnLinkHref({ href: 'https://admin.example.test/blog/hello', origin: serverOrigin })).toBe(false);
+    expect(isOwnLinkHref({ href: '/blog/hello', origin: serverOrigin })).toBe(true);
+  } finally { vi.unstubAllGlobals(); }
 });

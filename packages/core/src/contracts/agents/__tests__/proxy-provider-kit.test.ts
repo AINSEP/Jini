@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  extendParsed,
   firstOptionalFieldError,
+  parseCommon,
+  parseToolsProxyRequest,
+  SYSTEM_CHECK,
+  toolsOption,
   isArray,
   isNumber,
   isRecord,
@@ -76,5 +81,63 @@ describe('model-proxy-fields — pickDefined', () => {
   it('copies only the listed keys, in list order', () => {
     const picked = pickDefined({ source: { a: 1, b: 2, c: 3 }, keys: ['c', 'a'] });
     expect(Object.keys(picked)).toEqual(['c', 'a']);
+  });
+});
+
+describe('provider request boundary', () => {
+  const common = { apiKey: 'local-test-key', model: 'custom-model', messages: [{ speaker: 'user', text: 'hello' }] };
+
+  it.each([null, [], 'not an object'])('rejects a non-object JSON body (%j)', body => {
+    expect(parseCommon(body)).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'body must be a JSON object' } });
+  });
+
+  it.each([
+    { path: 'apiKey', value: '  ', type: 'string' },
+    { path: 'model', value: null, type: 'string' },
+    { path: 'messages', value: [], type: 'array' },
+    { path: 'messages', value: {}, type: 'array' },
+  ])('names the required field when $path has value $value', ({ path, value, type }) => {
+    expect(parseToolsProxyRequest({ ...common, [path]: value })).toEqual({
+      ok: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: `${path} must be a non-empty ${type}`,
+        details: { kind: 'validation', issues: [{ path, message: `required non-empty ${type}` }] },
+      },
+    });
+  });
+
+  it.each([
+    ['baseUrl', 123, 'a string'],
+    ['temperature', '0.4', 'a number'],
+    ['maxTokens', null, 'a number'],
+    ['maxToolTurns', false, 'a number'],
+    ['extraHeaders', [], 'an object'],
+    ['tools', {}, 'an array'],
+  ])('rejects a malformed optional %s without coercion', (field, value, type) => {
+    expect(parseToolsProxyRequest({ ...common, [String(field)]: value })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: `${field} must be ${type} when provided` },
+    });
+  });
+
+  it('preserves supported options and drops fields unknown to the provider parser', () => {
+    const options = { baseUrl: 'https://example.test/v2', temperature: 0, maxTokens: 300, maxToolTurns: 4,
+      extraHeaders: { 'x-client': 'demo' }, tools: [{ providerSpecific: true }] };
+    expect(parseToolsProxyRequest({ ...common, ...options, ignored: 'do not forward' })).toStrictEqual({
+      ok: true, value: { ...common, ...options },
+    });
+    expect(parseToolsProxyRequest({ ...common, tools: undefined })).toStrictEqual({ ok: true, value: common });
+  });
+
+  it('merges required provider fields, forwarding only recognized optional fields', () => {
+    expect(extendParsed({ base: common, record: { system: 'special instructions', tools: [], debug: true }, checks: [SYSTEM_CHECK] },
+      { required: { maxTokens: 900 } })).toStrictEqual({
+      ok: true, value: { ...common, maxTokens: 900, system: 'special instructions' },
+    });
+  });
+
+  it('distinguishes omitted tools from an explicit empty list', () => {
+    expect(toolsOption(undefined)).toStrictEqual({});
+    expect(toolsOption([])).toStrictEqual({ tools: [] });
   });
 });

@@ -165,3 +165,13 @@ describe('parseSubmittedAnswers', () => {
     expect(answers).toEqual({ colors: ['red', 'blue'] });
   });
 });
+
+it('keeps a literal bracketed label or empty value suffix instead of inventing a choice', () => {
+  const form: QuestionForm = { id: 'audit', title: 'Audit', questions: [
+    { id: 'scope', label: 'Scope', type: 'radio', options: [{ value: 'manual', label: 'Manual [review]' }], required: false },
+    { id: 'note', label: 'Note', type: 'text', required: false },
+  ] };
+  expect(parseSubmittedAnswers({ form, userMessageContent: '[form answers — audit]\n- Scope: Manual [review]\n- Note: Keep this [value:]' })).toEqual({
+    scope: 'manual', note: 'Keep this [value:]',
+  });
+});

@@ -60,3 +60,24 @@ test('an imported bridge mount failure is handled without rejecting outside the 
   await api.set({ action: 'accept' });
   expect(api.get().allowed.analytics).toBe(true);
 });
+
+test('refuses a malformed bridge without remounting its valid neighbour', () => {
+  document.body.innerHTML = '<script id="jini-consent-config" type="application/json">{"contract":1,"policy":"bridge-slots","regionMode":"opt-in","banner":"headless"}</script>';
+  document.cookie = 'jini_choices=; Max-Age=0; Path=/';
+  delete window.jiniConsent;
+  delete window.jiniConsentQueue;
+  const builtin = vi.fn();
+  const api = boot({ win: window }, { bindBanner: builtin, ports: { doc: document, fetch: vi.fn(), now: () => 1000, gpc: () => false, reload: vi.fn(), importModule: vi.fn() } })!;
+  const mount = vi.fn();
+  const invalid = api.plugins.registerPlugin({ id: 'missing-mount', kind: BRIDGE_KIND, mount: 'not callable' });
+  const unregister = api.plugins.registerPlugin({ id: 'valid', kind: BRIDGE_KIND, mount });
+  const temporary = api.plugins.registerPlugin({ id: 'temporary', kind: BRIDGE_KIND, mount: () => undefined });
+  try {
+    expect(api.plugins.list({ kind: BRIDGE_KIND }).map(({ id }) => id)).toEqual(['valid', 'temporary']);
+    invalid();
+    temporary();
+    expect(api.plugins.list({ kind: BRIDGE_KIND }).map(({ id }) => id)).toEqual(['valid']);
+    expect(mount.mock.calls).toEqual([[{ api, doc: document }]]);
+    expect(builtin).not.toHaveBeenCalled();
+  } finally { temporary(); unregister(); }
+});
