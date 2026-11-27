@@ -3,7 +3,8 @@ import { executeCommand } from "../../core/index.js";
 import { InMemoryChangeSetRepo } from "../../core/commands/repo.memory.js";
 import { expect, it, vi } from "vitest";
 import type { PostRecord } from "../../posts/post.js";
-import { PageConcurrentEditError } from "../html-document-store.js";
+// Same specifier as production so the error class identity matches (src vs package self-reference).
+import { PageConcurrentEditError } from "@jini-ai/cms/pages/html-document-store";
 import { recordAssistantPageHtmlWrite, type PageHtmlRecordingDeps } from "../html-change-recording.js";
 import { pageHtmlInverseOf, parsePageHtmlInverse } from "../html-inverse.js";
 import { createPageHtmlReverter } from "../html-reverter.js";

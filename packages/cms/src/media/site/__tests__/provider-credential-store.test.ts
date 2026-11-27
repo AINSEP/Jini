@@ -2,7 +2,7 @@ import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
 import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
 import { describe, expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRepoPort } from "../provider-credential-contracts.js";
-import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps } from "../provider-credential-store.js";
+import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps, MediaProviderCredentialRowDeps } from "../provider-credential-store.js";
 import { getMediaProviderCredentials, mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError, MediaProviderCredentialValidationError } from "../provider-credential-store.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
@@ -27,7 +27,7 @@ function setup(rows: VaultRecord[]) {
   let records = rows.map(r => mediaVaultRecord({ row: r, policy: vaultPolicy }));
   const repo: MediaProviderCredentialRepoPort = { vault, listByWorkspaceId: async () => records, upsert: async () => {}, deleteByProviderIds: async () => {},
     replaceWorkspace: vi.fn(async ({ plan }) => { const next = plan({ existing: records }); records = [...next.upserts]; return records; }) };
-  const deps: MediaProviderCredentialSaveDeps & MediaProviderCredentialResolveDeps = { repo, vaultPolicy, sha256Hex,
+  const deps: MediaProviderCredentialRowDeps & MediaProviderCredentialResolveDeps = { repo, vaultPolicy, sha256Hex,
     idGen: { newId: () => "fresh-canonical" },
     builtInProviderIds: new Set(["canonical"]), credentialPolicy: { assertCredentialFreeField: () => {}, normalizeCredentialToken: ({ value }) => String(value) },
     credentialInputMessage: () => undefined, storageMessage: "storage", createVault: () => ({ prepare, findOne }),

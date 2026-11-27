@@ -70,7 +70,9 @@ test("only the built-in listing wrapper keeps the see-more identity", () => {
   const config = '{"type":"collection","typeKey":"recipe"}';
   const html = `<section class="recipes" data-jini-listing="3" data-embed-config='${config}'>No recipes yet</section>`;
   const rendered = '<div data-jini-listing="3"><article>Chili</article></div>';
-  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[config, rendered]]) }),
+  // A see-more marker is keyed by its listing key, so it never shares an entry with another marker.
+  const key = `listing:3:${config}`;
+  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[key, rendered]]) }),
     '<section class="recipes"><div data-jini-listing="3"><article>Chili</article></div></section>');
-  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[config, undefined]]) }), html);
+  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[key, undefined]]) }), html);
 });

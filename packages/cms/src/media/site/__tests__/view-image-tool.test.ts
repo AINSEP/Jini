@@ -25,7 +25,7 @@ async function fixture(bytes: Uint8Array = png) {
   const workspaceId = 'west';
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   const asset: MediaRecord = {
-    id: 'photo', workspaceId, slug: 'garden', title: 'Garden photo', alt: 'A path', caption: 'June',
+    id: 'photo', workspaceId, slug: 'garden', title: 'Garden photo', alt: 'A path', caption: 'June', credit: '',
     source: { sha256, contentType: 'image/png' }, status: 'active', version: 5, createdAt: '2026-11-12', updatedAt: '2026-11-12',
     width: null, height: null, cssClass: null, htmlAttributes: null,
   };

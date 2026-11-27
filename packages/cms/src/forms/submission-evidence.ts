@@ -59,7 +59,7 @@ export function readSubmissionEvidence({ value }: { value: unknown }, _optional:
 
 function assertEvidenceHeader({ evidence }: { evidence: Record<string, unknown> }): void {
   if (evidence.version !== 1 || typeof evidence.schemaHash !== 'string' || !/^[a-f0-9]{64}$/.test(evidence.schemaHash)) throw new TypeError('Invalid form submission evidence hash.');
-  if (typeof evidence.capturedAt !== 'string' || !['native', 'cloudflare'].includes(String(evidence.source))) throw new TypeError('Invalid form submission evidence provenance.');
+  if (typeof evidence.capturedAt !== 'string' || typeof evidence.source !== 'string' || !['native', 'cloudflare'].includes(evidence.source)) throw new TypeError('Invalid form submission evidence provenance.');
   if (evidence.html !== undefined && typeof evidence.html !== 'string') throw new TypeError('Invalid form submission evidence HTML.');
 }
 

@@ -7,6 +7,9 @@ import { executeCommand } from '../../../core/index.js';
 import { InMemoryChangeSetRepo } from '../../../core/commands/repo.memory.js';
 import { contributeFormPublish } from '../publish-content.js';
 
+// The write service requires at least one valid field descriptor.
+const field = { id: 'email', label: 'Email', type: 'email' as const, required: true };
+
 function makeHandler(repo: InMemoryFormDefinitionRepo) {
   let next = 0;
   const bind = (deps: Parameters<Parameters<typeof contributeFormPublish>[0]['createFormDefinition']>[0]['deps']) => ({ ...deps, permission: 'admin.forms.manage', reservedSlugs: new Set<string>() });
@@ -24,10 +27,10 @@ function makeHandler(repo: InMemoryFormDefinitionRepo) {
 test('source notification recipients never replace destination recipients', async () => {
   const repo = new InMemoryFormDefinitionRepo();
   const local = { enabled: true, recipients: ['local@example.com'] };
-  await repo.create({ id: 'dest', workspaceId: 'ws', slug: 'contact', name: 'Contact', fields: [], notify: local, status: 'active', createdAt: 'now', updatedAt: 'now', version: 1 });
+  await repo.create({ id: 'dest', workspaceId: 'ws', slug: 'contact', name: 'Contact', fields: [field], notify: local, status: 'active', createdAt: 'now', updatedAt: 'now', version: 1 });
   const handler = makeHandler(repo);
   await handler.apply({ entity: { entityType: 'form', id: 'contact', schemaVersion: 1, hashVersion: 1, contentHash: 'changed', requiredBlobs: [],
-    state: { name: 'Updated', slug: 'contact', fields: [], status: 'active', notify: { enabled: true, recipients: ['source@example.com'] } } },
+    state: { name: 'Updated', slug: 'contact', fields: [field], status: 'active', notify: { enabled: true, recipients: ['source@example.com'] } } },
     expectedVersion: 1, principalId: 'owner', idempotencyKey: 'form' });
   assert.deepEqual((await repo.findBySlug({ workspaceId: 'ws', slug: 'contact' }))?.notify, local);
 });
@@ -35,12 +38,12 @@ test('source notification recipients never replace destination recipients', asyn
 test('packs a legacy form with canonical authoring defaults and applies the disabled status on create', async () => {
   const source = new InMemoryFormDefinitionRepo();
   await source.create({ id: 'source-id', workspaceId: 'ws', slug: 'booking', name: 'Booking',
-    fields: [], notify: { enabled: true, recipients: ['source@example.com'] },
+    fields: [field], notify: { enabled: true, recipients: ['source@example.com'] },
     status: 'disabled', createdAt: 'now', updatedAt: 'now', version: 2 });
   const entities = [];
   for await (const entity of makeHandler(source).pack()) entities.push(entity);
   assert.deepEqual(entities.map(({ id, state }) => [id, state]), [['booking', {
-    name: 'Booking', slug: 'booking', fields: [], status: 'disabled',
+    name: 'Booking', slug: 'booking', fields: [field], status: 'disabled',
     mode: 'builder', html: '', provider: { id: 'builtin', config: {} },
   }]]);
   const dest = new InMemoryFormDefinitionRepo();

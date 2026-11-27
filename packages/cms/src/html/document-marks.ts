@@ -85,7 +85,7 @@ export function renderMarks({ text, marks, toAllowedHref }: { text: string; mark
   for (const mark of marks ?? []) {
     if (!isNonArrayRecord({ value: mark })) continue;
     const record = mark as JsonObject;
-    const renderer = typeof record.type === "string" ? MARK_RENDERERS[record.type] : undefined;
+    const renderer = typeof record.type === "string" && Object.hasOwn(MARK_RENDERERS, record.type) ? MARK_RENDERERS[record.type] : undefined;
     if (renderer) html = renderer({ html, attrs: isNonArrayRecord({ value: record.attrs }) ? record.attrs as JsonObject : {}, toAllowedHref });
   }
   return html;
