@@ -229,3 +229,17 @@ test("worker start: a policy without a host-registered package root fails closed
   assert.equal((posted[0] as { stage: string }).stage, "import");
   assert.match((posted[0] as { error: string }).error, /package root/);
 });
+
+test("a missing entry keeps its plain path (Node reports it at import), but any other path fault is thrown", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "jini-import-policy-fault-")));
+  try {
+    const policy: Tier2ImportPolicy = { sdkSpecifiers: ["@fixture/sdk"] };
+    const missing = path.join(root, "server", "index.mjs");
+    assert.deepEqual(tier2ImportPolicyData({ entryPath: missing, packageRoot: root, policy }), {
+      packageUrl: pathToFileURL(root).href + "/", allowedSpecifiers: ["@fixture/sdk"], sdkSpecifiers: ["@fixture/sdk"],
+    });
+    // A regular file used as a folder: realpath fails with ENOTDIR, a real fault rather than "not there yet".
+    await writeFile(path.join(root, "server-file"), "x");
+    assert.throws(() => tier2ImportPolicyData({ entryPath: path.join(root, "server-file", "index.mjs"), packageRoot: root, policy }), { code: "ENOTDIR" });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

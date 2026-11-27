@@ -7,6 +7,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolvePackageLocation, SAFE_PLUGIN_ID_SEGMENT } from '../../node/runtime-package-location.js';
 import { runPluginIntegrityCommand } from '../../node/integrity-command.js';
+import { resolveLoadTarget } from '../../node/runtime-load-target.js';
 import { PluginPackagePathError } from '../../node/package-files.js';
 import { createPluginRuntimeCore, type PluginRuntimeSource } from '../../node/index.js';
 import type { PluginDiscoveryRecord } from '../../discovery-types.js';
@@ -191,5 +192,27 @@ describe('runPluginIntegrityCommand', () => {
       await runPluginIntegrityCommand({ dir });
       expect(write).toHaveBeenCalledWith(JSON.stringify({ 'd.txt': sha('D') }, null, 2) + '\n');
     } finally { write.mockRestore(); }
+  });
+});
+
+describe('resolveLoadTarget', () => {
+  it('prefers the built-in source by id, carrying its importer and its own folder as package root when it has one', () => {
+    const withDir = builtIn('/built/word-tally');
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [withDir], record: record(), installDir: '/site' })).toEqual({
+      manifest, entryPath: 'tally:entry', attachmentSource: 'built-in', importModule: withDir.importModule, packageRoot: '/built/word-tally',
+    });
+    const noDir = builtIn();
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [noDir], record: record(), installDir: '/site' })).toEqual({
+      manifest, entryPath: 'tally:entry', attachmentSource: 'built-in', importModule: noDir.importModule,
+    });
+  });
+
+  it('loads a site record from <installDir>/<id>/<version>/server/index.mjs, and nothing without a folder or manifest', () => {
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [], record: record({ manifest }), installDir: '/site' })).toEqual({
+      manifest, entryPath: path.join('/site', 'word-tally', '1.0.0', 'server', 'index.mjs'), attachmentSource: 'site',
+    });
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [], record: record({ manifest }), installDir: undefined })).toBeNull();
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [], record: record(), installDir: '/site' })).toBeNull();
+    expect(resolveLoadTarget({ pluginId: 'word-tally', sources: [], record: record({ manifest, source: 'built-in' }), installDir: '/site' })).toBeNull();
   });
 });
