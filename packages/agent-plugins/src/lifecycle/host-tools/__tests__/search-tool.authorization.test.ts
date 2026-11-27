@@ -92,3 +92,55 @@ test("search omits absent metadata and preserves display and dependency field or
     await rm(packageRoot, { recursive: true, force: true });
   }
 });
+
+test.each([-1, 0.5, Number.MAX_SAFE_INTEGER + 1])("refuses invalid search offset %d before looking up the workspace", async offset => {
+  const called: unknown[] = [];
+  const [registration] = buildAgentPluginSearchRegistrations({
+    workspaceId: "workspace-a", ports, requirePermission: async (...inputs) => { called.push(inputs); },
+  });
+  await expect(registration!.handler({
+    executionId: "invalid-page", run: { id: "run-1" }, principal: { id: "allowed" },
+    input: { offset }, signal: new AbortController().signal,
+  })).rejects.toThrow("offset must be a non-negative safe integer");
+  expect(called).toEqual([]);
+});
+
+test("ranks the complete catalog before applying the requested page limit", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "search-ranking-"));
+  try {
+    await writeFile(path.join(root, "plugin.json"), JSON.stringify({ name: "fixture", extensions: { jini: { id: "publisher/mail" } } }));
+    const plugin = { packageRoot: root, archiveDigest: "a", files: [], skills: [] };
+    const reads: Array<{ query: string; limit: number; ids: string[] }> = [];
+    const testPorts: AgentPluginHostToolPorts = {
+      ...ports, layout: { forWorkspace: () => ({ root, pluginPackagesDir: unexpected }) },
+      lifecycle: {
+        ...ports.lifecycle,
+        listInstalledPlugins: async ({ workspaceRoot }) => {
+          assert.equal(workspaceRoot, root);
+          return [
+            { ...plugin, pluginId: "gamma", description: "Plain entry" },
+            { ...plugin, pluginId: "alpha", description: "Another entry" },
+            { ...plugin, pluginId: "beta", description: "Quarterly reports and notices" },
+          ];
+        },
+        readInstalledMcpServerIds: async () => [],
+        rankInstalledAgentPlugins: ({ query, candidates, limit }) => {
+          reads.push({ query, limit, ids: candidates.map(candidate => candidate.pluginId) });
+          return candidates.filter(candidate => candidate.description?.includes(query)).map(candidate => ({ ...candidate, score: 3 })).slice(0, limit);
+        },
+      },
+      activations: { ...ports.activations, isAgentPluginActive: () => true },
+    };
+    const [registration] = buildAgentPluginSearchRegistrations({
+      workspaceId: "workspace-a", ports: testPorts, requirePermission: async () => {},
+    });
+    await expect(registration!.handler({
+      executionId: "ranked-page", run: { id: "run-1" }, principal: { id: "allowed" },
+      input: { query: "Quarterly", limit: 1 }, signal: new AbortController().signal,
+    })).resolves.toEqual({
+      matches: [{ pluginId: "beta", id: "publisher/mail", enabled: true, description: "Quarterly reports and notices" }],
+      totalInstalled: 3, totalMatches: 1, nextOffset: null,
+    });
+    expect(reads).toEqual([{ query: "Quarterly", limit: 3, ids: ["gamma", "alpha", "beta"] }]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

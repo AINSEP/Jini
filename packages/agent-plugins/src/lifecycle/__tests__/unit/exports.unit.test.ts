@@ -220,3 +220,20 @@ describe('plugin export scripts and external hosts', () => {
     });
   });
 });
+
+it('URL constraints allow an optional link to be omitted, but reject a schema-valid nonstring value', () => {
+  const optionalLink: AgentPluginExport = { ...definition, urlProps: ['url'], externalHosts: { frame: ['https://frames.example'] },
+    props: { type: 'object', properties: { url: { type: 'boolean' } } } };
+  expect(validateAgentPluginExportProps({ definition: optionalLink, props: {} })).toBeNull();
+  expect(validateAgentPluginExportProps({ definition: optionalLink, props: { url: true } }))
+    .toBe('url must be an https link to a page on https://frames.example');
+});
+
+it('requires a declared origin for remote scripts but not for contained package scripts', () => {
+  expect(parse({ ...definition, scripts: ['exports/form.js'] })).toMatchObject({
+    ok: true, metadata: { exports: { 'sign-in': { scripts: ['exports/form.js'] } } },
+  });
+  expect(parse({ ...definition, scripts: ['https://scripts.example/form.js'] })).toMatchObject({
+    ok: false, errors: ['exports.sign-in: scripts must be contained .js paths or https URLs on externalHosts.script'],
+  });
+});

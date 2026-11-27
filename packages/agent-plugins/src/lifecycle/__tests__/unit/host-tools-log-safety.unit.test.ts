@@ -51,3 +51,13 @@ test('legacy-only manifest produces the same capability decisions before and aft
   expect(identity).toMatchObject({ id: 'publisher/alpha', maturity: 'soon', providerPlugin: 'provider-alpha' });
   expect(readPluginMaturity({ manifest })).toBeUndefined();
 });
+
+test.each([
+  new Error('/private/package/plugin.json could not be opened'),
+  new SyntaxError('/private/package/plugin.json contains invalid content'),
+])('does not reveal errors reading an installed identity manifest ($name)', async fault => {
+  const readText = vi.fn(async (_filePath: string) => { throw fault; });
+  await expect(readInstalledAgentPluginIdentity({ plugin }, { readText }))
+    .rejects.toThrow(/^The installed plugin identity manifest could not be read\.$/);
+  expect(readText.mock.calls).toEqual([['/nonexistent/alpha/plugin.json']]);
+});

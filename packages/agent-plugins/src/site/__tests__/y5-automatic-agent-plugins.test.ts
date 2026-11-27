@@ -1,6 +1,6 @@
 import { createAutomaticAgentPluginUse, readChatAgentPluginState } from "../../lifecycle/automatic-use.js";
 import { describe, expect, it, vi } from "vitest";
-import { createAutomaticPluginRuns, type AutomaticPluginDeps, type AutomaticPluginRun } from "../automatic-agent-plugins.js";
+import { createAutomaticPluginRuns, type AskAgentPluginChoice, type AutomaticPluginDeps, type AutomaticPluginRun } from "../automatic-agent-plugins.js";
 
 function fixture() {
   let answer!: (value: { action: "auto" | "use" | "skip"; selected: readonly string[] }) => void;
@@ -123,4 +123,113 @@ it('allows inactive guidance only for explicit loading', async () => {
     [{ pluginRefIds: ['sample'], workspaceLayout: { root: '/root', packages: '/packages' } }, { deliveryMode: 'inject', allowInactiveGuidance: false }],
     [{ pluginRefIds: ['sample'], workspaceLayout: { root: '/root', packages: '/packages' } }, { deliveryMode: 'inject', allowInactiveGuidance: true }],
   ]);
+});
+
+it("refuses cross-principal or malformed explicit loads before reading guidance, and returns the host note for a missing plugin", async () => {
+  const f = fixture();
+  const deps: AutomaticPluginDeps = {
+    ...f.deps, preferences: { ...f.deps.preferences, mode: async () => "auto" },
+    copy: { ...f.deps.copy, loadNotes: ({ pluginId }) => ({ missing: "Install " + pluginId + " first." }) },
+  };
+  const runs = createAutomaticPluginRuns({ deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: f.askAgentPluginChoice });
+  const ctx = { executionId: "load-a", run: { id: "run" }, signal: f.context.signal, principal: f.context.principal };
+  await runs.start({ runId: "run", context: f.context });
+  const call = (input: unknown, principal = ctx.principal) => runs.loadRegistration.handler({ ...ctx, input, principal });
+  const before = f.list.mock.calls.length;
+  await expect(call({ pluginId: "synthetic", path: "notes.md" })).rejects.toThrow("Only pluginId, skill and file are accepted");
+  await expect(call({ pluginId: "synthetic" }, { id: "other-person" })).rejects.toThrow("Agent Plugin run is unavailable");
+  expect(f.list.mock.calls).toHaveLength(before);
+  await expect(call({ pluginId: "not-installed" })).resolves.toEqual({
+    pluginId: "not-installed", status: "missing", guidance: "", note: "Install not-installed first.",
+  });
+  await expect(call({ pluginId: "synthetic", skill: "selected", file: "reference.md" })).resolves.toEqual({
+    pluginId: "synthetic", status: "loaded", guidance: "Guidance",
+  });
+});
+
+it("commits an offered attempt only for its owner and reuses the offered id across a duplicate request", async () => {
+  const f = fixture();
+  const deps: AutomaticPluginDeps = {
+    ...f.deps, preferences: { ...f.deps.preferences, mode: async () => "auto" },
+  };
+  const runs = createAutomaticPluginRuns({ deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: f.askAgentPluginChoice });
+  const scope = { runId: "run", principalId: "owner", attempt: 1 };
+  const request = { runId: "run", context: f.context, scope, offerId: "offer-1", isAttemptLive: async () => true };
+  await expect(runs.offer({ ...request, scope: { ...scope, principalId: "other" } })).rejects.toThrow("Agent Plugin run is unavailable");
+  const controller = new AbortController();
+  controller.abort();
+  await expect(runs.offer({ ...request, context: { ...f.context, signal: controller.signal } })).rejects.toThrow("Agent Plugin preparation was cancelled");
+  const offered = await runs.offer(request);
+  expect(offered.fullSections).toEqual([{ pluginId: "synthetic", text: "Guidance" }]);
+  expect(f.publish.mock.calls).toEqual([]);
+  await expect(runs.offer({ ...request, offerId: "other-offer-id" })).resolves.toEqual(offered);
+  await expect(runs.commit({ scope, offerId: offered.offerId, deliveredIds: ["synthetic"] }, { signal: f.context.signal }))
+    .resolves.toEqual({ guidanceIds: ["synthetic"] });
+  expect(runs.guidanceIds({ runId: "run" })).toEqual(["synthetic"]);
+  expect(f.publish).toHaveBeenCalledTimes(1);
+});
+
+it("off mode clears the usage strip without loading the catalog", async () => {
+  const f = fixture();
+  const deps: AutomaticPluginDeps = { ...f.deps, preferences: { ...f.deps.preferences, mode: async () => "off" } };
+  const runs = createAutomaticPluginRuns({ deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: f.askAgentPluginChoice });
+  await expect(runs.start({ runId: "off-run", context: f.context })).resolves.toBe("");
+  expect(f.publish.mock.calls).toEqual([[{ conversationId: "chat", state: { decision: null, excluded: [] }, plugins: [] }]]);
+  expect(f.list.mock.calls).toEqual([]);
+});
+
+it("a tool preparation failure is reported and does not consume the live run's ability to prepare again", async () => {
+  const f = fixture();
+  const list = vi.fn<AutomaticPluginDeps["list"]>(f.deps.list);
+  const deps: AutomaticPluginDeps = { ...f.deps, list, preferences: { ...f.deps.preferences, mode: async () => "auto" } };
+  const runs = createAutomaticPluginRuns({ deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: f.askAgentPluginChoice });
+  const make = (id: string) => ({
+    run: { id }, principal: f.context.principal, tool: { id: "publish" }, signal: f.context.signal,
+  });
+  await expect(runs.prepareGuidance(make("unknown"))).resolves.toBe("");
+  expect(list.mock.calls).toEqual([]);
+  await runs.start({ runId: "run", context: f.context });
+  const failure = new Error("plugin index unavailable");
+  list.mockRejectedValueOnce(failure);
+  await expect(runs.prepareGuidance(make("run"))).resolves.toBe("");
+  expect(f.deps.warn).toHaveBeenCalledExactlyOnceWith(failure);
+  await expect(runs.prepareGuidance(make("run"))).resolves.toBe("");
+  expect(f.deps.warn).toHaveBeenCalledTimes(1);
+  expect(runs.guidanceIds({ runId: "run" })).toEqual(["synthetic"]);
+});
+
+it("a detached consent card drops its terminal user receipt but preserves the choice for the next turn", async () => {
+  const f = fixture();
+  const emitSurface = vi.fn<AutomaticPluginRun["emitSurface"]>(async () => {});
+  const context = { ...f.context, emitSurface };
+  let emitChoice!: AutomaticPluginRun["emitSurface"];
+  const ask = vi.fn<AskAgentPluginChoice>(async input => {
+    emitChoice = input.emitSurface;
+    return f.askAgentPluginChoice();
+  });
+  const runs = createAutomaticPluginRuns({ deps: f.deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: ask });
+  const start = runs.start({ runId: "first", messageId: "first-turn", context });
+  await f.opening;
+  const opened = { channel: "surface_request", payload: { surfaceId: "offer-a", surfaceKind: "form" } };
+  await emitChoice(opened);
+  runs.forget({ runId: "first" }, { preservePending: true });
+  await emitChoice({ channel: "user_message", payload: { content: "Use the plugin", surfaceId: "offer-a" } });
+  expect(emitSurface.mock.calls).toEqual([[opened]]);
+  f.answer({ action: "use", selected: ["synthetic"] });
+  expect(await start).toContain("Guidance");
+  await runs.start({ runId: "second", messageId: "second-turn", context });
+  expect(runs.guidanceIds({ runId: "second" })).toEqual(["synthetic"]);
+  expect(ask).toHaveBeenCalledTimes(1);
+});
+
+it("a failed Off event is reported to the caller without falling back to guidance", async () => {
+  const f = fixture();
+  const mode = async () => "off" as const;
+  const failure = new Error("conversation stream closed");
+  const deps: AutomaticPluginDeps = { ...f.deps, preferences: { ...f.deps.preferences, mode } };
+  const runs = createAutomaticPluginRuns({ deps, surfaces: {} as Parameters<typeof createAutomaticPluginRuns>[0]["surfaces"], askAgentPluginChoice: f.askAgentPluginChoice });
+  f.publish.mockRejectedValueOnce(failure);
+  await expect(runs.start({ runId: "off-run", context: f.context })).rejects.toBe(failure);
+  expect(f.publish.mock.calls).toEqual([[{ conversationId: "chat", state: { decision: null, excluded: [] }, plugins: [] }]]);
+  expect(f.list.mock.calls).toEqual([]);
 });

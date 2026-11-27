@@ -130,3 +130,18 @@ describe('publication', () => {
       .toEqual([{ event: 'agent-plugin-revision-prune-warning', message: "Plugin 'edge-plugin': superseded revisions could not be scanned for pruning." }]);
   });
 });
+
+test('publishes only declared executable files with execute permission and freezes both files', async () => {
+  const executable: AgentPluginArchiveEntry = {
+    kind: 'file', entryPath: 'scripts/relay.sh', executable: true,
+    async *openReadStream() { yield Buffer.from('#!/bin/sh\necho relay\n'); },
+  };
+  const { result } = await install({}, readerOf([...basicEntries(), executable, fileEntry('scripts/notes.sh', 'not a runner')]));
+  const { packageRoot } = await result;
+  const runner = path.join(packageRoot, 'scripts', 'relay.sh');
+  const notes = path.join(packageRoot, 'scripts', 'notes.sh');
+  expect((await fs.stat(runner)).mode & 0o777).toBe(0o555);
+  expect((await fs.stat(notes)).mode & 0o777).toBe(0o444);
+  expect(await fs.readFile(runner, 'utf8')).toBe('#!/bin/sh\necho relay\n');
+  expect(await fs.readFile(notes, 'utf8')).toBe('not a runner');
+});

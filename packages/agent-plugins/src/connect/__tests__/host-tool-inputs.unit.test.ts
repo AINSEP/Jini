@@ -59,3 +59,25 @@ it('F2 second host credential catalog provenance reaches registration errors', (
   const tools = createCredentialSaveTools(saveInputs); tools.credentialSaveCatalog.length = 0;
   expect(() => tools.buildCredentialSaveRegistrations({ adapters })).toThrow('studio/secrets.ts');
 });
+
+it('lists status for every provider when the filter is omitted, while denial stops before reading settings', async () => {
+  const tools = createProviderStatusTools(statusInputs);
+  const rows: ProviderStatusRow[] = [
+    { pluginId: 'metrics', enabled: false, configured: false, missing: ['token'], store: 'site', appliesAt: 'now', usedByThisSite: false, usedBy: [] },
+    { pluginId: 'observer', enabled: true, configured: true, missing: [], store: 'project', appliesAt: 'restart', usedByThisSite: true, usedBy: ['tenant-a'] },
+  ];
+  const calls: unknown[] = [];
+  const read = tools.buildProviderStatusRegistrations({
+    ports: {
+      authorize: async ctx => {
+        calls.push(ctx.principal.id);
+        if (ctx.principal.id !== 'operator') throw new Error('read permission required');
+      },
+      list: async input => { calls.push(input); return rows; },
+    },
+  })[0]!;
+  await expect(read.handler({ ...context(undefined), principal: { id: 'visitor' } })).rejects.toThrow('read permission required');
+  expect(calls).toEqual(['visitor']);
+  await expect(read.handler(context(undefined))).resolves.toEqual({ providers: rows });
+  expect(calls).toEqual(['visitor', 'operator', {}]);
+});

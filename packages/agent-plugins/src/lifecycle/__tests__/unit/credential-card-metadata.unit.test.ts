@@ -69,3 +69,21 @@ it('legacy-only manifest produces the same capability decisions before and after
   expect(createCredentialCardsContribution({ legacyIdentity }).parse(input)).toEqual(parsed);
   expect(createCredentialCardsContribution({}).parse(input)).toEqual({ ok: true, descriptors: [] });
 });
+
+it('refuses a domain-owned card that tries to reuse an API probe', () => {
+  expect(parsePluginCredentialCards({ raw: raw([{ ...card, saveKind: 'source-control', probeUrl: 'https://api.example.com/check' }]) }))
+    .toEqual({ ok: false, reason: 'probeUrl requires an API card with a same-origin declared baseUrl' });
+});
+
+it('preserves explicit optional field copy and never forwards unknown declaration fields', () => {
+  const parsed = parsePluginCredentialCards({ raw: raw([{
+    ...card, helpLabel: ' Open guide ', helpUrl: 'https://api.example.com/key-guide',
+    fields: [{ name: 'username', label: 'Account', hint: ' Provider login ', required: false }],
+    internal: 'must not become form metadata',
+  }]) });
+  expect(parsed).toEqual({ ok: true, descriptors: [{
+    providerId: 'example', label: card.label, category: card.category, baseUrl: card.baseUrl,
+    title: card.title, intro: card.intro, keyHint: card.keyHint, helpUrl: 'https://api.example.com/key-guide', helpLabel: 'Open guide',
+    fields: [{ name: 'username', label: 'Account', hint: 'Provider login', required: false }],
+  }] });
+});

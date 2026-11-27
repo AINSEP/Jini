@@ -220,3 +220,16 @@ describe('seeding details', () => {
     expect(activations.plugins['new-integration']?.enabled).toBe(true);
   });
 });
+
+test('a held publisher migration cannot produce a package, digest or activation decision', async () => {
+  const sourceRoot = await sourceWithPlugin();
+  const layout = createAgentPluginLayout({ root: await tempDir() });
+  const seed = createSeedBundledModule({ ...ports, layout, onEvent: () => {} });
+  const reason = 'publisher changed without a verified replacement';
+  const report = await seed.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, { heldPluginIds: new Map([['seeded-one', reason]]) });
+  expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason }]);
+  const workspace = layout.forWorkspace({ workspaceId: 'ws' });
+  await expect(fs.stat(workspace.pluginPackagesDir({ pluginId: 'seeded-one' }))).rejects.toMatchObject({ code: 'ENOENT' });
+  await expect(fs.stat(path.join(workspace.root, ACTIVATIONS_FILENAME))).rejects.toMatchObject({ code: 'ENOENT' });
+  await expect(fs.stat(path.join(workspace.root, BUNDLED_DIGESTS_FILENAME))).rejects.toMatchObject({ code: 'ENOENT' });
+});

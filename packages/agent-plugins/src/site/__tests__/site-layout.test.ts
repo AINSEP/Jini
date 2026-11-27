@@ -22,3 +22,13 @@ test('workspace trees remain isolated and invalid IDs retain the exact diagnosti
   assert.throws(() => a.pluginRootDir({ pluginId: '../bad' }), { message: "'../bad' is not a valid Agent Plugin id" });
   assert.throws(() => a.pluginDataDir({ pluginId: 'BAD' }), { message: "pluginDataDir: 'BAD' is not a valid Agent Plugin id" });
 });
+
+test('learned memory and notes use separate plugin-owned directories and reject unknown kinds', () => {
+  const { pluginMemoryDir } = createAgentPluginSiteLayout({ siteDir: '/site', rootOverride: '/plugins', diagnostics })
+    .forWorkspace({ workspaceId: 'TENANT-B' });
+  assert.equal(pluginMemoryDir({ pluginId: 'mailer', kind: 'learned' }), '/plugins/ws/tenant-b/mailer/memory/learned');
+  assert.equal(pluginMemoryDir({ pluginId: 'mailer', kind: 'notes' }), '/plugins/ws/tenant-b/mailer/memory/notes');
+  assert.throws(() => pluginMemoryDir({
+    pluginId: 'mailer', kind: 'other' as Parameters<typeof pluginMemoryDir>[0]['kind'],
+  }), { message: 'Invalid plugin memory kind' });
+});

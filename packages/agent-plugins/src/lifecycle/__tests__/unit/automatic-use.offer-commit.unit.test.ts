@@ -140,3 +140,30 @@ describe('automatic guidance offer and commit', () => {
     expect(await f.controller.commit({ scope: newer, offerId: 'offer-2', deliveredIds: ['alpha'] })).toEqual({ guidanceIds: ['alpha'] });
   });
 });
+
+it('aborting during the authoritative liveness check never records delivery', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  await f.offer();
+  f.isAttemptLive.mockClear();
+  f.isAttemptLive.mockImplementationOnce(async () => {
+    controller.abort();
+    return true;
+  });
+  await expect(f.controller.commit({ scope, offerId: 'offer-1', deliveredIds: ['alpha'] }, { signal: controller.signal }))
+    .rejects.toThrow('Recording this guidance choice was cancelled.');
+  expect(f.isAttemptLive.mock.calls).toEqual([[scope, { signal: controller.signal }]]);
+  expect(f.controller.guidanceIds({})).toEqual([]);
+  expect(f.publish.mock.calls).toEqual([]);
+});
+
+it('a committed offer ID cannot be replaced even for the same live attempt', async () => {
+  const f = fixture();
+  await f.offer();
+  await expect(f.controller.commit({ scope, offerId: 'offer-1', deliveredIds: ['beta', 'alpha'] }))
+    .resolves.toEqual({ guidanceIds: ['beta', 'alpha'] });
+  await expect(f.offer({ offerId: 'replacement' })).rejects.toThrow('This guidance offer is no longer current for this turn.');
+  await expect(f.controller.commit({ scope, offerId: 'offer-1', deliveredIds: ['alpha', 'beta'] }))
+    .resolves.toEqual({ guidanceIds: ['beta', 'alpha'] });
+  expect(f.publish).toHaveBeenCalledTimes(1);
+});

@@ -739,3 +739,33 @@ test('a lock wait while restoring an interrupted update does not switch the plug
     expect(await verdict(h)).toBe('active');
   });
 });
+
+test('a non-contention failure after a background wait leaves the journal and stops retrying', async () => {
+  await fixture(async h => {
+    await h.store.write({ journal: journalFor(h, { state: 'committed' }) });
+    const waits: number[] = [];
+    let tries = 0;
+    let finished!: () => void;
+    const failureReported = new Promise<void>(resolve => { finished = resolve; });
+    const fileLock = { ...ports.fileLock, withFileLock: (() => {
+      tries++;
+      if (tries === 1) throw busyLock();
+      throw Object.assign(new Error('/private/state read failure'), { code: 'EIO' });
+    }) as typeof ports.fileLock.withFileLock };
+    const boot = createAgentPluginLifecycle({
+      ...h.context, fileLock, clock: { ...h.context.clock, sleepInBackground: async ({ ms }) => { waits.push(ms); } },
+      onEvent: input => {
+        h.context.onEvent?.(input);
+        if (input.event === 'agent-plugin-update-recovery-failed') finished();
+      },
+    });
+    await boot.reconcileAgentPluginUpdates({ workspaceId });
+    await failureReported;
+    expect(tries).toBe(2);
+    expect(waits).toEqual([5000]);
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting', 'agent-plugin-update-recovery-failed']);
+    expect(h.messages[1]).toContain('could not be recovered on retry (EIO)');
+    expect(h.messages[1]).not.toContain('/private/state');
+    expect((await h.store.read({}))?.state).toBe('committed');
+  });
+});

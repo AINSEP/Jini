@@ -167,3 +167,15 @@ test("a seed fault still releases the workspace lock", async () => {
     seed: async () => { throw new Error("seed crashed"); } }), /seed crashed/);
   assert.equal(events.at(-1), "unlock");
 });
+
+test("a missing or unreadable replacement declaration leaves the installed bytes alone", async () => {
+  for (const readBundledSourceManifest of [
+    async () => '{"extensions":{"jini":{}}}',
+    async () => '{',
+    async () => { throw new Error("replacement manifest unavailable"); },
+  ]) {
+    const renames: string[][] = [];
+    assert.deepEqual(await upgrade({ ...fakePort({ renames }), readBundledSourceManifest }), []);
+    assert.deepEqual(renames, []);
+  }
+});

@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { createSetAgentPluginEnabled } from '../set-enabled.js';
+import { createAgentPluginLayout } from "../../lifecycle/layout.js";
 
 it('bypasses uninitialized provider ports with explicit links and reuses lifecycle by layout', async () => {
   let initialized = false;
@@ -45,4 +46,27 @@ it('awaits readiness only for linked enable and refuses before writing', async (
   await expect(bound({ ...input, enabled: false })).rejects.toBeInstanceOf(LinkedError);
   expect(order).toEqual(['ready']);
   expect(write).not.toHaveBeenCalled();
+});
+
+it('resolves workspace lazily for the link reader and carries conditional enable to the owner', async () => {
+  const layout = createAgentPluginLayout({ root: '/test-plugins' });
+  const reads: string[] = [];
+  const write = vi.fn(async ({ enabled, pluginId }: { enabled: boolean; pluginId: string }, opts?: { unlessOperatorDisabled?: boolean }) => (
+    { pluginId, enabled: enabled && opts?.unlessOperatorDisabled !== true }
+  ));
+  class LinkedError extends Error {}
+  const bound = createSetAgentPluginEnabled({
+    createLifecycle: () => ({ setAgentPluginEnabled: write }),
+    bindProviderFacePorts: ({ workspaceRoot }) => ({
+      links: async () => { reads.push(workspaceRoot()); return new Map<string, string>(); },
+    }),
+    assertAgentPluginReady: async () => { throw new Error('unlinked plugin'); },
+    AgentPluginLinkedError: LinkedError,
+  });
+  const notifyRosterChanged = vi.fn(async () => {});
+  const request = { agentPluginLayout: layout, workspaceId: 'tenant-b', pluginId: 'sample', enabled: true, actor: 'system:connected' };
+  await expect(bound(request, { unlessOperatorDisabled: true, notifyRosterChanged })).resolves.toEqual({ pluginId: 'sample', enabled: false });
+  expect(reads).toEqual(['/test-plugins/ws/tenant-b']);
+  expect(write.mock.calls[0]?.[1]).toEqual({ unlessOperatorDisabled: true });
+  expect(notifyRosterChanged.mock.calls).toEqual([[{ lowered: { pluginIds: ['sample'] } }]]);
 });

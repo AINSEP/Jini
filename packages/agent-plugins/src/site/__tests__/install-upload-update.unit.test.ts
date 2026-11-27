@@ -5,7 +5,7 @@ import { parseAgentPluginManifest } from '../../lifecycle/manifest.js';
 import { readInstalledAgentPluginIdentity } from '../../lifecycle/host-tools/index.js';
 import { AgentPluginUpdateError } from '../../core/update-error.js';
 import { createAgentPluginSiteLayout } from '../../lifecycle/layout.js';
-import { installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional } from '../install-upload.js';
+import { createAgentPluginUpload, installUploadedAgentPlugin, type InstallUploadedAgentPluginOptional } from '../install-upload.js';
 
 function fixture(oldInstalled = false) {
   const archive = Buffer.from('archive'); const expectedSha256 = createHash('sha256').update(archive).digest('hex');
@@ -48,4 +48,75 @@ test('bound update refuses a missing settings snapshot before constructing lifec
   });
   await assert.rejects(bound.installUploadedAgentPlugin({ ...f.required, update: { pluginId: 'demo', expectedOldDigest: 'old' } }, { layout }), /settings snapshot owner/);
   assert.equal(constructions, 0);
+});
+
+test('publication waits for publisher identity admission and persists nothing when another family holds the id', async () => {
+  const f = fixture();
+  const candidateReads: string[] = [];
+  const admissions: unknown[] = [];
+  const refused = new Error("Duplicate plugin id 'publisher/demo'.");
+  let admitted = false;
+  const optional: InstallUploadedAgentPluginOptional = {
+    ...f.optional,
+    readInstallIdentity: async ({ plugin }) => {
+      candidateReads.push(plugin.packageRoot);
+      return { id: 'publisher/demo', keywords: [], provides: [], warnings: [] };
+    },
+    lifecycle: {
+      ...f.optional.lifecycle,
+      setAgentPluginActivation: async (...args) => {
+        assert.equal(admitted, true, 'activation write must be inside identity admission');
+        return f.optional.lifecycle.setAgentPluginActivation(...args);
+      },
+    },
+    pluginHost: {
+      getPlugin: async () => null, findProviders: async () => [], getHostCapability: () => undefined,
+      withInstallIdentity: async ({ candidate, run }) => {
+        admissions.push(candidate);
+        if (admissions.length === 1) throw refused;
+        admitted = true;
+        try { return await run(); } finally { admitted = false; }
+      },
+    },
+  };
+  await assert.rejects(installUploadedAgentPlugin(f.required, optional), error => error === refused);
+  assert.deepEqual(f.order, []);
+  assert.deepEqual(await f.optional.lifecycle.listInstalledPlugins({ workspaceRoot: '/plugins/ws/ws' }), []);
+  const result = await installUploadedAgentPlugin(f.required, optional);
+  assert.equal(result.plugin.archiveDigest, f.required.expectedSha256);
+  assert.deepEqual(candidateReads, ['/new', '/new']);
+  assert.deepEqual(admissions, Array.from({ length: 2 }, () => ({ id: 'publisher/demo', localId: 'demo', family: 'agent-plugin' })));
+  assert.deepEqual(f.order, ['off', 'publish']);
+  assert.deepEqual(await f.optional.lifecycle.listInstalledPlugins({ workspaceRoot: '/plugins/ws/ws' }), [result.plugin]);
+});
+
+test('after a replacement publishes, a quarantined cleanup fault warns without undoing the new revision', async () => {
+  const f = fixture(true);
+  const cleanup = new Error('old package is busy');
+  const calls: unknown[] = [];
+  const optional: InstallUploadedAgentPluginOptional = {
+    ...f.optional,
+    lifecycle: {
+      ...f.optional.lifecycle,
+      isAgentPluginRecordedAsBundled: async () => false,
+      resolveAgentPluginActivation: async () => ({ verdict: 'inactive' }),
+      stageForRemoval: async ({ packagesDir, packageRoot }) => {
+        calls.push({ packagesDir, packageRoot });
+        return { original: packageRoot, quarantined: '/quarantined/old', originalMode: 0o555 };
+      },
+      restoreStagedTrees: async () => { throw new Error('a published replacement must not restore the old package'); },
+      removeFrozenPackageTree: async input => { calls.push(input); throw cleanup; },
+    },
+    warnCleanup: input => { calls.push(input); },
+  };
+  const upload = createAgentPluginUpload(optional);
+  const result = await upload.installUploadedAgentPlugin({ ...f.required, replace: true });
+  assert.deepEqual(result.upgradeFrom, ['1.0.0']);
+  assert.equal(result.plugin.archiveDigest, f.required.expectedSha256);
+  assert.deepEqual(f.order, ['publish'], 'replacement keeps the previous OFF decision');
+  assert.deepEqual(calls, [
+    { packagesDir: '/plugins/ws/ws/demo/package/sha256', packageRoot: '/old' },
+    { root: '/quarantined/old' }, { pluginId: 'demo', error: cleanup },
+  ]);
+  assert.deepEqual(await f.optional.lifecycle.listInstalledPlugins({ workspaceRoot: '/plugins/ws/ws' }), [result.plugin]);
 });

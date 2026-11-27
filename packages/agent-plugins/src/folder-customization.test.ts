@@ -129,3 +129,16 @@ test('a canonical fork preserves presentation but drops publisher and supersessi
   expect(Buffer.from(archive).toString('utf8')).not.toContain('publisher/stock');
   expect(Buffer.from(archive).toString('utf8')).not.toContain('supersedes');
 });
+
+test('a package without any extension still forks under the requesting host’s new local identity', async () => {
+  const input = await fixture();
+  const filename = path.join(input.path, 'plugin.json');
+  const original = '{"name":"stock","version":"1.0.0"}';
+  await writeFile(filename, original);
+  const archive = await zipCustomizedAgentPluginFolder(input);
+  const text = Buffer.from(archive).toString('utf8');
+  expect(text).toContain('"name": "custom"');
+  expect(text).toContain('"host": {\n      "id": "local/custom"');
+  expect(text).toContain('Use green.');
+  expect(await readFile(filename, 'utf8')).toBe(original);
+});

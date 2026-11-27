@@ -1005,3 +1005,17 @@ describe("VercelDeployTarget — edge answers (bodies that cannot be read, missi
     expect(probed).toEqual([]);
   });
 });
+
+it("a successful credential probe with an unreadable body does not invent an account label", async () => {
+  const calls = [];
+  const kit = {
+    ...createFakeDeployHostKit(),
+    fetch: async (url, init, options) => {
+      calls.push([url, new Headers(init.headers).get("Authorization"), options]);
+      return new Response("{not JSON", { status: 200 });
+    },
+  };
+  expect(await loaded.default.verifyCredential({ credential: { token: "demo-token" }, kit }))
+    .toEqual({ ok: true, accountLabel: undefined });
+  expect(calls).toEqual([["https://api.vercel.com/v2/user", "Bearer demo-token", { timeoutMs: kit.timeouts.QUICK }]]);
+});

@@ -52,3 +52,16 @@ test("the same provider follows the key rule of the host that built it", async (
     assert.deepEqual(calls, []);
   }
 });
+
+test("only a separate Vercel read-write blob credential is accepted for share artifacts", () => {
+  assert.equal(module.acceptsArtifactCredential({ credential: { token: "deploy-only", blobToken } }), true);
+  for (const credential of [undefined, { token: "deploy-only" }, { blobToken: 42 }, { blobToken: "vercel_blob_ro_store123_secret" }]) {
+    assert.equal(module.acceptsArtifactCredential({ credential }), false);
+  }
+});
+
+test("Blob refuses site-media storage even when a share credential is configured", () => {
+  assert.deepEqual(module.create({ credential: { token: "deploy-only", blobToken } }), {
+    status: "rejected", error: { code: "not_configured", message: "Vercel Blob is used for share links only, not site media." },
+  });
+});

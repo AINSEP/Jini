@@ -57,3 +57,10 @@ describe('portable manifest metadata', () => {
     }
   });
 });
+
+test.each([{ toolKeywords: ['discover'] }, { toolKeywords: 'discover' }])('ignores non-object tool keywords %j while preserving presentation metadata', ({ toolKeywords }) => {
+  expect(readAgentPluginMetadata({ value: plugin({ displayName: 'Readable plugin', toolKeywords }) })).toEqual({
+    metadata: { displayName: 'Readable plugin' },
+    warnings: ['Invalid agent-plugin toolKeywords metadata was ignored.'],
+  });
+});

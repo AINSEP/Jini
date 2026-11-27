@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
-import { followProviderActivations, syncProviderFaces, type ProviderFacePorts } from "../provider-plugin-link.js";
+import { bindProviderFacePorts, followProviderActivations, syncProviderFaces, type ProviderFacePorts } from "../provider-plugin-link.js";
 import { linkedProviderOf } from "../../core/provider-plugin-link.js";
 
 const WS = "11111111-1111-4111-8111-111111111111";
@@ -86,4 +86,62 @@ test("a face resolves to its provider plugin; an unlinked plugin to none", async
   const { ports } = fakeFaces({}, { metrics: "metrics-provider" });
   assert.equal(await linkedProviderOf({ ports, pluginId: "metrics" }), "metrics-provider");
   assert.equal(await linkedProviderOf({ ports, pluginId: "other" }), undefined);
+});
+
+test("bound links follow the selected workspace and mirror its live canonical activation", async () => {
+  let root = "/plugins/site-a";
+  const old = { pluginId: "analytics", archiveDigest: "old" };
+  const current = { pluginId: "analytics", archiveDigest: "current" };
+  const invalid = { pluginId: "unreadable", archiveDigest: "other" };
+  const reads: unknown[] = [];
+  const enabledByRoot = new Map([["/plugins/site-b", false]]);
+  const ports = bindProviderFacePorts({
+    workspaceRoot: () => root,
+    catalog: {
+      list: async ({ workspaceRoot }) => workspaceRoot === "/plugins/site-a" ? [old, current, invalid] : [current],
+      bundled: async ({ workspaceRoot }) => workspaceRoot === "/plugins/site-a" ? "current" : null,
+      preferBundled: (items, bundled) => bundled ? items.filter(item => item.archiveDigest === bundled || item.pluginId !== "analytics") : items,
+      read: async ({ plugin, filename }) => {
+        reads.push({ plugin, filename });
+        if (plugin === invalid) return "{";
+        assert.equal(plugin, current);
+        return '{"extensions":{"jini":{"providerPlugin":"metrics-provider"}}}';
+      },
+    },
+    activations: {
+      readAgentPluginActivations: async ({ workspaceRoot }) => enabledByRoot.get(workspaceRoot) ?? true,
+      isAgentPluginActive: ({ pluginId, activations }) => pluginId === "analytics" && activations,
+      reconcileAgentPluginActivation: async ({ workspaceRoot, pluginId, actor, resolveEnabled }) => {
+        assert.deepEqual({ workspaceRoot, pluginId, actor }, { workspaceRoot: "/plugins/site-b", pluginId: "analytics", actor: "system:provider-plugin" });
+        const next = await resolveEnabled();
+        if (enabledByRoot.get(workspaceRoot) === next) return false;
+        enabledByRoot.set(workspaceRoot, next);
+        return true;
+      },
+    },
+  });
+  assert.deepEqual(await ports.links({}), new Map([["analytics", "metrics-provider"]]));
+  root = "/plugins/site-b";
+  assert.equal(await ports.isFaceActive({ pluginId: "analytics" }), false);
+  assert.deepEqual(await syncProviderFaces({ ports, providerEnabled: async ({ pluginId }) => pluginId === "metrics-provider" }), ["analytics"]);
+  assert.equal(await ports.isFaceActive({ pluginId: "analytics" }), true);
+  assert.deepEqual(reads, [{ plugin: current, filename: "plugin.json" }, { plugin: invalid, filename: "plugin.json" }, { plugin: current, filename: "plugin.json" }]);
+});
+
+test("bound links refuse multiple selected revisions without reading either declaration", async () => {
+  const ports = bindProviderFacePorts({
+    workspaceRoot: () => "/plugins/site-b",
+    catalog: {
+      list: async () => [{ pluginId: "analytics", archiveDigest: "old" }, { pluginId: "analytics", archiveDigest: "new" }],
+      bundled: async () => new Map(),
+      preferBundled: items => items,
+      read: async () => { throw new Error("should not read a conflicted declaration"); },
+    },
+    activations: {
+      readAgentPluginActivations: async () => true,
+      isAgentPluginActive: () => true,
+      reconcileAgentPluginActivation: async () => { throw new Error("not reconciling"); },
+    },
+  });
+  await assert.rejects(ports.links({}), { message: "Agent Plugin 'analytics' matches 2 installed packages — refusing to guess which one to use" });
 });

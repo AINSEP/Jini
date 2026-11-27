@@ -58,3 +58,24 @@ test("the same carry does write when the successor holds only a seed record, so 
   assert.deepEqual(double.writes, [{ source: "rename-carry", pluginId: TO, enabled: true }]);
   assert.equal(double.stored[TO]?.enabled, true);
 });
+
+test("a seed-only predecessor is not an operator decision to carry", async () => {
+  const double = activationDouble({
+    records: { [FROM]: { ...earlierOperatorOn, updatedBy: "system:seed" } },
+    verdicts: { [FROM]: { verdict: "active" }, [TO]: { verdict: "inactive" } },
+  });
+  await carryPluginRenameActivation({ workspaceRoot: WORKSPACE, activations: double.port, fromPluginId: FROM, toPluginId: TO, actor: "system:rename" });
+  assert.deepEqual(double.writes, []);
+  assert.equal(double.stored[TO], undefined);
+});
+
+test("a corrupt successor record blocks activation carry even when the predecessor has a valid decision", async () => {
+  const double = activationDouble({
+    records: { [FROM]: earlierOperatorOn },
+    verdicts: { [FROM]: { verdict: "active" }, [TO]: { verdict: "undetermined", reason: "invalid stored activation" } },
+  });
+  await assert.rejects(carryPluginRenameActivation({
+    workspaceRoot: WORKSPACE, activations: double.port, fromPluginId: FROM, toPluginId: TO, actor: "system:rename",
+  }), { message: "Cannot carry plugin-new activation: invalid stored activation" });
+  assert.deepEqual(double.writes, []);
+});

@@ -191,3 +191,19 @@ test('another installed, host-incompatible plugin never blocks enabling this one
     await expect(api.setAgentPluginEnabled(toggle('future', true))).rejects.toThrow("Plugin 'future' is not compatible with this host's Agent Plugin contract.");
   });
 });
+
+test('system enable replaces a seed-only OFF record and attributes the change to the requested actor', async () => {
+  await withHarness(async ({ api, workspaceRoot, install }) => {
+    const pluginId = 'seeded-mail';
+    await install(pluginId);
+    await api.recordBundledAgentPluginIfAbsent({ workspaceRoot, pluginId }, { enabled: false, now: () => new Date(0) });
+    expect((await api.readAgentPluginActivations({ workspaceRoot })).plugins[pluginId]).toMatchObject({
+      enabled: false, updatedBy: 'system:seed',
+    });
+    await expect(api.setAgentPluginEnabled({ workspaceId, pluginId, enabled: true, actor: 'system:connected' }, { unlessOperatorDisabled: true }))
+      .resolves.toEqual({ pluginId, enabled: true });
+    expect((await api.readAgentPluginActivations({ workspaceRoot })).plugins[pluginId]).toMatchObject({
+      enabled: true, updatedBy: 'system:connected',
+    });
+  });
+});

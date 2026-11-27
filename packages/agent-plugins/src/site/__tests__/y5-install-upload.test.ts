@@ -107,3 +107,53 @@ it('converts legacy overrides on ingress and adapts lifecycle opens without chan
     }
   }
 });
+
+it.each([
+  ['not zip', 'ARCHIVE_UNREADABLE', 'the file is not a readable .zip archive'],
+  ['too many entries', 'TOO_MANY_ENTRIES', 'archive exceeds the 4096-entry cap'],
+  ['big manifest', 'MANIFEST_INVALID', 'plugin.json is larger than 1 MiB'],
+  ['broken manifest', 'MANIFEST_INVALID', 'plugin.json is not valid JSON'],
+  ['no root manifest', 'MANIFEST_MISSING', 'the archive does not contain a plugin.json at its root or inside one top-level folder'],
+] as const)('stops a %s upload before handing it off for extraction', async (scenario, code, message) => {
+  const archive = Uint8Array.of(80, 75, 3, 4);
+  const expectedSha256 = createHash('sha256').update(archive).digest('hex');
+  const archiveReader: InstallUploadedAgentPluginOptional['archiveReader'] = {
+    async *entries({ archive: bytes }) {
+      if (bytes !== archive) throw new Error('wrong input bytes');
+      if (scenario === 'not zip') throw new Error('decompression fault in /private/input.zip');
+      if (scenario === 'too many entries') {
+        for (let i = 0; i < 4097; i++) yield { kind: 'directory', entryPath: 'docs-' + i + '/' };
+      } else {
+        yield { kind: 'file', entryPath: scenario === 'no root manifest' ? 'nested/inner/plugin.json' : 'plugin.json',
+          async *openReadStream() { yield scenario === 'big manifest' ? Buffer.alloc(1024 * 1024 + 1) : Buffer.from('{'); } };
+      }
+    },
+  };
+  const installAgentPlugin = vi.fn(async () => { throw new Error('invalid archive reached extraction'); });
+  const options = {
+    lifecycle: { installAgentPlugin }, archiveReader,
+    maxAgentPluginInstallArchiveBytes: () => 1024, parseManifest: parseAgentPluginManifest,
+    sha256: (data: Uint8Array) => createHash('sha256').update(data).digest('hex'),
+  } as unknown as InstallUploadedAgentPluginOptional;
+  const input = { archive, expectedSha256, workspaceId: 'tenant-c', actor: 'owner' };
+  await expect(previewUploadedAgentPlugin(input, options)).rejects.toMatchObject({ code, message });
+  await expect(installUploadedAgentPlugin(input, options)).rejects.toMatchObject({ code, message });
+  expect(installAgentPlugin.mock.calls).toEqual([]);
+});
+
+it('checks size before hashing or enumerating the archive', async () => {
+  const sha256 = vi.fn();
+  const entries = vi.fn();
+  const options = {
+    lifecycle: {}, archiveReader: { entries }, maxAgentPluginInstallArchiveBytes: () => 3, sha256,
+  } as unknown as InstallUploadedAgentPluginOptional;
+  const input = { archive: Uint8Array.of(80, 75, 3, 4), expectedSha256: 'a'.repeat(64), workspaceId: 'ws', actor: 'owner' };
+  await expect(previewUploadedAgentPlugin(input, options)).rejects.toMatchObject({
+    code: 'ARCHIVE_TOO_LARGE', message: 'archive exceeds the 32 MiB upload cap',
+  });
+  await expect(installUploadedAgentPlugin(input, options)).rejects.toMatchObject({
+    code: 'ARCHIVE_TOO_LARGE', message: 'archive exceeds the 32 MiB upload cap',
+  });
+  expect(sha256.mock.calls).toEqual([]);
+  expect(entries.mock.calls).toEqual([]);
+});

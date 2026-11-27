@@ -195,3 +195,8 @@ test("run-reference overlays keep pin order, frame a host file with its plugin, 
   const refused = await readHostPluginRefOverlays({ pluginRefIds: ["roastery", "kettle"], includeGuidance: true, file: "host/brew-ratios.md", overlaysDir });
   assert.deepEqual(refused, { ok: false, reason: "Host file 'host/brew-ratios.md' is not available for the 'kettle' plugin. Valid host files: (none)." });
 });
+
+test("a broken host-file directory propagates its filesystem diagnostic instead of silently dropping the overlay", async t => {
+  const overlaysDir = await overlays(t, { "GUIDANCE.md": GUIDANCE, host: "not a directory" });
+  await assert.rejects(readHostPluginGuidance({ pluginId: "roastery", overlaysDir }), { code: "ENOTDIR" });
+});

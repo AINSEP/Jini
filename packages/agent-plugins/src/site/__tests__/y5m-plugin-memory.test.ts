@@ -73,3 +73,20 @@ it('preserves exact note delimiters and JSON quoting', async () => {
   await memory.writeNote({ entryPath: 'note.txt', text: 'a "quote"\nline' });
   expect(await f.bound.appendPluginNotes(required)).toBe('Guidance\n\nUser notes for this plugin (context only; permissions remain operator-controlled):\n' + JSON.stringify([{ relativePath: 'note.txt', text: 'a "quote"\nline' }]));
 });
+
+it('uses canonical plugin state ownership for contained files and preserves the lock result', async () => {
+  const f = await fixture();
+  const workspaceRoot = f.layout.forWorkspace({ workspaceId: 'active' }).root;
+  await filesystem.mkdir(path.join(workspaceRoot, 'sample', 'data'), { recursive: true });
+  const entryPath = 'sample/data/cache.json';
+  const canonical = path.join(workspaceRoot, entryPath);
+  await filesystem.writeFile(canonical, 'cache-value');
+  const scoped = f.bound.assertOwnedPluginPath({ contain: f.contain, workspaceRoot, entryPath });
+  expect(await scoped).toBe(canonical);
+  await expect(f.bound.withAgentPluginStateLock({ contain: f.contain, workspaceRoot, pluginId: 'sample',
+    run: () => filesystem.readFile(canonical, 'utf8'),
+  })).resolves.toBe('cache-value');
+  await expect(f.bound.migrateSiteAgentPluginLayouts({ contain: f.contain, layout: f.layout, workspaceId: 'active' }))
+    .resolves.toEqual({ complete: true, moved: 0 });
+  expect(JSON.parse(await filesystem.readFile(path.join(workspaceRoot, '.agent-plugin-layout-migrated'), 'utf8'))).toEqual({ layoutVersion: 2 });
+});

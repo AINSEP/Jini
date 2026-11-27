@@ -37,3 +37,37 @@ describe('asMailAdapterModule', () => {
     expect(asMailAdapterModule({ exported: { send: () => ({}) } })).toBe('its module has no create() function');
   });
 });
+
+describe('optional credential-card copy', () => {
+  const card = {
+    title: 'Relay key', baseUrl: 'https://relay.example/v1', intro: 'Create the key in Relay.',
+    helpUrl: 'https://relay.example/keys', helpLabel: 'Open Relay', keyHint: 'Use a mail-only key',
+    usedFor: ['Sending confirmations', 'Sending receipts'],
+  };
+
+  it('keeps valid copy and its order while dropping fields that are not part of the declared card', () => {
+    const result = parseMailAdaptersFile({
+      raw: file(2, [{ ...v2, credentialCard: { ...card, ignored: 'not a card field' } }]),
+      parseSetup: parseMailProviderSetupProperty,
+    });
+    expect(result.ok && result.descriptors[0]?.credentialCard).toEqual(card);
+  });
+
+  it.each([
+    [{ ...card, intro: ' ' }, 'intro must be a non-empty string'],
+    [{ ...card, helpUrl: 'not a URL' }, 'helpUrl must be an https URL'],
+    [{ ...card, helpUrl: 'https://relay.example/' + 'a'.repeat(500) }, 'helpUrl must be an https URL'],
+    [{ ...card, usedFor: ['   '] }, 'usedFor must be an array of at most 8 non-empty strings (at most 120 characters each)'],
+  ] as const)('drops invalid optional copy %j without dropping the adapter', (credentialCard, reason) => {
+    const result = parseMailAdaptersFile({ raw: file(2, [{ ...v2, credentialCard }]), parseSetup: parseMailProviderSetupProperty });
+    expect(result).toMatchObject({ ok: true, descriptors: [{
+      id: 'relay', credentialCardRefusal: 'adapters[0].credentialCard.' + reason,
+    }] });
+    expect(result.ok && result.descriptors[0]).not.toHaveProperty('credentialCard');
+  });
+
+  it('labels malformed JSON separately from an unsupported descriptor schema', () => {
+    expect(parseMailAdaptersFile({ raw: '{' })).toEqual({ ok: false, reason: 'not valid JSON' });
+    expect(parseMailAdaptersFile({ raw: file(2, { relay: v2 }) })).toEqual({ ok: false, reason: 'adapters must be an array' });
+  });
+});

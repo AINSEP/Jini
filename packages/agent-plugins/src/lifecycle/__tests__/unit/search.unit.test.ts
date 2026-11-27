@@ -132,3 +132,10 @@ test("a candidate with no description and no mcp servers does not throw — ever
   assert.deepEqual(rankInstalledAgentPlugins("bare", [bare], 10).map((m) => m.pluginId), ["bare-plugin"]);
   assert.deepEqual(rankInstalledAgentPlugins("anything-else", [bare], 10), []);
 });
+
+test("automatic deployment matching uses a qualified plugin's name when the deployment capability has no vendor suffix", () => {
+  const deploy = candidate({ pluginId: "walnut", description: "Cloud deployment", keywords: [], skills: [], provides: ["deploy-managed"] });
+  assert.deepEqual(rankInstalledAgentPlugins("deploy walnut", [deploy], 5, true), [{ ...deploy, score: 11 }]);
+  assert.deepEqual(rankInstalledAgentPlugins("deploy", [deploy], 5, true), []);
+  assert.deepEqual(rankInstalledAgentPlugins("walnut", [deploy], 5, true), []);
+});

@@ -89,3 +89,11 @@ describe('guardSharedCapabilities', () => {
     await expect(revoked.limiter.check(input)).rejects.toThrow(REVOKED_MESSAGE);
   });
 });
+
+test('an ordinary error graph with a benign cycle and a shared object remains reportable', () => {
+  const repeated = { status: 503, detail: 'Temporary failure' };
+  const error: Error & { diagnostic?: unknown } = new Error('upstream unavailable');
+  error.diagnostic = { cause: error, first: repeated, second: repeated };
+  const scan = openCredentialScan({ issued: new Set([TOKEN]) });
+  expect(scan.sanitize({ error })).toBe(error);
+});

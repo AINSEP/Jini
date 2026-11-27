@@ -31,3 +31,25 @@ test("forced refresh supersedes older work and 304 preserves the last good snaps
   expect(await source.reload()).toBe(fresh);
   expect(reportFailure).toHaveBeenCalledTimes(1);
 });
+
+test("an initial listing failure reports the original problem and a later list can recover", async () => {
+  const problem = new Error("skill index temporarily unavailable");
+  const request = vi.fn<Request>();
+  const reportFailure = vi.fn();
+  request.mockRejectedValueOnce(problem);
+  request.mockResolvedValueOnce({ skills: [{ toolId: "repair", name: "Repair", description: "Restore the workspace" }] });
+  const source = createInstalledSkillsComposerCapabilitySource({
+    request: <T,>(input: Parameters<Request>[0], options: Parameters<Request>[1]) => request(input, options) as Promise<T>,
+    path: "/tenant/skills", isNotModified: () => false, reportFailure,
+  });
+  expect(await source.list()).toEqual([]);
+  expect(reportFailure.mock.calls).toEqual([[
+    "[installed-skills-composer-source] installed-skills enumeration failed; falling back to the bundled catalog only", problem,
+  ]]);
+  const recovered = await source.list();
+  expect(recovered.map(({ item }) => item.id)).toEqual(["installed-skill:repair"]);
+  expect(await source.list()).toBe(recovered);
+  expect(request.mock.calls.map(([input]) => input)).toEqual([
+    { path: "/tenant/skills", method: "GET" }, { path: "/tenant/skills", method: "GET" },
+  ]);
+});

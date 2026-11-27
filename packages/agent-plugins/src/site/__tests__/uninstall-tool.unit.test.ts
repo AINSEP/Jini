@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
-import type { ToolExecutionContext } from "@jini-ai/core";
+import { ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 import type { AgentPluginUninstallPreview } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError} from "../../lifecycle/index.js";
 import { AgentPluginUpdateError } from "../../core/update-error.js";
+import { AgentPluginChangedSincePreviewError, AgentPluginNotFoundError, AgentPluginNotUninstallableError } from "../../lifecycle/uninstall.js";
 import { runAgentPluginUninstall, type AgentPluginUninstallHost, type AgentPluginUninstallToolDeps } from "../uninstall-tool.js";
 
 /** The host's copy: the engine names no product or host tool in a note, so every one comes from here. */
@@ -90,3 +91,36 @@ test("each locked or unreadable refusal goes to the host's reporter with the raw
     assert.equal(consoleWarn.mock.calls.length, 0);
   } finally { consoleWarn.mockRestore(); }
 });
+
+test("a revision swap after approval tells the user to approve the new snapshot", async () => {
+  const uninstall = vi.fn<AgentPluginUninstallHost["uninstallAgentPlugin"]>(async () => {
+    throw new AgentPluginChangedSincePreviewError({ message: "installed revision changed" });
+  });
+  const { host } = hostWith({ uninstallAgentPlugin: uninstall });
+  const result = await runAgentPluginUninstall({ routeDeps: depsWith(host), surfaces: {} as never, ctx, pluginId: "notes" });
+  assert.deepEqual(result, {
+    uninstalled: false, cancelled: false, pluginId: "notes", restartRequired: false, reason: "changed-since-confirmation",
+    note: "'notes' changed after the user was asked: the installed archives are no longer the ones the confirmation showed. Nothing was removed. Call acme_uninstall again with family 'agent-plugin' so the user can review and confirm what is installed now.",
+  });
+  assert.equal(uninstall.mock.calls[0]?.[1]?.confirmedPreview, preview);
+});
+
+test("an unreadable recovery record calls for manual repair, not repeated restarts", async () => {
+  const { host, uninstalled } = hostWith({ previewAgentPluginUninstall: async () => {
+    throw new AgentPluginUpdateError({ code: "PLUGIN_UPDATE_JOURNAL_UNREADABLE", message: "/private/workspace/update.json" });
+  } });
+  const result = await runAgentPluginUninstall({ routeDeps: depsWith(host), surfaces: {} as never, ctx, pluginId: "notes" });
+  assert.deepEqual(result, {
+    uninstalled: false, cancelled: false, pluginId: "notes", restartRequired: false, reason: "update-pending", code: "PLUGIN_UPDATE_JOURNAL_UNREADABLE",
+    note: "Nothing was removed: an interrupted update of 'notes' is still waiting to be recovered, so it was NOT uninstalled. Its update recovery record needs manual repair (PLUGIN_UPDATE_JOURNAL_UNREADABLE); restarting Acme will not fix it. Tell the user an operator has to repair it first.",
+  });
+  assert.deepEqual(uninstalled, []);
+});
+
+test.each([AgentPluginNotFoundError, AgentPluginNotUninstallableError])(
+  "maps a named uninstall refusal to a tool input error (%s)", async ErrorClass => {
+    const { host } = hostWith({ uninstallAgentPlugin: async () => { throw new ErrorClass({ message: "Choose a removable installed plugin" }); } });
+    await assert.rejects(runAgentPluginUninstall({ routeDeps: depsWith(host), surfaces: {} as never, ctx, pluginId: "notes" }),
+      error => error instanceof ToolInputError && error.message === "Choose a removable installed plugin");
+  },
+);

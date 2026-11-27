@@ -305,3 +305,51 @@ test.skipIf(!hasFfmpeg)("a real ffmpeg turns a QuickTime clip into a faststart M
   assert.ok(text.includes("avc1"), "video track is H.264");
   assert.ok(text.includes("mp4a"), "audio track is AAC");
 }, 90_000);
+
+test("staged conversion stops when cancellation arrives during sealing and releases the shared lock", async () => {
+  const root = await tempDir();
+  const path = join(root, "input.mp4");
+  const bytes = mp4();
+  await writeFile(path, bytes);
+  const { lock, counts } = countingLock();
+  const abort = new AbortController();
+  const input = {
+    path, root, byteLength: bytes.length, sha256: "fixture", contentType: "video/mp4",
+    openChunks: () => { throw new Error("unexpected whole input read"); },
+  };
+  const process = vi.fn<VideoProcessRunner>(async ({ args }) => {
+    assert.equal(args[args.indexOf("-i") + 1], path);
+    await writeFile(args.at(-1)!, bytes);
+    return new Uint8Array();
+  });
+  const sealStagedFile = vi.fn<Parameters<typeof createFfmpegMediaTranscoder>[0]["sealStagedFile"]>(async (required) => {
+    abort.abort();
+    return { ...input, path: required.path };
+  });
+  const consume = vi.fn(async () => "saved");
+  const transcoder = createFfmpegMediaTranscoder(deps({ lock, runProcess: process, sealStagedFile }));
+  const result = await transcoder.transcodeStaged({ input, target: request.target, consume }, { signal: abort.signal, maxOutputBytes: 768 });
+  assert.deepEqual(result, { ok: false, reason: "canceled", message: MESSAGES.canceled });
+  assert.deepEqual(sealStagedFile.mock.calls, [[{ root, path: join(root, "output.mp4"), maxBytes: 768 }, { signal: abort.signal }]]);
+  assert.deepEqual(consume.mock.calls, []);
+  assert.deepEqual(counts, { acquired: 1, released: 1 });
+});
+
+test("staged input refused before binary lookup or conversion does not take the lock", async () => {
+  const input = {
+    path: "/not-opened/input", root: "/not-opened", byteLength: 85, sha256: "fixture", contentType: "video/mp4",
+    openChunks: () => { throw new Error("input should not be read"); },
+  };
+  const consume = vi.fn(async () => "saved");
+  const findBinaries = vi.fn<VideoBinaryFinder>(async () => BINARIES);
+  const { lock, counts } = countingLock();
+  const transcoder = createFfmpegMediaTranscoder(deps({ maxInputBytes: 84, findBinaries, lock }));
+  const abort = new AbortController();
+  abort.abort();
+  const staged = { input, target: request.target, consume };
+  assert.deepEqual(await transcoder.transcodeStaged(staged, { signal: abort.signal }), { ok: false, reason: "canceled", message: MESSAGES.canceled });
+  assert.deepEqual(await transcoder.transcodeStaged(staged), { ok: false, reason: "too-large", message: MESSAGES["too-large"] });
+  assert.deepEqual(findBinaries.mock.calls, []);
+  assert.deepEqual(consume.mock.calls, []);
+  assert.deepEqual(counts, { acquired: 0, released: 0 });
+});

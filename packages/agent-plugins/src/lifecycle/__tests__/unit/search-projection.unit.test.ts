@@ -68,3 +68,15 @@ test('empty/end pages and metadata fallbacks remain compact and invalid budgets 
   expect(() => projectAgentPluginSearchPage({ candidates, offset: 0, limit: 0, totalInstalled: 44 })).toThrow(RangeError);
   expect(() => projectAgentPluginSearchPage({ candidates: [{ ...minimal[0]!, id: 'x'.repeat(9000) }], offset: 0, limit: 1, totalInstalled: 1 })).toThrow(/identity/);
 });
+
+test('a disabled soon plugin has a discovery-only status, not an invitation to enable', () => {
+  expect(projectAgentPluginSearchPage({
+    candidates: [{ pluginId: 'studio', id: 'publisher/studio', displayName: 'Document Studio',
+      summary: 'Formats documents', keywords: [], skills: [], mcpServerIds: [], enabled: false, maturity: 'soon' }],
+    offset: 0, limit: 1, totalInstalled: 1,
+  })).toEqual({
+    matches: [{ id: 'publisher/studio', pluginId: 'studio', enabled: false, maturity: 'soon',
+      description: 'coming soon: Document Studio: Formats documents — not ready yet; it cannot be turned on' }],
+    totalInstalled: 1, totalMatches: 1, nextOffset: null,
+  });
+});

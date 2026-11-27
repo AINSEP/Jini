@@ -92,3 +92,11 @@ test('an explicit custom namespace keeps its existing isolation', () => {
   expect(resolveAgentPluginLifecycleNamespace({ value: { ...base, extensions: { alpha: { id: 'publisher/alpha' } } }, extensionNamespace: 'custom' }, options)).toBe('alpha');
   expect(resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: 'custom' }, options)).toBe('custom');
 });
+
+test('a malformed legacy extension cannot usurp an explicitly chosen lifecycle scope', () => {
+  const options = { legacyIdentity: { namespace: 'former-host', warning: 'Legacy extension' } };
+  const value = { ...base, extensions: { 'former-host': ['not an identity'], irrelevant: { id: 'different/package' } } };
+  expect(resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: 'custom' }, options)).toBe('custom');
+  expect(resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: 'custom' })).toBe('custom');
+  expect(readAgentPluginPortableExtension({ value }, { ...options, identityNamespace: 'former-host' })).toBeUndefined();
+});

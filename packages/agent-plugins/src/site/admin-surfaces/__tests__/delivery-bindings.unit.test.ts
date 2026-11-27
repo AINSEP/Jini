@@ -223,3 +223,29 @@ test("security: remove without a signed-in admin is refused (admin-required); no
   assert.equal((await refusal(portFor(bindings, { principalId: undefined }).remove({ bindingId: "b1" }))).code, "admin-required");
   assert.deepEqual(bindings.writes, []);
 });
+
+test("a conflict on a create keeps the original generated id and the other writer's binding", async () => {
+  const bindings = store([own("b1")], { onRead: reads => reads === 2 ? [own("b1"), own("foreign-write")] : undefined });
+  const requestedIds: string[] = [];
+  const ref = createSurfaceDeliveryBindings({
+    pluginId: PLUGIN, workspaceId: WORKSPACE, siteWorkspaceId: WORKSPACE, principalId: "admin-1",
+    declaredConnectionIds: async () => ["account"], contributedAdapterIds: async () => [ADAPTER],
+    forms: { list: async () => [{ id: "form-1", slug: "contact" }] },
+    bindings: {
+      ...bindings.port,
+      write: async input => {
+        const id = input.value.find(row => row.bindingId.startsWith("new-"))?.bindingId;
+        if (!id) throw new Error("draft did not reach the settings owner");
+        requestedIds.push(id);
+        if (requestedIds.length === 1) throw new FormDeliveryBindingsConflictError();
+        return bindings.port.write(input);
+      },
+    },
+    deriveConnectionRef: deriveApiConnectionKey,
+    newBindingId: () => "new-" + (requestedIds.length + 1),
+  });
+  const saved = await ref.save(draft({ formIds: ["contact"] }));
+  assert.equal(saved.bindingId, "new-1");
+  assert.deepEqual(requestedIds, ["new-1", "new-1"]);
+  assert.deepEqual(bindings.current().map(({ bindingId }) => bindingId), ["b1", "foreign-write", "new-1"]);
+});
