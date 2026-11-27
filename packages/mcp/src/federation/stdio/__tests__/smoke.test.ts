@@ -86,3 +86,23 @@ describe("handshake helpers", () => {
     expect(() => assertStdioHandshake({ ...ok, tools: { tools: "no" } })).toThrow(/did not include acme\.read/);
   });
 });
+
+test("a signaled launcher exit reports its signal rather than a numeric exit code", async () => {
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const child = Object.assign(new EventEmitter(), { stdin, stdout, stderr,
+    kill: (signal: string) => { signals.push(signal); return true; } });
+  const signals: string[] = [];
+  stdin.once("data", () => queueMicrotask(() => child.emit("close", null, "SIGTERM")));
+  const spawnServer = (() => child) as unknown as typeof spawn;
+  try {
+    await expect(smokeStdioServer({ entry, hostEnv: {}, redact }, { spawnServer }))
+      .rejects.toThrow(/^acme: server closed before completing MCP handshake \(code none, signal SIGTERM\)$/);
+    expect(signals).toEqual(["SIGKILL"]);
+  } finally {
+    stdin.destroy();
+    stdout.destroy();
+    stderr.destroy();
+  }
+});

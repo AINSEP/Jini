@@ -323,3 +323,16 @@ it.each(['partial_failure', 'error'] as const)('delegated batches expose %s thro
   const result = await tool.handler({ args: { toolId: 'edit', input: {} }, ctx });
   expect(result).toEqual({ status: outcome, outcome, isError: true, output });
 });
+
+it.each(['partial_failure', 'error'])('a delegated batch outcome %s retains completed items and is not unwrapped as success', async outcome => {
+  const output = {
+    batch: true,
+    results: [{ id: 'a', ok: outcome === 'partial_failure', value: 'retained' }, { id: 'b', ok: false, error: 'not saved' }],
+    content: [{ type: 'text', text: 'Batch results' }],
+  };
+  const result = { executionId: 'batch-1', status: 'completed', output };
+  postDaemonJson.mockResolvedValueOnce({ result });
+  const tool = createExecuteDelegatedToolTool({ runId: 'run-1' }, { delegatedResultMarkers: true });
+  expect(await tool.handler({ args: { toolId: 'batch' }, ctx }))
+    .toStrictEqual({ executionId: 'batch-1', status: outcome, outcome, output, isError: true });
+});

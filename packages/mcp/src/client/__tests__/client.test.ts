@@ -357,3 +357,10 @@ describe('isTextualMime — per-pattern table (F3)', () => {
     expect(isTextualMime({ mime })).toBe(expected);
   });
 });
+
+it('leaves a suffix before a CSS line break intact, but strips a query after the last line break', () => {
+  expect(extractRelativeRefs({ text: 'url("first?keep\nname.svg#drop") url("second#keep\nname.svg")',
+    fromPath: 'assets/site.css', fromMime: 'text/css' })).toEqual([
+    'assets/first?keep\nname.svg', 'assets/second#keep\nname.svg',
+  ]);
+});

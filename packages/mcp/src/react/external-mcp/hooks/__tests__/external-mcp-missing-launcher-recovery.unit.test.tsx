@@ -8,7 +8,7 @@ import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
 import { describeAdmissionDrift } from "@jini-ai/admin/screens/settings/external-mcp-connection-drift";
 import { admissionRestartHelps } from "@jini-ai/admin/screens/settings/external-mcp-tool-drift";
 import { EXTERNAL_MCP_DRIFT_COPY } from "@jini-ai/admin/screens/settings/external-mcp-drift-copy";
-import { useExternalMcpAdmissions } from "../use-external-mcp-admissions.hooks.js";
+import { bindExternalMcpAdmissions, useExternalMcpAdmissions } from "../use-external-mcp-admissions.hooks.js";
 
 afterEach(() => vi.useRealTimers());
 
@@ -40,4 +40,36 @@ it("stops automatic admissions retries at the existing bound", async () => {
   expect(result.current.restartAccepted).toBe(false);
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(getAdmissions).toHaveBeenCalledTimes(69);
+});
+
+it("a resolved restart refusal preserves its reason and falls back to copy for an older daemon", async () => {
+  const original = { connections: [] };
+  const getAdmissions = vi.fn(async () => original);
+  const restartAssistantDaemon = vi.fn<() => Promise<{ ok: boolean; reason?: string }>>()
+    .mockResolvedValueOnce({ ok: false, reason: "Already shutting down." })
+    .mockResolvedValueOnce({ ok: false });
+  const port = { getAdmissions, me: async () => ({ effectivePermissions: ["system.write"] }), restartAssistantDaemon };
+  const wrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider>{children}</FetchQueryProvider>;
+  const bound = bindExternalMcpAdmissions({
+    hooks: { useFetchQuery, useFetchMutation, useCopyHook: () => key => `wired:${key}` },
+    deps: {
+      port, hasPermission, describeAdmissionDrift, admissionRestartHelps, driftCopy: EXTERNAL_MCP_DRIFT_COPY,
+      isApiError: (error): error is AdminHttpError => error instanceof Error && "status" in error && "code" in error,
+      apiUnreachableCode: "UNREACHABLE", requestTimeoutCode: "TIMEOUT", describeApiError: ({ fallback }) => fallback,
+      setTimeout, clearTimeout, reportRestartFailure: vi.fn(),
+    },
+  });
+  const explicit = { ...port, getAdmissions: vi.fn(async () => ({ connections: [] })) };
+  const { result } = renderHook(() => bound.useExternalMcpAdmissions({ port: explicit, savedAllowedToolNamesById: {} }), { wrapper });
+  await act(async () => {});
+  expect(result.current.canRestart).toBe(true);
+  expect(explicit.getAdmissions).toHaveBeenCalledExactlyOnceWith();
+  expect(getAdmissions).not.toHaveBeenCalled();
+  await act(async () => { result.current.restart(); });
+  expect(result.current.restartError).toBe("Already shutting down.");
+  expect(result.current.restartAccepted).toBe(false);
+  await act(async () => { result.current.restart(); });
+  expect(result.current.restartError).toBe("the restart was refused");
+  expect(result.current.restartAccepted).toBe(false);
+  expect(explicit.getAdmissions).toHaveBeenCalledTimes(1);
 });

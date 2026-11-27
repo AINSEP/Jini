@@ -57,3 +57,10 @@ describe('isRecord', () => {
     expect(isRecord(value)).toBe(expected);
   });
 });
+
+it('does not suggest recovery tools for similarly named required fields inside an array item', () => {
+  const errors = [unit({ keyword: 'required', instanceLocation: '#/items/0', error: 'Property "sourceId" is required' })];
+  const inputSchema = { type: 'object' as const, properties: { sourceId: { type: 'string' as const, obtainFrom: 'sources_list' } }, required: ['sourceId'] };
+  const message = argumentShapeMessage({ errors, inputSchema }, { isKnownTool: id => id === 'sources_list' });
+  expect(message).toBe(`supply required argument \`items.0.sourceId\`; Input schema: ${JSON.stringify(inputSchema)}`);
+});

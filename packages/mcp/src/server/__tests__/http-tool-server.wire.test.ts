@@ -179,3 +179,34 @@ it('serves resources through the adapted HTTP SDK connection', async () => {
   expect((await client.listResources()).resources).toEqual([{ uri: 'jini://http', name: 'HTTP' }]);
   expect((await client.readResource({ uri: 'jini://http' })).contents).toEqual([{ uri: 'jini://http', text: 'resource body' }]);
 });
+
+it('rejects malformed authenticated JSON without poisoning the next SDK request', async () => {
+  const handler = vi.fn(() => 'ready');
+  const server = await host([{ name: 'status', description: 'Status', inputSchema: { type: 'object' }, handler }]);
+  const invalid = await fetch(server.url, { method: 'POST', headers: {
+    Authorization: `Bearer ${server.token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream',
+  }, body: '{"jsonrpc":' });
+  expect(invalid.status).toBe(400);
+  expect(await invalid.text()).toBe('');
+  expect(handler).not.toHaveBeenCalled();
+  const client = await connect(server);
+  expect((await client.callTool({ name: 'status', arguments: {} })).content).toEqual([{ type: 'text', text: 'ready' }]);
+});
+
+it('a request stream failure yields an empty 500 with value-free diagnostics', async () => {
+  const warn = vi.fn();
+  const server = await startMcpHttpToolServer({ name: 'input-failure', version: '1', tools: [], resolveBaseUrl: () => '' }, {
+    warn,
+    createHttpServer: listener => createServer((request, response) => {
+      vi.spyOn(request, 'iterator').mockImplementationOnce(() => { throw new Error('private request stream detail'); });
+      listener(request, response);
+    }),
+  });
+  cleanup.push(() => server.close({}));
+  const response = await fetch(server.url, { method: 'POST', headers: {
+    Authorization: `Bearer ${server.token}`, 'Content-Type': 'application/json',
+  }, body: '{}' });
+  expect(response.status).toBe(500);
+  expect(await response.text()).toBe('');
+  expect(warn).toHaveBeenCalledExactlyOnceWith('MCP HTTP request failed');
+});

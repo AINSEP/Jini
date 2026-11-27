@@ -656,3 +656,18 @@ test("mcp-protocol-version: the client's version before negotiation, the server'
   assert.equal(exchange.lastRequestFor({ method: "notifications/initialized" })?.headers["mcp-protocol-version"], "2025-03-26");
   assert.equal(exchange.lastRequestFor({ method: "tools/list" })?.headers["mcp-protocol-version"], "2025-03-26");
 });
+
+test('an exchange with a byte limit uses the reader before returning the response body', async () => {
+  const response = new Response('unbounded body', { status: 429 });
+  const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(response);
+  const readResponseText = vi.fn(async () => 'bounded body');
+  const exchange = createFetchMcpHttpExchange({ fetch: fetchImpl }, { maxResponseBytes: 16, readResponseText });
+  assert.deepEqual(await exchange.send({ url: SPEC.url, method: 'POST', headers: {} }), {
+    status: 429, contentType: 'text/plain;charset=utf-8', sessionId: undefined, wwwAuthenticate: undefined, text: 'bounded body',
+  });
+  assert.deepEqual(readResponseText.mock.calls, [[{ response }, { maxResponseBytes: 16 }]]);
+  assert.throws(() => createFetchMcpHttpExchange({ fetch: fetchImpl }, { maxResponseBytes: 16 }), {
+    message: 'mcp-federation: readResponseText is required when maxResponseBytes or strictUtf8 is set',
+  });
+  assert.equal(fetchImpl.mock.calls.length, 1);
+});

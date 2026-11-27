@@ -112,3 +112,17 @@ describe('createLoopbackFetch', () => {
     expect(calls).toEqual([{ url: 'http://daemon.example/api', method: 'POST' }, { url: 'https://127.0.0.1/api', method: undefined }]);
   });
 });
+
+it('resolves Request input, defaults to GET and preserves repeated raw response headers', async () => {
+  const seen: Array<{ method: string | undefined; url: string | undefined }> = [];
+  const baseUrl = await listen({ onRequest: (request, response) => {
+    seen.push({ method: request.method, url: request.url });
+    response.writeHead(205, { 'set-cookie': ['first=1', 'second=2'] });
+    response.end();
+  } });
+  const response = await createLoopbackFetch()(new Request(`${baseUrl}/reset?source=client`));
+  expect(seen).toEqual([{ method: 'GET', url: '/reset?source=client' }]);
+  expect(response.status).toBe(205);
+  expect(response.body).toBeNull();
+  expect(response.headers.getSetCookie()).toEqual(['first=1', 'second=2']);
+});

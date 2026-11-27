@@ -411,3 +411,289 @@ test("invalid auth mode and OAuth grant report fields without submitted values",
     .rejects.toMatchObject({ name: "ExternalMcpValidationError", field: "oauth.grant",
       message: "OAuth grant is not supported — expected one of authorization_code, device_code" });
 });
+
+const stdioInput = { workspaceId: WS, serverId: "docs", enabled: true, transport: "stdio",
+  command: " docs-mcp ", args: '  --format=json "project folder" ""\t--tail  ',
+  allowedToolNames: "read", writeAllowedToolNames: "", principalId: "operator:acme" };
+const hostedInput = { ...stdioInput, transport: "streamable_http", url: "https://docs.example/mcp" };
+const stdioOAuth = { providerId: "docs-idp", grant: "device_code", clientId: "desktop", tokenEnvName: "DOCS_ACCESS" };
+
+function setupStore() {
+  const repo = new entry.InMemoryExternalMcpServerRepo(ports);
+  return { repo, sealer, keyring, clock, ...ports };
+}
+
+test("stdio arguments retain quoted spaces, empty arguments and literal embedded quotes on readback", async () => {
+  const deps = setupStore();
+  await entry.saveExternalMcpServer(deps, { ...stdioInput, authMode: "none",
+    args: ' --name="docs" "path with space"\t"" --tail' });
+  const { configs, failures } = await entry.readEnabledExternalMcpConfigs({ deps, workspaceId: WS });
+  expect(failures).toEqual([]);
+  expect(configs.find(config => config.serverId === "docs")?.target).toEqual({
+    kind: "stdio", command: "docs-mcp", args: ['--name="docs"', "path with space", "", "--tail"], env: {},
+  });
+});
+
+test.each([
+  { patch: { args: '"unclosed' }, field: "args", message: "an argument opens a double quote that never closes" },
+  { patch: { args: '"path"suffix' }, field: "args", message: "a closing double quote must be followed by a space or the end of the arguments" },
+  { patch: { command: '   ' }, field: "command", message: "a stdio server needs a command to launch" },
+  { patch: { transport: "unsupported" }, field: "transport", message: "transport 'unsupported' is not supported — only stdio, streamable_http is implemented" },
+  { patch: { transport: "streamable_http" }, field: "url", message: "a streamable_http server needs a URL" },
+  { patch: { transport: "streamable_http", url: "this is not a URL" }, field: "url", message: "Acme: bad url." },
+  { patch: { transport: "streamable_http", url: "http://docs.example/mcp" }, field: "url", message: "a remote MCP server URL must use https (http is permitted only for loopback)" },
+  { patch: { env: "DOCS=enabled\nmissing-equals" }, field: "env", message: "line 2 of the environment block is not `NAME=VALUE` — correct it in the connection form" },
+  { patch: { env: "DOCS=enabled\n9DOCS=no" }, field: "env", message: "line 2 of the environment block has an invalid variable name (letters, digits and underscore, not starting with a digit)" },
+  { patch: { env: " \t\n " }, field: "env", message: "Acme: blank env." },
+])("invalid stored configuration is refused without writing: $message", async ({ patch, field, message }) => {
+  const deps = setupStore();
+  await expect(entry.saveExternalMcpServer(deps, { ...stdioInput, authMode: "none", ...patch }))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field, message });
+  expect(await deps.repo.findByServerId(stdioInput)).toBeNull();
+});
+
+test("a local development HTTP endpoint is normalized without demanding HTTPS", async () => {
+  const deps = setupStore();
+  await entry.saveExternalMcpServer(deps, { ...hostedInput, authMode: "none", url: " http://localhost:8181/mcp " });
+  expect((await deps.repo.findByServerId(hostedInput))?.url).toBe("http://localhost:8181/mcp");
+});
+
+test.each([
+  { field: "args", patch: (n: number) => ({ args: Array.from({ length: n }, (_, i) => `--arg-${i}`).join(" ") }), label: "arguments" },
+  { field: "env", patch: (n: number) => ({ env: Array.from({ length: n }, (_, i) => `ENTRY_${i}=value`).join("\n") }), label: "environment variables" },
+  { field: "env", patch: (n: number) => ({ env: JSON.stringify(Object.fromEntries(Array.from({ length: n }, (_, i) => [`ENTRY_${i}`, "value"]))) }), label: "environment variables" },
+  { field: "oauth.scopes", patch: (n: number) => ({ authMode: "oauth", oauth: { ...stdioOAuth, scopes: Array.from({ length: n }, (_, i) => `scope:${i}`).join(", ") } }), label: "OAuth scopes" },
+])("permits 64 $label but refuses 65 ($field)", async ({ patch, field, label }) => {
+  const deps = setupStore();
+  await entry.saveExternalMcpServer(deps, { ...stdioInput, authMode: "none", ...patch(64) });
+  const before = await deps.repo.findByServerId(stdioInput);
+  expect(before?.version).toBe(1);
+  await expect(entry.saveExternalMcpServer(deps, { ...stdioInput, authMode: "none", ...patch(65) }))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field, message: `at most 64 ${label} are supported` });
+  expect(await deps.repo.findByServerId(stdioInput)).toEqual(before);
+});
+
+test.each([
+  { patch: { providerId: undefined }, field: "providerId", message: "an OAuth connection needs either a registered provider id or its own token endpoint" },
+  { patch: { providerId: "Bad_ID" }, field: "providerId", message: "'Bad_ID' is not a valid provider id (lowercase letters, digits and hyphens)" },
+  { patch: { grant: "" }, field: "grant", message: "an OAuth connection needs a sign-in method" },
+  { patch: { clientId: "" }, field: "clientId", message: "an OAuth connection needs a client id" },
+  { patch: { clientId: "x".repeat(1025) }, field: "clientId", message: "the OAuth client id may be at most 1024 characters" },
+  { patch: { tokenEnvName: "" }, field: "tokenEnvName", message: "a stdio server authenticated with OAuth needs the name of the environment variable that receives its access token" },
+  { patch: { tokenEnvName: "9DOCS" }, field: "tokenEnvName", message: "'9DOCS' is not a valid environment variable name (letters, digits and underscore, not starting with a digit)" },
+  { patch: { clientSecret: "   " }, field: "clientSecret", message: "Acme: empty token." },
+])("validates OAuth fields for local commands: $message", async ({ patch, field, message }) => {
+  const deps = setupStore();
+  const oauth = { ...stdioOAuth, ...patch };
+  // Empty provider is an explicit absence rather than a loose undefined property on a partial payload.
+  if (!oauth.providerId) oauth.providerId = "";
+  await expect(entry.saveExternalMcpServer(deps, { ...stdioInput, authMode: "oauth",
+    oauth: { ...oauth, providerId: oauth.providerId } }))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field: `oauth.${field}`, message });
+  expect(await deps.repo.findByServerId(stdioInput)).toBeNull();
+});
+
+test("saving explicit empty OAuth scopes clears the saved list and repairs a corrupt endpoints column", async () => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "oauth", oauth: { scopes: "docs.read, docs.write" } };
+  await entry.saveExternalMcpServer(deps, input);
+  const before = (await deps.repo.findByServerId(input))!;
+  expect(before.oauthScopesJson).toBe('["docs.read","docs.write"]');
+  await deps.repo.upsert({ ...before, oauthEndpointsJson: '{invalid' });
+  await entry.saveExternalMcpServer(deps, { ...input, oauth: { scopes: "" } });
+  expect(await deps.repo.findByServerId(input)).toMatchObject({ oauthScopesJson: "[]", oauthEndpointsJson: null, version: 2 });
+});
+
+test.each([
+  { input: { ...stdioInput, accessToken: "fixture-token" }, field: "accessTokenEnvName", message: "a local command given an access token needs the name of the environment variable that receives it" },
+  { input: { ...stdioInput, accessToken: "fixture-token", accessTokenEnvName: "9DOCS" }, field: "accessTokenEnvName", message: "'9DOCS' is not a valid environment variable name (letters, digits and underscore, not starting with a digit)" },
+  { input: { ...hostedInput }, field: "accessToken", message: "Enter a token. Spaces alone are not a token." },
+])("a static credential needs valid placement before saving: $message", async ({ input, field, message }) => {
+  const deps = setupStore();
+  await expect(entry.saveExternalMcpServer(deps, { ...input, authMode: "static_env" }))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field, message });
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+});
+
+test.each(["env", "accessToken"] as const)("a failing seal of %s reports safe storage copy and writes nothing", async field => {
+  const deps = setupStore();
+  const failing = { ...deps, sealer: { ...sealer, seal: async () => { throw new Error("private keystore path"); } } };
+  const input = field === "env" ? { ...stdioInput, authMode: "none", env: "DOCS=enabled" } :
+    { ...hostedInput, authMode: "static_env", accessToken: "fixture-token" };
+  await expect(entry.saveExternalMcpServer(failing, input)).rejects.toMatchObject({
+    name: "ExternalMcpSecretStoreUnconfiguredError", message: "Acme: vault offline.",
+  });
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+});
+
+test("an overflowing roster still allows edits and frees a slot after deletion", async () => {
+  const deps = setupStore();
+  const input = { ...stdioInput, authMode: "none" };
+  for (let i = 0; i < 32; i++) {
+    await entry.saveExternalMcpServer(deps, { ...input, serverId: `docs-${i}` });
+  }
+  await expect(entry.saveExternalMcpServer(deps, input)).rejects.toMatchObject({
+    name: "ExternalMcpValidationError", field: "id", message: "this workspace already has the maximum of 32 external MCP servers",
+  });
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+  const edited = { ...input, serverId: "docs-0", label: "Updated Docs" };
+  await entry.saveExternalMcpServer(deps, edited);
+  expect((await deps.repo.findByServerId(edited))?.label).toBe("Updated Docs");
+  expect(await entry.deleteExternalMcpServer(deps, edited)).toBe(true);
+  expect(await deps.repo.findByServerId(edited)).toBeNull();
+  expect(await entry.deleteExternalMcpServer(deps, edited)).toBe(false);
+  await entry.saveExternalMcpServer(deps, input);
+  expect((await deps.repo.findByServerId(input))?.version).toBe(1);
+});
+
+test("a stdio OAuth token wins over a stale variable and only the explicit environment is launched", async () => {
+  const deps = setupStore();
+  const input = { ...stdioInput, authMode: "oauth", command: "docs-launcher", args: '"config path" --read',
+    env: "DOCS_TOKEN=old\nDOCS_REGION=west", allowedToolNames: "read", oauth: {
+      providerId: "acme-docs", clientId: "client", grant: "device_code", tokenEnvName: "DOCS_TOKEN",
+    } };
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  await deps.repo.upsert({ ...row, oauthStatus: "connected" });
+  const resolveAccessToken = vi.fn(async () => "fresh-token");
+  const { configs, failures } = await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, oauth: { resolveAccessToken } }, workspaceId: WS });
+  expect(failures).toEqual([]);
+  expect(entry.toResolvedFederatedConnections({ configs }).map(({ launch, config }) => ({ launch, id: config.connectionId })))
+    .toEqual([{ id: input.serverId, launch: { command: "docs-launcher", args: ["config path", "--read"],
+      env: { DOCS_TOKEN: "fresh-token", DOCS_REGION: "west" } } }]);
+  expect(resolveAccessToken).toHaveBeenCalledExactlyOnceWith({ serverId: input.serverId });
+});
+
+test.each([
+  { authMode: "static_env", message: "no environment variable name is configured to receive its access token" },
+  { authMode: "oauth", message: "no environment variable name is configured to receive its OAuth access token" },
+] as const)("boot excludes a legacy $authMode row with no token variable", async ({ authMode, message }) => {
+  const deps = setupStore();
+  const input = authMode === "static_env"
+    ? { ...stdioInput, authMode, accessToken: "fixture-token", accessTokenEnvName: "DOCS_TOKEN" }
+    : { ...stdioInput, authMode, oauth: { providerId: "acme-docs", clientId: "client", grant: "device_code", tokenEnvName: "DOCS_TOKEN" } };
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  await deps.repo.upsert({ ...row, oauthTokenEnvName: null });
+  const resolveAccessToken = vi.fn(async () => "unexpected-token");
+  expect(await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, oauth: { resolveAccessToken } }, workspaceId: WS }))
+    .toEqual({ configs: [], failures: [{ serverId: input.serverId, reason: message }] });
+  expect(resolveAccessToken).not.toHaveBeenCalled();
+});
+
+test("an unsupported stored transport is reported without opening its credentials", async () => {
+  const deps = setupStore();
+  const input = { ...stdioInput, env: "REGION=west" };
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  await deps.repo.upsert({ ...row, transport: "legacy" });
+  const open = vi.fn(sealer.open);
+  expect(await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, sealer: { ...sealer, open } }, workspaceId: WS }))
+    .toEqual({ configs: [], failures: [{ serverId: input.serverId, reason: "unsupported transport 'legacy'" }] });
+  expect(open).not.toHaveBeenCalled();
+});
+
+test("a hosted OAuth row reports pending authorization and missing resolver as different failures", async () => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "oauth" };
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  const read = () => entry.readEnabledExternalMcpConfigs({ deps, workspaceId: WS });
+  expect(await read()).toEqual({ configs: [], failures: [{ serverId: input.serverId,
+    reason: "it has not been authorized yet (status 'pending') — connect it in Console › Tools › Remote servers" }] });
+  await deps.repo.upsert({ ...row, oauthStatus: "connected" });
+  expect(await read()).toEqual({ configs: [], failures: [{ serverId: input.serverId,
+    reason: "this process was not wired with an OAuth token resolver, so its access token cannot be obtained" }] });
+});
+
+test("a corrupted hosted access token is not added to a launch config or exposed in diagnostics", async () => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "static_env", accessToken: "fixture-token" };
+  await entry.saveExternalMcpServer(deps, input);
+  const broken = { ...sealer, open: async () => { throw new Error("private key detail"); } };
+  expect(await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, sealer: broken }, workspaceId: WS }))
+    .toEqual({ configs: [], failures: [{ serverId: input.serverId,
+      reason: "its stored access token could not be decrypted — re-enter it in Console › Tools › Remote servers" }] });
+});
+
+test("plain OAuth identifiers are screened, while the secret field may carry opaque credentials", async () => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "oauth", oauth: { providerId: "acme", clientSecret: "sk_acme_fixture" } };
+  await expect(entry.saveExternalMcpServer(deps, { ...input, oauth: { ...input.oauth, clientId: "sk_acme_wrong_field" } }))
+    .rejects.toMatchObject({ name: "ExternalMcpValidationError", field: "oauth.clientId", message: "Acme: keep keys out of plain fields." });
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  expect(await entry.openExternalMcpOAuthPayload(deps, row)).toEqual({ clientSecret: "sk_acme_fixture" });
+  const fieldFailure = new Error("plain-field dependency unavailable");
+  await expect(entry.saveExternalMcpServer({ ...deps, assertFreeField: () => { throw fieldFailure; } }, input)).rejects.toBe(fieldFailure);
+  expect(await deps.repo.findByServerId(input)).toEqual(row);
+});
+
+test("the admin view retains variable names after unseal fails and never emits a placeholder hint", async () => {
+  const deps = setupStore();
+  const input = { ...stdioInput, authMode: "none", env: "DOCS_API=sample-secret\nREGION=west" };
+  await entry.saveExternalMcpServer(deps, input);
+  const sealer = { ...deps.sealer, open: async () => { throw new Error("old key was retired"); } };
+  const { serverId } = input;
+  const view = (await entry.listExternalMcpServerViews({ deps: { ...deps, sealer }, workspaceId: WS })).find(row => row.serverId === serverId);
+  expect(view).toMatchObject({ serverId, envNames: ["DOCS_API", "REGION"], accessTokenHint: null, hasAccessToken: false });
+  expect(view).not.toHaveProperty("envTokenHints");
+  expect(JSON.stringify(view)).not.toMatch(/sample-secret|old key/);
+});
+
+test("the store refuses a server id that cannot be used as a federation namespace", async () => {
+  const deps = setupStore();
+  const input = { ...stdioInput, serverId: "team_docs" };
+  await expect(entry.saveExternalMcpServer(deps, input)).rejects.toMatchObject({
+    name: "ExternalMcpValidationError", field: "id", message: expect.stringContaining("connectionId 'team_docs' must match"),
+  });
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+});
+
+test.each([
+  { kind: "typed input refusal", error: new AcmeInputError("Acme: token rejected.", "token"), reason: "Acme: token rejected." },
+  { kind: "unexpected host error", error: new Error("private policy detail"), reason: "Acme: ascii only." },
+])("hosted bearer validation distinguishes a $kind without connecting", async ({ error, reason }) => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "static_env", accessToken: "fixture-token" };
+  await entry.saveExternalMcpServer(deps, input);
+  const assert = vi.fn<HostedMcpStorePorts["credential"]["assert"]>(() => { throw error; });
+  expect(await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, credential: { ...deps.credential, assert } }, workspaceId: WS }))
+    .toEqual({ configs: [], failures: [{ serverId: input.serverId, reason }] });
+  expect(assert).toHaveBeenCalledExactlyOnceWith({ value: "fixture-token", hosted: true });
+});
+
+test.each([
+  { authMode: "static_env", patch: { accessToken: "fixture-token" } },
+  { authMode: "oauth", patch: { oauth: { clientSecret: "fixture-secret" } } },
+])("unexpected $authMode credential normalization errors propagate without writing a row", async ({ authMode, patch }) => {
+  const deps = setupStore();
+  const error = new Error("credential policy unavailable");
+  const normalize = vi.fn<HostedMcpStorePorts["credential"]["normalize"]>(() => { throw error; });
+  const input = { ...hostedInput, authMode, ...patch };
+  await expect(entry.saveExternalMcpServer({ ...deps, credential: { ...deps.credential, normalize } }, input)).rejects.toBe(error);
+  expect(await deps.repo.findByServerId(input)).toBeNull();
+});
+
+test("a shared grant lookup failure never falls back to the locally owned OAuth token", async () => {
+  const deps = setupStore();
+  const input = { ...hostedInput, authMode: "oauth" };
+  await entry.saveExternalMcpServer(deps, input);
+  const row = await deps.repo.findByServerId(input);
+  if (!row) throw new Error("Expected stored connection");
+  await deps.repo.upsert({ ...row, oauthStatus: "connected" });
+  const resolveSharedAccessToken = vi.fn(async () => { throw new Error("private provider detail"); });
+  const resolveAccessToken = vi.fn(async () => "owned-token");
+  const oauth = { resolveSharedAccessToken, resolveAccessToken };
+  expect(await entry.readEnabledExternalMcpConfigs({ deps: { ...deps, oauth }, workspaceId: WS })).toEqual({
+    configs: [], failures: [{ serverId: input.serverId, reason: "This shared connection is no longer granted to this site. Choose it again or sign in from Console › Tools › Remote servers." }],
+  });
+  expect(resolveSharedAccessToken).toHaveBeenCalledExactlyOnceWith({ serverId: input.serverId });
+  expect(resolveAccessToken).not.toHaveBeenCalled();
+});

@@ -3,7 +3,12 @@
  * edit write compares `version` and both credential pointers in the write; the runtime write
  * touches only OAuth runtime columns and never advances `version`; an access approval advances it.
  */
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+import { ToolInputError } from "@jini-ai/core";
+import type { FederatedCallTarget } from "../../ports.js";
+import { createHostedMcpConnectionGate, type HostedMcpConnectionGatePorts } from "../connection-gate.js";
+import { rosterRefusalFor } from "../revocation.js";
+import { commitExternalMcpSave } from "../store.save.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
 import { externalMcpAccessSnapshot, externalMcpVaultEnvelope, InMemoryExternalMcpServerRepo } from "../index.js";
@@ -152,4 +157,156 @@ describe("updateAccessIfCurrent", () => {
     expect(now.enabled).toBe(false);
     expect(now.version).toBe(2);
   });
+});
+
+test("deleting a server removes its row and leaves the same id in another workspace untouched", async () => {
+  const { repo, stored } = await seeded();
+  const other = row({ workspaceId: "other", label: "Other site" });
+  await repo.upsert(other);
+  expect(await repo.deleteByServerId({ workspaceId: "absent", serverId: "linear" })).toBe(false);
+  expect(await repo.findByServerId(stored)).toStrictEqual(stored);
+  expect(await repo.deleteByServerId(stored)).toBe(true);
+  expect(await repo.findByServerId(stored)).toBeNull();
+  expect(await repo.findByServerId(other)).toStrictEqual(other);
+  expect(await repo.deleteByServerId(stored)).toBe(false);
+});
+
+test("an OAuth refresh lease blocks a second claimant until expiration or explicit release", async () => {
+  const { repo, stored } = await seeded();
+  const key = { workspaceId: stored.workspaceId, serverId: stored.serverId };
+  const next = "2026-11-17T02:00:00.000Z";
+  const missing = { ...key, serverId: "unknown" };
+  expect(await repo.tryClaimOAuthRefreshLease({ ...missing, nowIso: NOW, leaseUntil: LATER })).toBe(false);
+  await repo.releaseOAuthRefreshLease(missing);
+  expect(await repo.findByServerId(missing)).toBeNull();
+  expect(await repo.tryClaimOAuthRefreshLease({ ...key, nowIso: NOW, leaseUntil: LATER })).toBe(true);
+  expect(await repo.tryClaimOAuthRefreshLease({ ...key, nowIso: NOW, leaseUntil: next })).toBe(false);
+  expect((await repo.findByServerId(key))?.oauthRefreshLeaseUntil).toBe(LATER);
+  expect(await repo.tryClaimOAuthRefreshLease({ ...key, nowIso: LATER, leaseUntil: next })).toBe(true);
+  expect((await repo.findByServerId(key))?.oauthRefreshLeaseUntil).toBe(next);
+  await repo.releaseOAuthRefreshLease(key);
+  expect(await repo.findByServerId(key)).toStrictEqual(stored);
+  expect(await repo.tryClaimOAuthRefreshLease({ ...key, nowIso: LATER, leaseUntil: next })).toBe(true);
+});
+
+function admitted(record: ExternalMcpServerRecord): FederatedCallTarget {
+  return { remoteName: "edit", declaredAnnotations: { readOnlyHint: false },
+    origin: { kind: "roster", admissionRevision: externalMcpAccessSnapshot({ record }).admissionRevision } };
+}
+function hostedGate(repo: HostedMcpConnectionGatePorts["repo"], overrides: Partial<HostedMcpConnectionGatePorts> = {}) {
+  const reauthRequired = vi.fn<HostedMcpConnectionGatePorts["reauthRequired"]>().mockReturnValue(new Error("Reconnect the saved server"));
+  const revoked = vi.fn<HostedMcpConnectionGatePorts["revoked"]>(({ reason }) => new Error(`MCP refused: ${reason}`));
+  const logUnreadableRow = vi.fn<HostedMcpConnectionGatePorts["logUnreadableRow"]>();
+  const recovery = {
+    accessHint: vi.fn<HostedMcpConnectionGatePorts["recovery"]["accessHint"]>().mockReturnValue("Review plugin access"),
+    pluginOff: vi.fn<HostedMcpConnectionGatePorts["recovery"]["pluginOff"]>().mockReturnValue("Enable the provisioning plugin"),
+  };
+  const gate = createHostedMcpConnectionGate({ repo, workspaceId: "ws", reauthRequired, revoked, logUnreadableRow, recovery,
+    isPluginEnabled: async () => true, ...overrides });
+  return { gate, reauthRequired, revoked, logUnreadableRow, recovery };
+}
+
+test("the hosted gate rereads current grants and distinguishes tool removal, write removal, and disconnection", async () => {
+  const { repo, stored } = await seeded();
+  const granted = { ...stored, allowedToolNames: '["read","edit"]', writeAllowedToolNames: '["edit"]' };
+  const call = admitted(granted);
+  const { gate, revoked } = hostedGate(repo);
+  await repo.upsert(granted);
+  await expect(gate("linear", call)).resolves.toBe("current-grants-checked");
+
+  await repo.upsert({ ...granted, writeAllowedToolNames: "[]" });
+  await expect(gate("linear", call)).rejects.toThrow("MCP refused: write-not-allowed");
+  await repo.upsert({ ...granted, allowedToolNames: '["read"]', writeAllowedToolNames: "[]" });
+  await expect(gate("linear", call)).rejects.toThrow("MCP refused: tool-not-allowed");
+  await repo.upsert({ ...granted, oauthStatus: "disconnected" });
+  await expect(gate("linear", call)).rejects.toThrow("MCP refused: disconnected");
+  expect(revoked.mock.calls).toEqual(["write-not-allowed", "tool-not-allowed", "disconnected"].map(reason =>
+    [{ serverId: "linear", label: "Linear", remoteName: "edit", reason }]));
+});
+
+test("the hosted gate treats a missing preset differently from a missing roster row", async () => {
+  const { repo, stored } = await seeded();
+  const { gate, revoked } = hostedGate(repo);
+  const call = admitted(stored);
+  await expect(gate("missing", { ...call, origin: { kind: "preset" } })).resolves.toBeUndefined();
+  await expect(gate("missing", call)).rejects.toThrow("MCP refused: removed");
+  expect(revoked.mock.calls).toEqual([[{ serverId: "missing", label: null, remoteName: "edit", reason: "removed" }]]);
+  expect(rosterRefusalFor({ record: stored, call: { ...call, origin: undefined } })).toBe("unverifiable");
+  expect(rosterRefusalFor({ record: stored, call: { ...call, origin: { kind: "preset" } } })).toBe("unverifiable");
+});
+
+test("an unreadable row reports the driver error only to operator diagnostics", async () => {
+  const error = new Error("private driver path");
+  const findByServerId = vi.fn<HostedMcpConnectionGatePorts["repo"]["findByServerId"]>().mockRejectedValue(error);
+  const { gate, logUnreadableRow, revoked } = hostedGate({ findByServerId });
+  await expect(gate("linear", admitted(row()))).rejects.toThrow(new Error("MCP refused: unverifiable"));
+  expect(findByServerId.mock.calls).toEqual([[{ workspaceId: "ws", serverId: "linear" }]]);
+  expect(logUnreadableRow.mock.calls).toEqual([[{ connectionId: "linear", error }]]);
+  expect(revoked.mock.calls).toEqual([[{ serverId: "linear", label: null, remoteName: "", reason: "unverifiable" }]]);
+});
+
+test("shared authorization bypasses legacy reauth, but not a changed roster identity", async () => {
+  const { repo, stored } = await seeded();
+  const granted = { ...stored, oauthStatus: "needs_reauth", allowedToolNames: '["edit"]', writeAllowedToolNames: '["edit"]' };
+  await repo.upsert(granted);
+  const assertSharedAuthorized = vi.fn<NonNullable<HostedMcpConnectionGatePorts["assertSharedAuthorized"]>>()
+    .mockResolvedValueOnce(false).mockResolvedValue(true);
+  const { gate, reauthRequired } = hostedGate(repo, { assertSharedAuthorized });
+  const call = admitted(granted);
+  await expect(gate("linear", call)).rejects.toThrow("Reconnect the saved server");
+  expect(reauthRequired.mock.calls).toEqual([[{ serverId: "linear", label: "Linear" }]]);
+  await expect(gate("linear", call)).resolves.toBe("current-grants-checked");
+  await repo.upsert({ ...granted, url: "https://other.example/mcp" });
+  await expect(gate("linear", call)).rejects.toThrow("MCP refused: changed");
+  expect(assertSharedAuthorized.mock.calls).toEqual([[{ serverId: "linear" }], [{ serverId: "linear" }]]);
+});
+
+test.each(["off", "unreadable", "on"] as const)("plugin status %s cannot skip access review", async status => {
+  const { repo, stored } = await seeded();
+  const pluginRow = { ...stored, provisionedByPluginId: "docs-plugin", allowedToolNames: '["edit"]', writeAllowedToolNames: "[]" };
+  await repo.upsert(pluginRow);
+  const isPluginEnabled = vi.fn<HostedMcpConnectionGatePorts["isPluginEnabled"]>(async () => {
+    if (status === "unreadable") throw new Error("activation store unavailable");
+    return status === "on";
+  });
+  const { gate, recovery, revoked } = hostedGate(repo, { isPluginEnabled });
+  await expect(gate("linear", admitted(pluginRow))).rejects.toThrow(new ToolInputError({
+    message: status === "on" ? "Review plugin access" : "Enable the provisioning plugin",
+  }));
+  expect(isPluginEnabled.mock.calls).toEqual([["docs-plugin"]]);
+  expect(recovery.pluginOff.mock.calls).toEqual(status === "on" ? [] : [[{ pluginId: "docs-plugin" }]]);
+  expect(recovery.accessHint.mock.calls).toEqual(status === "on" ?
+    [[{ pluginId: "docs-plugin", serverId: "linear", refusal: "write-not-allowed" }]] : []);
+  expect(revoked.mock.calls).toEqual([]);
+});
+
+test("the roster gate refuses a switched-off row even when its identity and grants still match", async () => {
+  const { repo, stored } = await seeded();
+  const granted = { ...stored, enabled: true, allowedToolNames: '["edit"]', writeAllowedToolNames: '["edit"]' };
+  await repo.upsert(granted);
+  const { gate, revoked } = hostedGate(repo);
+  const call = admitted(granted);
+  await expect(gate("linear", call)).resolves.toBe("current-grants-checked");
+  await repo.upsert({ ...granted, enabled: false });
+  await expect(gate("linear", call)).rejects.toThrow("MCP refused: turned-off");
+  expect(revoked).toHaveBeenCalledExactlyOnceWith({ serverId: "linear", label: "Linear", remoteName: "edit", reason: "turned-off" });
+});
+
+test("an editor refuses two write misses at the same basis instead of retrying a third time", async () => {
+  const { repo, stored } = await seeded();
+  const key = { workspaceId: stored.workspaceId, serverId: stored.serverId };
+  const updateIfVersion = vi.fn<typeof repo.updateIfVersion>().mockResolvedValue(false);
+  const build = vi.fn(async (existing: ExternalMcpServerRecord | null) => {
+    if (!existing) throw new Error("missing edit basis");
+    return { ...existing, label: "Changed" };
+  });
+  await expect(commitExternalMcpSave({
+    repo: { findByServerId: repo.findByServerId.bind(repo), insert: repo.insert.bind(repo), updateIfVersion },
+    key, expectedVersion: stored.version, build,
+  })).rejects.toMatchObject({ name: "RecordVersionConflictError", expectedVersion: 1, currentVersion: 1 });
+  expect(build.mock.calls).toEqual([[stored], [stored]]);
+  expect(updateIfVersion.mock.calls).toEqual(Array.from({ length: 2 }, () => [{
+    expectedVersion: 1, replaces: replaces(stored), record: { ...stored, label: "Changed" },
+  }]));
+  expect(await repo.findByServerId(key)).toEqual(stored);
 });

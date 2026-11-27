@@ -625,3 +625,11 @@ it.each([
   const payload = { content: [{ type: 'text', text: 'valid' }, malformed] };
   expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
 });
+
+it('returns typed content while dropping malformed structured metadata', () => {
+  const content = [{ type: 'text', text: 'Batch response' }];
+  expect(okResult({ payload: { content, structuredContent: ['not', 'a', 'record'], isError: true } }))
+    .toStrictEqual({ content, isError: true });
+  expect(okResult({ payload: { content, structuredContent: { source: 'report' } } }))
+    .toStrictEqual({ content, structuredContent: { source: 'report' } });
+});

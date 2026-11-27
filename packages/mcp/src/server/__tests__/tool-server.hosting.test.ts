@@ -248,3 +248,16 @@ describe('opt-in MCP stdio hosting', () => {
     expect(await host.outcome).toEqual({ ok: false, error });
   });
 });
+
+it('a cap-only host dispatches a valid frame before refusing an oversized complete frame', async () => {
+  const received: unknown[] = [];
+  const host = await boot({ maxFrameBytes: 256, tools: [tool(({ args }) => { received.push(args.value); return { echo: args.value }; })] });
+  const valid = JSON.stringify(call(1, 'accepted')) + '\n';
+  host.stdin.write(valid);
+  await setImmediate();
+  expect(received).toEqual(['accepted']);
+  expect(host.responses).toEqual([{ jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: '{"echo":"accepted"}' }] } }]);
+  host.stdin.end(JSON.stringify(call(2, 'x'.repeat(300))) + '\n');
+  expect(await host.outcome).toEqual({ ok: false, error: new RangeError('MCP incoming frame exceeds maxFrameBytes') });
+  expect(received).toEqual(['accepted']);
+});

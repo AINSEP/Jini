@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
+import { ToolInputError } from "@jini-ai/core";
 
 import { createExternalMcpAgentToolCatalog, EXTERNAL_MCP_MANAGE_PERMISSION } from "../agent-tools.js";
 import { createServerAdmissionsReader } from "../../federation/external-mcp-admissions.js";
@@ -26,7 +27,7 @@ test("the setup catalog names the host's settings screen and read tool and never
   assert.doesNotMatch(allText(catalog), /content_read|Settings → External MCP|tovu/i);
 });
 
-function fixture({ allowed = true }: { allowed?: boolean } = {}) {
+function fixture({ allowed = true, overrides }: { allowed?: boolean; overrides?: Partial<ExternalMcpOperations> } = {}) {
   const calls: unknown[] = [];
   const deps = { workspaceId: "ws-1", clock: { nowMs: () => 0 }, authorize: async () => ({ allowed: true, reason: "matched" }) } as never;
   const limiterClocks: unknown[] = [];
@@ -35,6 +36,7 @@ function fixture({ allowed = true }: { allowed?: boolean } = {}) {
     createProbeLimiter: ({ clock }) => { limiterClocks.push(clock); return { check: async ({ key }) => { calls.push(`budget:${key}`); return allowed ? { allowed: true } : { allowed: false, retryAfterSeconds: 7 }; } }; },
     probe: async ({ serverId }) => { calls.push(serverId); return { ok: false, status: 400, body: { error: "this server is disabled" } }; },
     admissions: async () => ({ ok: true, connections: [] }),
+    ...overrides,
   };
   const registrations = buildExternalMcpOperationsRegistrations({ deps, operations });
   const call = (id: string, input: unknown) => registrations.find((r) => r.descriptor.id === id)!.handler({ executionId: "e", principal: { id: "owner" }, input, signal: new AbortController().signal } as never);
@@ -79,4 +81,41 @@ test("a failed admissions read is reported through the host's reporter only, nev
   } finally {
     console.error = original;
   }
+});
+
+test("returns the hosted probe report and calls the port with the trimmed id", async () => {
+  const body = { tools: [{ name: "read_page" }], probedAt: "2026-01-02T03:04:05.000Z" };
+  const probe = vi.fn<ExternalMcpOperations["probe"]>().mockResolvedValue({ ok: true, body });
+  const f = fixture({ overrides: { probe } });
+  assert.deepEqual(await f.call("external_mcp_probe_connection", { id: "  acme-docs " }), body);
+  assert.deepEqual(probe.mock.calls, [[{ deps: f.deps, serverId: "acme-docs" }]]);
+  assert.deepEqual(f.calls, ["budget:ws-1"]);
+});
+
+test("admissions returns the live connections, preserving optional configuration failures", async () => {
+  const connections = [{ id: "docs", admitted: ["read_page"] }];
+  const configFailures = [{ serverId: "old", reason: "disabled" }];
+  const admissions = vi.fn<ExternalMcpOperations["admissions"]>()
+    .mockResolvedValueOnce({ ok: true, connections, configFailures })
+    .mockResolvedValueOnce({ ok: true, connections });
+  const f = fixture({ overrides: { admissions } });
+  assert.deepEqual(await f.call("external_mcp_get_admissions", undefined), { connections, configFailures });
+  assert.deepEqual(await f.call("external_mcp_get_admissions", {}), { connections });
+  assert.deepEqual(admissions.mock.calls, [[], []]);
+});
+
+test("an unavailable admissions report is actionable and invalid arguments never read it", async () => {
+  const admissions = vi.fn<ExternalMcpOperations["admissions"]>()
+    .mockResolvedValue({ ok: false, body: { error: "Server is starting", code: "AGENT_DAEMON_UNAVAILABLE" } });
+  const f = fixture({ overrides: { admissions } });
+  await assert.rejects(f.call("external_mcp_get_admissions", { id: "docs" }), {
+    name: new ToolInputError({ message: "" }).name,
+    message: "external_mcp_get_admissions: unsupported input fields. Never pass credentials through tool arguments.",
+  });
+  assert.deepEqual(admissions.mock.calls, []);
+  await assert.rejects(f.call("external_mcp_get_admissions", {}), {
+    name: new ToolInputError({ message: "" }).name,
+    message: "external_mcp_get_admissions: Server is starting. Try again shortly; no live admissions report is available.",
+  });
+  assert.deepEqual(admissions.mock.calls, [[]]);
 });

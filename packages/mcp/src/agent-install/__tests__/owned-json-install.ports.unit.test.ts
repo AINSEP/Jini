@@ -64,3 +64,23 @@ test('a refusal before planning touches neither the lock nor the writer', async 
   await expect(installOwnedJsonAgent({ ...base, allowed: false, files: rec.files })).rejects.toThrow(/Allow/);
   expect(rec.log).toEqual([]);
 });
+
+test.each([
+  { env: { ELECTRON_RUN_AS_NODE: '0' }, message: 'MCP connector contains run environment values and cannot be saved.' },
+  { env: { SESSION_TOKEN: 'fixture' }, message: 'MCP connector contains run environment values and cannot be saved.' },
+  { agentId: 'unknown-mcp', message: 'Unknown MCP agent installation' },
+  { agentId: 'codex', message: 'MCP installation does not use a JSON registry' },
+] as Array<{ env?: Record<string, string>; agentId?: string; message: string }>)('unsupported persistent settings are refused without acquiring the lock: $message', async ({ env, agentId, message }) => {
+  const { base } = await fixture();
+  const rec = recordingFiles();
+  await expect(installOwnedJsonAgent({ ...base, agentId: agentId ?? base.agentId, spec: { ...base.spec, env: env ?? {} }, files: rec.files }))
+    .rejects.toThrow(new Error(message));
+  expect(rec.log).toEqual([]);
+});
+
+test('the static Electron switch is allowed without backing up a nonexistent config', async () => {
+  const { base, file } = await fixture();
+  const rec = recordingFiles();
+  await installOwnedJsonAgent({ ...base, spec: { ...base.spec, env: { ELECTRON_RUN_AS_NODE: '1' } }, files: rec.files });
+  expect(rec.log).toEqual(['lock', `write ${file}`, 'unlock']);
+});

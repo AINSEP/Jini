@@ -124,3 +124,17 @@ describe("pure accounting helpers", () => {
     expect(selectAwaitingGrantConnectionIds({ connections, reports })).toEqual(["a"]);
   });
 });
+
+test("installed-tool changes notify on reload even if federation did not admit another connection", async () => {
+  const { required, reloadResults } = setup();
+  const beforeReload = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  const onAdmitted = vi.fn();
+  const runtime = createFederationRuntime(required, { beforeReload, onAdmitted });
+  await runtime.start();
+  const report = { newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] };
+  reloadResults.push(report, report);
+  expect(await runtime.reload()).toEqual(report);
+  expect(onAdmitted).toHaveBeenCalledExactlyOnceWith(report);
+  await runtime.reload();
+  expect(onAdmitted).toHaveBeenCalledTimes(1);
+});

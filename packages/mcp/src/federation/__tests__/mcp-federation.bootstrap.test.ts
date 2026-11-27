@@ -254,3 +254,28 @@ test.each(['connect', 'listTools'])(
     assert.equal(closed, failureStage === 'listTools' ? 1 : 0);
   },
 );
+
+test('resolves the host preset registry with its environment and registers only enabled presets', async () => {
+  const { attachFederatedMcpTools } = await import('../bootstrap.js');
+  const { createFederatedMcpPresetRegistry } = await import('../presets.js');
+  const presetRegistry = createFederatedMcpPresetRegistry({});
+  const preset = { ...HTTP_CONNECTION, config: { ...CONFIG, allowedToolNames: ['read'] } };
+  const resolve = vi.fn(({ env }: { env: NodeJS.ProcessEnv }) => env.ENABLE_FIXTURE === 'yes' ? preset : null);
+  presetRegistry.register({ preset: { presetId: 'host-setting', resolve } });
+  const registry = fakeRegistry();
+  const { logger } = collectingLogger();
+  const connected = { ...fakeSession(), listTools: async () => [{ name: 'read', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } }] };
+  const connect = vi.fn(async () => connected);
+  const deps = { messages: federationMessages, errorCode: 'EXTERNAL_MCP', permissionGate: async () => {} };
+  assert.deepEqual(await attachFederatedMcpTools({ registry, deps, connect }, {
+    env: { ENABLE_FIXTURE: 'no' }, logger, presetRegistry,
+  }), { registeredToolIds: [], sessions: [], reports: [], connectFailures: [] });
+  assert.equal(connect.mock.calls.length, 0);
+  const result = await attachFederatedMcpTools({ registry, deps, connect }, {
+    env: { ENABLE_FIXTURE: 'yes' }, logger, presetRegistry,
+  });
+  assert.deepEqual(resolve.mock.calls, [[{ env: { ENABLE_FIXTURE: 'no' } }], [{ env: { ENABLE_FIXTURE: 'yes' } }]]);
+  assert.deepEqual(result.registeredToolIds, ['mcp__hosted-vendor__read']);
+  assert.deepEqual(result.sessions, [connected]);
+  assert.equal(result.reports[0]?.isPreset, true);
+});

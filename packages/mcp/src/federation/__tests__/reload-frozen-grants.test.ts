@@ -58,3 +58,20 @@ it('reloads owner grants and withdraws disabled sources using frozen schemas wit
   expect(readNames('different-endpoint')).toBeNull();
   expect({ connects, lists }).toEqual({ connects: 1, lists: 1 });
 });
+
+it('other registries and preset identities never inherit a roster source’s frozen names', async () => {
+  const registry = createToolRegistry({});
+  const otherRegistry = createToolRegistry({});
+  const connection: ResolvedFederatedConnection = {
+    config: { ...FEDERATED_CONNECTION_DEFAULTS, connectionId: 'archive', label: 'Archive', allowedToolNames: ['read'],
+      writeAllowedToolNames: [], origin: { kind: 'roster', admissionRevision: 'revision-a' } },
+    launch: { url: 'https://archive.example.test/mcp', headers: {} },
+  };
+  const session = new InMemoryMcpSession({ tools: [{ name: 'read', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } }] });
+  await attachFederatedMcpTools({ registry, deps: { errorCode: 'MCP', messages, permissionGate: async () => {} }, connect: async () => session },
+    { connections: [], extraConnections: [connection] });
+  const origin = { kind: 'roster', admissionRevision: 'revision-a' } as const;
+  expect(readFrozenFederationToolNames({ registry, connectionId: 'archive', origin })).toEqual(['read']);
+  expect(readFrozenFederationToolNames({ registry: otherRegistry, connectionId: 'archive', origin })).toBeNull();
+  expect(readFrozenFederationToolNames({ registry, connectionId: 'archive', origin: { kind: 'preset' } })).toBeNull();
+});

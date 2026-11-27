@@ -80,3 +80,14 @@ describe("@jini-ai/mcp/federation/hosted", () => {
     expect(unconfigured.name).toBe("ExternalMcpSecretStoreUnconfiguredError");
   });
 });
+
+test.each([
+  { raw: 'null', tolerated: [] },
+  { raw: '{}', tolerated: [] },
+  { raw: '42', tolerated: [] },
+  { raw: '["read", 0, "write"]', tolerated: ["read", "write"] },
+])('strict grant decoding refuses unreadable saved state $raw', ({ raw, tolerated }) => {
+  expect(() => entry.parseExternalMcpJsonArray({ raw }, { strict: true }))
+    .toThrow("The plugin connection has an unreadable tool list. Save its tool list again before enabling it.");
+  expect(entry.parseExternalMcpJsonArray({ raw })).toEqual(tolerated);
+});

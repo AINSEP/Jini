@@ -56,3 +56,12 @@ describe("probeExternalMcpServer", () => {
     expect(await probe(failing(new Error("ECONNREFUSED")))).toEqual({ ok: false, failure: { kind: "unreachable" } });
   });
 });
+
+test.each([
+  [{ statusCode: 401 }, 'auth'],
+  [{ statusCode: 503 }, 'unreachable'],
+  ['timeout', 'unreachable'],
+] as const)('maps a legacy statusCode or non-Error rejection without leaking the rejection: %j', async (error, kind) => {
+  const p = ports({ connect: async () => { throw error; } });
+  expect(await probe(p)).toStrictEqual({ ok: false, failure: { kind } });
+});

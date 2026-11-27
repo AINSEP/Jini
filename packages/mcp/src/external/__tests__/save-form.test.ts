@@ -391,3 +391,11 @@ test("buildExternalMcpSaveForm: the MCP-UI app identity is the host's injected a
   const form = buildExternalMcpSaveForm({ save: BASE_INPUT, isUpdate: false, appName: APP_NAME });
   assert.deepEqual(form.app, { appName: APP_NAME, appVersion: "1" });
 });
+
+test("without a proposed executable, the stdio card warns about local access without naming a command", () => {
+  const form = buildExternalMcpSaveForm({ save: { id: "srv-1", transport: "stdio", enabled: false }, isUpdate: false, appName: APP_NAME });
+  assert.deepEqual(form.details?.find(detail => detail.label === "Local access"), {
+    label: "Local access", value: "Saving lets chats start the command below on this computer as your OS user.",
+  });
+  assert.deepEqual(form.details?.find(detail => detail.label === "Connection access"), { label: "Connection access", value: "Disabled" });
+});

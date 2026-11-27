@@ -43,3 +43,39 @@ it('absent explicit credentials and metadata never inherit another process run',
     expect(fetchImpl).not.toHaveBeenCalled();
   } finally { vi.unstubAllEnvs(); }
 });
+
+it('rejects an invalid relay nonce before resolving daemon startup tools', async () => {
+  const resolveBaseUrl = vi.fn(() => 'http://daemon.invalid');
+  const fetchImpl = vi.fn<typeof fetch>();
+  await expect(assembleRunToolHost({ runId: 'run-1', resolveBaseUrl }, {
+    messageRelayNonce: 'a'.repeat(47), startupToolIds: ['required.tool'], fetchImpl,
+  })).rejects.toThrow(new Error('relay requires a 48-hex-character nonce'));
+  expect(resolveBaseUrl).not.toHaveBeenCalled();
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+it('loads each requested startup descriptor once from the same authenticated daemon used by the host', async () => {
+  const resolveBaseUrl = vi.fn().mockReturnValueOnce('http://daemon.invalid').mockReturnValue('http://wrong.invalid');
+  const descriptors = [
+    { id: 'catalog.read', description: 'Read the catalog', readOnly: true, inputSchema: { type: 'object' } },
+    { id: 'catalog.edit', description: 'Edit the catalog', readOnly: false, inputSchema: { type: 'object' } },
+  ];
+  const requests: Array<{ url: string; method: string | undefined; auth: string | null }> = [];
+  const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+    const url = String(input);
+    requests.push({ url, method: init?.method, auth: new Headers(init?.headers).get('authorization') });
+    const descriptor = descriptors.find(entry => url === `http://daemon.invalid/api/tools/${entry.id}`);
+    if (!descriptor) throw new Error(`Unexpected descriptor target ${url}`);
+    return Response.json(descriptor);
+  });
+  const host = await assembleRunToolHost({ runId: 'run-1', resolveBaseUrl }, {
+    credential: 'fixture-callback', startupToolIds: ['catalog.read', 'catalog.edit', 'catalog.read'], fetchImpl,
+  });
+  expect(host.options.delegatedTools?.initialTools).toEqual(descriptors);
+  expect(requests).toEqual([
+    { url: 'http://daemon.invalid/api/tools/catalog.read', method: 'GET', auth: 'Bearer fixture-callback' },
+    { url: 'http://daemon.invalid/api/tools/catalog.edit', method: 'GET', auth: 'Bearer fixture-callback' },
+  ]);
+  expect(await host.required.resolveBaseUrl()).toBe('http://daemon.invalid');
+  expect(resolveBaseUrl).toHaveBeenCalledExactlyOnceWith();
+});

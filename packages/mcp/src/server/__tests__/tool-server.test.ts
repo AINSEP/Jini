@@ -5,6 +5,7 @@ import { PassThrough, type Readable, type Writable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CallToolRequestSchema,
+  type CallToolResult,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
@@ -746,4 +747,29 @@ describe('run() context and transport options (characterization)', () => {
       getStdin.mockRestore();
     }
   });
+});
+
+it('discards pages produced by a transport that fails during startup and preserves the startup error', async () => {
+  const startError = new Error('transport closed during connect');
+  const server = makeFakeServer();
+  const call = (name: string, args: Record<string, unknown> = {}) => server.callTool({ params: { name, arguments: args } });
+  const output = 'retained-source-line\n'.repeat(1500);
+  let resultId: string | undefined;
+  server.connect = async () => {
+    const response = await call('noop') as CallToolResult;
+    const block = response.content[0];
+    if (block?.type !== 'text') throw new Error('Expected the saved-result descriptor');
+    resultId = /"resultId":"([^"]+)"/.exec(block.text)?.[1];
+    expect(block.text).toContain('Read it with read_tool_result');
+    expect(resultId).toMatch(/^[a-f0-9-]+$/);
+    const page = await call('read_tool_result', { resultId });
+    expect(JSON.stringify(page)).toContain('retained-source-line');
+    throw startError;
+  };
+  const required = { name: 'test-server', version: '1', tools: [noopTool({ handler: () => output })], resolveBaseUrl: () => 'http://d.example' };
+  const host = createMcpToolServer(required, { createServer: () => server, resultPaging: true });
+  await expect(host.run({ transport: new FakeTransport() })).rejects.toBe(startError);
+  const page = await call('read_tool_result', { resultId });
+  expect(page).toMatchObject({ isError: true });
+  expect(JSON.stringify(page)).toContain('Repeat the original tool call with a narrower query');
 });

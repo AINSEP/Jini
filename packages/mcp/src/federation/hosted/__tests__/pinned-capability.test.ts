@@ -226,3 +226,13 @@ describe("startCapabilityDelivery: the handoff bearer in transit", () => {
     expect(hostFailure.mock.calls[0]![0].error).toBe(down);
   });
 });
+
+test.each([null, 'http://127.0.0.1:4100/mcp', false])('invalid handoff input %j never creates a capability', value => {
+  const env = { ACME_HANDOFF: 'c'.repeat(64) };
+  const runtime = createPinnedCapabilityRuntime({ env, names, isCapability });
+  expect(runtime.accept(value as unknown as PinnedCapability)).toBe(false);
+  expect(runtime.endpointUrl({})).toBeNull();
+  expect(runtime.bearerToken({ url: cap.url })).toBeUndefined();
+  expect(runtime.accept(cap)).toBe(true);
+  expect(runtime.endpointUrl({})).toBe(cap.url);
+});

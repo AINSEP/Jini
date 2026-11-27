@@ -82,3 +82,12 @@ describe("createExternalMcpProbe", () => {
     }
   });
 });
+
+test('refuses a local launch target even when the stored row was HTTP', async () => {
+  const { probe, deps, log } = setup({ configs: [{ ...config, transport: "stdio",
+    target: { kind: "stdio", command: "node", args: ["local.mjs"], env: {} } }] });
+  expect(await probe({ deps, serverId: "remote" })).toStrictEqual({
+    ok: false, status: 400, body: { error: "probe is not available for local-command servers yet", code: "PROBE_UNSUPPORTED_TRANSPORT" },
+  });
+  expect(log).toStrictEqual([`read:bag:${WS}`]);
+});

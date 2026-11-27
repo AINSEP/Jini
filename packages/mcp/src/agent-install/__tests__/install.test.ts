@@ -2,7 +2,7 @@ import { verifyJsonAgentInstall } from '../install.js';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AGENT_SLUGS,
   isAgentSlug,
@@ -564,4 +564,16 @@ describe('planAgentInstall — exact uninstall argv and JSON entries (F3)', () =
     if (plan.kind !== 'json') throw new Error('expected json');
     expect(plan.entry).toMatchObject({ disabled: false, autoApprove: [] });
   });
+});
+
+it('accepts missing args and env for an empty launch and rejects a registry of the wrong shape', async () => {
+  const spec = { command: '/node', args: [], env: {} };
+  const ctx = { home: '/home/test', platform: 'darwin' as const, serverName: 'jini' };
+  const readFile = vi.fn(async () => JSON.stringify({ mcpServers: { jini: { command: '/node' } } }));
+  await expect(verifyJsonAgentInstall({ agentId: 'antigravity', spec, ctx, readFile })).resolves.toBeUndefined();
+  expect(readFile).toHaveBeenCalledExactlyOnceWith({ path: '/home/test/.gemini/config/mcp_config.json' });
+  for (const raw of ['{"mcpServers":"bad"}', '{"mcpServers":{"jini":[]}}']) {
+    await expect(verifyJsonAgentInstall({ agentId: 'antigravity', spec, ctx, readFile: async () => raw }))
+      .rejects.toThrow('Run "mcp install antigravity" to repair the bridge entry');
+  }
 });

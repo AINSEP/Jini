@@ -110,3 +110,14 @@ describe('customAnswerExchanges', () => {
     expect(calls).toEqual(['send', 'close']);
   });
 });
+
+it.each([42, '   '])('a blank or non-text custom answer %j does not become model-visible free text', raw => {
+  const params = { selections: ['x', CUSTOM_CHOICE_VALUE], [CUSTOM_ANSWER_PARAM]: raw };
+  expect(splitCustomAnswer({ params, question: multiQuestion })).toStrictEqual({ params: { selections: ['x'] }, split: {} });
+});
+
+it('does not restore a non-string multi-select field when a single custom answer is accepted', () => {
+  const params = { choice: CUSTOM_CHOICE_VALUE, selections: ['x', 42, 'y'], [CUSTOM_ANSWER_PARAM]: 'mine' };
+  expect(splitCustomAnswer({ params, question: multiQuestion }))
+    .toStrictEqual({ params: { [SURFACE_TYPED_ANSWER_PARAM]: 'mine' }, split: { freeText: 'mine' } });
+});
