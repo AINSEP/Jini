@@ -14,3 +14,14 @@ test("GitHub Pages uses the remote site's custom URL and the platform default fo
     assert.equal(await target.resolvePublicUrl({ projectName: "zoran" }), expected);
   }
 });
+
+test('a new owner Pages site uses the hostname root, unlike a project Pages site', async () => {
+  const calls = [];
+  const kit = { ...createFakeDeployHostKit(), fetch: async (url, init) => {
+    calls.push({ url, method: init.method });
+    return Response.json({}, { status: 404 });
+  } };
+  const target = github.create({ credential: { token: 'synthetic' }, config: { owner: 'Owner', repo: 'OWNER.github.io' }, kit });
+  assert.equal(await target.resolvePublicUrl({ projectName: 'fixture' }), 'https://owner.github.io');
+  assert.deepEqual(calls, [{ url: 'https://api.github.com/repos/Owner/OWNER.github.io/pages', method: undefined }]);
+});

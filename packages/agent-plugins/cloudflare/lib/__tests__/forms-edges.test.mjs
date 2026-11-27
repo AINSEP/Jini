@@ -58,3 +58,20 @@ test('a pending row needs a string submittedAt and an ip that is null or a strin
     await assert.rejects(pullFormSubmissions({ kit: f.kit, destination }), error => error.code === 'CLOUDFLARE_FORMS_INVALID_RESPONSE');
   }
 });
+
+test('publishing keeps portable number and checkbox constraints and drops only the empty option placeholder', () => {
+  const f = fixture({ respond: () => { throw new Error('unexpected request'); } });
+  const fields = [
+    { name: 'count', type: 'number', min: 0, max: 12, step: 3 },
+    { name: 'consent', type: 'checkbox', required: true, checkboxValue: 'accepted' },
+    { name: 'topic', type: 'select', options: ['', 'Trees', 'Shrubs'] },
+  ];
+  assert.deepEqual(normalizeForms({ formDestination: { forms: [{ slug: 'intake', fields, successPath: '/thanks' }], secret: SECRET }, kit: f.kit }), {
+    secret: SECRET, forms: [{ slug: 'intake', successPath: '/thanks', fields: [
+      { name: 'count', type: 'number', required: false, min: 0, max: 12, step: 3 },
+      { name: 'consent', type: 'checkbox', required: true, checkboxValue: 'accepted' },
+      { name: 'topic', type: 'select', required: false, options: ['Trees', 'Shrubs'] },
+    ] }],
+  });
+  assert.deepEqual(f.calls, []);
+});

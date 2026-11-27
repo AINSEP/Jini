@@ -89,3 +89,16 @@ test('switching every form away preserves pending receiver storage and authentic
   assert.equal(d1.rows('SELECT * FROM submissions').length, 1);
   assert.equal(await scripts[0].get('forms-manifest.mjs').text(), 'export default {"forms":[]};\n');
 });
+
+test('an empty form manifest keeps an assets-only Worker when no receiver database exists to retain', async () => {
+  const scripts = [];
+  const base = workersHosting({ d1: fakeD1(), scripts });
+  const f = fixture({ respond: request => request.url.pathname.endsWith('/d1/database') ? json([]) : base(request) });
+  const result = await workers.create({ credential, config: {}, kit: f.kit }).publish({
+    files, projectName: 'demo', metadata: { formDestination: { forms: [], secret: SECRET } },
+  });
+  assert.deepEqual(JSON.parse(scripts[0].get('metadata')).bindings, [{ type: 'assets', name: 'ASSETS' }]);
+  assert.equal(result.providerMetadata.formSubmissions, undefined);
+  assert.deepEqual(f.calls.filter(call => call.url.includes('/d1/')).map(call => [call.init.method ?? 'GET', new URL(call.url).searchParams.get('name')]),
+    [['GET', 'jini-forms-jini-demo']]);
+});

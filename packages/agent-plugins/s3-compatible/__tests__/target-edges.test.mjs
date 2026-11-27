@@ -153,3 +153,27 @@ test("the same provider follows the key rule of the host that built it", async (
     assert.deepEqual(calls, []);
   }
 });
+
+test('share verification requires matching length, no-store and attachment independently', async () => {
+  const good = { 'content-length': '8', 'cache-control': 'no-store', 'content-disposition': 'attachment; filename=site.zip' };
+  const signal = new AbortController().signal;
+  const heads = [];
+  let headers = good;
+  const { kit, sent } = kitWith(() => { throw new Error('public verification must not be signed'); }, {
+    isShareArtifactKey: ({ key }) => key === SHARE_KEY,
+    fetch: async (url, init, options) => {
+      heads.push([url, init, options]);
+      return new Response(null, { status: 200, headers });
+    },
+  });
+  const store = target.createArtifactStore({ credential: CREDENTIAL, kit });
+  const url = `https://cdn.example.test/${SHARE_KEY}`;
+  for (const change of [{ 'content-length': '7' }, { 'cache-control': 'public' }, { 'content-disposition': 'inline' }, { 'content-disposition': '' }]) {
+    headers = { ...good, ...change };
+    assert.equal(await store.verify({ key: SHARE_KEY, url, present: true, bytes: 8 }, { signal }), false, JSON.stringify(change));
+  }
+  headers = good;
+  assert.equal(await store.verify({ key: SHARE_KEY, url, present: true, bytes: 8 }, { signal }), true);
+  assert.deepEqual(heads, Array(5).fill([url, { method: 'HEAD', redirect: 'error', signal }, { timeoutMs: 100 }]));
+  assert.deepEqual(sent, []);
+});

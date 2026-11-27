@@ -370,3 +370,20 @@ test('a save without the rows confirmation asks for it; a spreadsheet with no ta
   await flush();
   assert.deepEqual(frame.requests().at(-1), { action: 'save-destination', payload: { formSlug: 'contact', spreadsheetId: FILE_ID, sheetId: 0, confirmExternalRows: true } });
 });
+
+test('an unavailable Picker still allows saving a previously picked spreadsheet verified by the host', async () => {
+  await openPanel({ mode: 'unavailable', reason: 'sheets-off', message: 'The Picker is unavailable.' }, { destinations: [], picked: [LEADS] });
+  await choosePicked(LEADS);
+  await change(frame.document.querySelector('input[type="text"]'), 'contact', 'input');
+  await change(selects()[1], '42');
+  frame.document.querySelector('input[type="checkbox"]').click();
+  frame.respond.set('save-destination', () => ({ destinations: [saved()], picked: [LEADS] }));
+  button(frame, 'Save destination').click();
+  await flush();
+  assert.deepEqual(frame.requests().slice(-2), [
+    { action: 'list-tabs', payload: { spreadsheetId: FILE_ID } },
+    { action: 'save-destination', payload: { formSlug: 'contact', spreadsheetId: FILE_ID, sheetId: 42, confirmExternalRows: true } },
+  ]);
+  assert.equal(statusLine().textContent, 'Saved: contact sends to Leads.');
+  assert.equal(frame.document.querySelector('li.destination p').textContent, 'contact → Leads / Contact');
+});

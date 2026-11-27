@@ -141,3 +141,26 @@ describe('admin action tools', () => {
     await expect(projection.describeAffectedResources({ toolId: 'p_acme__account_probe', input: {} })).rejects.toThrow('resource lookup failed');
   });
 });
+
+test('forwards the run signal and resolves only the current surface’s declared connections', async () => {
+  const f = fixture();
+  const signal = new AbortController().signal;
+  const forwarded: unknown[] = [];
+  const tools = buildAdminSurfaceActionTools({ surfaces: [
+    { pluginId: 'acme', descriptor: { ...f.surface, connections: [{ id: 'drive', startParams: [], callbackFields: [] }, { id: 'sheets', startParams: [], callbackFields: [] }] } },
+    { pluginId: 'metrics', descriptor: { ...f.surface, id: 'stats' } },
+  ], handlersFor: () => ({ save: async () => 'saved' }),
+    authorize: async ({ context }) => { forwarded.push(context); },
+  }, { connectionRefFor: ({ pluginId, connectionId }) => `${pluginId}:${connectionId}` });
+  expect(tools.map(entry => [entry.pluginId, entry.connections])).toEqual([['acme', ['acme:drive', 'acme:sheets']], ['metrics', []]]);
+  expect(await tools[0]!.tool.handler({ pluginId: 'acme', auth: context, input: { payload: { value: 'intent' } }, signal })).toEqual({ ok: true, result: 'saved' });
+  expect(forwarded).toEqual([{ ...context, signal }]);
+});
+
+test('refuses an oversized schema-valid action both for disclosure and execution', async () => {
+  const f = fixture();
+  const input = { payload: { value: 'é'.repeat(64 * 1024) } };
+  expect(() => f.tools[0]!.describeAffectedResources({ input })).toThrow('Supply payload matching the declared admin action schema.');
+  await expect(f.call(input)).rejects.toThrow('Supply payload matching the declared admin action schema.');
+  expect(f.calls).toEqual([]);
+});

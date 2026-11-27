@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { PRODUCTS, readCatalog } from '../lib/product-state.mjs';
+import { PRODUCTS, readCatalog, scopesFor } from '../lib/product-state.mjs';
 
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 const BASE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -32,4 +32,14 @@ test('catalog: a Google scope with a path beyond auth/<name> is refused', () => 
 
 test('catalog: base scopes that are not a list are refused', () => {
   assert.throws(() => readCatalog({ raw: { baseScopes: BASE_SCOPE, products: [] } }), { message: 'products.json baseScopes must list Google OAuth scope URLs. Fix the plugin package.' });
+});
+
+test('Sheets sign-in does not request duplicate scopes even when the caller repeats the product', () => {
+  assert.deepEqual(scopesFor({ productIds: ['sheets', 'sheets'] }), ['https://www.googleapis.com/auth/drive.file']);
+});
+
+test('sign-in rejects an unknown scope set even when other products are valid', () => {
+  assert.throws(() => scopesFor({ productIds: ['sheets', 'sheet', 'sheets'] }), {
+    name: 'Error', message: "Google Workspace has no product 'sheet'. Choose one of: sheets.",
+  });
 });

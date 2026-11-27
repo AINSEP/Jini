@@ -236,3 +236,8 @@ test("commit: each write step's failure or missing sha stops the commit", async 
     assert.equal(requests.length, script.length);
   }
 });
+
+test('a valid JSON null refusal falls back to the GitHub status, not a parsing exception', () => {
+  assert.equal(providerErrorMessage({ response: { status: 502, bodyText: 'null' }, fallback: 'GitHub ref update failed' }),
+    'GitHub ref update failed (status 502)');
+});

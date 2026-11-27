@@ -50,3 +50,17 @@ test("Actions refuses malformed jobs before normalizing or fetching annotations"
     assert.deepEqual(ctx.calls, [`${base}/21`, `${base}/21/jobs?per_page=100`]);
   }
 });
+
+test('Actions status omits untrusted run URLs and reports a truncated job list, even with a running job', async () => {
+  const ctx = context({
+    [`${base}/21`]: { ...run, status: 'in_progress', conclusion: null, html_url: 'https://github.com.other.test/runs/21' },
+    [`${base}/21/jobs?per_page=100`]: { jobs: [{ id: 31, name: 'build', status: 'in_progress', conclusion: null }], total_count: 2 },
+  });
+  assert.deepEqual(await github.status(ctx, { target: 'owner/repo', runId: '21' }), {
+    platform: 'github-actions', target: 'owner/repo', state: 'deploying',
+    summary: 'Deploy: in_progress/; head_sha=abc; jobs truncated',
+    items: [{ id: '31', name: 'build', state: 'in_progress', detail: 'status=in_progress; conclusion=; failed steps: ' }],
+    checkedAt: AT,
+  });
+  assert.deepEqual(ctx.calls, [`${base}/21`, `${base}/21/jobs?per_page=100`]);
+});

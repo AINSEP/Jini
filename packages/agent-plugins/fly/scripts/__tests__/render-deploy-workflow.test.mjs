@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import test from "node:test";
 
@@ -104,4 +107,26 @@ test('Windows workflow checkouts recognize regions and normalize template and bl
   assert.equal(renderDeployWorkflow({ template, placeholders: {} }), 'before\ndefault\nafter\n');
   assert.equal(renderDeployWorkflow({ template, placeholders: {} }, { blocks: { x: 'host 1\r\nhost 2\r\n' } }), 'before\nhost 1\nhost 2\nafter\n');
   assert.throws(() => renderDeployWorkflow({ template: '#>> x\r\n#<< y\r\n', placeholders: {} }), /does not close/);
+});
+
+test('the executable writes the workflow and --check refuses drift without replacing the file', t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'jini-fly-workflow-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const values = path.join(root, 'values.json');
+  const output = path.join(root, 'deploy.yml');
+  const template = readFile(TEMPLATE_PATH);
+  const placeholders = Object.fromEntries([...template.matchAll(/<<PLACEHOLDER:[^>]+>>/g)].map(([token]) => [token, 'fixture']));
+  writeFileSync(values, JSON.stringify({ output: 'deploy.yml', placeholders }));
+  const script = fileURLToPath(new URL('../render-deploy-workflow.mjs', import.meta.url));
+  const argv = [script, '--values', values, '--repo-root', root];
+  const run = extra => spawnSync(process.execPath, [...argv, ...extra], { encoding: 'utf8', timeout: 10_000 });
+  const render = run([]);
+  assert.deepEqual({ status: render.status, stdout: render.stdout, stderr: render.stderr }, { status: 0, stdout: 'Rendered deploy.yml\n', stderr: '' });
+  assert.match(readFile(output), /^      - run: flyctl deploy --remote-only$/m);
+  assert.equal(run(['--check']).status, 0);
+  writeFileSync(output, 'stale output');
+  const check = run(['--check']);
+  assert.deepEqual({ status: check.status, stdout: check.stdout, stderr: check.stderr },
+    { status: 1, stdout: 'deploy.yml differs from its render; re-run without --check\n', stderr: '' });
+  assert.equal(readFile(output), 'stale output');
 });

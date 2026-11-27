@@ -44,3 +44,15 @@ test('an acknowledge whose run result has no meta reports zero acknowledged', as
   const response = await acknowledge({ request, env: { JINI_FORMS: stubDb({}) } }, { now: () => 0 });
   assert.deepEqual(await response.json(), { acknowledged: 0 });
 });
+
+test('pending import decodes envelope answers even without captured evidence', async () => {
+  const answers = { email: 'person@example.test', evidence: 'visitor answer' };
+  const row = { seq: 9, id: 'entry-9', form_slug: 'waitlist', submitted_at: '2030-01-01T00:00:00Z',
+    answers_json: JSON.stringify(['@jini/form-submission/v1', answers, 'historical-ip', null]),
+  };
+  const page = await listPending({ env: { JINI_FORMS: stubDb({ results: [row] }) }, url: new URL('https://site.example/_jini/forms/pending?after=8&limit=2') });
+  assert.deepEqual(await page.json(), {
+    items: [{ seq: 9, id: 'entry-9', formSlug: 'waitlist', answers, submittedAt: '2030-01-01T00:00:00Z', ip: null }],
+    nextAfter: 9, hasMore: false,
+  });
+});

@@ -94,3 +94,30 @@ test("Railway rejects bad log limits before send and malformed logs safely", asy
     await assert.rejects(railway.logs(malformed, { target: TARGET, runId: RUN, limit: 1 }), /log entr/);
   }
 });
+
+test('Railway latest logs do not request a log stream when no deployment exists', async () => {
+  const ctx = context({ replies: [data({ value: { serviceInstance: { latestDeployment: null } } })] });
+  assert.deepEqual(await railway.logs(ctx, { target: TARGET, limit: 7 }), { platform: 'railway', target: TARGET, lines: [], truncated: false });
+  assert.deepEqual(ctx.calls, [request({ operation: 'latest', variables: { serviceId: SERVICE, environmentId: ENVIRONMENT } })]);
+});
+
+test('Railway retains messages without optional metadata and never includes raw provider fields', async () => {
+  const entries = [{ message: 'no timestamp', private: 'provider data' }, { message: 'complete', severity: 'info', timestamp: AT }];
+  const ctx = context({ replies: [data({ value: { deployment: deployed() } }), data({ value: { deploymentLogs: entries } })] });
+  assert.deepEqual(await railway.logs(ctx, { target: TARGET, runId: RUN, limit: 2 }), {
+    platform: 'railway', target: TARGET, lines: [{ message: 'no timestamp' }, { message: 'complete', level: 'info', at: AT }], truncated: false,
+  });
+  assert.deepEqual(ctx.calls, [request({ operation: 'deployment', variables: { id: RUN } }), request({ operation: 'logs', variables: { deploymentId: RUN, limit: 3 } })]);
+});
+
+test('Railway refuses a discovery result that exceeds its aggregate bound even when each connection is complete', async () => {
+  const instances = Array.from({ length: 50 }, (_, i) => ({ serviceId: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`, serviceName: `service-${i}` }));
+  const environments = Array.from({ length: 10 }, (_, i) => ({ id: `00000000-0000-0000-0001-${String(i).padStart(12, '0')}`, name: `Environment ${i}`, serviceInstances: connection({ entries: instances }) }));
+  const one = { id: PROJECT, name: 'Full project', environments: connection({ entries: environments }) };
+  const two = { id: OTHER, name: 'Over budget', environments: connection({ entries: [
+    { ...environments[0], serviceInstances: connection({ entries: [instances[0]] }) },
+  ] }) };
+  const ctx = context({ replies: [data({ value: { projects: connection({ entries: [one, two] }) } })] });
+  await assert.rejects(railway.listTargets(ctx, {}), { message: 'Railway target discovery exceeds 500 targets. Supply an exact target from the Railway console.' });
+  assert.deepEqual(ctx.calls, [request({ operation: 'targets', variables: {} })]);
+});

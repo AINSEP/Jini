@@ -498,3 +498,22 @@ test("createArtifactStore() delegates to the publish target's share capability w
   await assert.rejects(() => store.delete({ key: "not-a-share" }), { message: "Invalid share artifact key." });
   assert.throws(() => provider.createArtifactStore({ credential: { token: "secret" }, kit }, {}), DeployError);
 });
+
+test('staged streaming is unavailable without either host port, but regular writes still round-trip', async () => {
+  for (const missing of ['sign', 'sendStaged']) {
+    const s3 = fakeS3();
+    const host = {
+      ...s3.host,
+      createSigV4Client(input) {
+        return { ...s3.host.createSigV4Client(input), ...(missing === 'sign' ? {} : { sign: () => { throw new Error('unexpected streaming signer'); } }) };
+      },
+      ...(missing === 'sendStaged' ? {} : { sendStaged: async () => { throw new Error('unexpected streaming transport'); } }),
+    };
+    const store = makeStore({ host });
+    assert.equal(await store.resolveStagedWriter({}), undefined, missing);
+    assert.deepEqual(s3.requests, [], 'resolving optional streaming must not use standard transport');
+    assert.deepEqual(await store.put({ key: KEY, bytes: BYTES }), { written: true });
+    assert.deepEqual(new Uint8Array(await store.get({ key: KEY })), BYTES);
+    assert.deepEqual(s3.requests.map(({ init }) => init.method), ['PUT', 'GET']);
+  }
+});

@@ -111,3 +111,23 @@ test("transport-truncated inventory is never treated as a complete list", async 
   const ctx = context([{ url: `${API}/services?limit=100`, response: response([], 200, { truncated: true }) }]);
   await assert.rejects(ops.listTargets(ctx, {}), /incomplete or invalid/); ctx.done();
 });
+
+test('a queued Render deploy still reports the explicitly requested commit without inventing a run ID', async () => {
+  const sha = 'b'.repeat(40);
+  const ctx = context([service(), { method: 'POST', url: `${API}/services/${TARGET}/deploys`, body: { commitId: sha }, response: { status: 202, text: '' } }]);
+  assert.deepEqual(await ops.deploy(ctx, { target: TARGET, ref: sha }), {
+    platform: 'render', target: TARGET, started: true, sha,
+    summary: "Render queued the deployment behind one already running. Wait for the service's latest deployment status.",
+  });
+  ctx.done();
+});
+
+test('Render returns log messages without missing label values, preserving the transport truncation verdict', async () => {
+  const entries = [{ message: 'first', timestamp: AT, labels: [null, { name: 'level', value: 8 }] }];
+  const url = `${API}/logs?ownerId=tea-owner123&resource=${TARGET}&limit=5&direction=backward`;
+  const ctx = context([service(), { url, response: response({ logs: entries, hasMore: false }, 200, { truncated: true }) }]);
+  assert.deepEqual(await ops.logs(ctx, { target: TARGET, limit: 5 }), {
+    platform: 'render', target: TARGET, lines: [{ at: AT, message: 'first' }], truncated: true,
+  });
+  ctx.done();
+});

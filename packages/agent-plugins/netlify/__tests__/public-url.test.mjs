@@ -15,3 +15,16 @@ test("Netlify resolves its existing site through the same site owner used by pub
   assert.equal(calls.length, 1);
   assert.equal(new URL(calls[0].url).searchParams.get("name"), "jini-zoran");
 });
+
+test('a resolved Netlify site without a public URL is not returned as a usable destination', async () => {
+  const urls = [];
+  const kit = { ...createFakeDeployHostKit(), fetch: async url => {
+    urls.push(url);
+    return Response.json([{ id: 'n1', name: 'jini-zoran' }]);
+  } };
+  const target = netlify.create({ credential: { token: 'synthetic' }, config: {}, kit });
+  await assert.rejects(target.resolvePublicUrl({ projectName: 'zoran' }), {
+    status: 502, message: "Netlify did not report the site's public URL.",
+  });
+  assert.deepEqual(urls.map(url => [new URL(url).pathname, new URL(url).searchParams.get('name')]), [['/api/v1/sites', 'jini-zoran']]);
+});

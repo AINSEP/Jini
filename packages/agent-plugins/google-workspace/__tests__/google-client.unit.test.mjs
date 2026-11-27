@@ -289,3 +289,57 @@ test('revocation: a 400 whose body is not JSON is not "already revoked": the rev
 test('revocation: a 400 invalid_token answer means Google already revoked it, which counts as confirmed', async () => {
   assert.equal(await revokeWith(400, '{"error":"invalid_token"}'), undefined);
 });
+
+test('revocation: a transport failure is pending and retrying sends the original refresh token', async () => {
+  const cause = new Error('transport lost the response');
+  const calls = [];
+  const hooks = createHooks({ http: { async fetch(target, init) {
+    calls.push([target, init]);
+    if (calls.length === 1) throw cause;
+    return new Response(null, { status: 200 });
+  } } });
+  const required = { token: 'fixture refresh+token' };
+  await assert.rejects(hooks.revoke(required), {
+    code: 'provider-unreachable', cause, message: /Disconnected locally; Google revocation pending/,
+  });
+  assert.equal(await hooks.revoke(required), undefined);
+  const request = [{ url: 'https://oauth2.googleapis.com/revoke' }, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'token=fixture+refresh%2Btoken',
+  }];
+  assert.deepEqual(calls, [request, request]);
+});
+
+for (const [status, code] of [[403, 'provider-refused'], [503, 'provider-unreachable']]) {
+  test(`revocation: HTTP ${status} cannot confirm revocation, even with an invalid_token body`, async () => {
+    await assert.rejects(revokeWith(status, '{"error":"invalid_token"}'), {
+      code, message: /Disconnected locally; Google revocation pending/,
+    });
+  });
+}
+
+test('sign-in hooks use the freshly issued bearer token to identify the Google account', async () => {
+  const calls = [];
+  const hooks = createHooks({ http: { async fetch({ url }, init) {
+    calls.push({ url: new URL(url), init });
+    return Response.json({ user: { permissionId: 'account-72', displayName: 'Ada', emailAddress: 'ada@example.test' } });
+  } } });
+  assert.deepEqual(await hooks.readAccount({ accessToken: 'fresh-sign-in-fixture' }), {
+    accountId: 'account-72', displayName: 'ada@example.test',
+  });
+  assert.deepEqual(calls.map(({ url, init }) => ({
+    endpoint: url.origin + url.pathname, fields: url.searchParams.get('fields'), method: init.method, auth: init.headers.authorization,
+  })), [{
+    endpoint: 'https://www.googleapis.com/drive/v3/about', fields: 'user(displayName,emailAddress,permissionId)',
+    method: 'GET', auth: 'Bearer fresh-sign-in-fixture',
+  }]);
+});
+
+test('the sign-in hooks resolve scope-set IDs without calling Google or widening the grant', async () => {
+  const calls = [];
+  const hooks = createHooks({ http: { async fetch(...args) { calls.push(args); throw new Error('scope lookup must be local'); } } });
+  assert.deepEqual(await hooks.resolveScopes({ scopeSetIds: ['sheets', 'sheets'] }), ['https://www.googleapis.com/auth/drive.file']);
+  await assert.rejects(hooks.resolveScopes({ scopeSetIds: ['calendar'] }), {
+    message: "Google Workspace has no product 'calendar'. Choose one of: sheets.",
+  });
+  assert.deepEqual(calls, []);
+});

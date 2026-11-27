@@ -143,3 +143,100 @@ test("the manifest lists every written path sorted, keeping duplicates in input 
   const manifest = JSON.parse(Buffer.from(JSON.parse(calls[6].body).content, "base64").toString("utf8"));
   assert.deepEqual(manifest, { version: 2, files: [{ path: "a.html", sha: "s2" }, { path: "a.html", sha: "s4" }, { path: "b.html", sha: "s1" }, { path: "c.html", sha: "s3" }] });
 });
+
+for (const name of ["TimeoutError", "AbortError"]) {
+  test(`a ${name} on repository lookup identifies the deadline rather than blaming the token`, async () => {
+    const { kit, calls } = kitFrom([Object.assign(new Error("socket closed"), { name })]);
+    assert.deepEqual(await createSiteCommitter(kit)(INPUT), {
+      ok: false, code: "network-unreachable", message: `GitHub request to ${API} timed out after 30000ms`,
+    });
+    assert.deepEqual(calls, [{ url: API, method: "GET", body: undefined }]);
+  });
+}
+
+for (const [description, response, code, message] of [
+  ["hidden repository", json(404, {}), "repository-not-found", "no repository 'octo/demo' is reachable with this token — it may not exist, or the token cannot see it"],
+  ["non-JSON success", new Response("<html>", { status: 200 }), "provider-error", "GitHub returned a non-JSON response."],
+  ["non-JSON refusal", new Response("<html>", { status: 503 }), "provider-error", "GitHub repository lookup failed (503)."],
+  ["blank refusal", json(403, { message: "  " }), "provider-error", "GitHub repository lookup failed (403)."],
+  ["null JSON refusal", json(503, null), "provider-error", "GitHub repository lookup failed (503)."],
+]) {
+  test(`repository lookup handles ${description} without attempting a commit`, async () => {
+    const { kit, calls } = kitFrom([response]);
+    assert.deepEqual(await createSiteCommitter(kit)(INPUT), { ok: false, code, message });
+    assert.deepEqual(calls, [{ url: API, method: "GET", body: undefined }]);
+  });
+}
+
+const tip = () => [json(200, {}), json(200, { object: { sha: "parent" } }), json(200, { tree: { sha: "parent-tree" } })];
+for (const [description, response, message] of [
+  ["absent file content", json(200, { content: 42 }), "GitHub managed-manifest response did not include file content — cannot confirm which paths this adapter previously owned."],
+  ["non-JSON file content", json(200, { content: Buffer.from("<html>").toString("base64") }), "GitHub managed-manifest content is not valid JSON — cannot confirm which paths this adapter previously owned."],
+  ["unrecognized version", manifestOf({ version: 3, files: [] }), "GitHub managed-manifest content did not match a recognized shape — cannot confirm which paths this adapter previously owned."],
+  ["out-of-folder ownership", manifestOf({ version: 2, files: [{ path: "site/owned.html", sha: SHA_A }, { path: "site-sibling/private.html", sha: SHA_A }] }), "GitHub managed manifest contains an unsafe or out-of-folder path."],
+]) {
+  test(`a manifest with ${description} fails before any remote writes`, async () => {
+    const { kit, calls } = kitFrom([...tip(), response]);
+    assert.deepEqual(await createSiteCommitter(kit)({ ...INPUT, folder: "site" }), { ok: false, code: "provider-error", message });
+    assert.deepEqual(calls.map(({ url, method }) => [method, url]), [
+      ["GET", API], ["GET", `${API}/git/ref/heads/main`], ["GET", `${API}/git/commits/parent`],
+      ["GET", `${API}/contents/site/.jini/managed-files.json?ref=main`],
+    ]);
+  });
+}
+
+test("invalid repo paths and reserved manifest paths are rejected before lookup", async () => {
+  const { kit, calls } = kitFrom([]);
+  const commit = createSiteCommitter(kit);
+  assert.deepEqual(await commit({ ...INPUT, folder: "../sibling" }), {
+    ok: false, code: "provider-error", message: "Invalid target folder or repository file path.",
+  });
+  assert.deepEqual(await commit({ ...INPUT, files: [{ path: ".jini/managed-files.json", data: "{}" }] }), {
+    ok: false, code: "provider-error", message: "Export cannot overwrite the managed manifest.",
+  });
+  assert.deepEqual(calls, []);
+});
+
+test("legacy manifest entries without a blob fingerprint are kept and reported, not deleted", async () => {
+  const { kit, calls } = kitFrom([...tip(), manifestOf({ version: 1, paths: ["site/old.html", "site/index.html"] }),
+    json(201, { sha: "new-blob" }), json(201, { sha: "manifest-blob" }), json(201, { sha: "new-tree" }),
+    json(201, { sha: "new-commit" }), json(200, {}),
+  ]);
+  assert.deepEqual(await createSiteCommitter(kit)({ ...INPUT, folder: "site" }), {
+    ok: true, branch: "main", branchCreated: false, commitSha: "new-commit", commitUrl: "https://github.com/octo/demo/commit/new-commit",
+    filesChanged: 1, filesDeleted: 0, divergedPaths: ["site/old.html"],
+  });
+  assert.deepEqual(calls.filter(call => call.url.includes("/contents/")).map(call => call.url), [
+    `${API}/contents/site/.jini/managed-files.json?ref=main`,
+  ]);
+  assert.deepEqual(JSON.parse(calls.find(call => call.url === `${API}/git/trees`).body), {
+    base_tree: "parent-tree", tree: [
+      { path: "site/index.html", mode: "100644", type: "blob", sha: "new-blob" },
+      { path: "site/.jini/managed-files.json", mode: "100644", type: "blob", sha: "manifest-blob" },
+    ],
+  });
+});
+
+test("an unchanged tree never creates a commit or touches the branch ref", async () => {
+  const { kit, calls } = kitFrom([...tip(), json(404, {}), json(201, { sha: "b" }), json(201, { sha: "m" }), json(201, { sha: "parent-tree" })]);
+  assert.deepEqual(await createSiteCommitter(kit)(INPUT), {
+    ok: false, code: "no-changes", message: "nothing changed since the branch's last commit",
+  });
+  assert.deepEqual(calls.filter(({ method }) => method !== "GET").map(({ url, method }) => [method, url]), [
+    ["POST", `${API}/git/blobs`], ["POST", `${API}/git/blobs`], ["POST", `${API}/git/trees`],
+  ]);
+});
+
+for (const [status, code, message] of [
+  [422, "diverged", "the branch has moved since this commit started — refusing to overwrite it"],
+  [403, "provider-error", "GitHub branch update failed (403)."],
+]) {
+  test(`a ref PATCH refusal with HTTP ${status} never retries or forces the ref`, async () => {
+    const { kit, calls } = kitFrom([...tip(), json(404, {}), json(201, { sha: "b" }), json(201, { sha: "m" }),
+      json(201, { sha: "new-tree" }), json(201, { sha: "our-commit" }), json(status, {})]);
+    assert.deepEqual(await createSiteCommitter(kit)(INPUT), { ok: false, code, message });
+    assert.deepEqual(calls.filter(({ url }) => url.includes("/git/refs/")), [
+      { url: `${API}/git/refs/heads/main`, method: "PATCH", body: '{"sha":"our-commit"}' },
+    ]);
+  });
+}
