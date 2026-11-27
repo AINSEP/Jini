@@ -5,6 +5,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as core from '@jini-ai/core';
 import { createToolRegistry, ToolInputError, type LegacyToolAuthorizeFn, type ToolRegistration } from '@jini-ai/core';
+import { authorizeToolInvocation } from '@jini-ai/core/composition';
+import { buildCapabilityScopedSdk } from '../../capability-sdk.js';
+import { createPluginContributionCapture, createPluginContributionRegistry } from '../../contributions.js';
+import { pluginSdkBinding } from '../support/fixture-bindings.js';
 import {
   capabilityToolIdFor,
   createPluginCapabilityTools,
@@ -202,5 +206,97 @@ describe('EXTRACT-S6 capability tools: second host vocabulary', () => {
       applyApprovalPolicy,
     }, {});
     expect(registry.has({ toolId: 'plugin_capability_meter' })).toBe(true);
+  });
+});
+
+/** An executable (tier-3) plugin contribution registry holding one `echo` tool from `exec-plug`. */
+function executableContributions() {
+  const execManifest = { id: 'exec-plug', name: 'Exec', version: '0.1.0', sdkRange: '*', engine: 1, tier: 'tier-3',
+    capabilities: ['tools.register'], hooks: [], fields: [], integrity: {}, contributes: { tools: ['echo'] } } as PluginManifest;
+  const coreDeps = { getCurrentEntry: () => ({ workspaceId: WORKSPACE, ext: {} }), writeExtField: () => {}, attachFilter: () => {} };
+  const sdk = buildCapabilityScopedSdk({ pluginId: execManifest.id, pluginSdkBinding, capabilities: [], coreDeps });
+  const contributions = createPluginContributionRegistry({});
+  const capture = createPluginContributionCapture({ manifest: execManifest });
+  const seen: unknown[] = [];
+  capture.tools.add({ name: 'echo', description: 'echo', inputSchema: { type: 'object' }, handler: (ctx) => { seen.push(ctx.auth); return { echoed: ctx.input }; } });
+  contributions.replace({ contributions: capture.seal({ sdk }) });
+  return { contributions, seen };
+}
+
+describe('capability tools: field decoding and executable contribution ports', () => {
+  it('a stored string that only looks like JSON is returned exactly as written', async () => {
+    const { tools, applyApprovalPolicy } = secondHost();
+    const repo = await enabledRepo();
+    const sources = await tools.loadSources({ workspaceId: WORKSPACE, pluginActivationRepo: repo, discoverPlugins: async () => [discovered(manifest())] });
+    const [registration] = tools.buildRegistrations({ sources, deps: deps({ pluginActivationRepo: repo, authorize: async () => ({ allowed: true, reason: 'ok' }),
+      postRead: { readRequired: async ({ id }) => ({ id, body: '', ext: { meter: { count: 1, report: '{not json' } } }) } }), applyApprovalPolicy });
+    expect(await registration!.handler({ input: { postId: 'r9' }, principal: { id: 'p1' } } as never)).toEqual({
+      postId: 'r9', pluginId: 'meter', computedNow: false, fields: { count: 1, report: '{not json' },
+    });
+  });
+
+  it('a post with no ext bag, or a non-object plugin bag, reads as not yet written instead of throwing', async () => {
+    const { tools, applyApprovalPolicy } = secondHost();
+    const repo = await enabledRepo();
+    const sources = await tools.loadSources({ workspaceId: WORKSPACE, pluginActivationRepo: repo, discoverPlugins: async () => [discovered(manifest())] });
+    const posts: Record<string, SecondRecord> = {
+      bare: { id: 'bare', body: '' },
+      odd: { id: 'odd', body: '', ext: { meter: 'oops' as unknown as Record<string, string> } },
+    };
+    const [registration] = tools.buildRegistrations({ sources, deps: deps({ pluginActivationRepo: repo, authorize: async () => ({ allowed: true, reason: 'ok' }),
+      postRead: { readRequired: async ({ id }) => posts[id]! } }), applyApprovalPolicy });
+    for (const postId of ['bare', 'odd']) {
+      expect(await registration!.handler({ input: { postId }, principal: { id: 'p1' } } as never)).toEqual({
+        postId, pluginId: 'meter', computedNow: false, fields: { count: null, report: null }, note: '[nothing yet from Meter]',
+      });
+    }
+  });
+
+  it('attaches executable contribution tools to the dedicated registry, gated by activation and the executable permission', async () => {
+    const { tools, applyApprovalPolicy } = secondHost();
+    const repo = await enabledRepo();
+    await repo.save({ pluginId: 'exec-plug', workspaceId: WORKSPACE, version: '0.1.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' } as never);
+    const { contributions, seen } = executableContributions();
+    const registry = createToolRegistry({});
+    const executableRegistry = createToolRegistry({});
+    const checks: unknown[] = [];
+    const authorize: LegacyToolAuthorizeFn = async (req) => { checks.push(req); return { allowed: true, reason: 'ok' }; };
+    await tools.registerEnabled({
+      registry,
+      deps: { ...deps({ pluginActivationRepo: repo, authorize }), discoverPlugins: async () => [discovered(manifest())], pluginContributions: contributions, executablePluginToolRegistry: executableRegistry },
+      applyApprovalPolicy,
+    }, {});
+    expect(registry.has({ toolId: 'p_exec_plug__echo' })).toBe(false);
+    expect(executableRegistry.has({ toolId: 'p_exec_plug__echo' })).toBe(true);
+    const descriptor = executableRegistry.list({}).find((d) => d.id === 'p_exec_plug__echo')!;
+    // Host executable metadata reaches the descriptor: direct confirmation lifts the default confirm.
+    expect(descriptor.metadata).toEqual({ approval: { class: 'publish', confirmation: 'direct' } });
+    expect(descriptor.requiresConfirmation).toBe(false);
+    const call = { registry: executableRegistry, toolId: 'p_exec_plug__echo', principal: { id: 'p7' }, run: { id: 'r1' }, input: { a: 1 } } as never;
+    const granted = await authorizeToolInvocation(call);
+    expect(granted?.decision).toBe('allow');
+    expect(checks).toEqual([{ principalId: 'p7', permission: 'records.admin', workspaceId: WORKSPACE, entityType: 'extension', entityId: 'exec-plug' }]);
+    const handler = granted!.decision === 'allow' ? granted!.handler : undefined;
+    const ctx = { executionId: 'e1', principal: { id: 'p7' }, run: { id: 'r1' }, input: { a: 1 }, signal: new AbortController().signal } as never;
+    expect(await handler!(ctx)).toEqual({ echoed: { a: 1 } });
+    expect(seen).toEqual([{ access: 'admin', principalId: 'p7', workspaceId: WORKSPACE }]);
+    await repo.save({ pluginId: 'exec-plug', workspaceId: WORKSPACE, version: '0.1.0', enabled: false, updatedAt: '2026-11-09T00:00:01.000Z' } as never);
+    expect((await authorizeToolInvocation(call))?.decision).toBe('deny');
+  });
+
+  it('falls back to the capability registry when it can list, and attaches nothing to a register-only port', async () => {
+    const { tools, applyApprovalPolicy } = secondHost();
+    const repo = await enabledRepo();
+    await repo.save({ pluginId: 'exec-plug', workspaceId: WORKSPACE, version: '0.1.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' } as never);
+    const live = (contributions: ReturnType<typeof executableContributions>['contributions']) => ({
+      ...deps({ pluginActivationRepo: repo, authorize: async () => ({ allowed: true, reason: 'ok' }) }), discoverPlugins: async () => [discovered(manifest())], pluginContributions: contributions,
+    });
+    const registry = createToolRegistry({});
+    await tools.registerEnabled({ registry, deps: live(executableContributions().contributions), applyApprovalPolicy }, {});
+    expect(registry.has({ toolId: 'p_exec_plug__echo' })).toBe(true);
+    expect(registry.has({ toolId: 'plugin_capability_meter' })).toBe(true);
+    const registered: string[] = [];
+    await tools.registerEnabled({ registry: { register: (r: ToolRegistration) => { registered.push(r.descriptor.id); } }, deps: live(executableContributions().contributions), applyApprovalPolicy }, {});
+    expect(registered).toEqual(['plugin_capability_meter']);
   });
 });
