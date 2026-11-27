@@ -63,6 +63,15 @@ test("a backstop-capable grant still refuses an entity type it did not enumerate
   }, {}), false);
 });
 
+test("a raw-file grant requires both apply and backstop authority for the enumerated type", () => {
+  const entityType = "raw-file";
+  const entityTypes = ["raw-row", "raw-file"];
+  assert.equal(backstopGrantAllows({ grant: null, entityType }), false);
+  assert.equal(backstopGrantAllows({ grant: { capabilities: ["publish_content.backstop"], entityTypes }, entityType }), false);
+  assert.equal(backstopGrantAllows({ grant: { capabilities: ["publish_content.apply"], entityTypes }, entityType }), false);
+  assert.equal(backstopGrantAllows({ grant: { capabilities: ["publish_content.apply", "publish_content.backstop"], entityTypes }, entityType }), true);
+});
+
 test("a public key generation must be a non-negative integer", () => {
   for (const generation of [undefined, null, "1", -1, 0.5, NaN, Infinity]) {
     assert.deepEqual(parsePublishTrustGrant({ raw: validGrantDoc({ publicKeys: [{ publicKeyB64u: "AAAA", generation }] }) }), {

@@ -64,3 +64,65 @@ test("an unreadable store makes list return ok:false, never an empty ok:true", a
     expect(await new SqlPublishTrustRevocationStore({ kernel: base }).list()).toMatchObject({ ok: false, reason: expect.stringContaining("could not be read") });
   } finally { await base.close(); }
 });
+
+test("revoke is idempotent without replacing the original reason, and restoring an absent computer changes nothing", async () => {
+  const kernel = sqliteKernel<PublishTrustRevocationDatabase>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE publish_trust_revocations (source_installation_id TEXT PRIMARY KEY, revoked_at TEXT NOT NULL, note TEXT)`);
+    const store = await publishTrustRevocationStoreFor({ kernel });
+    const first = { sourceInstallationId: "retired-source", revokedAt: "2026-11-25T00:00:00Z", note: "Computer replaced" };
+    expect(await store.revoke({ sourceInstallationId: first.sourceInstallationId, nowIso: first.revokedAt, note: first.note })).toEqual({
+      ok: true, changed: true, revocations: [first],
+    });
+    expect(await store.revoke({ sourceInstallationId: first.sourceInstallationId, nowIso: "2026-11-26T00:00:00Z", note: "Other reason" })).toEqual({
+      ok: true, changed: false, revocations: [first],
+    });
+    expect(await store.restore({ sourceInstallationId: "different-source" })).toEqual({ ok: true, changed: false, revocations: [first] });
+    expect(await store.list()).toEqual({ ok: true, revocations: [first] });
+  } finally {
+    await kernel.close();
+  }
+});
+
+test("rejects reads and both mutations when an old database already holds too many records", async () => {
+  const kernel = sqliteKernel<PublishTrustRevocationDatabase>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE publish_trust_revocations (source_installation_id TEXT PRIMARY KEY, revoked_at TEXT NOT NULL, note TEXT)`);
+    const rows = Array.from({ length: MAX_REVOCATIONS + 1 }, (_, i) => ({
+      source_installation_id: `source-${i}`, revoked_at: "2026-11-25T00:00:00Z", note: null,
+    }));
+    await kernel.run(db => db.insertInto("publish_trust_revocations").values(rows).execute());
+    const store = new SqlPublishTrustRevocationStore({ kernel });
+    const refusal = { ok: false, reason: `revocation list holds more than ${MAX_REVOCATIONS} records` };
+    expect(await store.list()).toEqual(refusal);
+    expect(await store.revoke({ sourceInstallationId: "extra", nowIso: "2026-11-26T00:00:00Z" })).toEqual(refusal);
+    expect(await store.restore({ sourceInstallationId: "source-0" })).toEqual(refusal);
+    expect(await kernel.run(db => db.selectFrom("publish_trust_revocations").selectAll().orderBy("source_installation_id").execute()))
+      .toEqual([...rows].sort((a, b) => a.source_installation_id < b.source_installation_id ? -1 : 1));
+  } finally {
+    await kernel.close();
+  }
+});
+
+test("returns a write refusal when the database rejects insert or delete without changing admission records", async () => {
+  const kernel = sqliteKernel<PublishTrustRevocationDatabase>({ source: new Database(":memory:") });
+  try {
+    await kernel.execute(sql`CREATE TABLE publish_trust_revocations (source_installation_id TEXT PRIMARY KEY, revoked_at TEXT NOT NULL, note TEXT)`);
+    const store = new SqlPublishTrustRevocationStore({ kernel });
+    const nowIso = "2026-11-25T00:00:00Z";
+    expect(await store.revoke({ sourceInstallationId: "kept", nowIso })).toEqual({
+      ok: true, changed: true, revocations: [{ sourceInstallationId: "kept", revokedAt: nowIso, note: null }],
+    });
+    await kernel.execute(sql`CREATE TRIGGER deny_insert BEFORE INSERT ON publish_trust_revocations BEGIN SELECT RAISE(ABORT, 'insert refused'); END`);
+    await kernel.execute(sql`CREATE TRIGGER deny_delete BEFORE DELETE ON publish_trust_revocations BEGIN SELECT RAISE(ABORT, 'delete refused'); END`);
+    expect(await store.revoke({ sourceInstallationId: "missing", nowIso })).toEqual({
+      ok: false, reason: "the disconnected-computer list could not be updated: insert refused",
+    });
+    expect(await store.restore({ sourceInstallationId: "kept" })).toEqual({
+      ok: false, reason: "the disconnected-computer list could not be updated: delete refused",
+    });
+    expect(await store.list()).toEqual({ ok: true, revocations: [{ sourceInstallationId: "kept", revokedAt: nowIso, note: null }] });
+  } finally {
+    await kernel.close();
+  }
+});

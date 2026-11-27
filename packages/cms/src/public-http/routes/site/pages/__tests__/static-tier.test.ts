@@ -1,6 +1,6 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { DEFAULT_THEME_SLOTS } from '../../../../../themes/theme-slots.js';
-import { serveStaticThemeIndex, finishStaticTierDocument } from '../static-tier.js';
+import { serveStaticThemeIndex, finishStaticTierDocument, staticThemeScripts } from '../static-tier.js';
 
 it('substitutes bodies before assigning listing keys and keeps menus, previews, collections, render and head in order', async () => {
   const order: string[] = [];
@@ -31,4 +31,34 @@ it('keeps authored title only for an undefined successful lookup and sequences f
     expect(order).toEqual(['title', 'finish', 'chat', 'visitor', 'send']);
     expect(sent).toContain(rejected ? '<title>Fold</title>' : '<title>Authored</title>');
   }
+});
+
+it('reuses resolved menus and does not look up previews without a visitor context', async () => {
+  const html = `<nav data-embed-config='{"type":"menu","id":"header"}'></nav>`;
+  const staticMenus = { header: ['existing header menu'] };
+  const resolveStaticMenusForRender = vi.fn(async () => ({ header: ['unexpected replacement'] }));
+  const resolvePostPreviewsForRender = vi.fn(async () => undefined);
+  const collectionLists = new Map([['books', '<ul><li>Dune</li></ul>']]);
+  const renderStaticPage = vi.fn(({ htmlOverride }: { htmlOverride: string }) => htmlOverride);
+  const staticScripts = vi.fn(() => []);
+  const rendered = await finishStaticTierDocument({ input: { pageId: 'pricing', html, currentPath: '/pricing', staticMenus }, deps: {
+    DEFAULT_THEME_SLOTS, expandPartials: ({ html }) => html,
+    resolveHtmlPageEmbeds: async () => undefined, renderHtmlPageBody: ({ html }) => html,
+    resolveStaticMenusForRender, resolvePostPreviewsForRender, resolveCollectionListsForRender: async () => collectionLists,
+    renderStaticPage, staticThemeScripts: staticScripts, documentAssets: undefined,
+  } });
+  expect(rendered).toBe(html);
+  expect(resolveStaticMenusForRender).not.toHaveBeenCalled();
+  expect(resolvePostPreviewsForRender).not.toHaveBeenCalled();
+  expect(staticScripts).not.toHaveBeenCalled();
+  expect(renderStaticPage).toHaveBeenCalledExactlyOnceWith({
+    pageId: 'pricing', htmlOverride: html, menus: staticMenus, collectionLists,
+    postPreviews: undefined, postPreviewBatches: undefined, postPreviewsPage: undefined, featuredImage: undefined, postAuthor: undefined,
+  });
+});
+
+it('returns authored static scripts without inventing any for a theme without scripts', () => {
+  const scripts = [{ src: '/assets/pricing.js' }];
+  expect(staticThemeScripts({ theme: { manifest: { scripts } } })).toEqual([{ src: '/assets/pricing.js' }]);
+  expect(staticThemeScripts({ theme: { manifest: {} } })).toEqual([]);
 });

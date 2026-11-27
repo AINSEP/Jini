@@ -56,3 +56,24 @@ it('reports a missing numbered page after visibility filtering', async () => {
   }, pageHtml: `<div data-embed-config='{"type":"post-previews","paged":true}'></div>`, pagePath: '/blog' })).rejects.toBeInstanceOf(ListingBatchNotFoundError);
   expect(media).not.toHaveBeenCalled();
 });
+
+it('renders the second visible page with both navigation links and only that page’s cover inputs', async () => {
+  const posts: PublicPostRecord[] = ['one', 'private', 'two', 'three'].map(slug => ({
+    id: slug, slug, title: slug, workspaceId: 'w', kind: 'post', bodyFormat: 'html', bodyJson: {},
+    bodyHtml: '<p>Body</p>', status: 'published', updatedAt: '2026-01-02T00:00:00Z', version: 1,
+  }));
+  const media = vi.fn(async () => new Map());
+  const result = await resolvePostPreviewsForRender({ deps: {
+    workspaceId: 'w', listingPage: 2, listingBatch: undefined, deriveExcerpt,
+    listPublishedPostPreviews: async ({ offset, limit }) => ({ posts: posts.slice(offset, offset + limit) }),
+    decidePostMemberAccess: ({ post }) => ({ allowed: post.id !== 'private' }),
+    postPreviewsBatchSize: () => 1, isPagedPostPreviewsMarker: marker => marker.config.paged === true,
+    resolveMediaAssetMetadataForRender: media, resolveMediaTransformVersionsForRender: async () => new Map(),
+    siteTimeZoneDep: () => ({}), postPublicPath: ({ slug }) => '/' + slug, featuredImageView,
+    resolveAssignedTermsForRender: async () => [], listingState: createListingRequestState({}),
+  }, pageHtml: `<div data-embed-config='{"type":"post-previews","paged":true}'></div>`, pagePath: '/news' });
+  expect(result?.previews).toEqual([]);
+  expect(result?.page?.items.map(({ href }) => href)).toEqual(['/two']);
+  expect(result?.page?.nav).toBe('<nav class="jini-pagination" aria-label="Pagination"><a class="jini-pagination-prev" rel="prev" href="/news">Newer posts</a> <span class="jini-pagination-status">Page 2 of 3</span> <a class="jini-pagination-next" rel="next" href="/news/page/3">Older posts</a></nav>');
+  expect(media).toHaveBeenCalledExactlyOnceWith({ post: undefined }, { listed: [posts[2]] });
+});

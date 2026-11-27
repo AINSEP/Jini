@@ -90,3 +90,27 @@ describe("resolveCollectionListsForRender", () => {
     expect(html).toContain("Dune");
   });
 });
+
+it.each([
+  { requestedKey: 4, requestedOffset: 1, title: 'Foundation', next: 2 },
+  { requestedKey: 7, requestedOffset: 0, title: 'Dune', next: 1 },
+])('reads a bounded see-more batch for marker 4 when request key is $requestedKey', async ({ requestedKey, requestedOffset, title, next }) => {
+  const books = [row, { ...row, id: 'e2', slug: 'foundation', title: 'Foundation' },
+    { ...row, id: 'e3', slug: 'kindred', title: 'Kindred' }];
+  const listPublishedForDisplay = vi.fn<CollectionListsRenderDeps['entryRepo']['listPublishedForDisplay']>(
+    async ({ query }) => books.slice(query.offset ?? 0, (query.offset ?? 0) + query.limit),
+  );
+  const pagePath = '/library';
+  const config = '{"type":"collection","id":"books","limit":1}';
+  const html = `<div data-jini-listing="4" data-embed-config='${config}'>fallback</div>`;
+  const map = await resolveCollectionListsForRender({ html, pagePath,
+    deps: { ...deps(contentType), entryRepo: { listPublishedForDisplay }, listingBatch: { pagePath, key: requestedKey, after: 1 } },
+  });
+  expect(listPublishedForDisplay).toHaveBeenCalledExactlyOnceWith({
+    workspaceId: 'w1', query: { type: 'books', where: [], sort: { by: 'published', dir: 'desc' }, offset: requestedOffset, limit: 2 },
+  });
+  const markup = map.get('listing:4:' + config);
+  expect(markup).toContain(title);
+  expect(markup).not.toContain(title === 'Dune' ? 'Foundation' : 'Kindred');
+  expect(markup).toContain(`data-jini-more-href="/library/_more/4/${next}"`);
+});

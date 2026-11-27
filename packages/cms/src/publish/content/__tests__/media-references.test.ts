@@ -143,6 +143,11 @@ test("a gallery marker with no images array contributes nothing and does not thr
   assert.deepEqual([...collectReferencedMediaKeys({ state: { bodyHtml: `<div data-embed-config='{"type":"gallery","layout":"grid"}'></div>` } })], []);
 });
 
+test("a targetless widget marker does not require a saved widget lookup", () => {
+  const bodyHtml = `<div data-embed-config='{"type":"widget","id":"","slug":7}'></div>`;
+  assert.deepEqual(collectPlacedWidgetMediaKeys({ bodyHtml }), { keys: new Set(), readable: true });
+});
+
 test("collectMediaUrlKeys finds every /m/ and /media/ URL key in free text, decoded", () => {
   const keys = collectMediaUrlKeys({ text: 'See https://site.example/m/hero%20shot/w800.webp and /media/logo/original.png' });
   assert.deepEqual([...keys].sort(), ["hero shot", "logo"]);

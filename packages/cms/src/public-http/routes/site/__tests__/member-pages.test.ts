@@ -37,3 +37,22 @@ it("keeps the member script DOM contract and accessibility while binding paths, 
   expect(pages['/profile']?.body).toContain('href="/login#proof"');
   expect(pages['/profile']?.body).toContain('data-member-identity-list');
 });
+
+it("renders the public sign-in virtual page without asking for a member session", async () => {
+  const markPrivate = vi.fn();
+  const hasLiveSession = vi.fn(async () => false);
+  const send = vi.fn(async () => {});
+  const redirect = vi.fn();
+  await serveMemberPage({
+    path: '/signin/',
+    deps: { workspaceId: 'workspace-member', pages: { '/signin': { id: 'signin-7', title: 'Sign in', body: '<form>Sign in</form>' } },
+      accountPath: '/account', signInLocation: '/signin', markPrivate, hasLiveSession },
+    missing: vi.fn(), redirect, send, reportFault: vi.fn(), sendFault: vi.fn(),
+  });
+  expect(send).toHaveBeenCalledExactlyOnceWith({ id: 'signin-7', workspaceId: 'workspace-member', slug: 'signin', title: 'Sign in',
+    bodyJson: {}, kind: 'page', status: 'published', bodyFormat: 'html', bodyHtml: '<form>Sign in</form>',
+    updatedAt: '1970-01-01T00:00:00.000Z', version: 1, templateChoice: null });
+  expect(markPrivate).not.toHaveBeenCalled();
+  expect(hasLiveSession).not.toHaveBeenCalled();
+  expect(redirect).not.toHaveBeenCalled();
+});

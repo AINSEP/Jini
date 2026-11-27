@@ -1,7 +1,8 @@
+import { BackstopRefusal } from "../backstop-refusal.js";
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
-import { createFileBlobIndex } from "../../transfer/index.js";
+import { createFileBlobIndex, PublishContentApplyRowError } from "../../transfer/index.js";
 import type { PackedEntity, RawFileInverse, RawFilePort } from "../../transfer/index.js";
 import { normalizeMode } from "../file-tree-policy.js";
 import { createRawFileContributor } from "../raw-file-contributor.js";
@@ -112,4 +113,68 @@ describe("createRawFileContributor", () => {
     f.files.store.set("a.txt", Buffer.from("edited"));
     expect(await f.bound.undoRawFile({ deps: f.deps, entity, before: inverse.before, afterHash: inverse.afterHash })).toBe("File 'a.txt' changed on live after this send; it was left alone.");
   });
+});
+
+it("skips a typed file-read refusal but propagates unexpected storage failure", async () => {
+  const f = setup(allow, { "keep.txt": "ok" }, ["skip.txt", "keep.txt"]);
+  const read = f.files.port.read;
+  f.files.port.read = async required => {
+    if (required.relPath === "skip.txt") throw new BackstopRefusal({ message: "Only regular files can be sent." });
+    return read(required);
+  };
+  expect((await f.pack()).map(entity => entity.id)).toEqual(["keep.txt"]);
+  expect(await f.handler.listSkipped?.()).toEqual([{ entityType: "raw-file", id: "skip.txt", label: "skip.txt", reason: "Only regular files can be sent." }]);
+  const fault = new Error("source volume unavailable");
+  f.files.port.read = async () => { throw fault; };
+  await expect(f.pack()).rejects.toBe(fault);
+});
+
+it("does not index a file whose bytes fail the injected scan", async () => {
+  const f = setup({ ...allow, policy: { ...allow.policy, checkRawValues: ({ values }) => values["note.txt"] === "deny" ? "This file cannot be sent." : null } },
+    { "note.txt": "deny" }, ["note.txt"]);
+  expect(await f.pack()).toEqual([]);
+  expect(await f.handler.listSkipped?.()).toEqual([{ entityType: "raw-file", id: "note.txt", label: "note.txt", reason: "This file cannot be sent." }]);
+  expect(f.deps.backstop?.fileBlobIndex?.get({ sha256: sha(Buffer.from("deny")) })).toBeUndefined();
+});
+
+it.each(["typed refusal", "unexpected error"] as const)("handles a library check %s at precheck without reading the blob", async mode => {
+  const fault = new Error("media ownership check unavailable");
+  const isLibraryOnlyBlob = vi.fn<RawFileContributorConfig<Ports>["isLibraryOnlyBlob"]>(async () => {
+    if (mode === "unexpected error") throw fault;
+    return true;
+  });
+  const f = setup({ ...allow, isLibraryOnlyBlob }, { "note.txt": "text" }, ["note.txt"]);
+  const [entity] = await f.pack();
+  if (mode === "typed refusal") {
+    expect(await f.handler.precheck({ entity: entity! })).toBe("Library documents cannot be published");
+    await expect(f.handler.apply({ entity: entity!, expectedVersion: undefined, principalId: "u", idempotencyKey: "test" }))
+      .rejects.toThrow(new PublishContentApplyRowError({ rowOutcome: "blocked", message: "Library documents cannot be published" }));
+  } else {
+    await expect(f.handler.precheck({ entity: entity! })).rejects.toBe(fault);
+  }
+  expect(isLibraryOnlyBlob.mock.calls[0]?.[0]).toMatchObject({ workspaceId: "ws", sha256: sha(Buffer.from("text")) });
+});
+
+it("executes registered compensation but refuses to undo a newer edit", async () => {
+  const f = setup(allow, { "note.txt": "old" }, ["note.txt"]);
+  const source = setup(allow, { "note.txt": "new" }, ["note.txt"]);
+  const [entity] = await source.pack();
+  const blobs = f.deps.backstop!.blobs!;
+  const bytes = Buffer.from("new");
+  const storageKey = allow.blobStorageKey({ workspaceId: "ws", sha256: sha(bytes) });
+  blobs.exists = async input => input.storageKey === storageKey;
+  blobs.get = async input => {
+    if (input.storageKey !== storageKey) throw new Error("unexpected blob address");
+    return bytes;
+  };
+  const live = await f.handler.inspect({ id: "note.txt" });
+  await f.handler.apply({ entity: entity!, expectedVersion: live!.version, principalId: "u", idempotencyKey: "rollback" });
+  const [rollback] = f.deps.backstop!.fileRollbacks!;
+  expect(f.files.store.get("note.txt")?.toString()).toBe("new");
+  f.files.store.set("note.txt", Buffer.from("edited"));
+  await expect(rollback!()).rejects.toThrow("File 'note.txt' changed on live after this send; it was left alone.");
+  expect(f.files.store.get("note.txt")?.toString()).toBe("edited");
+  f.files.store.set("note.txt", bytes);
+  await rollback!();
+  expect(f.files.store.get("note.txt")?.toString()).toBe("old");
 });

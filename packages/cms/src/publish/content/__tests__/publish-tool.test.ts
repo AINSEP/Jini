@@ -17,7 +17,7 @@ function row(entityType: string, entityId: string, outcome: PublishContentOutcom
 }
 const report = (...rows: PublishContentOutcomeRow[]): PublishContentReport => ({ refused: false, rows } as unknown as PublishContentReport);
 
-interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; omitReport?: boolean; extraItemNames?: Record<string, string[]>; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean }
+interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; omitReport?: boolean; extraItemNames?: Record<string, string[]>; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean; failConfirmation?: { cause: unknown } }
 function setup(options: Setup = {}) {
   const calls = { plan: [] as unknown[], confirm: [] as unknown[], execute: [] as unknown[], credential: [] as unknown[] };
   const rows = options.planRows ?? [row("page", "a"), row("page", "b")];
@@ -48,7 +48,10 @@ function setup(options: Setup = {}) {
       toPublishReportRows: (required, optional) => toPublishReportRows({ ...required, policy: TEST_POLICY }, optional),
       applyPublishCriteria: required => applyPublishCriteria({ ...required, typeAliases: { pages: "page" } }),
       parsePublishContentToolInput: required => parsePublishContentToolInput({ ...required, capabilityId: CAPABILITY }),
-      preparePublishConfirmation: required => preparePublishConfirmation({ ...required, driftMessage: "drifted" }),
+      preparePublishConfirmation: required => {
+        if (options.failConfirmation) throw options.failConfirmation.cause;
+        return preparePublishConfirmation({ ...required, driftMessage: "drifted" });
+      },
     },
     criteriaCapabilityId: CAPABILITY,
   };
@@ -159,4 +162,24 @@ describe("publishContentFromTool", () => {
     await expect(t.run({ overwrite: true })).rejects.toThrow("The live site cannot overwrite content yet. Update it before trying again.");
     expect(t.calls.execute).toEqual([]);
   });
+});
+
+it("refuses a replan that did not actually turn the selected conflict into a forced write", async () => {
+  const t = setup({ planRows: [row("page", "a", "conflict", { canOverwrite: true, reason: "Edited on live." })] });
+  await expect(t.run({ overwrite: true })).rejects.toThrow(new ToolInputError({
+    message: "The live site changed while publishing was being planned. Check the list again.",
+  }));
+  expect(t.calls.plan.at(-1)).toEqual({ overwriteEntityKeys: ["page:a"] });
+  expect(t.calls.confirm).toEqual([]);
+  expect(t.calls.execute).toEqual([]);
+});
+
+it.each([
+  { cause: new Error("the selected rows changed"), expected: "the selected rows changed" },
+  { cause: "unexpected refusal", expected: "Could not plan this publish." },
+])("converts confirmation failures to actionable tool input errors ($expected)", async ({ cause, expected }) => {
+  const t = setup({ failConfirmation: { cause } });
+  await expect(t.run()).rejects.toThrow(new ToolInputError({ message: expected }));
+  expect(t.calls.confirm).toEqual([]);
+  expect(t.calls.execute).toEqual([]);
 });

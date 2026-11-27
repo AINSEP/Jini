@@ -30,3 +30,10 @@ describe("describePublishReadiness", () => {
     expect(describePublishReadiness(base)).toEqual({ ready: false, verdict: "no-live-site", summary: "S-none", missing: "M-none", nextStep: "N-none" });
   });
 });
+
+it("uses the configured label verbatim if the candidate address cannot be parsed", () => {
+  expect(describePublishReadiness({ ...base, candidateUrl: "Example remote site" })).toEqual({
+    ready: false, verdict: "not-connected", summary: "S-nc Example remote site",
+    missing: "M-nc Example remote site", nextStep: "N-nc Example remote site",
+  });
+});

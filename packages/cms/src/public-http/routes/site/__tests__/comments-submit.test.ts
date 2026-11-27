@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createCommentSubmitHandler } from "../../../../comments/express/index.js";
 import type { CommentSubmission } from "../../../../comments/types.js";
-import { commentFormReturnTo, commentProviderIngress, isSameOriginCommentPost } from "../comments-submit.js";
+import { commentFormReturnTo, commentProviderIngress, isSameOriginCommentPost, registerCommentsSubmitRoute } from "../comments-submit.js";
 
 const SERVING = "https://www.example.test";
 const CONFIGURED = "https://public.example.test";
@@ -106,7 +106,6 @@ describe("commentProviderIngress", () => {
 });
 
 it('refuses foreign-origin requests before enumerating the comment provider', async () => {
-  const { registerCommentsSubmitRoute } = await import('../comments-submit.js');
   const active = vi.fn();
   let submit!: import('express').RequestHandler;
   const app = { post: (_path: string, _parser: unknown, handler: import('express').RequestHandler) => { submit = handler; } } as unknown as import('express').Express;
@@ -118,4 +117,115 @@ it('refuses foreign-origin requests before enumerating the comment provider', as
   await submit({} as import('express').Request, response, vi.fn());
   expect(response.status).toHaveBeenCalledWith(403);
   expect(active).not.toHaveBeenCalled();
+});
+
+type RouteDeps = Parameters<typeof registerCommentsSubmitRoute>[0]['deps'];
+
+function submitRouteFixture() {
+  const ingress = vi.fn<RouteDeps['ingressPolicy']['submit']>(async () => ({
+    ok: true, comment: { id: 'comment-7', status: 'pending' },
+  }));
+  const onAccepted = vi.fn<RouteDeps['onAccepted']>();
+  const formParser: RouteDeps['formParser'] = (_req, _res, next) => next();
+  const mount = vi.fn<(path: string, parser: RouteDeps['formParser'], handler: RouteDeps['formParser']) => void>();
+  const app = { post: mount } as unknown as Parameters<typeof registerCommentsSubmitRoute>[0]['app'];
+  const deps: RouteDeps = {
+    createCommentSubmitHandler, ingressPolicy: { submit: ingress }, workspaceId: 'site-west',
+    rateLimiter: { check: async () => ({ allowed: true }) }, ipHashSalt: Promise.resolve('fixture-salt'),
+    clientIp: () => '192.0.2.71', onAccepted, isSameOriginCommentPost: () => true, formParser,
+  };
+  function register(overrides: Partial<RouteDeps> = {}) {
+    registerCommentsSubmitRoute({ app, deps: { ...deps, ...overrides } });
+    const [path, parser, handler] = mount.mock.calls[0]!;
+    expect(path).toBe('/api/site/comments');
+    expect(parser).toBe(formParser);
+    return handler;
+  }
+  return { app, deps, onAccepted, ingress, mount, register };
+}
+
+const commentBody = { entryId: 'entry-3', authorName: 'Reader', body: 'Thanks for the article',
+  returnTo: '/articles/archive?page=2#old-anchor' };
+
+it.each([
+  ['application/x-www-form-urlencoded', null, [303, '/articles/archive?page=2#comment-pending']],
+  ['application/json', [201, { id: 'comment-7', status: 'pending' }], null],
+] as const)('uses the configured ingress and the correct reply protocol for %s', async (contentType, jsonReply, formReply) => {
+  const { register, ingress } = submitRouteFixture();
+  const submit = register();
+  const request = {
+    body: commentBody,
+    is: (type: string) => type === contentType ? type : false,
+  } as unknown as import('express').Request;
+  const redirect = vi.fn();
+  const json = vi.fn();
+  const status = vi.fn(() => ({ json }));
+  const next = vi.fn();
+  await submit(request, { status, redirect } as unknown as import('express').Response, next);
+  expect(next).not.toHaveBeenCalled();
+  expect(ingress).toHaveBeenCalledExactlyOnceWith({
+    workspaceId: 'site-west', entryId: 'entry-3', parentId: null,
+    authorName: 'Reader', authorEmail: null, authorUrl: null, bodyRaw: 'Thanks for the article',
+    authorPrincipalId: null, ingressContext: { authorIpHash: 'f184921e1f8934bc806c1cfb3cd5bd955263adfdbfab5350c7905cc21ddc5209', honeypotValue: '' },
+  });
+  expect(redirect.mock.calls).toEqual(formReply ? [formReply] : []);
+  expect(status.mock.calls).toEqual(jsonReply ? [[jsonReply[0]]] : []);
+  expect(json.mock.calls).toEqual(jsonReply ? [[jsonReply[1]]] : []);
+});
+
+it('dispatches a submitted comment to the active provider instead of the fallback ingress', async () => {
+  const { register, ingress, onAccepted } = submitRouteFixture();
+  const storedSubmit = vi.fn<Extract<CommentsProviderAdapter, { kind: 'stored' }>['submission']['submit']>(
+    async () => ({ ok: true, id: 'stored-5', status: 'pending' }),
+  );
+  const adapter: CommentsProviderAdapter = { kind: 'stored', renderer: {} as never, moderation: {} as never,
+    submission: { submit: storedSubmit } };
+  const active = vi.fn(async () => ({ providerId: 'native', revision: 2, adapter }));
+  const handler = register({ providers: { active } as unknown as CommentsProviderRegistry });
+  const request = { body: commentBody, is: () => false } as unknown as import('express').Request;
+  const json = vi.fn();
+  const status = vi.fn(() => ({ json }));
+  await handler(request, { status } as unknown as import('express').Response, vi.fn());
+  expect(active).toHaveBeenCalledExactlyOnceWith({ siteId: 'site-west' });
+  expect(ingress).not.toHaveBeenCalled();
+  expect(storedSubmit).toHaveBeenCalledExactlyOnceWith({
+    siteId: 'site-west', entryId: 'entry-3', parentId: null, authorName: 'Reader', authorEmail: null, authorUrl: null,
+    bodyRaw: 'Thanks for the article', authorIpHash: 'f184921e1f8934bc806c1cfb3cd5bd955263adfdbfab5350c7905cc21ddc5209', honeypotValue: '',
+  });
+  expect(status).toHaveBeenCalledExactlyOnceWith(201);
+  expect(json).toHaveBeenCalledExactlyOnceWith({ id: 'stored-5', status: 'pending' });
+  expect(onAccepted).toHaveBeenCalledExactlyOnceWith({
+    request, submission: { workspaceId: 'site-west', entryId: 'entry-3', parentId: null, authorName: 'Reader', authorEmail: null,
+      authorUrl: null, bodyRaw: 'Thanks for the article', authorPrincipalId: null,
+      ingressContext: { authorIpHash: 'f184921e1f8934bc806c1cfb3cd5bd955263adfdbfab5350c7905cc21ddc5209', honeypotValue: '' } },
+    comment: { id: 'stored-5', status: 'pending' },
+  });
+});
+
+it('rejects a missing salt promise before mounting the POST', () => {
+  const { app, deps, mount } = submitRouteFixture();
+  expect(() => registerCommentsSubmitRoute({ app, deps: { ...deps, ipHashSalt: undefined as unknown as Promise<string> } }))
+    .toThrow(new TypeError('registerCommentsSubmitRoute requires deps.ipHashSalt (a Promise<string> from resolveCommentsIpHashSalt at the composition root)'));
+  expect(mount).not.toHaveBeenCalled();
+});
+
+it('forwards handler preparation failure to Express without writing a response', async () => {
+  const { register, ingress } = submitRouteFixture();
+  const error = new TypeError('comment handler could not be built');
+  const create = vi.fn<RouteDeps['createCommentSubmitHandler']>(() => { throw error; });
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const handler = register({ createCommentSubmitHandler: create });
+    const next = vi.fn();
+    const status = vi.fn();
+    const redirect = vi.fn();
+    await handler({} as import('express').Request, { status, redirect } as unknown as import('express').Response, next);
+    expect(create).toHaveBeenCalledOnce();
+    expect(next).toHaveBeenCalledExactlyOnceWith(error);
+    expect(status).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(ingress).not.toHaveBeenCalled();
+  } finally {
+    log.mockRestore();
+  }
 });

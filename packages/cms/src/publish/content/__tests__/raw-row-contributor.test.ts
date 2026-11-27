@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { BackstopRefusal } from "../backstop-refusal.js";
+import { PublishContentApplyRowError } from "../../transfer/index.js";
+import { contentHash } from "../content-hash.js";
+import { describe, expect, it, vi } from "vitest";
 import type { MutationActor } from "@jini-ai/core/contracts/events";
 import { MissingMutationActorError } from "../../../core/mutation-actor.js";
 import { InMemoryChangeSetRepo } from "../../../core/commands/repo.memory.js";
@@ -118,4 +121,59 @@ describe("createRawRowContributor", () => {
     expect(reason).toBe("Table 'Covered' already publishes normally; use Overwrite live in normal publishing.");
     expect(asked).toBe(0);
   });
+});
+
+it.each([
+  { title: 1.25, expected: null, name: "finite real" },
+  { title: Number.POSITIVE_INFINITY, expected: "The raw row must contain a valid value for every column.", name: "infinite value" },
+  { title: Number.MAX_SAFE_INTEGER + 1, expected: "The raw row must contain a valid value for every column.", name: "unsafe integer" },
+  { title: { blobBase64: "YQ==" }, expected: null, name: "valid base64 BLOB" },
+  { title: { blobBase64: "YQ==" , extra: "bad" }, expected: "The raw row must contain a valid value for every column.", name: "BLOB with extra fields" },
+  { title: { blobBase64: "%%%=" }, expected: "The raw row must contain a valid value for every column.", name: "invalid base64 BLOB" },
+])("validates a $name against the live row contract", async ({ title, expected }) => {
+  const f = setup(allow, { a: "old" }, ["a"]);
+  const [packed] = await f.pack();
+  const state = { ...packed!.state, values: { id: "a", title } };
+  // Non-finite numbers cannot be hashed as JSON identities. This case must fail before the hash read.
+  const incoming = { ...packed!, state, contentHash: Number.isFinite(title) || typeof title !== "number"
+    ? contentHash({ entityType: "raw-row", state }) : packed!.contentHash };
+  expect(await f.handler.precheck({ entity: incoming })).toBe(expected);
+  expect(f.rows.store.get("a")).toBe("old");
+});
+
+it("preserves specific policy refusals from row reads but propagates other failures", async () => {
+  const f = setup(allow, { a: "old" }, ["a"]);
+  const [entity] = await f.pack();
+  const refusal = new BackstopRefusal({ message: "The table is currently restricted." });
+  const fault = new Error("storage driver disappeared");
+  f.rows.port.columns = vi.fn<RawRowPort["columns"]>().mockRejectedValueOnce(refusal).mockRejectedValueOnce(fault);
+  expect(await f.handler.precheck({ entity: entity! })).toBe("The table is currently restricted.");
+  await expect(f.handler.precheck({ entity: entity! })).rejects.toBe(fault);
+  f.rows.port.read = vi.fn<RawRowPort["read"]>().mockRejectedValueOnce(refusal).mockRejectedValueOnce(fault);
+  expect(await f.pack()).toEqual([]);
+  expect(await f.handler.listSkipped?.()).toEqual([{ entityType: "raw-row", id: entity!.id, label: entity!.id,
+    reason: "The table is currently restricted." }]);
+  await expect(f.pack()).rejects.toBe(fault);
+});
+
+it("refuses a row changed after checking and never overwrites the newer live value", async () => {
+  const f = setup(allow, { a: "old" }, ["a"]);
+  const [entity] = await f.pack();
+  const checked = await f.handler.inspect({ id: entity!.id });
+  f.rows.store.set("a", "newer live edit");
+  await expect(f.handler.apply({ entity: entity!, expectedVersion: checked!.version, principalId: "u", idempotencyKey: "stale" }))
+    .rejects.toThrow(new PublishContentApplyRowError({ rowOutcome: "conflict", message: "This row changed on live after it was checked." }));
+  expect(f.rows.store.get("a")).toBe("newer live edit");
+  expect(f.deps.backstop?.inverses).toEqual([]);
+});
+
+it("undoing a newly created row removes only that key", async () => {
+  const source = setup(allow, { a: "incoming" }, ["a"]);
+  const [entity] = await source.pack();
+  const destination = setup(allow, { b: "keep me" }, []);
+  expect(destination.rows.store.has("a")).toBe(false);
+  await destination.handler.apply({ entity: entity!, expectedVersion: undefined, principalId: "u", idempotencyKey: "new-row" });
+  expect(destination.rows.store.get("a")).toBe("incoming");
+  expect(await destination.bound.undoRawRow({ deps: destination.deps, entity: entity!, before: null, afterHash: entity!.contentHash })).toBeNull();
+  expect([...destination.rows.store]).toEqual([["b", "keep me"]]);
 });

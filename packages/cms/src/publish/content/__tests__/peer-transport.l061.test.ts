@@ -20,7 +20,7 @@ const host: PeerTransportHost = {
   productName: "Example",
   history: { kind: "example-peer" },
 };
-const { callPeer, pullBlobsFromPeer, pushBundleToPeer } = createPeerTransport({ host });
+const { callPeer, pullBlobsFromPeer, pushBundleToPeer, executePeerImport, pullBundleFromPeer } = createPeerTransport({ host });
 
 const credential: PeerTransportCredential = { id: "peer", label: "Live", baseUrl: "https://live.example", remoteWorkspaceId: "remote", apiKey: ["fixture", "credential"].join("-") };
 
@@ -334,4 +334,91 @@ test("security cleanup pins peer code, legacy sentinel and HTTP fallback precede
       message: `the peer refused GET /route with HTTP ${status}${guidance ? `. ${guidance}` : ""}`,
     });
   }
+});
+
+const peerWireBase = "https://live.example/api/admin/v1/workspaces/remote/publish-content";
+const testEntity = (entityType: string, id: string, requiredBlobs: string[] = []) =>
+  ({ entityType, id, requiredBlobs, schemaVersion: 1, hashVersion: 1, contentHash: "hash-" + id, state: {} });
+const testBundle = (entities: PublishContentExportEnvelope["entities"], blobManifest: string[] = []): PublishContentExportEnvelope =>
+  ({ artifactFormatVersion: 1, hashVersion: 1, sourceLabel: "Local", entities, blobManifest, skipped: [] });
+
+const pushInputs = {
+  computeStorageKey: ({ sha256 }: { sha256: string }) => "blob/" + sha256,
+  blobSource: { exists: async () => { throw new Error("unexpected source probe"); }, get: async () => { throw new Error("unexpected source read"); } },
+};
+
+test.each([401, 404])("uses the bounded legacy capability set after HTTP %s without probing excluded blobs", async status => {
+  const page = testEntity("page", "home", ["shared"]);
+  const deps = client({ reply: request => {
+    if (request.url === peerWireBase + "/capabilities" && request.method === "GET") return response({ status });
+    if (request.url === peerWireBase + "/blobs/probe" && request.method === "POST") return response({ bodyText: '{"missing":[]}' });
+    if (request.url === peerWireBase + "/bundles" && request.method === "POST") return response({ bodyText: '{"bundleId":"b"}' });
+    if (request.url === peerWireBase + "/import/plan" && request.method === "POST") return response({ bodyText: '{"planId":"p"}' });
+    throw new Error("unexpected peer transport call");
+  } });
+  const result = await pushBundleToPeer({ deps: { ...deps, ...pushInputs }, required: { bundle: testBundle([
+    testEntity("entry", "extra-1", ["unneeded"]), page, testEntity("entry", "extra-2", ["shared"]),
+  ], ["shared", "unneeded"]) } });
+  assert.deepEqual(result.notSupportedByLive, [{ entityType: "entry", count: 2 }]);
+  assert.equal(result.liveCanOverwrite, false);
+  assert.deepEqual(deps.calls.map(({ method, url, body }) => [method, url, body === undefined ? undefined : JSON.parse(String(body))]), [
+    ["GET", peerWireBase + "/capabilities", undefined],
+    ["POST", peerWireBase + "/blobs/probe", { shas: ["shared"] }],
+    ["POST", peerWireBase + "/bundles", { artifactFormatVersion: 1, hashVersion: 1, sourceLabel: "Local", entities: [page], blobManifest: ["shared"] }],
+    ["POST", peerWireBase + "/import/plan", { bundleId: "b" }],
+  ]);
+});
+
+test("does not stage anything if the capability probe fails with a non-legacy status", async () => {
+  const deps = client({ reply: () => response({ status: 500, bodyText: "{}" }) });
+  await assert.rejects(pushBundleToPeer({ deps: { ...deps, ...pushInputs }, required: { bundle: testBundle([testEntity("page", "home")]) } }),
+    { name: "PublishContentPeerTransportError", code: "PEER_REJECTED", peerStatus: 500 });
+  assert.deepEqual(deps.calls.map(request => request.url), [peerWireBase + "/capabilities"]);
+});
+
+test("plan forwards the exact overwrite keys, but only after an identified staged bundle", async () => {
+  const keys = ["page:home"];
+  for (const staged of [{ bundleId: "b" }, { bundleId: 8 }]) {
+    const deps = client({ reply: request => {
+      if (request.url === peerWireBase + "/capabilities" && request.method === "GET") return response({ bodyText: '{"entityTypes":["page"],"features":["overwrite-live"]}' });
+      if (request.url === peerWireBase + "/bundles" && request.method === "POST") return response({ bodyText: JSON.stringify(staged) });
+      if (request.url === peerWireBase + "/import/plan" && request.method === "POST") return response({ bodyText: '{"planId":"p"}' });
+      throw new Error("unexpected peer transport call");
+    } });
+    const request = () => pushBundleToPeer({ deps: { ...deps, ...pushInputs }, required: { bundle: testBundle([testEntity("page", "home")]), overwriteEntityKeys: keys } });
+    if (typeof staged.bundleId === "string") {
+      assert.equal((await request()).liveCanOverwrite, true);
+      assert.deepEqual(JSON.parse(String(deps.calls.at(-1)?.body)), { bundleId: "b", overwriteEntityKeys: keys });
+    } else {
+      await assert.rejects(request, { code: "PEER_RESPONSE_INVALID", message: "the peer staged the bundle but returned no 'bundleId'" });
+      assert.equal(deps.calls.length, 2);
+    }
+  }
+});
+
+test.each([true, false])("re-probes overwrite support at execute time even after a prior successful plan (%s)", async supported => {
+  const deps = client({ reply: request => {
+    if (request.url === peerWireBase + "/capabilities" && request.method === "GET") return response({
+      bodyText: JSON.stringify({ entityTypes: ["page"], features: supported ? ["overwrite-live"] : ["overwrite-live", 8] }),
+    });
+    if (request.url === peerWireBase + "/import/execute" && request.method === "POST") return response({ bodyText: '{"runId":"r"}' });
+    throw new Error("unexpected peer transport call");
+  } });
+  const run = () => executePeerImport({ deps, required: { bundleId: "b", confirmationToken: "confirm-fixture", overwriteEntityKeys: ["page:home"] } });
+  if (supported) {
+    assert.deepEqual(await run(), { runId: "r" });
+    assert.deepEqual(JSON.parse(String(deps.calls[1]?.body)), { bundleId: "b", confirmationToken: "confirm-fixture", overwriteEntityKeys: ["page:home"] });
+  } else {
+    await assert.rejects(run, { code: "PEER_CANNOT_OVERWRITE",
+      message: "https://live.example is on an older Example, so it can't overwrite these yet. Update https://live.example, then publish again." });
+    assert.equal(deps.calls.length, 1);
+  }
+  assert.equal(deps.calls[0]?.url, peerWireBase + "/capabilities");
+});
+
+test("refuses a well-shaped peer export using an unsupported artifact version", async () => {
+  const deps = client({ reply: () => response({ bodyText: '{"artifactFormatVersion":8,"hashVersion":1,"entities":[],"blobManifest":[]}' }) });
+  await assert.rejects(pullBundleFromPeer(deps), { code: "PEER_RESPONSE_INVALID",
+    message: "the peer exported artifact format version 8, but this instance supports 1" });
+  assert.deepEqual(deps.calls.map(({ method, url }) => [method, url]), [["GET", peerWireBase + "/export"]]);
 });

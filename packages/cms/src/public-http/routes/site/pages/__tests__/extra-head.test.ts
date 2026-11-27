@@ -18,3 +18,22 @@ it("keeps post canonical precedence and an entry-less page’s own fallback path
   const html = await buildExtraHead({ ...required, route: "home", post: undefined, pageHeadContributors: [{ priority: 1, handle: async () => { throw new Error("contributor failed"); } }, continued] });
   expect(html).toContain('content="continued"');
 });
+
+it('passes workspace, route and site title to contributors while falling back to a relative home canonical', async () => {
+  const resolveOrigin = vi.fn(async () => undefined);
+  const handle = vi.fn<PageHeadHook['handle']>(async ({ siteTitle, canonicalUrl }) => [
+    { kind: 'title', text: siteTitle, priority: 0 },
+    { kind: 'link', rel: 'canonical', href: canonicalUrl, priority: 0 },
+  ]);
+  const html = await buildExtraHead({
+    workspaceId: 'museum-ws', route: 'home', siteTitle: 'Art & History', post: undefined, renderBaseUrl: undefined,
+    postCanonical: vi.fn(), postFallbackPath: vi.fn(), resolveOrigin,
+    seoContributor: { priority: 0, handle }, pageHeadContributors: [],
+  });
+  expect(resolveOrigin).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'museum-ws' });
+  expect(handle.mock.calls.map(([context]) => context)).toEqual([{
+    workspaceId: 'museum-ws', route: 'home', siteTitle: 'Art & History', canonicalUrl: '/', entry: undefined,
+  }]);
+  expect(html).toContain('<title>Art &amp; History</title>');
+  expect(html).toContain('href="/"');
+});

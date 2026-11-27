@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { applyPublishCriteria, decodePublishCriteriaFromQuery, parsePublishContentToolInput } from "../criteria.js";
+import { applyPublishCriteria, encodePublishCriteriaToQuery, decodePublishCriteriaFromQuery, parsePublishContentToolInput } from "../criteria.js";
 import { friendlyPublishReason, toPublishReportRowCores, toPublishReportRows } from "../report-rows.js";
 import { publishEntityTypeLabel, publishEntityTypePluralLabel, publishSectionById, publishSectionForEntityTypes } from "../sections.js";
 import type { PublishContentOutcomeRow, PublishContentReport } from "../contract.js";
@@ -86,4 +86,39 @@ test("only rows a run writes carry a checkbox: skipped and unchanged rows are ne
     row({ entityType: "gear", entityId: "u", outcome: "unchanged" }),
   ) });
   assert.deepEqual(rows.map((r) => [r.key, r.selectable, r.overwritable]), [["gear:c", true, false], ["gear:k", false, true], ["gear:b", false, false], ["gear:u", false, false]]);
+});
+
+test("encodes only meaningful criteria and preserves literal names with path and query characters", () => {
+  const criteria = { types: ["page"], items: ["Café / breakfast & tea"], overwrite: true };
+  const encoded = encodePublishCriteriaToQuery(criteria);
+  assert.equal(decodeURIComponent(encoded), '{"types":["page"],"items":["Café / breakfast & tea"],"overwrite":true}');
+  assert.deepEqual(decodePublishCriteriaFromQuery({ raw: encoded, limits: { maxQueryLength: 200, maxListLength: 4, maxEntryLength: 30 } }), criteria);
+  assert.equal(encodePublishCriteriaToQuery({ types: [], items: [], overwrite: false }), "%7B%7D");
+});
+
+test.each(["%", "%7Bbroken"] as const)("ignores malformed query value %s without opening a partial criteria selection", raw => {
+  assert.equal(decodePublishCriteriaFromQuery({ raw, limits: { maxQueryLength: 80, maxListLength: 4, maxEntryLength: 30 } }), null);
+});
+
+test("uses the retired entity’s label or its own short ID, never the incoming entity’s label", () => {
+  const rows = toPublishReportRows({
+    report: report(
+      row({ entityType: "gear", entityId: "incoming-1", entityLabel: "New gear", outcome: "blocked", canOverwrite: true,
+        retires: { entityType: "gear", entityId: "live-empty-label", entityLabel: "", hash: "h1" } }),
+      row({ entityType: "gear", entityId: "incoming-2", entityLabel: "Other new gear", outcome: "blocked", canOverwrite: true,
+        retires: { entityType: "gear", entityId: "live-titled", entityLabel: "Existing display title", hash: "h2" } }),
+    ), policy: TEST_POLICY,
+  });
+  assert.deepEqual(Object.fromEntries(rows.map(r => [r.entityId, r.retiresLabel])), {
+    "incoming-1": "live", "incoming-2": "Existing display title",
+  });
+});
+
+test("derives each section’s scope from the singular/plural labels and preserves unknown plural names", () => {
+  const section = publishSectionById({ id: "widgets", sections: TEST_SECTIONS });
+  assert.deepEqual(section, { section: "widgets", entityTypes: ["widget", "gadget"], labelKey: "Ship widgets",
+    descriptionKey: "Ships widgets.", typeLabelKeys: { widget: "Widget", gadget: "Gadget" },
+    typePluralLabelKeys: { widget: "Widgets", gadget: "Gadgets" } });
+  assert.equal(publishSectionForEntityTypes({ entityTypes: ["widget", "gear"], sections: TEST_SECTIONS }), undefined);
+  assert.equal(publishEntityTypePluralLabel({ entityType: "exhibit", sections: TEST_SECTIONS }), "exhibit");
 });

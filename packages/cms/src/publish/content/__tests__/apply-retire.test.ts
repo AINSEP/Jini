@@ -111,3 +111,22 @@ test("accounting failure after both writes lands does not undo anything", async 
   await assert.rejects(applyRetiringRow({ step: s.step, collaborators: s.collaborators }), { message: "ledger down" });
   assert.deepEqual(s.calls, ["retire", "apply"]);
 });
+
+test("missing retire support blocks creation even when the handler can find a holder", async () => {
+  const s = setup({ retire: undefined });
+  const result = await applyRetiringRow({ step: s.step, collaborators: s.collaborators });
+  assert.deepEqual(result, { kind: "downgraded", row: { ...s.step.row, outcome: "blocked",
+    reason: "internal inconsistency: no planRetire()/retire() on the page handler for a retire-offered row at apply time" } });
+  assert.deepEqual(s.calls, []);
+});
+
+test("rollback diagnostics preserve non-Error refusals from both injected writes", async () => {
+  const s = setup({
+    retire: async () => ({ changeSetId: "cs-retire", undo: async () => { throw "restore refused"; } }),
+    apply: async () => { throw "create refused"; },
+  });
+  await assert.rejects(applyRetiringRow({ step: s.step, collaborators: s.collaborators }), {
+    name: "Error", message: "host-bound: page 'new' not created (create refused); page 'old' not restored (restore refused)",
+  });
+  assert.deepEqual(s.applied, []);
+});

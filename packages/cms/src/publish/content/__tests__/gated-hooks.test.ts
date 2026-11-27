@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import { buildPublishContentImportHooks, PublishContentBundleNotFoundError, type BuildPublishContentImportHooksInput } from "../gated-hooks.js";
 import { createPublishContentTypeRegistry, type PublishContentHandler } from "../type-registry.js";
@@ -17,11 +17,11 @@ const ENTITY_TYPE = "thing";
 const ENTITY_ID = "thing-1";
 const INCOMING_HASH = contentHash({ entityType: ENTITY_TYPE, state: { title: "incoming" } });
 
-function stagedBundle(): StagedBundleRecord {
+function stagedBundle(requiredBlobs: readonly string[] = []): StagedBundleRecord {
   return {
     id: BUNDLE_ID, workspaceId: WORKSPACE_ID, sourcePrincipalId: "peer-1",
     artifactFormatVersion: PUBLISH_CONTENT_ARTIFACT_FORMAT_VERSION, hashVersion: CONTENT_HASH_VERSION,
-    entitiesJson: JSON.stringify([{ entityType: ENTITY_TYPE, id: ENTITY_ID, schemaVersion: 1, contentHash: INCOMING_HASH, hashVersion: CONTENT_HASH_VERSION, requiredBlobs: [], state: { title: "incoming" } }]),
+    entitiesJson: JSON.stringify([{ entityType: ENTITY_TYPE, id: ENTITY_ID, schemaVersion: 1, contentHash: INCOMING_HASH, hashVersion: CONTENT_HASH_VERSION, requiredBlobs, state: { title: "incoming" } }]),
     blobManifestJson: "[]", sizeBytes: 128, receivedAt: "2026-09-20T00:00:00.000Z", expiresAt: "2026-09-21T00:00:00.000Z",
   };
 }
@@ -33,9 +33,9 @@ const handler: PublishContentHandler = {
 };
 
 /** Builds hooks with spy seams; every injected dependency records what it was handed. */
-async function fixture(options: { staged?: boolean } = {}) {
+async function fixture(options: { staged?: boolean; requiredBlobs?: readonly string[]; blobExists?: BuildPublishContentImportHooksInput<Ports>["blobStore"]["exists"] } = {}) {
   const bundleRepo = new InMemoryPublishContentBundleRepo();
-  if (options.staged !== false) await bundleRepo.save({ record: stagedBundle() });
+  if (options.staged !== false) await bundleRepo.save({ record: stagedBundle(options.requiredBlobs) });
   const registry = createPublishContentTypeRegistry<Ports>();
   registry.register({ contributor: { entityType: ENTITY_TYPE, dependsOn: [], build: () => handler } });
   const calls = { hashed: [] as unknown[], catalogBuilds: 0, order: [] as string[], applied: [] as Array<Record<string, unknown>> };
@@ -47,7 +47,7 @@ async function fixture(options: { staged?: boolean } = {}) {
     catalog: { build: (args) => { calls.catalogBuilds += 1; return registry.buildCatalog(args); } },
     planHashOf: ({ details }) => { calls.hashed.push(details); return `injected-hash:${details.rows.length}`; },
     resolveActorClassIdentity: async ({ principalId, principalKind }) => `audit:${principalKind}:${principalId}`,
-    bundleRepo, baselineRepo: new InMemoryPublishContentBaselineRepo(), blobStore: { exists: async () => true },
+    bundleRepo, baselineRepo: new InMemoryPublishContentBaselineRepo(), blobStore: { exists: options.blobExists ?? (async () => true) },
     dbOps: { captureRestorePoint: async () => { calls.order.push("capture"); return { artifactRef: "artifact-1", watermarkAtCapture: 7 }; } },
     restorePointsRepo: { save: async (row) => { calls.order.push(`save:${row.createdBy}:${row.trigger}`); } },
     applyPort: { applyReport: async (args) => {
@@ -102,4 +102,15 @@ describe("buildPublishContentImportHooks", () => {
     expect(calls.applied[0]).toMatchObject({ principalId: ACTOR_ID, bundleId: BUNDLE_ID, restorePointId: "restore-1" });
     expect(result).toMatchObject({ restorePointId: "restore-1", runId: "run-1" });
   });
+});
+
+it("looks up each staged blob at its scoped storage key and blocks missing bytes", async () => {
+  const present = "a".repeat(64);
+  const absent = "b".repeat(64);
+  const exists = vi.fn(async ({ storageKey }: { storageKey: string }) => storageKey === "ws/ws-1/blobs/aa/" + present);
+  const { hooks } = await fixture({ requiredBlobs: [present, absent], blobExists: exists });
+  const { details } = await hooks.computePlan({});
+  expect(exists.mock.calls).toEqual([[{ storageKey: "ws/ws-1/blobs/aa/" + present }], [{ storageKey: "ws/ws-1/blobs/bb/" + absent }]]);
+  expect(details.rows).toEqual([{ entityType: "thing", entityId: "thing-1", entityLabel: "incoming", outcome: "blocked", writes: false,
+    reason: "required blob '" + absent + "' is not available on this instance", canOverwrite: false, retires: null }]);
 });

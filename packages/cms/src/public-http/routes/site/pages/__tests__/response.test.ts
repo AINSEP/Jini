@@ -1,6 +1,6 @@
 import { injectFormAttemptTokens } from "../../../../../forms/form-controls.js";
 import { expect, it, vi } from "vitest";
-import { finalizePublicPageHtml, publicPageCache, resolveVisitorPagePolicy, sendPublicPage } from "../response.js";
+import { finalizePublicPageHtml, publicPageCache, resolveVisitorPagePolicy, sendPublicPage, addPluginExportHostsToResponse } from "../response.js";
 
 it("does not run document hooks for a listing batch and keeps the finalization order for a full document", async () => {
   const order: string[] = [];
@@ -76,4 +76,38 @@ it("keeps invalid consent with gated content private and member-cookie presence 
   const staticExport = vi.fn(() => false);
   expect(resolveVisitorPagePolicy({ queryResult: undefined, flash: undefined, clearFlash: () => {}, memberCookiePresent: () => true, staticExport, cache: { form: "form", member: "private, no-store", staticExport: "export", public: "public" } })).toEqual({ result: undefined, cacheControl: "private, no-store" });
   expect(staticExport).not.toHaveBeenCalled();
+});
+
+it.each([true, false])('uses the static-export cache policy only for a flagged request (%s)', (exporting) => {
+  const staticExport = vi.fn(() => exporting);
+  expect(resolveVisitorPagePolicy({
+    queryResult: undefined, flash: undefined, clearFlash: vi.fn(), memberCookiePresent: () => false, staticExport,
+    cache: { form: 'private, no-store', member: 'private', staticExport: 'no-store', public: 'public, max-age=60' },
+  })).toEqual({ result: undefined, cacheControl: exporting ? 'no-store' : 'public, max-age=60' });
+  expect(staticExport).toHaveBeenCalledExactlyOnceWith({});
+});
+
+it('adds plugin origins only to their directives in the existing report-only policy', () => {
+  const header = 'Content-Security-Policy-Report-Only';
+  const getHeader = vi.fn(() => "default-src 'self'; script-src 'self'; frame-src 'self'; connect-src 'self'");
+  const setHeader = vi.fn();
+  addPluginExportHostsToResponse({
+    response: { getHeader, setHeader },
+    hosts: { script: ['https://scripts.example'], frame: ['https://frames.example'], connect: ['https://api.example'] },
+  });
+  expect(getHeader).toHaveBeenCalledExactlyOnceWith(header);
+  expect(setHeader).toHaveBeenCalledExactlyOnceWith(header,
+    "default-src 'self'; script-src 'self' https://scripts.example; frame-src 'self' https://frames.example; connect-src 'self' https://api.example");
+});
+
+it.each([
+  { label: 'missing', policy: undefined },
+  { label: 'non-string', policy: ["script-src 'self'"] },
+])('does not synthesize a report-only policy from a $label header', ({ policy }) => {
+  const setHeader = vi.fn();
+  addPluginExportHostsToResponse({
+    response: { getHeader: () => policy, setHeader },
+    hosts: { script: ['https://scripts.example'], frame: [], connect: [] },
+  });
+  expect(setHeader).not.toHaveBeenCalled();
 });

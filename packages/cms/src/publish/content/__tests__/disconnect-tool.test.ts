@@ -61,6 +61,13 @@ describe("publish_content_disconnect", () => {
     expect(await f.call()).toStrictEqual({ connected: false, site: null, candidateUrl: "https://candidate.example", message: "This computer was not publishing anywhere.", nextStep: null });
   });
 
+  it("reports no candidate without discovery but still forwards the grant reversal's deploy step", async () => {
+    const f = setup();
+    expect(await f.call()).toStrictEqual({ connected: false, site: null, candidateUrl: null,
+      message: "This computer was not publishing anywhere.", nextStep: TARGET.nextStep });
+    expect(await f.repo.listByWorkspace()).toEqual([]);
+  });
+
   it("a changed grant whose target names no next step reports a null nextStep", async () => {
     const f = setup({ reverse: async () => ({ changed: true, target: {} as never }) });
     await f.repo.insert({ record: row() });

@@ -266,6 +266,20 @@ const CHAIN_SOURCE: PublishContentExportEnvelope = {
   blobManifest: [],
 };
 
+it("carries the exact ID and its blobs when a different record has the same slug", () => {
+  const page = stated("page", "landing", { bodyJson: { type: "doc", content: [{ type: "image", attrs: { assetId: "hero" } }] } });
+  const source: PublishContentExportEnvelope = { ...ENVELOPE, entities: [
+    stated("media", "first", { slug: "hero" }, ["slug-only-blob"]),
+    stated("media", "hero", { slug: "other" }, ["exact-id-blob"]),
+    page,
+  ] };
+  const scoped = applyPublishScope({ envelope: source, scope: { entityTypes: ["page"] } });
+  const { envelope, includedFor } = includeReferencedEntities({ envelope: scoped, source, handlers: REF_HANDLERS });
+  expect(envelope.entities.map(({ entityType, id }) => `${entityType}:${id}`)).toEqual(["media:hero", "page:landing"]);
+  expect(envelope.blobManifest).toEqual(["exact-id-blob"]);
+  expect([...includedFor]).toEqual([["media:hero", ["page:landing"]]]);
+});
+
 it("includeReferencedEntities follows carried rows' own references, naming the in-scope roots for each", () => {
   const scoped = applyPublishScope({ envelope: CHAIN_SOURCE, scope: { entityTypes: ["page", "widget-area"] } });
   const { envelope, includedFor } = includeReferencedEntities({ envelope: scoped, source: CHAIN_SOURCE, handlers: CHAIN_HANDLERS });

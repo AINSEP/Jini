@@ -18,9 +18,11 @@ function setup(entities: PackedEntity[]) {
   const pushed: Array<{ keys: string[]; origin?: string; overwrite?: readonly string[] }> = [];
   const catalogReads: unknown[] = [];
   const urlCalls: Array<{ id: unknown; origin: string | undefined }> = [];
+  const references: NonNullable<PublishContentHandler["references"]> = ({ entity }) =>
+    entity.entityType === "page" && entity.state.cover === "cover" ? [{ entityType: "media", key: "cover" }] : [];
   const handlers = [...new Set(entities.map((e) => e.entityType))].map((entityType) => ({
     entityType, schemaVersion: 1, permission: "content.write", dependsOn: [],
-    pack: async function* () { yield* entities.filter((e) => e.entityType === entityType); },
+    references, pack: async function* () { yield* entities.filter((e) => e.entityType === entityType); },
     inspect: async () => null, precheck: async () => null, apply: async () => { throw new Error("a plan never applies"); },
   }) as unknown as PublishContentHandler);
   const host: PlanPublishToPeerHost<Ports> = {
@@ -82,4 +84,15 @@ describe("createPlanPublishToPeer", () => {
     expect(out.overwriteEntityKeys).toEqual(["post:p2"]);
     expect("overwriteEntityKeys" in (await s.run())).toBe(false);
   });
+});
+
+it("stages only the selected scoped page and the out-of-scope cover it references", async () => {
+  const s = setup([
+    entity("page", "p1", { slug: "home", cover: "cover" }),
+    entity("page", "p2", { slug: "other" }),
+    entity("media", "cover", { title: "Home cover" }),
+    entity("media", "unrelated", { title: "Other asset" }),
+  ]);
+  await s.run({ scope: { entityTypes: ["page"] }, selectedEntityKeys: ["page:p1"] });
+  expect(s.pushed).toEqual([{ keys: ["page:p1", "media:cover"] }]);
 });

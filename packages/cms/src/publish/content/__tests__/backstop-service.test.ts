@@ -143,4 +143,28 @@ describe("backstop service", () => {
     expect(() => readBackstopMetadata({ entities: [entity("a"), entity("b", { ...details, sourceActor: "b" })] })).toThrow("Every item in this send must have the same audit details.");
     expect(() => readBackstopMetadata({ entities: [entity("a", { ...details, reason: "Emergency sk-live-1" })] })).toThrow("looks like a key");
   });
+
+  it("refuses a duplicate composite row key even when its fields are submitted in another order", () => {
+    const first = { table: "widgets", pk: { site: "north", widget: 42 } };
+    const duplicate = { table: "widgets", pk: { widget: 42, site: "north" } };
+    const other = { table: "widgets", pk: { site: "south", widget: 42 } };
+    const body = { reason: "   Emergency footer fix   ", typedHost: "live.example" };
+    expect(validateBackstopRequest({ body: { ...body, rows: [first, other] }, destinationHost: "live.example" })).toEqual({
+      request: { reason: "Emergency footer fix", typedHost: "live.example", selection: { rows: [first, other], files: [] } },
+    });
+    expect(validateBackstopRequest({ body: { ...body, rows: [first, other, duplicate] }, destinationHost: "live.example" })).toEqual({ error: "Choose each item once." });
+  });
+
+  it("recomputes unique gaps and refuses an attachment missing its byte count", () => {
+    const backstop = { mode: "backstop", reason: "Emergency footer fix", sourceActor: "operator", destinationHost: "live.example", gapLabels: ["untrusted-label"] } as const;
+    const raw = (entityType: string, id: string, state: Record<string, unknown>): PackedEntity => ({
+      entityType, id, state, backstop, schemaVersion: 1, hashVersion: 1, contentHash: id, requiredBlobs: [],
+    });
+    const rows = [raw("raw-row", "widgets:7", { table: "widgets" }), raw("raw-row", "widgets:9", { table: "widgets" })];
+    expect(readBackstopMetadata({ entities: [...rows, raw("raw-file", "snippets/footer.html", { size: 18 })] })).toEqual({
+      ...backstop, gapLabels: ["folder:snippets/footer.html", "table:widgets"],
+    });
+    expect(() => readBackstopMetadata({ entities: [...rows, raw("raw-file", "snippets/footer.html", {})] }))
+      .toThrow("Choose at most 200 rows and 50 files totaling at most 50 MB per send.");
+  });
 });

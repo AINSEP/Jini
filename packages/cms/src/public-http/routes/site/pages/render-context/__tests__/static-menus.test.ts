@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import type { UUID } from "@jini-ai/core/primitives";
+import type { NavTarget } from "../../../../../../navigation/index.js";
 import {
   resolveStaticMenusForIds,
   type StaticMenuCollaborators,
@@ -10,7 +11,7 @@ import {
 type Menu = { id: string; slug: string; doc: { mode?: string; html?: string; label?: string } };
 
 /** Fakes: `bound` is the location-binding table, `menus` the stored menus. */
-function fixture({ bound = {}, menus = [] }: { bound?: Record<string, Menu>; menus?: Menu[] } = {}) {
+function fixture({ bound = {}, menus = [], target = { kind: "route", route: "home" } }: { bound?: Record<string, Menu>; menus?: Menu[]; target?: NavTarget } = {}) {
   const urlForCalls: unknown[] = [];
   const deps = {
     workspaceId: "ws",
@@ -24,7 +25,7 @@ function fixture({ bound = {}, menus = [] }: { bound?: Record<string, Menu>; men
     navigation: {
       findBoundMenu: async ({ input }: { input: { locationKey: string } }) => bound[input.locationKey] ?? null,
       resolveMenuDoc: async ({ doc, context, resolveTargetHref }: { doc: Menu["doc"]; context: { currentPath: string }; resolveTargetHref: (r: { target: unknown; context: unknown }) => Promise<unknown> }) => {
-        const href = await resolveTargetHref({ target: { kind: "route", route: "home" }, context });
+        const href = await resolveTargetHref({ target, context });
         return [{ label: doc.label, href, currentPath: context.currentPath }];
       },
     },
@@ -73,4 +74,16 @@ test("a reserved id is resolved by the host's resolver and never looked up as a 
   const reserved = new Map<string, StaticMenuReservedResolver>([["reserved", async ({ menuId }) => [menuId, [{ id: "host-item" as UUID, label: "Host", href: null, available: true, isCurrent: false, isActive: false, children: [] }]]]]);
   const out = await resolveStaticMenusForIds({ deps: f.deps, menuIds: ["reserved"], currentPath: "/", collaborators: f.collaborators }, { reserved });
   expect(labelsOf(out.reserved)).toEqual(["Host"]);
+});
+
+test.each([
+  { target: { kind: "entryRef", entryId: "entry-19", entryType: "page", lastKnownHref: "/old" }, routeTarget: { kind: "entryRef", entryId: "entry-19" } },
+  { target: { kind: "termRef", termId: "term-3", taxonomy: "regions" }, routeTarget: { kind: "termRef", termId: "term-3", taxonomy: "regions" } },
+  { target: { kind: "url", href: "https://example.test/reference" }, routeTarget: { kind: "url", href: "https://example.test/reference" } },
+  { target: { kind: "route", route: "search", params: { q: "weather" } }, routeTarget: { kind: "route", route: "search", params: { q: "weather" } } },
+] as const)("adapts a stored $target.kind navigation target to the route port", async ({ target, routeTarget }) => {
+  const f = fixture({ menus: [stored("t", "primary", "Reference")], target });
+  const resolved = await resolveStaticMenusForIds({ deps: f.deps, menuIds: ["primary"], currentPath: "/now", collaborators: f.collaborators });
+  expect(f.urlForCalls).toEqual([{ target: routeTarget }]);
+  expect(resolved).toEqual({ primary: [{ label: "Reference", href: { path: "/resolved", available: true }, currentPath: "/now" }] });
 });

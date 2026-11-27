@@ -88,3 +88,29 @@ it('keeps title before the generic read batch and time zone before rendering', a
   expect(html).toBe('Site:head:comments');
   expect(order).toEqual(['title', 'widgets', 'embeds', 'versions', 'metadata', 'head', 'terms', 'zone', 'render']);
 });
+
+it.each([
+  { name: 'theme off', theme: null, branch: { kind: 'as-chosen' }, renderedChoice: undefined },
+  { name: 'ineligible', theme: {}, branch: { kind: 'ineligible' }, renderedChoice: undefined },
+  { name: 'explicit choice', theme: {}, branch: { kind: 'as-chosen' }, renderedChoice: 'feature.html' },
+  { name: 'page shell', theme: {}, branch: { kind: 'page-shell', templateChoice: 'shell.html' }, renderedChoice: 'shell.html' },
+] as const)('resolves the template for $name without changing the stored choice', async ({ theme, branch, renderedChoice }) => {
+  const post: PublicPostRecord = { id: 'page-7', workspaceId: 'w', title: 'Page', slug: 'page', bodyJson: {},
+    kind: 'page', bodyFormat: 'html', bodyHtml: '<p>Saved body</p>', status: 'published',
+    templateChoice: 'feature.html', updatedAt: 'now', version: 1 };
+  const renderBarePostPage = vi.fn(async () => 'bare');
+  const resolveTemplateBranchChoice = vi.fn(() => branch);
+  const buildExtraHead = vi.fn(async () => '<meta name="saved">');
+  const renderViaTemplate = vi.fn(async () => '<article>From template</article>');
+
+  const html = await renderTemplateBranchIfEligible({ post, theme, isBarePageChoice: () => false, renderBarePostPage,
+    resolveTemplateBranchChoice, buildExtraHead, renderViaTemplate });
+  expect(resolveTemplateBranchChoice.mock.calls).toEqual(theme === null ? [] : [[{ post }]]);
+  expect(renderBarePostPage).not.toHaveBeenCalled();
+  expect(post.templateChoice).toBe('feature.html');
+  expect(html).toBe(renderedChoice === undefined ? undefined : '<article>From template</article>');
+  expect(buildExtraHead.mock.calls).toEqual(renderedChoice === undefined ? [] : [[{ post }]]);
+  expect(renderViaTemplate.mock.calls).toEqual(renderedChoice === undefined ? [] : [
+    [{ post: { ...post, templateChoice: renderedChoice } }, { pendingBodyJson: undefined, pendingBodyHtml: undefined, extraHead: '<meta name="saved">' }],
+  ]);
+});

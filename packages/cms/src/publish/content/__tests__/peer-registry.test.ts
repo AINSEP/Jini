@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
-import type { VaultMeta, VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
+import { describe, it, expect, vi } from "vitest";
+import { VaultError, type VaultMeta, type VaultRecord, type VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import {
   createPublishContentPeer, listPublishContentPeers, maskApiKey, resolvePeerCredential, VaultPublishContentPeerRepo,
+  updatePublishContentPeer, getPublishContentPeerSummary, deletePublishContentPeer,
   type PeerVaultServiceOptions, type PublishContentPeerVaultBinding,
 } from "../peer-registry.js";
-import { PublishContentPeerSecretStoreUnconfiguredError, PublishContentPeerValidationError } from "../peers.js";
+import { PublishContentPeerSecretStoreUnconfiguredError, PublishContentPeerValidationError, PublishContentPeerDuplicateLabelError,
+  PublishContentPeerCredentialMissingError, PublishContentPeerNotFoundError } from "../peers.js";
 
 /** Minimal vault adapter: rows keyed by workspace/id, listed by the query's scope. */
 function memoryVault(): VaultRepoPort {
@@ -15,8 +17,19 @@ function memoryVault(): VaultRepoPort {
     async list(q: { workspaceId: string; kind: string; ownerKey: string }) {
       return [...rows.values()].filter(r => r.workspaceId === q.workspaceId && r.kind === q.kind && r.ownerKey === q.ownerKey);
     },
-    async put({ record }: { record: VaultRecord }) { rows.set(key(record), record); },
-    async delete(input: { workspaceId: string; id: string }) { rows.delete(key(input)); },
+    async put({ record, expectedRevision }: { record: VaultRecord; expectedRevision: number | null }) {
+      const previous = rows.get(key(record));
+      if ((previous?.revision ?? null) !== expectedRevision
+        || [...rows.entries()].some(([id, stored]) => id !== key(record) && stored.workspaceId === record.workspaceId &&
+          stored.kind === record.kind && stored.ownerKey === record.ownerKey && stored.label === record.label)) {
+        throw new VaultError({ code: "conflict" });
+      }
+      rows.set(key(record), record);
+    },
+    async delete(input: { workspaceId: string; id: string; expectedRevision: number }) {
+      if (rows.get(key(input))?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
+      rows.delete(key(input));
+    },
   } as unknown as VaultRepoPort;
 }
 
@@ -33,8 +46,8 @@ function binding(calls: { scopes: unknown[]; options?: PeerVaultServiceOptions }
         async put(input) {
           calls.scopes.push({ kind: input.kind, ownerKey: input.ownerKey, payload: input.payload });
           await options.authorize({ context: input });
-          await options.repo.put({ record: { ...input, isDefault: false, revision: 1, createdAt: options.now(), updatedAt: options.now(),
-            sealed: { keyId: "k", ciphertext: JSON.stringify(input.payload), nonce: "n", alg: "test" }, last4: input.hintToken.slice(-4), tokenLength: input.hintToken.length } as VaultRecord, expectedRevision: null });
+          await options.repo.put({ record: { ...input, isDefault: false, revision: (input.expectedRevision ?? 0) + 1, createdAt: options.now(), updatedAt: options.now(),
+            sealed: { keyId: "k", ciphertext: JSON.stringify(input.payload), nonce: "n", alg: "test" }, last4: input.hintToken.slice(-4), tokenLength: input.hintToken.length } as VaultRecord, expectedRevision: input.expectedRevision });
         },
         async get(input) {
           calls.scopes.push({ kind: input.kind, ownerKey: input.ownerKey });
@@ -105,4 +118,114 @@ describe("peer registry (host vault binding injected)", () => {
   it("maskApiKey shows only the host hint suffix", () => {
     expect(maskApiKey({ apiKey: "short", binding: binding({ scopes: [] }) })).toBe("••••");
   });
+});
+
+it("metadata edits preserve opaque credentials and update the stored revision without reopening the key", async () => {
+  const { repo, deps, calls } = setup();
+  await createPublishContentPeer({ deps, input: INPUT });
+  const target = { workspaceId: "ws-a", id: "peer-1" };
+  const prior = await repo.vault.find(target);
+  expect(await updatePublishContentPeer({ deps, input: { ...target, label: "  Production  ", baseUrl: "https://new.example/", remoteWorkspaceId: "new-ws" } }))
+    .toEqual({ id: "peer-1", label: "Production", baseUrl: "https://new.example", remoteWorkspaceId: "new-ws", masked: "••••6789", hasCredential: true });
+  expect(calls.scopes).toHaveLength(1);
+  expect(await repo.vault.find(target)).toMatchObject({
+    label: "Production", meta: { baseUrl: "https://new.example", remoteWorkspaceId: "new-ws" }, sealed: prior?.sealed,
+    revision: 2, last4: "6789", tokenLength: INPUT.apiKey.length,
+  });
+  expect(await resolvePeerCredential({ deps, input: target })).toEqual({
+    id: "peer-1", label: "Production", baseUrl: "https://new.example", remoteWorkspaceId: "new-ws", apiKey: INPUT.apiKey,
+  });
+});
+
+it("reseals an explicit replacement but preserves other peer fields when omitted", async () => {
+  const { deps, calls } = setup();
+  await createPublishContentPeer({ deps, input: INPUT });
+  const target = { workspaceId: "ws-a", id: "peer-1" };
+  const replacement = "fixture-replacement-9876";
+  expect(await updatePublishContentPeer({ deps, input: { ...target, apiKey: replacement } })).toEqual({
+    id: "peer-1", label: "Live", baseUrl: "https://live.example", remoteWorkspaceId: "ws-remote", masked: "••••9876", hasCredential: true,
+  });
+  expect(calls.scopes.at(-1)).toEqual({ kind: "publish-peer", ownerKey: "acme-host", payload: { apiKey: replacement } });
+  expect(await getPublishContentPeerSummary({ deps, input: target })).toMatchObject({ masked: "••••9876", hasCredential: true });
+  expect((await resolvePeerCredential({ deps, input: target })).apiKey).toBe(replacement);
+});
+
+it("never overwrites a duplicate label through create, metadata edit or credential replacement", async () => {
+  const { deps } = setup();
+  await createPublishContentPeer({ deps, input: INPUT });
+  const second = await createPublishContentPeer({ deps, input: { ...INPUT, label: "Preview" } });
+  const target = { workspaceId: "ws-a", id: second.id };
+  const duplicate = new PublishContentPeerDuplicateLabelError({ message: "a peer labelled 'Live' already exists in this workspace" });
+  await expect(createPublishContentPeer({ deps, input: INPUT })).rejects.toThrow(duplicate);
+  await expect(updatePublishContentPeer({ deps, input: { ...target, label: "Live" } })).rejects.toThrow(duplicate);
+  await expect(updatePublishContentPeer({ deps, input: { ...target, label: "Live", apiKey: "fixture-replacement" } })).rejects.toThrow(duplicate);
+  expect(await getPublishContentPeerSummary({ deps, input: target })).toEqual(second);
+});
+
+it("deletes only the peer in the requested workspace and makes repeated deletion a no-op", async () => {
+  const { deps } = setup();
+  const peer = await createPublishContentPeer({ deps, input: INPUT });
+  await deletePublishContentPeer({ deps, input: { id: peer.id, workspaceId: "other-ws" } });
+  const target = { workspaceId: "ws-a", id: peer.id };
+  expect(await getPublishContentPeerSummary({ deps, input: target })).toEqual(peer);
+  await deletePublishContentPeer({ deps, input: target });
+  await deletePublishContentPeer({ deps, input: target });
+  expect(await getPublishContentPeerSummary({ deps, input: target })).toBeNull();
+  await expect(updatePublishContentPeer({ deps, input: target })).rejects.toThrow(
+    new PublishContentPeerNotFoundError({ message: "peer 'peer-1' was not found" }),
+  );
+});
+
+it("projects a metadata-only destination as uncredentialed and refuses to open a missing key", async () => {
+  const { repo, deps, calls } = setup();
+  await repo.insert({ record: {
+    workspaceId: "ws-a", id: "connected", label: "Connected", baseUrl: "https://other.example",
+    remoteWorkspaceId: "other", sealed: null, masked: null, aadVersion: 1, createdAt: "t", updatedAt: "t",
+  } });
+  const target = { workspaceId: "ws-a", id: "connected" };
+  expect(await getPublishContentPeerSummary({ deps, input: target })).toEqual({
+    id: "connected", label: "Connected", baseUrl: "https://other.example", remoteWorkspaceId: "other", masked: null, hasCredential: false,
+  });
+  await expect(resolvePeerCredential({ deps, input: target })).rejects.toThrow(
+    new PublishContentPeerCredentialMissingError({ message: "peer 'Connected' has no saved credential; add one before pushing or pulling" }),
+  );
+  expect(calls.scopes).toEqual([]);
+});
+
+it("accepts a 512-character field but refuses a 513-character one before asking the vault to seal", async () => {
+  const { deps, calls } = setup();
+  const label = "a".repeat(512);
+  expect((await createPublishContentPeer({ deps, input: { ...INPUT, label } })).label).toBe(label);
+  await expect(createPublishContentPeer({ deps, input: { ...INPUT, label: label + "a" } })).rejects.toThrow(
+    new PublishContentPeerValidationError({ message: "'label' must be at most 512 characters" }),
+  );
+  expect(calls.scopes).toHaveLength(1);
+});
+
+it("distinguishes a same-peer revision conflict from another peer holding the label", async () => {
+  const { deps, repo } = setup();
+  const original = await createPublishContentPeer({ deps, input: INPUT });
+  const target = { workspaceId: INPUT.workspaceId, id: original.id };
+  const conflict = new VaultError({ code: "conflict" });
+  const put = vi.spyOn(repo.vault, "put").mockRejectedValueOnce(conflict).mockRejectedValueOnce(conflict);
+  try {
+    await expect(updatePublishContentPeer({ deps, input: { ...target, baseUrl: "https://new.example" } })).rejects.toBe(conflict);
+    await expect(updatePublishContentPeer({ deps, input: { ...target, apiKey: "replacement-key" } })).rejects.toBe(conflict);
+    expect(await getPublishContentPeerSummary({ deps, input: target })).toEqual(original);
+    expect((await resolvePeerCredential({ deps, input: target })).apiKey).toBe(INPUT.apiKey);
+  } finally {
+    put.mockRestore();
+  }
+});
+
+it("returns a credential-store refusal without writing a peer when the vault fails unexpectedly", async () => {
+  const { deps, repo } = setup();
+  const put = vi.spyOn(repo.vault, "put").mockRejectedValueOnce(new Error("fixture driver unavailable"));
+  try {
+    await expect(createPublishContentPeer({ deps, input: INPUT })).rejects.toSatisfy((error: unknown) =>
+      error instanceof PublishContentPeerSecretStoreUnconfiguredError && error.message === "publish-content peer secret store is unconfigured");
+    expect(await listPublishContentPeers({ deps, input: { workspaceId: INPUT.workspaceId } })).toEqual([]);
+  } finally {
+    put.mockRestore();
+  }
 });

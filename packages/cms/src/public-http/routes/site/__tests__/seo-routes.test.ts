@@ -119,3 +119,24 @@ describe("feedRoute", () => {
     await expect(feedRoute.handle({ raw: rawWith(undefined), deps: feedDeps() }, { signal })).rejects.toThrow(/request facts/);
   });
 });
+
+it("emits no phantom directive or newline when robots rules and sitemap are both disabled", async () => {
+  const deps = robotsDeps("https://stored.test");
+  const getSeoSettings = async () => ({ sitemapEnabled: false, robotsRules: [] });
+  const res = await robotsRoute.handle({
+    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { getSeoSettings } as RobotsRouteDeps['seoDeps']['settings'] } },
+  }, { signal });
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe("");
+});
+
+it("writes only the allow and disallow directives that each robots agent actually declares", async () => {
+  const deps = robotsDeps("https://stored.test");
+  const getSeoSettings = async () => ({ sitemapEnabled: false, robotsRules: [
+    { userAgent: "IndexBot", allow: ["/reference"] }, { userAgent: "ArchiveBot", disallow: ["/drafts"] },
+  ] });
+  const res = await robotsRoute.handle({
+    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { getSeoSettings } as RobotsRouteDeps['seoDeps']['settings'] } },
+  }, { signal });
+  expect(await res.text()).toBe("User-agent: IndexBot\nAllow: /reference\n\nUser-agent: ArchiveBot\nDisallow: /drafts\n\n");
+});

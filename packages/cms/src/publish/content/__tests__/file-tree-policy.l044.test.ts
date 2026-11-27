@@ -88,3 +88,9 @@ test("security cleanup pins MCP traversal order, primitive leaves and section bo
       : `has a key written into mcp.json (${section}); move it to live's settings`);
   }
 });
+
+test("recognizes stack-suffixed credential backups without blocking an ordinary backup", () => {
+  assert.equal(checkTreePath({ relPath: "fixtures/.PEM.bak~" }), '"fixtures/.PEM.bak~" looks like a private key or certificate file');
+  assert.equal(checkTreePath({ relPath: "content/site.sqlite3.orig.old" }), '"content/site.sqlite3.orig.old" looks like a database file');
+  assert.equal(checkTreePath({ relPath: "fixtures/notes.txt.bak~" }), null);
+});
