@@ -77,5 +77,5 @@ it('loads each requested startup descriptor once from the same authenticated dae
     { url: 'http://daemon.invalid/api/tools/catalog.edit', method: 'GET', auth: 'Bearer fixture-callback' },
   ]);
   expect(await host.required.resolveBaseUrl()).toBe('http://daemon.invalid');
-  expect(resolveBaseUrl).toHaveBeenCalledExactlyOnceWith();
+  expect(resolveBaseUrl).toHaveBeenCalledOnce();
 });

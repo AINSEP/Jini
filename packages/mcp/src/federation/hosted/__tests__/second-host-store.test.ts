@@ -604,7 +604,7 @@ test("a hosted OAuth row reports pending authorization and missing resolver as d
   if (!row) throw new Error("Expected stored connection");
   const read = () => entry.readEnabledExternalMcpConfigs({ deps, workspaceId: WS });
   expect(await read()).toEqual({ configs: [], failures: [{ serverId: input.serverId,
-    reason: "it has not been authorized yet (status 'pending') — connect it in Console › Tools › Remote servers" }] });
+    reason: "it has not been authorized yet (status 'disconnected') — connect it in Console › Tools › Remote servers" }] });
   await deps.repo.upsert({ ...row, oauthStatus: "connected" });
   expect(await read()).toEqual({ configs: [], failures: [{ serverId: input.serverId,
     reason: "this process was not wired with an OAuth token resolver, so its access token cannot be obtained" }] });

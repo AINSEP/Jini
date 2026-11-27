@@ -203,7 +203,7 @@ it("an occupied key cannot be inserted, while a failed insert rolls back the sta
 
 it("upserting new pointers unlinks old credentials before vault deletion", async () => {
   const f = fixture({ pointers: { env_secret_id: "old-env", oauth_secret_id: "old-oauth" } });
-  for (const old of [vaultRow("old-env", "mcp-env"), vaultRow("old-oauth", "mcp-auth")]) await f.vaultRepo.put({ record: old });
+  for (const old of [vaultRow("old-env", "mcp-env"), vaultRow("old-oauth", "mcp-auth")]) await f.vaultRepo.put({ record: old, expectedRevision: null });
   const newEnv = vaultRow("next-env", "mcp-env");
   await f.repo.upsert({ ...f.record, sealedEnv: externalMcpVaultEnvelope({ record: newEnv }, { staged: true }) });
   const write = f.queries.find(q => q.sql.startsWith("insert"));
@@ -225,7 +225,7 @@ it("deletion unlinks the exact workspace/server pair before removing both associ
 
   const f = fixture({ pointers: { env_secret_id: "old-env", oauth_secret_id: "old-auth" } });
   for (const old of [vaultRow("old-env", "mcp-env"), vaultRow("old-auth", "mcp-auth"), vaultRow("unrelated", "mcp-env")]) {
-    await f.vaultRepo.put({ record: old });
+    await f.vaultRepo.put({ record: old, expectedRevision: null });
   }
   expect(await f.repo.deleteByServerId(key)).toBe(true);
   const expectedSql = 'delete from "servers" where "workspace_id" = $1 and "server_id" = $2';
@@ -239,7 +239,7 @@ it("refreshing OAuth retires the old envelope and releasing a lease changes only
   f.setAffected(1n);
   const old = vaultRow("old-auth", "mcp-auth");
   const next = vaultRow("new-auth", "mcp-auth");
-  await f.vaultRepo.put({ record: old });
+  await f.vaultRepo.put({ record: old, expectedRevision: null });
   expect(await f.repo.updateOAuthRuntime({ key: f.record, expectedSealedOAuth: externalMcpVaultEnvelope({ record: old }),
     patch: { sealedOAuth: externalMcpVaultEnvelope({ record: next }, { staged: true }), oauthStatus: "connected", oauthExpiresAt: "later",
       oauthRefreshLeaseUntil: null, oauthAadVersion: 1, updatedAt: "now" } })).toBe(true);

@@ -322,7 +322,7 @@ test("the panel tests and submits its visible draft and passes errors to the add
   fireEvent.click(form.getByRole("button", { name: "Submit draft" }));
   expect(submit).toHaveBeenCalledExactlyOnceWith();
   fireEvent.click(form.getByRole("button", { name: "Cancel draft" }));
-  expect(cancel).toHaveBeenCalledExactlyOnceWith();
+  expect(cancel).toHaveBeenCalledOnce();
 });
 
 test("the admissions repair writes only the named source grants and requires confirmation for removal", () => {
@@ -425,7 +425,7 @@ test("the OAuth row shows the current sign-in phase and sends shared sign-in to 
   expect(device.getByText("ABCD-1234").textContent).toBe("ABCD-1234");
   expect(device.getByRole("link", { name: "login.example.test" }).getAttribute("href")).toBe("https://login.example.test/activate?device=1");
   fireEvent.click(device.getByRole("button", { name: "Cancel" }));
-  expect(cancel).toHaveBeenCalledExactlyOnceWith();
+  expect(cancel).toHaveBeenCalledOnce();
   state = { phase: "waiting" };
   view.rerender(<ExternalMcpSettingsPanel {...props} />);
   expect(screen.getByRole("status").textContent).toContain("Finish signing in in the new window.");

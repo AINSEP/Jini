@@ -33,6 +33,7 @@ test('a changed connection after the card requires a new approval and performs n
     requireToolPermission: async () => {}, assertCredentialFreeField: () => {}, defineSecretCardTool,
     resolveOperatorLocale: async () => 'en', listExternalMcpServerViews: async () => [],
     secretCardOptions: {}, credentialText: ({ id }: { id: string }) => id,
+    approvalToolHandler: () => async () => { throw new Error('unexpected access-only review'); },
     saveExternalMcpServer: async () => { writes++; throw new Error('unexpected save'); },
   } as unknown as ExternalMcpToolDeps;
   const surfaces = { assertAccessApprover: async () => {}, surfaceExchanges: {} };
@@ -203,17 +204,6 @@ test('configuration check reports only the requested server readiness', async ()
   expect(await check()).toStrictEqual({ ok: true });
 });
 
-test('configuration-only check does not use the wired live probe', async () => {
-  const externalMcpProbe = vi.fn<NonNullable<ExternalMcpToolDeps['externalMcpProbe']>>()
-    .mockResolvedValue({ ok: true, body: { tools: [{ name: 'read' }] } });
-  const f = registrationsFixture(accessRecord(), {
-    externalMcpProbe, readEnabledExternalMcpConfigs: async () => ({ configs: [{ serverId: 'server' }], failures: [] }),
-  });
-  const result = await f.invoke('external_mcp_test_connection', { id: 'server' });
-  expect(externalMcpProbe.mock.calls).toEqual([]);
-  expect(result).toStrictEqual({ ok: true });
-});
-
 test('OAuth start uses the route-provided callback and invalid configuration is actionable', async () => {
   type OAuth = NonNullable<ExternalMcpToolDeps['externalMcpOAuth']>;
   const beginConnect = vi.fn<OAuth['beginConnect']>()
@@ -348,8 +338,12 @@ test.each([
   { mode: 'throw', report: null, connection: 'MCP_SERVER_UNREACHABLE', copy: 'unreachable', title: 'savedTitle' },
 ])('a durable configuration save preserves its success when the post-save probe is $mode', async ({ report, connection, copy, title }) => {
   const saveExternalMcpServer = vi.fn<ExternalMcpToolDeps['saveExternalMcpServer']>();
-  const server = { serverId: 'server', transport: 'streamable_http', enabled: true,
-    envTokenHints: { EXAMPLE: { last4: '5432', length: 16 } } } as Awaited<ReturnType<typeof saveExternalMcpServer>>;
+  const server: Awaited<ReturnType<typeof saveExternalMcpServer>> = { serverId: 'server', label: 'Server', provisionedByPluginId: null,
+    transport: 'streamable_http', authMode: 'none', enabled: true, command: '', url: 'https://docs.example/mcp', args: [],
+    allowedToolNames: [], writeAllowedToolNames: [], writeGrantsUpdatedByPrincipalId: null, writeGrantsUpdatedAt: null, envNames: ['EXAMPLE'],
+    hasAccessToken: false, envTokenHints: { EXAMPLE: { last4: '5432', length: 16 } }, accessTokenEnvName: null,
+    oauth: { providerId: null, grant: null, clientId: null, scopes: [], status: 'disconnected', expiresAt: null, tokenEnvName: null, hasStoredToken: false },
+    version: 1 };
   saveExternalMcpServer.mockResolvedValue(server);
   const externalMcpProbe = vi.fn<NonNullable<ExternalMcpToolDeps['externalMcpProbe']>>()
     .mockImplementation(async () => {

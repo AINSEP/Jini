@@ -35,11 +35,11 @@ type SourceConfigItem = Awaited<ReturnType<ExternalMcpController["dependencies"]
  */
 
 /** Joins stored argv back into the one-line field the operator edits, double-quoting any argument
- *  that contains whitespace — the one quoting form the server's `parseArgs` reads — so a re-save
+ *  that is empty or contains whitespace — the one quoting form the server's `parseArgs` reads — so a re-save
  *  (e.g. toggling `enabled`) splits it back into the same arguments instead of breaking a path like
  *  `C:\\Users\\John Smith\\...` in two. @complexity O(n) in the total arg length. */
 function joinArgs(args: readonly string[]): string {
-  return args.map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg)).join(" ");
+  return args.map((arg) => (arg === "" || /\s/.test(arg) ? `"${arg}"` : arg)).join(" ");
 }
 
 /** The OAuth half of an item's form fields. Everything but the client secret round-trips the stored view. */

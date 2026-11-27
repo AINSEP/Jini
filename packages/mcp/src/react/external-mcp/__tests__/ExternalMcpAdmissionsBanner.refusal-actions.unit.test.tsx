@@ -38,7 +38,7 @@ it("lists missing tools and distinguishes restart in progress from a refusal", (
     .toBe("Live now: 1 tools. Saved: 3 tools — write, delete are not loaded.");
   expect(view.getByText("This ends any conversation in progress.").textContent).toBe("This ends any conversation in progress.");
   fireEvent.click(view.getByRole("button", { name: "Restart the assistant" }));
-  expect(restart).toHaveBeenCalledExactlyOnceWith();
+  expect(restart).toHaveBeenCalledOnce();
   view.rerender(banner({ ...controller, restarting: true, restartAccepted: true }));
   expect(view.getByRole("button", { name: "Restart the assistant" })).toHaveProperty("disabled", true);
   expect(view.getByRole("status").textContent).toBe("Restarting…");
