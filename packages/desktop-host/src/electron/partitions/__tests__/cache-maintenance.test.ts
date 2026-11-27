@@ -119,6 +119,33 @@ describe('clearPartitionCacheOnce at boot', () => {
     expect(unknown.fs.renamed).toEqual([]);
   });
 
+  it('returns the cache result after a marker write fails and retries the unlatched clear', async () => {
+    const w = bootRequired();
+    const file = '/profile/maintenance.json';
+    w.mem.gate = async (op, target) => {
+      if (op === 'rename' && target === file) throw Object.assign(new Error('read-only marker'), { code: 'EROFS' });
+    };
+    expect(await clearPartitionCacheOnce(w.required)).toMatchObject({ state: 'cleared', mode: 'one-time', bytes: 100 * MiB });
+    expect(await w.marker.readCacheClear({ partition: NAME })).toEqual({ state: 'absent' });
+
+    w.mem.gate = async () => {};
+    expect(await clearPartitionCacheOnce(w.required)).toMatchObject({ state: 'cleared', mode: 'one-time', bytes: 100 * MiB });
+    expect(await w.marker.readCacheClear({ partition: NAME })).toEqual({ state: 'done', capBytes: 32 * MiB });
+    expect(w.fs.renamed.map(([from]) => from)).toEqual([`${ROOT}/${NAME}/Cache`, `${ROOT}/${NAME}/Cache`]);
+  });
+
+  it('distinguishes a malformed marker from a readable empty marker and records fresh maintenance', async () => {
+    const w = bootRequired();
+    const file = '/profile/maintenance.json';
+    w.mem.writeFileSync({ path: file, data: '{"v":1,"partitions":[]}' });
+    expect(await w.marker.readCacheClear({ partition: NAME })).toEqual({ state: 'unknown', reason: 'corrupt maintenance record' });
+    expect(await w.marker.readCodeCache()).toEqual({ state: 'unknown', reason: 'corrupt maintenance record' });
+
+    await w.marker.writeCodeCachePending({ forVersion: '8.1.2', pending: [NAME] });
+    expect(await w.marker.readCodeCache()).toEqual({ state: 'ok', lastLaunchVersion: null, forVersion: '8.1.2', pending: [NAME] });
+    expect(await w.marker.readCacheClear({ partition: NAME })).toEqual({ state: 'absent' });
+  });
+
   it('unknown evidence or size is a no-op that stays pending, below threshold is verified done', async () => {
     const noEvidence = bootRequired({ evidence: { ...GO, clearOps: { ...GO.clearOps, clearCache: 'unknown' } } });
     expect(await clearPartitionCacheOnce(noEvidence.required)).toEqual({ state: 'skipped', reason: 'evidence-unknown' });

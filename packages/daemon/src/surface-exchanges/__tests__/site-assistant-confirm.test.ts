@@ -1,6 +1,23 @@
 import { expect, it, vi } from "vitest";
 import { siteAssistantConfirmRoute, type SiteAssistantConfirmDeps } from "../site-assistant-confirm.js";
 
+it.each([
+  { label: "non-JSON media", body: { challengeId: "a".repeat(22), allow: false }, json: false },
+  { label: "non-string challenge", body: { challengeId: 42, allow: false }, json: true },
+  { label: "wrong challenge length", body: { challengeId: "a".repeat(21), allow: false }, json: true },
+])("does not redeem a decision with $label", async ({ body, json }) => {
+  const confirm = vi.fn<SiteAssistantConfirmDeps["confirm"]>();
+  const resolveOwner = vi.fn<NonNullable<SiteAssistantConfirmDeps["resolveOwner"]>>();
+  const deps: SiteAssistantConfirmDeps = {
+    rateAllowed: async () => true, enabled: async () => true, isJson: () => json, sameOrigin: async () => true,
+    resolveOwner, confirm, reportError: vi.fn(), refusalText: "refused",
+  };
+  const response = await siteAssistantConfirmRoute.handle({ raw: { body }, deps });
+  expect([response.status, await response.json(), response.headers.get("cache-control")]).toEqual([400, { error: "refused" }, "no-store"]);
+  expect(confirm.mock.calls).toEqual([]);
+  expect(resolveOwner.mock.calls).toEqual([]);
+});
+
 it("keeps malformed, foreign-origin and non-accepted decisions non-oracular and non-cacheable", async () => {
   const order: string[] = [];
   const confirm = vi.fn(async () => false);

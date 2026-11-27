@@ -81,3 +81,17 @@ it('never delays Stop for a status emitter that remains pending', async () => {
   expect(steps).toEqual(['cancel', 'cleaned']);
   release(); await work;
 });
+
+it('a synchronous stream failure does not stop cancellation for a hyphen-folded plugin match', async () => {
+  const operations: string[] = [];
+  const result = await stopRunsForToolAccessChange({
+    runs: [{ runId: 'mail', agentId: 'a', pluginIds: ['acme-mail'] }, { runId: 'other', agentId: 'a', pluginIds: ['other'] }],
+    change: { pluginIds: ['acme_mail'] },
+    revoke: ({ runId }) => { operations.push(`revoke:${runId}`); },
+    cancel: async ({ runId }) => { operations.push(`cancel:${runId}`); },
+    waitForCleanup: async ({ runId }) => { operations.push(`cleanup:${runId}`); },
+    notice: () => { throw new Error('stream already gone'); },
+  });
+  expect(result).toEqual({ stoppedRunIds: ['mail'], failedRunIds: [] });
+  expect(operations).toEqual(['revoke:mail', 'cancel:mail', 'cleanup:mail']);
+});

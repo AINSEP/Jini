@@ -117,3 +117,28 @@ test('kind changes/gone processes reset histories; duplicate IDs and changing fl
   expect(warnings[1]!.series).toHaveLength(3);
   expect(warnings[1]!.series[0]!.at).toBe(45 * MINUTE);
 });
+
+test('aggregates sampled heap across processes without treating missing readings as sampled heap', () => {
+  expect(aggregateProcessMemory({ processes: [
+    row(12, 9.3), { ...row(45, 11.3), heapUsedBytes: 1.4 * MB }, { ...row(80, 13.3), heapUsedBytes: 1.4 * MB },
+    row(99, 8, 'server'),
+  ] })).toEqual([
+    { kind: 'renderer', count: 3, rssMb: 34, heapUsedMb: 3 },
+    { kind: 'server', count: 1, rssMb: 8 },
+  ]);
+});
+
+test('reset retains the rate-limit deadline but starts a fresh memory series', () => {
+  let at = 0;
+  const detector = createMemoryGrowthDetector({ now: () => at }, { floorMs: 4, windowMs: 60, limitMb: 250, rateLimitMs: 10 });
+  const observe = (timestamp: number, rssMb: number) => {
+    at = timestamp;
+    return detector.observe({ processes: [row(91, rssMb)] });
+  };
+  expect(observe(0, 320)).toEqual([]);
+  expect(observe(4, 400)).toEqual([{ kind: 'renderer', reason: 'rss-limit', series: [{ at: 0, rssMb: 320 }, { at: 4, rssMb: 400 }] }]);
+  detector.reset({}, { keepRateLimits: true });
+  expect(observe(8, 320)).toEqual([]);
+  expect(observe(12, 420)).toEqual([]);
+  expect(observe(14, 350)).toEqual([{ kind: 'renderer', reason: 'rss-limit', series: [{ at: 8, rssMb: 320 }, { at: 12, rssMb: 420 }, { at: 14, rssMb: 350 }] }]);
+});

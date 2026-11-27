@@ -222,6 +222,24 @@ test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private
   expect(JSON.stringify(reports)).not.toContain('private provider response');
 });
 
+test('enabled AI-content capture distinguishes omitted input from an empty assistant response', async () => {
+  const { batches, fetch } = recordingFetch();
+  const resource = createPostHogProvider({
+    apiKey: 'phc_fixture', host: 'https://posthog.invalid', includePromptsAndResponses: true,
+  }, withHost({ fetch, flushAt: 1 }));
+  try {
+    resource.port.captureAiGeneration!({ userId: 'site:1', properties: { model: 'fixture-model' }, output: '' });
+  } finally { await resource.dispose({}); }
+  const events = batches.flatMap(batch => batch.body.batch);
+  expect(events.map(({ event, distinct_id, properties }) => ({
+    event, distinct_id, model: properties.$ai_model, output: properties.$ai_output_choices,
+    hasInput: Object.hasOwn(properties, '$ai_input'),
+  }))).toEqual([{
+    event: '$ai_generation', distinct_id: 'site:1', model: 'fixture-model',
+    output: [{ role: 'assistant', content: '' }], hasInput: false,
+  }]);
+});
+
 
 test.each(['visitor:ephemeral', 'fixture-install', 'system', 'owner:1'])('server counters for %s cannot create person profiles, even through caller or attribution overrides', async userId => {
   const { batches, fetch } = recordingFetch();

@@ -57,6 +57,24 @@ describe('createFileLogger', () => {
     dir = null;
   });
 
+  it('writes a safe diagnostic line when an untyped host supplies an unserializable message', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-log-'));
+    const logPath = join(dir, 'host.log');
+    const logger = createFileLogger({ logPath }, { echoToConsole: false });
+    const badMessage = { privatePayload: 'do not log this field', value: 1n };
+    // The serializer documents a fallback for bad messages from untyped hosts.
+    logger.error({ message: badMessage as unknown as string });
+    logger.info({ message: 'follow-up' });
+    const text = await readFile(logPath, 'utf8');
+    const lines = text.trim().split('\n').map((line) => JSON.parse(line));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({
+      level: 'error', message: expect.stringMatching(/\S/), meta: { serializationError: 'TypeError' },
+    });
+    expect(lines[1]).toMatchObject({ level: 'info', message: 'follow-up' });
+    expect(text).not.toContain('do not log this field');
+  });
+
   it('appends JSON lines to the log file', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-log-'));
     const logPath = join(dir, 'host.log');

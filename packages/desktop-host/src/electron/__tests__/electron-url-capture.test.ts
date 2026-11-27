@@ -6,7 +6,7 @@ import { readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS } 
 
 const request = { url: 'http://127.0.0.1:4312/', viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true }, fullPage: true, maxPageHeightPx: 8000, settleMs: 0 };
 
-function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {}, captureDelayMs = 0 } = {}, { capturePool = createElectronUrlCapturePool({}) } = {}) {
+function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {}, captureDelayMs = 0, supportsAuthCleanup = true } = {}, { capturePool = createElectronUrlCapturePool({}) } = {}) {
   let policy: any;
   let options: any;
   let destroyed = false;
@@ -34,7 +34,7 @@ function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.ur
     wc.session = {
       clearStorageData: async () => { counts.storage++; await clearStorage(); },
       clearCache: async () => { counts.cache++; },
-      clearAuthCache: async () => { counts.auth++; },
+      ...(supportsAuthCleanup ? { clearAuthCache: async () => { counts.auth++; } } : {}),
       closeAllConnections: async () => { counts.connections++; },
       webRequest: { onBeforeRequest: (input: any) => {
         if (input.listener) { calls.push('onBeforeRequest'); policy = input.listener; }
@@ -329,6 +329,17 @@ describe('native URL capture without a downloaded browser', () => {
     expect(f.calls).not.toContain(`loadURL:${request.url}`);
     expect(f.destroyed).toBe(true);
     await f.service.captureUrl(request, options);
+  });
+
+  it('refuses capture before loading even a blank page when auth cleanup is unavailable', async () => {
+    const f = fixture({ supportsAuthCleanup: false });
+    await expect(f.service.captureUrl(request, { allowedOrigins: ['http://127.0.0.1:4312'] })).rejects.toMatchObject({
+      name: 'RenderServiceError',
+      code: 'not-implemented',
+      message: 'native capture session cleanup unavailable',
+    });
+    expect(f.calls).toEqual([]);
+    expect(f.destroyed).toBe(true);
   });
 
   it('rejects invalid size and wait requests', () => {

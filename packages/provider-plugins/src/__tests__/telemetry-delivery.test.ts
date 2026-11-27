@@ -118,3 +118,21 @@ it("Sentry reports a rejected transport using safe error labels only", async () 
   await resource.dispose({});
   expect(reports).toEqual([{ phase: 'export', outcome: 'failed', host: 'sentry.test', errorClass: 'TypeError' }]);
 });
+
+it('Sentry reports export failure when the transport has no HTTP status', async () => {
+  const reports: ProviderTelemetryReport[] = [];
+  let sent = 0;
+  const resource = createSentryProvider({ dsn: 'https://public@sentry.test/123' }, withHost({
+    exportEnabled: true,
+    reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); },
+    transport: () => ({
+      send: async () => { sent += 1; return {}; },
+      flush: async () => true,
+    }),
+  }));
+  try {
+    resource.port.reportError({ error: new Error('outbound event'), context: { operation: 'telemetry.test' } });
+  } finally { await resource.dispose({}); }
+  expect(sent).toBe(1);
+  expect(reports).toEqual([{ phase: 'export', outcome: 'failed', host: 'sentry.test', errorClass: 'Error' }]);
+});

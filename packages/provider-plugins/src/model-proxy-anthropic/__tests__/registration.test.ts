@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAnthropicProxyRegistration } from '../index.js';
+import { createAnthropicProxyRegistration, parseAnthropicProxyRequest } from '../index.js';
 import { injectedFetch, makeReq, makeSseRes, okResponse, sseBody, writtenEvents, mountRegistration } from '../../__tests__/model-proxy-harness.js';
 
 /**
@@ -36,6 +36,26 @@ const validAnthropicBody = {
 };
 
 describe('anthropic proxy registration', () => {
+  it.each([undefined, 0, -1, NaN, Infinity])('refuses missing or non-positive-finite maxTokens %s', maxTokens => {
+    expect(parseAnthropicProxyRequest({ ...validAnthropicBody, maxTokens })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: 'maxTokens must be a positive number',
+        details: { kind: 'validation', issues: [{ path: 'maxTokens', message: 'required positive number' }] } },
+    });
+  });
+
+  it.each([null, '256'])('rejects maxTokens of the wrong type at the shared boundary (%s)', maxTokens => {
+    expect(parseAnthropicProxyRequest({ ...validAnthropicBody, maxTokens })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: 'maxTokens must be a number when provided' },
+    });
+  });
+
+  it('reports a malformed shared field before provider-specific validation', () => {
+    expect(parseAnthropicProxyRequest({ ...validAnthropicBody, messages: [], maxTokens: 0 })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: 'messages must be a non-empty array',
+        details: { kind: 'validation', issues: [{ path: 'messages', message: 'required non-empty array' }] } },
+    });
+  });
+
   function handler(deps: Readonly<Record<string, unknown>> = {}) {
     return mountRegistration({ registration: createAnthropicProxyRegistration(), deps });
   }

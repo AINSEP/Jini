@@ -6,6 +6,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingReporter } from '@jini-ai/core/errors/testing';
+import type { ErrorReporter } from '@jini-ai/core/errors/reporter';
 import { createNodeDispatcher, type NodeDispatcher, type NodeDispatchOptions } from '../node-bridge.js';
 
 const ID = 'ERR-AAAA-BBBB-CCCC-0001';
@@ -37,6 +38,30 @@ function failingStreamRoute(dispatcher: NodeDispatcher): { fail: () => void } {
 }
 
 describe('createNodeDispatcher reporter mode', () => {
+  it('returns a safe stand-in reference if the incident reporter fails', async () => {
+    const failure = new Error('handler private payload');
+    const record = vi.fn<ErrorReporter['record']>(() => { throw new Error('reporter private payload'); });
+    const dispatcher = createNodeDispatcher({}, { reporter: { record } });
+    dispatcher.server.route({ method: 'GET', path: '/boom', handler: () => { throw failure; } });
+    const response = await fetch(`${await serve(dispatcher)}/boom`);
+    expect([response.status, await response.text()]).toEqual([
+      500, 'The server could not finish this request. Reference: ERR-0000-0000-0000-0000. Try again; if it keeps failing, send this reference to the site\'s owner.',
+    ]);
+    expect(record.mock.calls).toEqual([[{ error: failure, step: 'Handle request', operation: 'http.route' }]]);
+  });
+
+  it('reports a throwing host fallback and cuts the unanswerable connection', async () => {
+    const failure = new Error('fallback failed');
+    const record = vi.fn<ErrorReporter['record']>(() => ({ errorId: ID }));
+    const next = vi.fn(() => { throw failure; });
+    const dispatcher = createNodeDispatcher({}, { reporter: { record } });
+    const response = fetch(`${await serve(dispatcher, { next })}/unmatched`);
+    await expect(response).rejects.toBeInstanceOf(TypeError);
+    await expect(response).rejects.toThrow('fetch failed');
+    expect(next.mock.calls).toEqual([[]]);
+    expect(record.mock.calls).toEqual([[{ error: failure, step: 'Serve request', operation: 'http.route' }]]);
+  });
+
   it('node bridge hands a pre-header failure to next without recording it', async () => {
     const { reporter, entries, reports } = createRecordingReporter({ ids: [ID], iso: '2026-01-01T00:00:00.000Z' });
     const dispatcher = createNodeDispatcher({}, { reporter });

@@ -1,9 +1,152 @@
-import { describe, expect, it } from 'vitest';
-import { describeQueryNode, type QueryDescription } from '../instrumentation.js';
+import { describe, expect, it, vi } from 'vitest';
+import { describeQueryNode, instrumentStorageKernel, trackFetch, trackHttpClient, type InstrumentableKernel, type QueryDescription } from '../instrumentation.js';
+import { createNoopObservabilityPort, type DbQueryTrackingOutcome, type OutboundCallTrackingOutcome } from '@jini-ai/core/contracts/observability';
+import type { HttpClientPort } from '@jini-ai/core/primitives';
 
 // Characterization cases recorded before the complexity refactor. These drive the public
 // descriptor with structural Kysely nodes, without a database or telemetry adapter.
 const postsTable = { kind: 'TableNode', table: { identifier: { name: 'posts' } } };
+
+it('instruments a storage kernel in place once and labels a run by its first query only', async () => {
+ const stored = { title: 'saved draft' };
+ type Plugin = { transformQuery(input: { node: unknown }): unknown; transformResult(input: { result: unknown }): Promise<unknown> };
+ const db = {
+  withPlugin(plugin: Plugin) {
+   return {
+    async load() {
+     const first = { kind: 'SelectQueryNode', from: { froms: [postsTable] } };
+     expect(plugin.transformQuery({ node: first })).toBe(first);
+     plugin.transformQuery({ node: { kind: 'DeleteQueryNode' } });
+     return plugin.transformResult({ result: stored });
+    },
+   };
+  },
+ };
+ const kernel: InstrumentableKernel = {
+  dialect: 'postgres',
+  async run(fn) { return fn(db); },
+  async transaction(fn) { return fn(); },
+  async query() { return stored; },
+  async execute() { throw new Error('unexpected execute'); },
+ };
+ const noop = createNoopObservabilityPort({});
+ const originalRun = kernel.run;
+ expect(instrumentStorageKernel({ kernel, observability: noop })).toBe(kernel);
+ expect(kernel.run).toBe(originalRun);
+ const end = vi.fn<(outcome: DbQueryTrackingOutcome) => void>();
+ const trackDbQuery = vi.fn(() => ({ run: <T>(fn: () => T) => fn(), end }));
+ const observability = { ...noop, trackDbQuery };
+ expect(instrumentStorageKernel({ kernel, observability })).toBe(kernel);
+ instrumentStorageKernel({ kernel, observability });
+ const result = await kernel.run(builder => (builder as { load(): Promise<unknown> }).load());
+ expect(result).toBe(stored);
+ expect(trackDbQuery.mock.calls).toEqual([[{ system: 'postgresql' }]]);
+ expect(end.mock.calls).toEqual([[{ operation: 'select', table: 'posts' }]]);
+});
+
+it('reports nested transaction, raw query and execute failure without replacing their outcomes', async () => {
+ const db = { dialect: 'sqlite', marker: 'borrowed' };
+ const failure = new Error('database closed');
+ const statement = {
+  keyword: 'PRAGMA busy_timeout',
+  toOperationNode() { return { kind: 'RawNode', sqlFragments: [this.keyword] }; },
+ };
+ const query = vi.fn(async () => [37]);
+ const execute = vi.fn(async () => { throw failure; });
+ const kernel: InstrumentableKernel = {
+  dialect: 'sqlite', async run(fn) { return fn(db); }, async transaction(fn) { return fn(); }, query, execute,
+ };
+ const scope: number[] = [];
+ const events: { signal: number; parent?: number; outcome: DbQueryTrackingOutcome }[] = [];
+ let next = 0;
+ const trackDbQuery = vi.fn(() => {
+  const signal = ++next;
+  const parent = scope.at(-1);
+  return {
+   run<T>(fn: () => T): T {
+    scope.push(signal);
+    try { return fn(); } finally { scope.pop(); }
+   },
+   end: (outcome: DbQueryTrackingOutcome) => { events.push({ signal, ...(parent === undefined ? {} : { parent }), outcome }); },
+  };
+ });
+ instrumentStorageKernel({ kernel, observability: { ...createNoopObservabilityPort({}), trackDbQuery } });
+ expect(await kernel.transaction(async () => kernel.run(builder => builder))).toBe(db);
+ expect(await kernel.query(statement)).toEqual([37]);
+ expect(query.mock.calls).toEqual([[statement]]);
+ await expect(kernel.execute(null)).rejects.toBe(failure);
+ expect(execute.mock.calls).toEqual([[null]]);
+ expect(trackDbQuery.mock.calls).toEqual(Array.from({ length: 4 }, () => [{ system: 'sqlite' }]));
+ expect(events).toEqual([
+  { signal: 2, parent: 1, outcome: { operation: 'run' } },
+  { signal: 1, outcome: { operation: 'transaction' } },
+  { signal: 3, outcome: { operation: 'pragma' } },
+  { signal: 4, outcome: { operation: 'query', error: failure } },
+ ]);
+});
+
+it('tracks raw fetch targets without changing their arguments, results or rejection', async () => {
+ const response = { status: 418, body: 'still returned' };
+ const failure = new Error('offline');
+ const url = new URL('https://test.example/status');
+ const request = { url: 'https://test.example/items', method: 'delete' };
+ const init = { method: 'patch' };
+ const end = vi.fn<(outcome: OutboundCallTrackingOutcome) => void>();
+ let inScope = false;
+ const trackOutboundCall = vi.fn(() => ({
+  run<T>(fn: () => T): T {
+   inScope = true;
+   try { return fn(); } finally { inScope = false; }
+  },
+  end,
+ }));
+ const fetch = vi.fn(async (input: unknown, _init?: { method?: string }) => {
+  expect(inScope).toBe(true);
+  if (input === 'https://test.example/offline') throw failure;
+  return response;
+ });
+ const noop = createNoopObservabilityPort({});
+ expect(trackFetch({ fetch, observability: noop })).toBe(fetch);
+ const tracked = trackFetch({ fetch, observability: { ...noop, trackOutboundCall } });
+ expect(await tracked(url)).toBe(response);
+ expect(await tracked(request)).toBe(response);
+ expect(await tracked(request, init)).toBe(response);
+ expect(await tracked(null)).toBe(response);
+ await expect(tracked('https://test.example/offline')).rejects.toBe(failure);
+ expect(fetch.mock.calls).toEqual([[url, undefined], [request, undefined], [request, init], [null, undefined], ['https://test.example/offline', undefined]]);
+ expect(trackOutboundCall.mock.calls).toEqual([
+  [{ method: 'GET', url: 'https://test.example/status' }], [{ method: 'DELETE', url: 'https://test.example/items' }],
+  [{ method: 'PATCH', url: 'https://test.example/items' }], [{ method: 'GET', url: '' }],
+  [{ method: 'GET', url: 'https://test.example/offline' }],
+ ]);
+ expect(end.mock.calls).toEqual([[{ statusCode: 418 }], [{ statusCode: 418 }], [{ statusCode: 418 }], [{ statusCode: 418 }], [{ error: failure }]]);
+});
+
+it('tracks guarded HTTP calls while preserving redirect policy and the transport error', async () => {
+ const response = { status: 307, headers: { location: '/next' }, bodyText: '' };
+ const failure = new Error('transport disconnected');
+ const send = vi.fn<HttpClientPort['send']>().mockResolvedValueOnce(response).mockRejectedValueOnce(failure);
+ const client = { send };
+ const options = { redirect: 'manual' } as const;
+ const required = { request: { method: 'HEAD', url: 'https://test.example/start', headers: {}, timeoutMs: 500 } } as const;
+ const noop = createNoopObservabilityPort({});
+ expect(trackHttpClient({ client, observability: noop })).toBe(client);
+ const end = vi.fn<(outcome: OutboundCallTrackingOutcome) => void>();
+ let scopedCalls = 0;
+ const trackOutboundCall = vi.fn(() => ({
+  run<T>(fn: () => T): T { scopedCalls++; return fn(); },
+  end,
+ }));
+ const tracked = trackHttpClient({ client, observability: { ...noop, trackOutboundCall } });
+ expect(await tracked.send(required, options)).toBe(response);
+ await expect(tracked.send(required)).rejects.toBe(failure);
+ expect(send.mock.calls).toEqual([[required, options], [required, undefined]]);
+ expect(trackOutboundCall.mock.calls).toEqual([
+  [{ method: 'HEAD', url: 'https://test.example/start' }], [{ method: 'HEAD', url: 'https://test.example/start' }],
+ ]);
+ expect(scopedCalls).toBe(2);
+ expect(end.mock.calls).toEqual([[{ statusCode: 307 }], [{ error: failure }]]);
+});
 type DescriptionCase = { name: string; node: unknown; expected: QueryDescription };
 
 describe('describeQueryNode characterization', () => {

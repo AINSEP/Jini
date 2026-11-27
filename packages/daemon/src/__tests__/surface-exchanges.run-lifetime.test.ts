@@ -46,6 +46,43 @@ test('the owner can answer a card after an hour while its run is alive', async (
   expect(f.store.size()).toBe(0);
 });
 
+test('restoring a live card replays its display to a returning tab and accepts the answer without a retry', async () => {
+  const f = fixture();
+  const ready = f.nextOpen();
+  const original = f.executor.execute(f.input, { emitSurface: f.emit });
+  await ready;
+  const exchangeId = f.id();
+  const returningTab = vi.fn<SurfaceEmitter>(async () => {});
+  const request = { exchangeId, principalId: 'owner', emit: returningTab };
+  const watcher = f.store.restore!(request, { toolId: 'credential' });
+  const answer = await f.store.restore!(request, { toolId: 'credential', params: { decision: 'confirm' } });
+  expect(answer).toEqual({ ok: true });
+  expect(await watcher).toEqual({ ok: true });
+  expect((await original).output).toEqual({ status: 'received', params: { decision: 'confirm' } });
+  expect(f.emissions).toHaveLength(1);
+  expect(returningTab.mock.calls).toEqual([[f.emissions[0]]]);
+  expect(f.calls).toEqual([f.input]);
+});
+
+test('headless execution receives its original input and signal while a surfaced execution sees pre-abort', async () => {
+  const execute = vi.fn<ToolExecutor['execute']>(async (_input, options) => ({
+    executionId: 'e', status: 'completed',
+    output: { aborted: options?.signal?.aborted, hasLifetime: Boolean(options?.emitSurface?.exchangeLifetime) },
+  }));
+  const executor = withSurfaceExchangeLifetime({ inner: {
+    execute, cancel: () => {}, getAuditRecord: () => null, resumeConfirmation: () => {},
+  } });
+  const input = { principal: { id: 'owner' }, run: { id: 'r' }, toolId: 'preview', input: { file: 'draft' } };
+  const controller = new AbortController();
+  controller.abort();
+  const signal = controller.signal;
+  const headless = await executor.execute(input, { signal });
+  expect(headless.output).toEqual({ aborted: true, hasLifetime: false });
+  expect(execute.mock.calls[0]).toEqual([input, { signal }]);
+  const surfaced = await executor.execute(input, { signal, emitSurface: async () => {} });
+  expect(surfaced.output).toEqual({ aborted: true, hasLifetime: true });
+});
+
 test('a late answer reissues the original tool and arguments and reaches its replacement card', async () => {
   const f = fixture();
   const controller = new AbortController();

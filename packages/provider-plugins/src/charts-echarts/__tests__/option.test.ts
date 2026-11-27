@@ -146,6 +146,16 @@ describe('ChartSpec to ECharts option', () => {
     expect(result.tooltip.valueFormatter!([2500, 1234.5])).toBe('2.5K, 1.234,5');
   });
 
+  it('formats a scatter point with only an x formatter and leaves the y number plain', () => {
+    const result = option({
+      kind: 'scatter', categoryKey: 'x', series: [{ key: 'y' }], data: [{ x: 2500, y: 1234.5 }],
+      axes: { x: { format: { locale: 'en-US', notation: 'compact' } } },
+    });
+    expect(result.tooltip.valueFormatter!([2500, 1234.5])).toBe('2.5K, 1234.5');
+    expect(result.tooltip.valueFormatter!([2500, null])).toBe('2.5K, –');
+    expect(result.yAxis!.axisLabel.formatter).toBeUndefined();
+  });
+
   it('paints with the host chart tokens, labels the chart for assistive tech and never animates', () => {
     const result = option(sales);
     expect(result.color).toEqual([...CHART_SERIES_COLORS]);

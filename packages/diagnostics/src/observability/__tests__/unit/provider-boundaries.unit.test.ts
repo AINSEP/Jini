@@ -4,7 +4,7 @@ import { describeReportedError } from '../../errors.js';
 import { combineObservabilityPorts } from '../../fanout.js';
 import { createHookObservabilityPort } from '../../hooks.js';
 import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
-import { errorType } from '../../otel.js';
+import { errorType, redactOperationAttributes } from '../../otel.js';
 import { redactedError, reportErrorOnce, runWithErrorReportScope } from '../../report-error.js';
 import { createTelemetryTestProbe } from '../../telemetry-test.js';
 import { createNoopTracker } from '../../tracker-noop.js';
@@ -13,6 +13,23 @@ import type { TraceSpanPort } from '../../ports.js';
 import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+it('exports only bounded, safe attributes and keeps numbers numeric', () => {
+  const canary = 'ghp_' + 'A'.repeat(36);
+  const input = {
+    'tool.name': 'x'.repeat(249) + ' ' + canary,
+    attempts: 7,
+    'not a label': 'discard',
+    [canary]: 'discard even though the key matches the label alphabet',
+    ['q'.repeat(65)]: 'discard',
+  };
+  expect(redactOperationAttributes({ attributes: input })).toEqual({
+    'tool.name': 'x'.repeat(249) + ' [REDAC', attempts: 7,
+  });
+  expect(input['tool.name']).toBe('x'.repeat(249) + ' ' + canary);
+  const entries = Array.from({ length: 65 }, (_, i) => [`metric.${i}`, i] as const);
+  expect(redactOperationAttributes({ attributes: Object.fromEntries(entries) })).toEqual(Object.fromEntries(entries.slice(0, 64)));
+});
 
 describe('sanitized delivery failures', () => {
   it.each([null, undefined, false, 17, 'private endpoint'])('reduces primitive %j to a fixed label', error => {

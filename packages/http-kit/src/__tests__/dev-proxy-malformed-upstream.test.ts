@@ -41,14 +41,14 @@ describe("dev-proxy against an upstream response with no status line", () => {
     expect(proxyRes.pipe).not.toHaveBeenCalled();
   });
 
-  test("upgrade listener: destroys both sockets (client with an error) and writes nothing to the client", () => {
+  test.each([undefined, 101])("upgrade listener: rejects a missing status message even when the status code is %s", (statusCode) => {
     const listener = createDevProxyUpgradeListener({ devProxyUrl: "http://127.0.0.1:1", basePath: "/admin" });
     const clientSocket = { destroy: vi.fn(), write: vi.fn(), on: vi.fn(), pipe: vi.fn() };
     listener({ url: "/admin/?token=abc", method: "GET", headers: {} } as never, clientSocket as never, Buffer.alloc(0));
     const call = requestCalls.at(-1);
     assert.ok(call);
     const proxySocket = { destroy: vi.fn(), write: vi.fn(), pipe: vi.fn() };
-    call.proxyReq.emit("upgrade", { statusCode: undefined, statusMessage: undefined, rawHeaders: [] }, proxySocket, Buffer.alloc(0));
+    call.proxyReq.emit("upgrade", { statusCode, statusMessage: undefined, rawHeaders: [] }, proxySocket, Buffer.alloc(0));
     expect(proxySocket.destroy).toHaveBeenCalledOnce();
     expect(clientSocket.destroy).toHaveBeenCalledWith(new Error("admin dev proxy upgrade response has no status line"));
     expect(clientSocket.write).not.toHaveBeenCalled();

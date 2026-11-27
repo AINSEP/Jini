@@ -156,6 +156,29 @@ test("hidden tools ranked first do not starve the requested limit", async () => 
   assert.throws(() => view.search({ query: "q" }, { limit: -1 }), RangeError);
 });
 
+test("stops widening an exhausted index without exposing hidden hits or reprojecting prior results", async () => {
+  const { catalog } = fakeCatalog();
+  const windows: number[] = [];
+  const described: string[] = [];
+  const wrapped: ToolCatalogQuery = {
+    search: (query, options) => {
+      const limit = options?.limit ?? 0;
+      if (limit > 8) throw new Error("index was already exhausted at window 8");
+      windows.push(limit);
+      return catalog.search(query, options);
+    },
+    describe: input => {
+      described.push(input.id);
+      return catalog.describe(input);
+    },
+  };
+  const discovery = scoped({ catalog: wrapped, types: { "p-1": ["page"] } });
+  const view = await discovery.catalogFor({ request: { scope: scope({ allowed: ["list", "restore"] }) } });
+  assert.deepEqual(ids(view.search({ query: "q" }, { limit: 4 })), ["list", "restore"]);
+  assert.deepEqual(windows, [4, 8]);
+  assert.deepEqual(described, ["restore"]);
+});
+
 test("equivalent queries share one cached result within a scope", async () => {
   const { catalog, calls } = fakeCatalog();
   const cache = mapCache();

@@ -5,6 +5,7 @@ import {
   PartitionOpenRefusedError, presenceClaimSource, resolvePartitionRoot,
 } from '../index.js';
 import type { PartitionClaimSource, PartitionInterlock } from '../index.js';
+import type { PartitionInterlockLogEvent, PartitionInterlockRequired } from '../profile-interlock.js';
 import { readPresenceStrict } from '../../updates/index.js';
 import { FakeClock, FakeScheduler, MemoryFs, MemoryLock, MESSAGES } from './fakes.js';
 
@@ -18,11 +19,15 @@ function world(): World {
   return { fs: new MemoryFs(), clock, scheduler, lock: new MemoryLock(clock, scheduler), alive: new Set() };
 }
 
-interface ProcOptions { pid?: number; profile?: string; sources?: PartitionClaimSource[]; presenceDir?: string; maintenance?: string[] }
+interface ProcOptions {
+  pid?: number; profile?: string; sources?: PartitionClaimSource[]; presenceDir?: string; maintenance?: string[];
+  invalidateRetirement?: PartitionInterlockRequired<{ partition: string }>['invalidateRetirement'];
+  openMaintenance?: PartitionInterlockRequired<{ partition: string }>['openMaintenance'];
+}
 function proc(w: World, options: ProcOptions = {}) {
   const pid = options.pid ?? 100, profile = options.profile ?? '/profile';
   w.alive.add(pid);
-  const logs: Array<{ event: string }> = [];
+  const logs: PartitionInterlockLogEvent[] = [];
   const invalidated: string[] = [];
   const instances = options.presenceDir === undefined ? [] : [presenceClaimSource({
     directory: options.presenceDir, fs: presenceFs(w.fs), liveness: ({ pid: p }) => w.alive.has(p),
@@ -34,8 +39,8 @@ function proc(w: World, options: ProcOptions = {}) {
     fromPartition: ({ partition }) => ({ partition }),
     isManaged,
     claimSources: { partitions: options.sources ?? [], instances },
-    invalidateRetirement: async ({ partition }) => { invalidated.push(partition); },
-    openMaintenance: async ({ partition }) => { options.maintenance?.push(`${pid}:${partition}`); },
+    invalidateRetirement: options.invalidateRetirement ?? (async ({ partition }) => { invalidated.push(partition); }),
+    openMaintenance: options.openMaintenance ?? (async ({ partition }) => { options.maintenance?.push(`${pid}:${partition}`); }),
     messages: MESSAGES,
     log: event => { logs.push(event); },
   });
@@ -72,6 +77,84 @@ async function claimsInsidePass(interlock: PartitionInterlock) {
 }
 
 describe('acquireSiteSession and siteSession', () => {
+  it('refuses an open without a durable intent and omits the failed intent from the next heartbeat', async () => {
+    const w = world(), self = proc(w);
+    self.interlock.registerHolder();
+    const unavailable = Object.assign(new Error('cannot publish intent'), { code: 'ENOSPC' });
+    w.fs.gate = async (op, target) => {
+      if (op === 'rename' && target === '/profile/partition-interlock/holders/100-64ab.json') throw unavailable;
+    };
+    await expect(self.interlock.acquireSiteSession({ partition: P, subjectDir: '/s' })).rejects.toMatchObject({
+      name: 'PartitionOpenRefusedError',
+      message: 'Cannot write to the settings folder (/profile/partition-interlock).',
+      cause: unavailable,
+    });
+    expect(self.invalidated).toEqual([]);
+    expect(() => self.interlock.siteSession({ partition: P })).toThrow(PartitionNotHeldError);
+
+    w.fs.gate = async () => {};
+    w.scheduler.tick();
+    await flush();
+    expect(await self.interlock.readHoldersStrict()).toMatchObject({ state: 'ok', value: [{ pid: 100, seq: 2, intents: [], held: [] }] });
+  });
+
+  it('withdraws the published intent and does not open if retirement invalidation fails', async () => {
+    const w = world(), state = { calls: [] as unknown[] };
+    const cause = new Error('retirement store unavailable');
+    const self = proc(w, { invalidateRetirement: async input => { state.calls.push(input); throw cause; } });
+    self.interlock.registerHolder();
+    await expect(self.interlock.acquireSiteSession({ partition: P, subjectDir: '/s' })).rejects.toMatchObject({
+      name: 'PartitionOpenRefusedError', message: MESSAGES.refused, cause,
+    });
+    expect(state.calls).toEqual([{ partition: DIR, subjectDir: '/s', reason: 'reacquired' }]);
+    expect(await self.interlock.readHoldersStrict()).toMatchObject({ state: 'ok', value: [{ pid: 100, seq: 2, intents: [], held: [] }] });
+    expect(() => self.interlock.siteSession({ partition: P })).toThrow(PartitionNotHeldError);
+  });
+
+  it('acquires the session but skips maintenance when a sibling holder cannot be read', async () => {
+    const w = world(), maintenance: string[] = [];
+    const self = proc(w, { maintenance });
+    self.interlock.registerHolder();
+    const file = '/profile/partition-interlock/holders/9-ab.json';
+    w.fs.writeFileSync({ path: file, data: '{}' });
+    w.fs.failRead.add(file);
+
+    expect(await self.interlock.acquireSiteSession({ partition: P, subjectDir: '/s' }))
+      .toEqual({ state: 'held', partition: DIR, maintenance: 'skipped-unknown-holders' });
+    expect(self.interlock.siteSession({ partition: P })).toEqual({ partition: P });
+    expect(maintenance).toEqual([]);
+    expect(self.logs).toEqual([{ event: 'maintenance-skipped', partition: DIR, detail: 'holder 9-ab.json unreadable (EACCES)' }]);
+  });
+
+  it('keeps the session acquired and exposes a maintenance failure', async () => {
+    const w = world();
+    const self = proc(w, { openMaintenance: async () => { throw Object.assign(new Error('cache is busy'), { code: 'EBUSY' }); } });
+    self.interlock.registerHolder();
+    expect(await self.interlock.acquireSiteSession({ partition: P, subjectDir: '/s' }))
+      .toEqual({ state: 'held', partition: DIR, maintenance: 'failed' });
+    expect(self.interlock.siteSession({ partition: P })).toEqual({ partition: P });
+    expect(self.logs).toEqual([{ event: 'maintenance-failed', partition: DIR, detail: 'EBUSY' }]);
+  });
+
+  it('reports a failed heartbeat, keeps its previous record, and publishes on the next tick', async () => {
+    const w = world(), self = proc(w);
+    self.interlock.registerHolder();
+    const file = '/profile/partition-interlock/holders/100-64ab.json';
+    const original = await w.fs.readFile({ path: file });
+    w.fs.gate = async (op, target) => {
+      if (op === 'rename' && target === file) throw Object.assign(new Error('read-only holder'), { code: 'EROFS' });
+    };
+    w.scheduler.tick();
+    await flush();
+    expect(self.logs).toEqual([{ event: 'heartbeat-failed', detail: 'EROFS' }]);
+    expect(await w.fs.readFile({ path: file })).toBe(original);
+
+    w.fs.gate = async () => {};
+    w.scheduler.tick();
+    await flush();
+    expect(await self.interlock.readHoldersStrict()).toMatchObject({ state: 'ok', value: [{ pid: 100, seq: 2, intents: [], held: [] }] });
+  });
+
   it('T-2a.1 opening a site waits while a pass holds the lock', async () => {
     const w = world(), writer = proc(w, { pid: 1 }), opener = proc(w, { pid: 2 });
     writer.interlock.registerHolder(); opener.interlock.registerHolder();
@@ -170,6 +253,17 @@ describe('acquireSiteSession and siteSession', () => {
 });
 
 describe('claims and strict readers', () => {
+  it('returns the full live presence record while dropping dead and unrelated entries', () => {
+    const w = world();
+    const directory = '/profile/presence';
+    const live = { pid: 37, startedAt: 14, heartbeatAt: 81 };
+    w.fs.mkdirSync({ path: directory });
+    w.fs.writeFileSync({ path: `${directory}/37.json`, data: JSON.stringify(live) });
+    w.fs.writeFileSync({ path: `${directory}/82.json`, data: JSON.stringify({ pid: 82, startedAt: 36, heartbeatAt: 99 }) });
+    w.fs.writeFileSync({ path: `${directory}/readme.txt`, data: 'not a presence record' });
+    expect(readPresenceStrict({ directory, fs: presenceFs(w.fs), liveness: ({ pid }) => pid === 37 }))
+      .toEqual({ state: 'ok', value: [live] });
+  });
   it('T-2a.5 updater-disabled sibling is seen as another instance', async () => {
     const w = world(), self = proc(w, { pid: 1, presenceDir: '/profile/presence' }), sibling = proc(w, { pid: 2 });
     self.interlock.registerHolder(); sibling.interlock.registerHolder();
@@ -256,6 +350,12 @@ describe('partition root', () => {
     const fs = rootFs();
     expect(await resolvePartitionRoot({ sessionDataDir: '/s', fs })).toEqual({ state: 'ok', root: '/s/Partitions' });
     expect(await resolvePartitionRoot({ sessionDataDir: '/none', fs })).toEqual({ state: 'absent' });
+  });
+  it('reports an unreadable partitions root rather than returning an empty list', async () => {
+    const fs = rootFs();
+    fs.failReaddir.add('/s/Partitions');
+    expect(await listCandidates({ root: '/s/Partitions', fs, isManaged }))
+      .toEqual({ state: 'unknown', reason: 'partitions root unreadable (EACCES)' });
   });
   it('T-2a.9 a symlinked candidate is skipped', async () => {
     const fs = rootFs(), link = `/s/Partitions/site-${'f'.repeat(32)}`;

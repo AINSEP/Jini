@@ -92,3 +92,9 @@ test("parseRangeHeader: absurdly large numeric bounds do not throw or overflow i
     end: 19,
   });
 });
+
+test("parseRangeHeader: a suffix that overflows Number is unsatisfiable rather than a full response", () => {
+  const overflowing = "9".repeat(309);
+  assert.deepEqual(parseRangeHeader({ header: `bytes=-${overflowing}`, totalLength: TOTAL }), { kind: "unsatisfiable" });
+  assert.deepEqual(parseRangeHeader({ header: `bytes=1-${overflowing}`, totalLength: TOTAL }), { kind: "range", start: 1, end: 19 });
+});

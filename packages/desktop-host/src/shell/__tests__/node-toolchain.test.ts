@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 
 import { bindNodeToolchain } from "../node-toolchain.js";
@@ -163,6 +163,21 @@ test("writeNodeToolchain from a disk image with no earlier shims writes none and
   const paths = writeNodeToolchain({ userDataDir, electronPath: DMG_ELECTRON, npmRoot: DMG_NPM_ROOT, platform: "darwin", isReadOnlyVolume: ALL_VOLUMES_READ_ONLY });
   assert.equal(paths, null);
   assert.equal(fs.existsSync(path.join(userDataDir, "node-toolchain", "bin", "node")), false);
+});
+
+test("the bound writer uses the native write probe by default to leave a mounted app's shims unwritten", () => {
+  const userDataDir = tempDir();
+  const access = vi.spyOn(fs, "accessSync").mockImplementation(() => {
+    throw Object.assign(new Error("read-only filesystem"), { code: "EROFS" });
+  });
+  try {
+    assert.equal(writeNodeToolchain({ userDataDir, electronPath: DMG_ELECTRON, npmRoot: DMG_NPM_ROOT, platform: "darwin" }), null);
+    assert.deepEqual(access.mock.calls, [["/Volumes/Host 0.1.7", fs.constants.W_OK]]);
+    assert.equal(fs.existsSync(path.join(userDataDir, "node-toolchain", "bin", "node")), false);
+  } finally {
+    access.mockRestore();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
 });
 
 test("writeNodeToolchain from a disk image keeps an installed copy's shims untouched and returns their paths", () => {

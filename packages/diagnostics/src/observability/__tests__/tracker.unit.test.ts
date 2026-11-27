@@ -292,6 +292,27 @@ it("a throw keeps an earlier explicit failure or interruption instead of flatten
   expect(outcomes).toEqual([{ outcome: "quota_exceeded", failed: true }, { statusCode: 503, routePattern: "/posts/:id" }, { status: "interrupted" }]);
 });
 
+it("reports default outcomes when requests and agent work never supply an explicit outcome", async () => {
+  const outcomes: unknown[] = [];
+  const recordEnd = () => ({ end: (outcome: unknown) => { outcomes.push(outcome); } });
+  const tracker = createTracker({ observability: {
+    ...createNoopObservabilityPort({}), trackRequest: recordEnd,
+    trackAgentRun: () => ({ ...recordEnd(), run: fn => fn() }),
+  } });
+  const failure = new Error("agent stopped without recording an outcome");
+  await expect(tracker.trace({ name: "request", run: () => 'response without explicit outcome' },
+    { request: { method: "GET", path: "/drafts/9" } })).resolves.toBe('response without explicit outcome');
+  await expect(tracker.trace({ name: "agent", run: () => 'finished' },
+    { agent: { runId: "run-1" } })).resolves.toBe('finished');
+  await expect(tracker.trace({ name: "agent", run: () => { throw failure; } },
+    { agent: { runId: "run-2" } })).rejects.toBe(failure);
+  expect(outcomes).toEqual([
+    { statusCode: 500, routePattern: "unmatched" },
+    { status: "succeeded" },
+    { status: "failed", error: failure },
+  ]);
+});
+
 it("a thrown non-Error object is reported once as it propagates through nested traces", async () => {
   const reports: ErrorReport[] = [];
   const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), reportError(report: ErrorReport) { reports.push(report); } } });

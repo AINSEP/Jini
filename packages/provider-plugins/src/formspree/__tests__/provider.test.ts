@@ -1,5 +1,24 @@
 import { test, expect } from 'vitest';
 import { createFormspreeProvider } from '../provider.js';
+test('describes the one editable public endpoint without requesting frame access', () => {
+  expect(createFormspreeProvider({}).describe?.()).toEqual({
+    label: 'Formspree',
+    fields: [{ key: 'endpoint', label: 'Public form endpoint', type: 'url', helpText: 'Use https://formspree.io/f/form-id from your Formspree form.' }],
+    helpText: 'Send answers directly to your hosted Formspree form.',
+    answers: 'Answers are managed in your Formspree account; they are not copied into the built-in inbox.',
+    validation: 'Browser field checks and Formspree validation apply.',
+    frameOrigins: [],
+  });
+});
+test.each([{ config: {} }, { config: { endpoint: 'https://formspree.io/f/abc123', extra: 'unexpected' } }])(
+  'rejects missing or extra settings instead of producing a native POST for $config',
+  ({ config }) => {
+    expect(createFormspreeProvider({}).plan({ config: config as Record<string, string>, slug: 'contact' })).toEqual({
+      kind: 'unavailable', code: 'invalid_configuration',
+      message: 'This form needs a valid public Formspree endpoint (https://formspree.io/f/form-id) before it can send answers.',
+    });
+  },
+);
 test('preserves exact native POST URL without sending or storing answers', () => {
   expect(createFormspreeProvider({}).plan({ config: { endpoint: 'https://formspree.io/f/abc123' }, slug: 'contact' })).toMatchObject({ kind: 'post', action: 'https://formspree.io/f/abc123', external: true });
 });

@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { validationError } from '@jini-ai/core/contracts/server';
 import { rawInput } from '../request.js';
+import type { Request } from 'express';
 
 describe('rawInput', () => {
+  it('folds repeated opted-in headers and omits unrequested or missing values', () => {
+    const req = { headers: { 'x-region': ['west', 'east'], 'x-trace': 'abc', authorization: 'private' } } as Request;
+    expect(rawInput({ req }, { headers: ['X-REGION', 'X-TRACE', 'X-Missing'] })).toEqual({
+      body: undefined, query: {}, params: {}, headers: { 'x-region': 'west, east', 'x-trace': 'abc' },
+    });
+  });
+
   it('extracts body/query/params from a full Express request', () => {
     const req = { body: { a: 1 }, query: { q: '1' }, params: { id: '42' } } as any;
     expect(rawInput({ req })).toEqual({ body: { a: 1 }, query: { q: '1' }, params: { id: '42' } });

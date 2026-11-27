@@ -45,6 +45,19 @@ test("the readers return the host's helpers by reference", () => {
   assert.equal(readPostHogTelemetry({ describeTelemetryFailure: REAL.describeTelemetryFailure }), REAL.describeTelemetryFailure);
 });
 
+test('Sentry configuration reports only the missing callable helpers', () => {
+  const missing = 'optional.context is missing: describeReportedError, describeTelemetryFailure';
+  assert.throws(() => readSentryContext({
+    context: { redactOperationAttributes: REAL.redactOperationAttributes, describeReportedError: 'not callable' },
+  }), {
+    name: 'SentryProviderConfigError', code: 'observability_sentry_context_missing', details: missing,
+  });
+  assert.throws(() => readSentryContext({ context: null }), {
+    name: 'SentryProviderConfigError', code: 'observability_sentry_context_missing',
+    details: 'optional.context is missing: redactOperationAttributes, describeReportedError, describeTelemetryFailure',
+  });
+});
+
 test("OpenTelemetry span and metric attributes all pass through the host's redactor", async () => {
   const seen: Array<Readonly<Record<string, string | number>>> = [];
   const exporter = new InMemorySpanExporter();

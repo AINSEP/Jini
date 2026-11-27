@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAzureProxyRegistration } from '../index.js';
+import { createAzureProxyRegistration, parseAzureProxyRequest } from '../index.js';
 import { injectedFetch, makeReq, makeSseRes, okResponse, sseBody, writtenEvents, mountRegistration } from '../../__tests__/model-proxy-harness.js';
 
 /**
@@ -29,6 +29,22 @@ const validAzureBody = {
 };
 
 describe('azure proxy registration', () => {
+  it.each([
+    ['baseUrl', undefined], ['baseUrl', ''], ['apiVersion', undefined], ['apiVersion', ''], ['apiVersion', '  '], ['apiVersion', 1234],
+  ] as const)('requires a non-empty %s, not %s', (field, value) => {
+    expect(parseAzureProxyRequest({ ...validAzureBody, [field]: value })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: `${field} must be a non-empty string`,
+        details: { kind: 'validation', issues: [{ path: field, message: 'required non-empty string' }] } },
+    });
+  });
+
+  it('returns the shared parse error before deciding whether an Azure endpoint was supplied', () => {
+    expect(parseAzureProxyRequest({ ...validAzureBody, apiKey: '', baseUrl: undefined })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: 'apiKey must be a non-empty string',
+        details: { kind: 'validation', issues: [{ path: 'apiKey', message: 'required non-empty string' }] } },
+    });
+  });
+
   function handler(deps: Readonly<Record<string, unknown>> = {}) {
     return mountRegistration({ registration: createAzureProxyRegistration(), deps });
   }

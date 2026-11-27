@@ -72,6 +72,24 @@ afterEach(() => {
 });
 
 describe('RoutineService.setRunHandler / lifecycle basics', () => {
+  it('reconciles a legacy timer after the persisted schedule changes', async () => {
+    const routine = fixtureRoutine({ schedule: { kind: 'daily', time: '10:01', timezone: 'UTC' } });
+    const persistence = new SharedRoutinePersistence([routine]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-17T10:00:00.000Z'));
+    const service = new RoutineService({ persistence });
+    try {
+      service.start({});
+      expect(service.nextRunAt({ routineId: 'routine-1' })).toEqual(new Date('2026-05-17T10:01:00.000Z'));
+      routine.schedule = { kind: 'daily', time: '10:22', timezone: 'UTC' };
+      await service.reconcile({ reason: 'edit' });
+      expect(service.nextRunAt({ routineId: 'routine-1' })).toEqual(new Date('2026-05-17T10:22:00.000Z'));
+      expect(vi.getTimerCount()).toBe(1);
+    } finally {
+      service.stop({});
+    }
+  });
+
   it('throws when runNow is called before a run handler is configured', async () => {
     const persistence = new SharedRoutinePersistence([fixtureRoutine()]);
     const service = new RoutineService({ persistence: persistence });

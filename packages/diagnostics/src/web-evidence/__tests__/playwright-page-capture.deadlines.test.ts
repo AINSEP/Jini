@@ -122,6 +122,20 @@ test("a full-page scroll that ends before the work deadline keeps the stable-fra
   assert.deepEqual(fixture.screenshots, [{ at: 25_000, timeout: 1_000, animations: "disabled" }], "30 s − 25 s left, minus the 4 s reserve");
 });
 
+test("a full-page capture skips scrolling when page settling consumes the whole work budget", async t => {
+  const fixture = capturing({ times: { wait: "never", scroll: "never" } });
+  t.onTestFinished(() => fixture.capture.close());
+  const run = watch(fixture.capture.capture(captureRequest({ fullPage: true, settleMs: 1_000 })));
+  // T = 31 s with 4 s reserved. Once settling spends the 27 s work budget, never start the scroll.
+  await fixture.clock.advance(27_000);
+  const outcome = run.outcome();
+  assert.ok(outcome && "image" in outcome, "settling may time out but the current frame is available");
+  assert.equal(outcome.image.png.toString(), "frame-0");
+  assert.equal(outcome.image.note, "page loaded but did not settle within 27 s; captured the current frame (content may still be loading).");
+  assert.deepEqual(fixture.screenshots, [{ at: 27_000, timeout: 4_000, animations: "allow" }]);
+  assert.equal(fixture.events.includes("scroll-start"), false);
+});
+
 test("a navigation that never commits fails at the work deadline and says so: the site did not answer, with that number", async t => {
   const fixture = capturing({ times: { goto: "never" } });
   t.onTestFinished(() => fixture.capture.close());

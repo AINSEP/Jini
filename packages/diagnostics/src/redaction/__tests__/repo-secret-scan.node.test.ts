@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { scanRepoForSecrets, scanGitHistoryForSecrets } from "../repo-secret-scan.node.js";
+import { expect, it, vi } from "vitest";
+import { createRepoSecretCheck, scanRepoForSecrets, scanGitHistoryForSecrets } from "../repo-secret-scan.node.js";
 
 it("scans synthetic tracked/history bytes with the same findings and redaction", () => {
   const secret = "ghp_" + "A".repeat(36);
@@ -19,4 +19,40 @@ it("scans synthetic tracked/history bytes with the same findings and redaction",
   expect(tracked).toEqual([{ file: "file.txt", patternName: "GitHub personal access token (classic, ghp_)", line: 2 }]);
   expect(scanGitHistoryForSecrets(required)).toEqual(tracked);
   expect(JSON.stringify(tracked)).not.toContain(secret);
+});
+
+it("reports a clean repository when a tracked file disappeared from the working tree", () => {
+  const repoRoot = "/synthetic";
+  const runner: Parameters<typeof scanRepoForSecrets>[0]["runner"] = (args, options) => {
+    expect(options.cwd).toBe(repoRoot);
+    expect(options.encoding).toBe("utf8");
+    if (args[0] === "ls-files") {
+      expect(args).toEqual(["ls-files", "-z"]);
+      return "gone.txt\0safe.txt\0";
+    }
+    if (args[0] === "log") return "";
+    if (args[0] === "rev-list") {
+      expect(args).toEqual(["rev-list", "--objects", "--all"]);
+      return "";
+    }
+    throw new Error(`Unexpected Git request: ${args.join(" ")}`);
+  };
+  const readFileSync = vi.fn((file: string) => {
+    if (file !== "/synthetic/safe.txt") throw new Error(`Unexpected read: ${file}`);
+    return Buffer.from("no credentials");
+  });
+  const stdout = vi.fn(), stderr = vi.fn();
+  const check = createRepoSecretCheck({ repoRoot, runner, fs: {
+    statSync: file => {
+      if (file === "/synthetic/gone.txt") throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      if (file !== "/synthetic/safe.txt") throw new Error(`Unexpected stat: ${file}`);
+      return { size: 14, isFile: () => true };
+    },
+    readFileSync,
+  }, skipExtensions: new Set(), maxScanBytes: 100, exemptions: [], stdout, stderr,
+  copy: { clean: "No secrets found", tip: n => `Tip: ${n}`, history: n => `History: ${n}`, guidance: "Rotate credentials" } });
+  expect(check.run({})).toBe(0);
+  expect(stdout.mock.calls).toEqual([["No secrets found"]]);
+  expect(stderr.mock.calls).toEqual([]);
+  expect(readFileSync.mock.calls).toEqual([["/synthetic/safe.txt"]]);
 });

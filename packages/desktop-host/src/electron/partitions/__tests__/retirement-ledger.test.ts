@@ -104,6 +104,21 @@ describe('retirement ledger', () => {
     expect(() => ledger(stuck).ledger.append({ candidate: candidate() }, {})).toThrow(/could not be moved aside/);
   });
 
+  it('refuses retirement records with invalid optional metadata, basis, or erased-directory identity', () => {
+    const store = new MemoryDurableJson();
+    const { ledger: l } = ledger(store);
+    const original = l.append({ candidate: candidate() }, {});
+    expect(l.readStrict({}, {})).toEqual({ state: 'ok', records: [original] });
+    for (const record of [
+      { ...original, asideIdentity: 17 },
+      { ...original, basis: 'unsupported-basis' },
+      { ...original, dirIdentity: { ...candidate().dirIdentity, ino: '42' } },
+    ]) {
+      store.value = { v: 1, profile: PROFILE, records: [record] };
+      expect(l.readStrict({}, {})).toEqual({ state: 'unknown', reason: 'ledger record malformed' });
+    }
+  });
+
   it('prunes old terminal records except those whose aside folder is still on disk', () => {
     const { ledger: l, clock } = ledger();
     const a = l.append({ candidate: candidate({ partition: 'site-a' }) }, {});

@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { createSqliteRoutineStore, SQLITE_ROUTINES_SCHEMA } from '../routine-store.sqlite.js';
 import { pinnedChecksum, JINI_ROUTINES_LEDGER_TABLE } from '../migrations/index.js';
 import type { RoutineRun } from '../types.js';
+import { ToolInputError } from '@jini-ai/core';
+import { ClientFacingError } from '@jini-ai/core/contracts/server';
 
 const clock = Date.UTC(2026, 10, 24, 12);
 const handles: Database.Database[] = [];
@@ -156,5 +158,113 @@ describe('routine sidecar migration through the real ADR-066 runner', () => {
     const db = new Database(':memory:'); handles.push(db); db.exec(SQLITE_ROUTINES_SCHEMA);
     db.exec(`CREATE TABLE ${JINI_ROUTINES_LEDGER_TABLE} (id TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`);
     expect(() => createSqliteRoutineStore({ db, scope: 'a' }, { holderId: 'a' })).toThrow('Routine migration history mismatch');
+  });
+});
+
+it('rejects stale edits and deletes without rewriting the current revision', async () => {
+  const { store } = fixture();
+  const { id } = await store.create(draft, { creatorId: 'owner' });
+  await store.update({ id, patch: { name: 'Current' } }, { expectedRevision: 1 });
+  for (const change of [
+    () => store.update({ id, patch: { name: 'Stale' } }, { expectedRevision: 1 }),
+    () => store.delete({ id }, { expectedRevision: 1 }),
+  ]) {
+    const result = change();
+    await expect(result).rejects.toBeInstanceOf(ClientFacingError);
+    await expect(result).rejects.toMatchObject({
+      apiError: { code: 'CONFLICT', message: 'Routine changed', details: { reason: 'ROUTINE_CHANGED' } },
+    });
+    expect(await store.get({ id })).toMatchObject({ name: 'Current', revision: 2 });
+  }
+});
+
+it('rejects a sole migration stamp with the right checksum under the wrong id', () => {
+  const { db } = fixture();
+  db.prepare(`UPDATE ${JINI_ROUTINES_LEDGER_TABLE} SET id=?`).run('0001_wrong_routine_migration');
+  expect(() => createSqliteRoutineStore({ db, scope: 'a' })).toThrow('Routine migration history mismatch');
+});
+
+it('pages past tied start times by run id without repeating or losing runs', async () => {
+  const { store, persistence } = fixture();
+  const { id } = await store.create(draft, { creatorId: 'owner' });
+  for (const [runId, startedAt] of [['z-old', clock - 1], ['a-tie', clock], ['q-new', clock + 1], ['b-tie', clock]] as const) {
+    expect(persistence.insertRun({ run: { ...run(id, runId), trigger: 'manual', status: 'succeeded', startedAt, slotAt: null } })).toBe(true);
+  }
+  const first = await store.listRuns({ routineId: id }, { limit: 2 });
+  expect(first.items.map(({ id: runId }) => runId)).toEqual(['q-new', 'b-tie']);
+  expect(first.nextCursor).toBe(Buffer.from(JSON.stringify({ s: clock, i: 'b-tie' })).toString('base64url'));
+  const last = await store.listRuns({ routineId: id }, { limit: 2, cursor: first.nextCursor });
+  expect(last.items.map(({ id: runId }) => runId)).toEqual(['a-tie', 'z-old']);
+  expect(last.nextCursor).toBeNull();
+});
+
+const cursorOf = (text: string) => Buffer.from(text).toString('base64url');
+const canonical = cursorOf('{"i":"ab","s":1}');
+it.each([
+  ['bad alphabet', `${canonical}=`],
+  ['noncanonical trailing bits', `${canonical.slice(0, -1)}R`],
+  ['invalid UTF-8 embedded in an otherwise valid position', Buffer.concat([Buffer.from('{"i":"'), Buffer.from([255]), Buffer.from('","s":1}')]).toString('base64url')],
+  ['invalid JSON', cursorOf('{')],
+  ['null position', cursorOf('null')],
+  ['extra field', cursorOf('{"i":"ab","s":1,"x":0}')],
+  ['fractional timestamp', cursorOf('{"i":"ab","s":1.5}')],
+  ['numeric id', cursorOf('{"i":7,"s":1}')],
+  ['empty id', cursorOf('{"i":"","s":1}')],
+])('rejects a history cursor with %s', async (_label, cursor) => {
+  const { store } = fixture();
+  const result = store.listRuns({ routineId: 'any-routine' }, { cursor });
+  await expect(result).rejects.toBeInstanceOf(ToolInputError);
+  await expect(result).rejects.toThrow('Invalid routine history cursor');
+});
+
+it.each([0, -1, 1.5, NaN])('refuses an invalid routine history page size (%s)', async (limit) => {
+  const { store } = fixture();
+  const result = store.listRuns({ routineId: 'routine-with-no-runs' }, { limit });
+  await expect(result).rejects.toBeInstanceOf(ToolInputError);
+  await expect(result).rejects.toThrow('Invalid routine history limit');
+});
+
+it('writes the next slot only for the live holder with the current expected slot', async () => {
+  const { store, persistence } = fixture();
+  const { id } = await store.create({ ...draft, schedule: { kind: 'daily', time: '13:00', timezone: 'UTC' } }, { creatorId: 'owner' });
+  const update = { routineId: id, expected: clock + 3_600_000, nextRunAt: clock + 7_200_000, holderId: 'a', now: clock };
+  expect(persistence.setNextRunAt({ ...update, holderId: 'other' })).toBe(false);
+  expect(persistence.setNextRunAt({ ...update, expected: clock })).toBe(false);
+  expect((await store.get({ id }))?.nextRunAt).toBe(clock + 3_600_000);
+  expect(persistence.setNextRunAt(update)).toBe(true);
+  expect((await store.get({ id }))?.nextRunAt).toBe(clock + 7_200_000);
+});
+
+it('releases only the matching lease and lists in-flight runs across holder handover', async () => {
+  const { store, persistence } = fixture();
+  const first = await store.create(draft, { creatorId: 'owner' });
+  const second = await store.create(draft, { creatorId: 'owner' });
+  const successor = { holderId: 'b', now: clock, ttlMs: 60_000 };
+  expect(persistence.insertRun({ run: { ...run(first.id, 'finished'), trigger: 'manual', status: 'succeeded', slotAt: null } })).toBe(true);
+  expect(persistence.insertRun({ run: run(first.id, 'old-holder') })).toBe(true);
+  persistence.releaseLease({ holderId: 'b' });
+  expect(persistence.acquireLease(successor)).toBe(false);
+  persistence.releaseLease({ holderId: 'a' });
+  expect(persistence.acquireLease(successor)).toBe(true);
+  expect(persistence.insertRun({ run: { ...run(second.id, 'new-holder'), status: 'queued' } }, { holderId: 'b' })).toBe(true);
+  expect(persistence.listInFlight().map(({ id, holderId }) => [id, holderId]).sort()).toEqual([
+    ['new-holder', 'b'], ['old-holder', 'a'],
+  ]);
+  expect(persistence.listInFlight({ excludeHolderId: 'b' }).map(({ id }) => id)).toEqual(['old-holder']);
+});
+
+it('requires the active approval reference before changing a waiting run and expires it on completion', async () => {
+  const { store, persistence } = fixture();
+  const { id } = await store.create(draft, { creatorId: 'owner' });
+  expect(persistence.insertRun({ run: run(id) })).toBe(true);
+  await store.setApproval({ runId: 'run', state: 'waiting' }, { ref: 'visible-card', since: clock });
+  await store.setApproval({ runId: 'run', state: 'declined' });
+  expect(await store.getLatestRun({ routineId: id })).toMatchObject({
+    status: 'running', approvalState: 'waiting', approvalRef: 'visible-card', approvalSince: clock,
+  });
+  persistence.updateRun({ id: 'run', patch: { status: 'succeeded', completedAt: clock + 200 } });
+  await store.setApproval({ runId: 'run', state: 'approved' }, { expectedRef: 'visible-card' });
+  expect(persistence.getLatestRun({ routineId: id })).toMatchObject({
+    status: 'succeeded', completedAt: clock + 200, approvalState: 'expired', approvalRef: 'visible-card', approvalSince: clock,
   });
 });

@@ -102,3 +102,21 @@ test('terminal completion during a fresh permission read still blocks the commit
     ask: async () => ({ confirmed: true }), allowSelected: async () => { throw new Error('must not write'); } });
   assert.deepEqual(result, { status: 'cancelled' });
 });
+
+test('terminal completion during the preview read never opens a card', async () => {
+  let live = true;
+  const result = await requestRunToolConsent({ agentId: 'agy', keys: ['userMcp'], isLive: () => live,
+    readFresh: async () => { live = false; return snapshot(); },
+    ask: async () => { throw new Error('terminal runs must not open cards'); },
+    allowSelected: async () => { throw new Error('terminal runs must not write'); },
+  });
+  assert.deepEqual(result, { status: 'cancelled' });
+});
+
+test('a choice does not select an agent if the card offered no alternatives', async () => {
+  const result = await requestRunToolConsent({ agentId: 'agy', keys: ['userMcp'], isLive: () => true,
+    readFresh: async () => snapshot(), ask: async () => ({ confirmed: true, choice: 'other' }),
+    allowSelected: async () => { throw new Error('an alternative must not write permissions'); },
+  });
+  assert.deepEqual(result, { status: 'cancelled' });
+});

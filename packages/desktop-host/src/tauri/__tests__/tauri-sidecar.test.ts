@@ -56,6 +56,22 @@ describe('createTauriSidecarLauncher', () => {
     ).rejects.toThrow(/exited before reporting ready/);
   });
 
+  it('reports the child signal when it exits before readiness is checked', async () => {
+    const api = createFakeTauriSidecarCommandApi({});
+    const handle = await createTauriSidecarLauncher({ api }).launch({ command: 'my-sidecar' });
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+      handle.process.onExit({ listener: resolve });
+    });
+    expect(handle.process.kill({}, { signal: 'SIGKILL' })).toBe(true);
+    expect(await exited).toEqual({ code: null, signal: 'SIGKILL' });
+    const probes: string[] = [];
+    await expect(handle.waitUntilReady({
+      probe: async () => { probes.push('called'); return true; },
+      isReady: ({ status }) => status,
+    })).rejects.toThrow('sidecar exited before reporting ready (code=null, signal=SIGKILL)');
+    expect(probes).toEqual([]);
+  });
+
   it('shutdown uses the graceful request before falling back to a signal kill', async () => {
     const api = createFakeTauriSidecarCommandApi({});
     const launcher = createTauriSidecarLauncher({ api });

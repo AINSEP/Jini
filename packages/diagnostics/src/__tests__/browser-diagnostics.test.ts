@@ -61,6 +61,20 @@ function harness({ consent, supportsMetric = true, failRead = false }: { consent
 const json = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 
 describe('browser diagnostics enablement and intake', () => {
+  it('accepts the exact navigation ceiling and rejects nonpositive, infinite, and nonnumeric inputs', async () => {
+    const on = harness({ consent: true });
+    const send = (raw: string, contentType = 'application/json') =>
+      receiveBrowserDiagnostics({ body: new TextEncoder().encode(raw), contentType }, { deps: on.deps });
+    for (const raw of ['null', 'false', '{"navigationMs":0}', '{"navigationMs":-1}', '{"navigationMs":1e999}', '{"navigationMs":"42"}']) {
+      expect(await send(raw), raw).toEqual({ status: 400, body: '' });
+    }
+    expect(on.metrics).toEqual([]);
+    expect(await send('{"navigationMs":600000}', '  Application/JSON  ; charset=utf-8')).toEqual({ status: 204, body: '' });
+    expect(on.metrics).toEqual([
+      [{ name: 'browser.navigation.duration', value: 600_000 }, { kind: 'histogram', unit: 'ms', attributes: { surface: 'site' } }],
+    ]);
+  });
+
   it('is off without metric admission, settings or workspace, and on only for an explicit true of the injected setting', async () => {
     const on = harness({ consent: true });
     expect(await browserDiagnosticsEnabled({ observability: on.deps.observability, consentSetting: CONSENT }, on.deps)).toBe(true);

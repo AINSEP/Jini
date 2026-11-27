@@ -197,6 +197,16 @@ test("a site this app only attached to is not counted, and the box says it stays
   assert.equal(mixed.shown[0]!.options.detail, "1 site this app didn’t start keeps running.");
 });
 
+test("the last-window prompt distinguishes plural counts of owned and attached sites", () => {
+  const h = harness({ children: [{}, { external: false }, { external: true }, { external: true }, { external: true }] });
+  const window = fakeWindow();
+  h.prompt.watch({ window });
+  assert.equal(window.emitClose(), false);
+  assert.equal(h.shown.length, 1);
+  assert.equal(h.shown[0]!.options.message, "Quit Workspace and stop 2 running sites?");
+  assert.equal(h.shown[0]!.options.detail, "3 sites this app didn’t start keep running.");
+});
+
 test("closing a window that is not the last never asks; the one left then counts as last", () => {
   const h = harness();
   const first = fakeWindow();

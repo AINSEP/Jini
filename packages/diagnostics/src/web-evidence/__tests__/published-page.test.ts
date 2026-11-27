@@ -61,6 +61,17 @@ const UNTRACKED: PublishedPageFetchTracker = ({ fetch }) => fetch;
 
 const DEPS = { createSiteApp: () => makeFakeSiteApp(), reservedSegments: RESERVED_SEGMENTS, trackFetch: UNTRACKED };
 
+test("fetchPublishedPage preserves the original non-timeout transport failure", async () => {
+  const failure = new Error("transport disconnected");
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => { throw failure; });
+  await assert.rejects(fetchPublishedPage({ deps: { ...DEPS, fetch }, input: { path: "/echo?q=broken" } }),
+    error => error === failure);
+  assert.equal(fetch.mock.calls.length, 1);
+  const [url, init] = fetch.mock.calls[0]!;
+  assert.match(String(url), /^http:\/\/127\.0\.0\.1:\d+\/echo\?q=broken$/);
+  assert.equal(init?.redirect, "manual");
+});
+
 // ---------------------------------------------------------------------------
 // resolveSameOriginPath — one assertion per rule, because each rule closes a different hole.
 // ---------------------------------------------------------------------------

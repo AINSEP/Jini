@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { InMemoryEventBus } from "../memory-bus.js";
+import { InMemoryEventBus, InMemoryOutbox } from "../memory-bus.js";
+
+test("unknown outbox updates leave the real pending row claimable and acknowledgements stay terminal", async () => {
+  const outbox = new InMemoryOutbox({ claimLeaseMs: 100 });
+  const nowIso = "2026-02-21T00:00:00.000Z";
+  const event = { id: "evt-held", name: "entry.published", workspaceId: "workspace-1", occurredAt: nowIso, payload: { value: 3 } };
+  await outbox.enqueue(event);
+  await outbox.markDelivered({ id: "missing" });
+  await outbox.markFailed({ id: "missing", error: "unrelated", nextAttemptAt: nowIso, nextStatus: "failed" });
+  assert.deepEqual(await outbox.claimPending({ batchSize: 5, nowIso }), [{
+    id: "evt-held", event, status: "processing", attempts: 1, nextAttemptAt: nowIso, createdAt: nowIso,
+  }]);
+  await outbox.markDelivered({ id: "evt-held" });
+  assert.deepEqual(await outbox.claimPending({ batchSize: 5, nowIso: "2026-02-21T00:00:01.000Z" }), []);
+});
 
 
 test("subscribeAll delivers events of several different names to one handler", async () => {

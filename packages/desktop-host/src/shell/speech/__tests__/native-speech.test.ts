@@ -7,7 +7,7 @@ import path from "node:path";
 import { onTestFinished, test } from "vitest";
 
 import { createNativeMacTranscriptionPort, speechHelperSourcePath } from "../mac-on-device-transcriber.js";
-import { buildDefaultTranscriptionPort, registerNativeSpeechIpc, MAX_TRANSCRIBE_SAMPLES, type NativeSpeechHost } from "../speech-ipc.js";
+import { buildDefaultTranscriptionPort, registerNativeSpeechIpc, MAX_TRANSCRIBE_SAMPLES, type NativeSpeechHost, type NativeSpeechIpcMain } from "../speech-ipc.js";
 
 const HOST: NativeSpeechHost = {
   channelNamespace: "host:speech",
@@ -129,4 +129,19 @@ test("Electron's positional (event, samples, sampleRate) payload reaches the por
 test("a missing sender guard fails before any default port is built, with the host's message", () => {
   assert.throws(() => registerNativeSpeechIpc({ ipcMain: { handle: () => undefined }, host: HOST } as never), /^Error: host:speech: isTrustedSender is required$/);
   assert.equal(MAX_TRANSCRIBE_SAMPLES, 48_000 * 60 * 5);
+});
+
+test("the native binding uses the platform default port and can dispose without a removeHandler hook", async () => {
+  const handlers = new Map<string, Parameters<NativeSpeechIpcMain["handle"]>[1]>();
+  const dispose = registerNativeSpeechIpc({
+    ipcMain: { handle: (channel, listener) => { handlers.set(channel, listener); } },
+    isTrustedSender: ({ senderUrl }) => senderUrl === "app://ok/",
+    host: HOST,
+  }, { platform: "linux" });
+  assert.deepEqual([...handlers.keys()], ["host:speech:isAvailable", "host:speech:transcribe"]);
+  const availability = handlers.get("host:speech:isAvailable");
+  assert.ok(availability);
+  assert.deepEqual(await availability({ senderFrame: { url: "app://ok/" } }),
+    { available: false, reason: "unsupported-platform:linux" });
+  assert.doesNotThrow(dispose);
 });

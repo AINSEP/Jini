@@ -28,6 +28,12 @@ test('native effects keep the filesystem ABI and share core clock and ID getters
   expect(effects.ids.random()).toBeGreaterThanOrEqual(0);
 });
 
+test('reports the process and host identity that owns a native lock', () => {
+  const { process: identity } = createNodeAgentPluginEffects(platform);
+  expect({ pid: identity.pid, platform: identity.platform, hostname: identity.hostname({}) })
+    .toEqual({ pid: process.pid, platform: process.platform, hostname: os.hostname() });
+});
+
 // REGRESSION: fails if the native liveness adapter treats any non-EPERM failure as dead.
 test('only an ESRCH probe authorizes reclaiming a local process lock', () => {
   const effects = createNodeAgentPluginEffects(platform);

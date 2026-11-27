@@ -40,3 +40,22 @@ it("the exact exception does not suppress a different result or another path", (
   expect(JSON.stringify([tip, history])).not.toContain(secret);
   expect(JSON.stringify([tip, history])).not.toContain(other);
 });
+
+it("scans content at the byte cap and skips oversized or unavailable tracked and historical files", () => {
+  const files = ["exact.txt", "large.txt", "gone.txt"];
+  const exact = " ".repeat(1024 - secret.length) + secret;
+  const large = other + " ".repeat(1025 - other.length);
+  const present = new Map([["exact.txt", exact], ["large.txt", large]]);
+  const readTracked = ({ file }: { file: string }) => {
+    const text = present.get(file);
+    return text === undefined ? null : { text, isBinary: false };
+  };
+  const tip = scanTrackedRepo({ ports: { trackedPaths: () => files, readTracked }, policy });
+  const history = scanRepoHistory({ ports: {
+    historicalPaths: () => files,
+    historicalBlobs: () => files.map(path => ({ sha: path, path })),
+    readBlobContents: ({ shas }) => new Map([...present].filter(([sha]) => shas.includes(sha))),
+  }, policy });
+  expect(tip.map(({ file, line }) => ({ file, line }))).toEqual([{ file: "exact.txt", line: 1 }]);
+  expect(history).toEqual(tip);
+});

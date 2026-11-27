@@ -128,6 +128,14 @@ describe("createPerCallWorkerRunner", () => {
     );
     await expect(runCall(request)).rejects.toThrow(/nonexistent-jini-guest\/worker\.js/);
   });
+
+  it("a TypeScript worker startup reports a missing registration module before loading the entry", async () => {
+    const runCall = createPerCallWorkerRunner(
+      required({ entryDirectory: "/nonexistent-jini-guest", moduleExtension: ".ts", typescriptBootstrapPath: "/nonexistent-ts-registration.cjs" }),
+      { timeoutMs: 10_000 },
+    );
+    await expect(runCall(request)).rejects.toThrow("Cannot find module '/nonexistent-ts-registration.cjs'");
+  });
 });
 
 const timeoutCases: ReadonlyArray<[string | undefined, number]> = [

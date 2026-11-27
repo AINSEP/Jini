@@ -175,6 +175,17 @@ test('ports without metric capability receive no measurements', async () => {
   expect(metric).not.toHaveBeenCalled();
 });
 
+test('a metric-capable port missing its metric hook still returns and settles the tool result', async () => {
+  const fake = createFakePort(); const rec = recording();
+  const result: ToolExecutionResult = { executionId: 'e', status: 'completed', output: 'saved' };
+  const executor = withToolCallObservability({
+    inner: executorReturning(() => result), reporter: rec.reporter, observability: { ...fake.port, supportsMetric: true },
+  });
+  expect(await executor.execute(CALL)).toBe(result);
+  expect(fake.operations[0]?.end).toEqual({ outcome: 'completed', failed: false });
+  expect(rec.reports).toEqual([]);
+});
+
 test("other executor methods delegate to inner", () => {
   const calls: string[] = [];
   const inner: ToolExecutor = { execute: async () => ({ executionId: "e", status: "completed" }),

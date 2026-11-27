@@ -1,9 +1,9 @@
-import { it } from 'vitest';
+import { it, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { isTransientAppPath, isReadOnlyVolumeRoot } from '../install-location.js';
+import { isTransientAppPath, isReadOnlyVolumeRoot, launcherNamesDurableInstall } from '../install-location.js';
 const DMG_INPUT = { electronPath: '/Volumes/Sample 1.0/Sample.app/Contents/MacOS/Sample' };
 const LAUNCHER_INPUT = { electronPath: '/Applications/Sample.app/Contents/MacOS/Sample' };
 const ALL_VOLUMES_READ_ONLY = () => true;
@@ -45,5 +45,31 @@ it("isReadOnlyVolumeRoot's default probe treats a writable folder and a missing 
     assert.equal(isReadOnlyVolumeRoot({ volumeRoot: writable }), false);
     assert.equal(isReadOnlyVolumeRoot({ volumeRoot: path.join(writable, "gone") }), false);
   } finally { fs.rmSync(writable, { recursive: true, force: true }); }
+});
+
+it("recognizes an exec launcher only while its installed executable exists", () => {
+  const dir = tempDir();
+  const launcherPath = path.join(dir, "node");
+  const executable = path.join(dir, "Installed App");
+  try {
+    assert.equal(launcherNamesDurableInstall({ launcherPath }), false);
+    fs.writeFileSync(launcherPath, "#!/bin/sh\nexit 1\n");
+    assert.equal(launcherNamesDurableInstall({ launcherPath }), false);
+    fs.writeFileSync(executable, "");
+    fs.writeFileSync(launcherPath, `#!/bin/sh\nexec '${executable}' "$@"\n`);
+    assert.equal(launcherNamesDurableInstall({ launcherPath }), true);
+    fs.unlinkSync(executable);
+    assert.equal(launcherNamesDurableInstall({ launcherPath }), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+it("uses the native write probe by default to detect a read-only mount", () => {
+  const access = vi.spyOn(fs, "accessSync").mockImplementation(() => {
+    throw Object.assign(new Error("read-only filesystem"), { code: "EROFS" });
+  });
+  try {
+    assert.equal(isTransientAppPath({ executablePath: DMG_INPUT.electronPath }), true);
+    assert.deepEqual(access.mock.calls, [["/Volumes/Sample 1.0", fs.constants.W_OK]]);
+  } finally { access.mockRestore(); }
 });
 

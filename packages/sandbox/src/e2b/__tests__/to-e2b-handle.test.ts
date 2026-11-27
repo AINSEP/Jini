@@ -35,6 +35,17 @@ function createFakeSandbox() {
 }
 
 describe('toE2bHandle', () => {
+  it.each([new Error('transport lost'), { name: 'CommandExitError', stdout: 'not an SDK error', exitCode: 1 }])(
+    'preserves a non-command failure (%s) instead of returning it as output',
+    async failure => {
+      const { sandbox } = createFakeSandbox();
+      const run = vi.mocked(sandbox.commands.run);
+      run.mockRejectedValueOnce(failure);
+      await expect(toE2bHandle({ sandbox }).commands.run({ command: 'read data' }))
+        .rejects.toBe(failure);
+      expect(run.mock.calls).toEqual([['read data', {}]]);
+    },
+  );
   it('translates SDK output strings into object callback payloads', async () => {
     const { sandbox } = createFakeSandbox();
     const stdout = vi.fn(); const stderr = vi.fn();

@@ -52,6 +52,27 @@ test("live path refusals remain model-visible validation errors", async () => {
   });
   assert.deepEqual(calls, []);
 });
+test("unexpected reserved-path policy failures are not converted into caller input errors", async () => {
+  const { deps, calls } = fake();
+  const failure = new Error("reserved-path policy unavailable");
+  class FailingPaths extends Set<string> {
+    override has(segment: string): boolean {
+      assert.equal(segment, 'about');
+      throw failure;
+    }
+  }
+  await assert.rejects(fetchLiveUrl({ ...deps, reservedSegments: new FailingPaths() }, { path: '/about' }),
+    error => error === failure);
+  assert.deepEqual(calls, []);
+});
+test("a malformed Location is reported as an invalid redirect without requesting another hop", async () => {
+  const { deps, calls } = fake([origin], [{ status: 302, headers: { location: 'https://[' }, bodyText: '' }]);
+  await assert.rejects(fetchLiveUrl(deps, { path: '/start' }), {
+    constructor: ToolInputError,
+    message: 'fetch_live_url: the live site returned an invalid redirect address. Check the hosting service before retrying.',
+  });
+  assert.deepEqual(calls.map(({ url }) => url), [origin + '/start']);
+});
 test("explicit known origins select one destination and preserve the query; 404 is evidence", async () => {
   const { deps, calls } = fake(['https://other.example', origin], [{ status: 404, headers: {}, bodyText: 'Missing' }]);
   assert.deepEqual(await fetchLiveUrl(deps, { path: '/missing?lang=en', origin }), {

@@ -85,6 +85,24 @@ function harness(options: { readonly endThrows?: boolean } = {}) {
 }
 
 describe('mountJsonRoute reporter mode', () => {
+  it('uses a stand-in reference when recording a failed response write also throws', async () => {
+    const h = harness();
+    const record = vi.fn<ErrorReporter['record']>(() => { throw new Error('error store offline'); });
+    h.errors.reporter.record = record;
+    const handle = vi.fn(() => ok({ value: { notJson: 1n } }));
+    const post = await h.mount({ handle });
+    const response = await post();
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toMatchObject({
+      code: 'INTERNAL_ERROR', requestId: 'ERR-0000-0000-0000-0000',
+      message: expect.stringContaining('ERR-0000-0000-0000-0000'),
+    });
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(record.mock.calls).toEqual([[{
+      error: expect.any(TypeError), step: 'Write POST /runs/:id response', operation: 'http.route',
+    }]]);
+  });
+
   it('a throwing route with a reporter returns one ERR- id that matches the single host record and the single tracker report', async () => {
     const h = harness();
     const post = await h.mount({ handle: () => { throw new Error('db file /var/secret.db locked'); } });

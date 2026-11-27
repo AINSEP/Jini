@@ -46,3 +46,13 @@ test('over the byte cap, optional fields drop first, then the whole line defers 
   const over = `${exact}a`;
   expect(inputSignature({ inputSchema: { type: 'object', required: [over], properties: { [over]: { type: 'string' } } } })).toBe('call describe_tool for the arguments');
 });
+
+test('keeps unknown fields discoverable and caps UTF-8 bytes rather than JavaScript characters', () => {
+  expect(inputSignature({ inputSchema: { type: 'object', required: ['lost', 'tags', 'shape'], properties: {
+    tags: { type: 'array', items: true }, shape: { properties: { empty: {}, flag: false } },
+  } } })).toBe('lost: any, tags: array<any>, shape: {empty?: any, flag?: any}');
+  const field = 'é'.repeat(146);
+  const make = (name: string) => ({ type: 'object', required: [name], properties: { [name]: { type: 'string' } } });
+  expect(inputSignature({ inputSchema: make(field) })).toBe(`${field}: string`);
+  expect(inputSignature({ inputSchema: make(`${field}é`) })).toBe('call describe_tool for the arguments');
+});

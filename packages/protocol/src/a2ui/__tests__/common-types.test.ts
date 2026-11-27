@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { isAgentEventAction, isLocalFunctionAction, type Action } from '../common-types.js';
+import { isAgentEventAction, isLocalFunctionAction, parseDynamicValue, type Action } from '../common-types.js';
+
+it.each([
+  { value: false }, { value: 0 }, { value: 'literal' }, { value: ['nested', 0, false] },
+  { value: { path: '/customer/name' } },
+  { value: { call: 'format', args: { value: { path: '/total' }, digits: 2 } } },
+])('preserves a supported A2UI value $value', ({ value }) => {
+  expect(parseDynamicValue({ value })).toEqual({ ok: true, value });
+});
+
+it.each([
+  { value: null }, { value: undefined }, { value: { path: 12 } }, { value: { call: 'format', args: ['wrong'] } },
+])('returns a validation error for an unsupported A2UI value $value', ({ value }) => {
+  expect(parseDynamicValue({ value })).toEqual({ ok: false, error: 'Invalid input' });
+});
 
 // `interpreter.ts`'s `buildAction` relies on TypeScript's own control-flow narrowing after
 // `isLocalFunctionAction` rather than calling `isAgentEventAction` a second time (see that

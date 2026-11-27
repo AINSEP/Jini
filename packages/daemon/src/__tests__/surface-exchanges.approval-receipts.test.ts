@@ -96,6 +96,19 @@ test('an unleased exchange never reports, even when an observer is injected', as
   expect(f.observer).not.toHaveBeenCalled();
 });
 
+test('opening with an already ended run never leaves a live exchange or emits receipts', async () => {
+  const emitted = vi.fn();
+  const f = fixture({ onEmit: emitted });
+  f.abort.abort();
+  const exchange = f.open();
+  expect(f.store.size()).toBe(0);
+  expect(await exchange.receive({})).toEqual({ status: 'abandoned' });
+  expect(f.store.deliver({ exchangeId: exchange.id, principalId: 'owner', params: { decision: 'confirm' } }))
+    .toEqual({ ok: false, reason: 'unknown-or-closed' });
+  expect(emitted.mock.calls).toEqual([]);
+  expect(f.observer.mock.calls).toEqual([]);
+});
+
 test('observer that throws changes neither the answer nor the effect count', async () => {
   for (const observer of [
     () => { throw new Error('observer down'); },

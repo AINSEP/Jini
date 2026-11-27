@@ -25,6 +25,29 @@ import { assertOAuthRejects, sendJson, startDiscoveryFixture, startLoopbackServe
 // ---------------------------------------------------------------------------
 /** Shaped exactly like a `WWW-Authenticate` measured from a hosted resource server. */
 const CHALLENGE = 'Bearer resource_metadata="https://resource.example.com/.well-known/oauth-protected-resource/resource", scope="openid email offline_access"';
+
+test.each([false, true])("discovery falls back after a 404 even if disposing its body throws (%s)", async (withBody) => {
+    const issuer = "https://auth.example.org";
+    const visited: string[] = [];
+    let released = 0;
+    const discovered = await fetchAuthorizationServerMetadata({
+        ...fixturePorts, issuer,
+        fetchFn: async ({ url }) => {
+            visited.push(url);
+            if (url === `${issuer}/.well-known/oauth-authorization-server`) {
+                const body = withBody ? new ReadableStream<Uint8Array>({
+                    cancel() { released++; throw new Error("remote body is gone"); },
+                }) : null;
+                return new Response(body, { status: 404 });
+            }
+            assert.equal(url, `${issuer}/.well-known/openid-configuration`);
+            return Response.json({ issuer, token_endpoint: `${issuer}/token` });
+        },
+    });
+    assert.deepEqual(visited, [`${issuer}/.well-known/oauth-authorization-server`, `${issuer}/.well-known/openid-configuration`]);
+    assert.equal(released, withBody ? 1 : 0);
+    assert.equal(discovered.tokenEndpoint, `${issuer}/token`);
+});
 // ---------------------------------------------------------------------------
 // The full chain
 // ---------------------------------------------------------------------------

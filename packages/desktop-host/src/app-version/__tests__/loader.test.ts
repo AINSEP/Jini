@@ -49,10 +49,27 @@ describe("createAppVersionLoader", () => {
   test("a bridge without the method, or no bridge at all, stays empty and reads nothing", async () => {
     for (const bridge of [{}, undefined]) {
       const loader = createAppVersionLoader({ bridge });
-      loader.start();
+      const dispose = loader.start();
+      dispose();
       await settle();
       expect(loader.getSnapshot()).toEqual({ version: null, error: null });
     }
+  });
+
+  test("a disposed request's late rejection leaves a newer version intact", async () => {
+    const reply = deferred<string>();
+    let reads = 0;
+    const loader = createAppVersionLoader({
+      bridge: { getAppVersion: () => ++reads === 1 ? reply.promise : Promise.resolve("3.0.1") },
+    });
+    const dispose = loader.start();
+    dispose();
+    loader.start();
+    await settle();
+    expect(loader.getSnapshot()).toEqual({ version: "3.0.1", error: null });
+    reply.reject(new Error("stale IPC failure"));
+    await settle();
+    expect(loader.getSnapshot()).toEqual({ version: "3.0.1", error: null });
   });
 
   test("a rejection keeps the error's message; a non-Error rejection is its string form", async () => {

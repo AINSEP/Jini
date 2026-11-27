@@ -41,6 +41,55 @@ function mounted(spec: RawRouteSpec<object>, ports: ReturnType<typeof reporterPo
 }
 
 describe('mountRawRoute reporter mode', () => {
+  it('releases a late body on disconnect and does not report its abort-like cancellation', async () => {
+    const ports = reporterPorts();
+    let entered!: () => void;
+    let cancelled!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const bodyCancelled = new Promise<void>(resolve => { cancelled = resolve; });
+    const cancel = vi.fn(() => {
+      cancelled();
+      throw Object.assign(new Error('disconnected'), { name: 'AbortError' });
+    });
+    const spec = defineRawRoute<object>({ method: 'get', path: '/late', handle: async (_args, { signal }) => {
+      const disconnected = new Promise<void>(resolve => { signal.addEventListener('abort', () => resolve(), { once: true }); });
+      entered();
+      await disconnected;
+      return new Response(new ReadableStream<Uint8Array>({ cancel }));
+    } });
+    const controller = new AbortController();
+    const pending = fetch(`${await mounted(spec, ports)}/late`, { signal: controller.signal });
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await started;
+    controller.abort();
+    await rejected;
+    await bodyCancelled;
+    // The cancellation rejection settles the response writer before this macrotask.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(cancel.mock.calls).toEqual([[undefined]]);
+    expect(ports.operations[0]?.ends).toEqual([{ outcome: 'cancelled', failed: false, attributes: { 'http.status_code': 499 } }]);
+    expect(ports.entries).toEqual([]);
+    expect(ports.reports).toEqual([]);
+  });
+
+  it('answers an errored buffered body once even when the reporter cannot record it', async () => {
+    const ports = reporterPorts();
+    const bodyError = new Error('body producer failed');
+    const record = vi.fn<typeof ports.errors.reporter.record>(() => { throw new Error('reporter failed'); });
+    ports.errors.reporter.record = record;
+    const spec = defineRawRoute<object>({ method: 'get', path: '/broken', handle: async () => new Response(
+      new ReadableStream<Uint8Array>({ start(controller) { controller.error(bodyError); } }),
+    ) }, { bufferedReply: true });
+    const response = await fetch(`${await mounted(spec, ports)}/broken`);
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toMatchObject({
+      code: 'INTERNAL_ERROR', requestId: 'ERR-0000-0000-0000-0000',
+    });
+    expect(record.mock.calls).toEqual([[{ error: bodyError, step: 'Write response', operation: 'http.route' },
+      { attributes: { 'http.method': 'GET', 'http.route': '/broken' } }]]);
+    expect(ports.operations[0]?.ends).toEqual([{ outcome: 'completed', failed: false, attributes: { 'http.status_code': 200 } }]);
+  });
+
   it('raw route with a reporter answers a throw with one ERR- id matching one host record and one tracker report', async () => {
     const ports = reporterPorts();
     const spec = defineRawRoute<object>({ method: 'get', path: '/files/:id', handle: async () => { throw new Error('secret dsn'); } });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createGoogleProxyRegistration } from '../index.js';
+import { createGoogleProxyRegistration, parseGoogleProxyRequest } from '../index.js';
 import { injectedFetch, makeReq, makeSseRes, okResponse, sseBody, writtenEvents, mountRegistration } from '../../__tests__/model-proxy-harness.js';
 
 /**
@@ -21,6 +21,21 @@ const validGoogleBody = {
 };
 
 describe('google proxy registration', () => {
+  it('returns the shared validation error without trying Gemini-specific fields', () => {
+    expect(parseGoogleProxyRequest({ ...validGoogleBody, model: '', tools: false })).toEqual({
+      ok: false, error: { code: 'BAD_REQUEST', message: 'model must be a non-empty string',
+        details: { kind: 'validation', issues: [{ path: 'model', message: 'required non-empty string' }] } },
+    });
+  });
+
+  it.each([
+    ['system', {}, 'system must be a string when provided'],
+    ['tools', {}, 'tools must be an array when provided'],
+    ['maxOutputTokens', '64', 'maxOutputTokens must be a number when provided'],
+  ] as const)('refuses rather than silently dropping a malformed Gemini %s', (key, value, message) => {
+    expect(parseGoogleProxyRequest({ ...validGoogleBody, [key]: value })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message } });
+  });
+
   function handler(deps: Readonly<Record<string, unknown>> = {}) {
     return mountRegistration({ registration: createGoogleProxyRegistration(), deps });
   }

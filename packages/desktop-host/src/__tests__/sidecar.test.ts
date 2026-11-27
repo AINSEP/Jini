@@ -215,6 +215,11 @@ describe('appendSidecarLifecycleLog', () => {
     dir = null;
   });
 
+  it('does not interrupt lifecycle reporting if the log target is not writable as a file', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-lifecycle-'));
+    await expect(appendSidecarLifecycleLog({ logPath: dir, message: 'sidecar launched' })).resolves.toBeUndefined();
+  });
+
   it('creates the log directory and appends a message line', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-lifecycle-'));
     const logPath = join(dir, 'nested', 'lifecycle.log');

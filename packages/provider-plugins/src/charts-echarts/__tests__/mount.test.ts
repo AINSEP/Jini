@@ -159,6 +159,19 @@ describe('ECharts vanilla lifecycle', () => {
     expect(element.dataset.chartTheme).toBe('light');
   });
 
+  it('disposes the initialized drawing and clears the host when initial theming fails', () => {
+    const element = host();
+    const failure = new Error('theme applier unavailable');
+    let surface: HTMLElement | undefined;
+    expect(() => providerMount({ element, spec: SPECS.bar!, theme: { mode: 'light' }, applyTheme: () => {
+      surface = surfaceOf(element);
+      throw failure;
+    } })).toThrow(failure);
+    expect(surface).toBeInstanceOf(HTMLElement);
+    expect(getInstanceByDom(surface!)).toBeUndefined();
+    expect(element.children).toHaveLength(0);
+  });
+
   it('resizes with its frame and stops observing once destroyed', () => {
     const observers: { callback: ResizeObserverCallback; observed: Element[]; disconnected: boolean }[] = [];
     vi.stubGlobal('ResizeObserver', class {

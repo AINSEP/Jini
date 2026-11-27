@@ -198,4 +198,16 @@ describe('mountRawRoute: deferred body (raw.readBody)', () => {
     const response = await fetch(`${await listen({ app })}/early`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(LIMIT * 2) });
     expect(await response.json()).toEqual({ bytes: LIMIT * 2, form: null });
   });
+
+  it('refuses a matching media type when a host text parser already consumed the binary body', async () => {
+    const spec = defineRawRoute<object>({ method: 'post', path: '/early-text', handle: async ({ raw }) =>
+      echo(await raw.readBody({ type: 'raw', mediaType: 'application/zip', limit: LIMIT })) });
+    const app = express();
+    app.use(express.text({ type: 'application/zip' }));
+    mountRawRoute({ app, spec, deps: {} });
+    const response = await fetch(`${await listen({ app })}/early-text`, {
+      method: 'POST', headers: { 'content-type': 'application/zip' }, body: 'not bytes',
+    });
+    expect([response.status, await response.json()]).toEqual([422, { refusal: { reason: 'media-type' } }]);
+  });
 });

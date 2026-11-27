@@ -7,6 +7,7 @@ import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defineJsonRoute as defineCoreJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
+import { routeBodyRefusal } from '../adapter-request.js';
 
 /** The host parser's limit in these tests; small so the "host default" cases stay cheap. */
 const HOST_PARSER_LIMIT_BYTES = 1024;
@@ -43,6 +44,18 @@ async function hostWith(maxBodyBytes: number | undefined, { parser = express.jso
 const jsonOfBytes = (bytes: number): string => JSON.stringify({ p: 'a'.repeat(bytes - '{"p":""}'.length) });
 
 describe("mountJsonRoute honours a spec's maxBodyBytes", () => {
+  it('counts bytes for parsed text but does not impose a body cap on HEAD', () => {
+    const spec = { maxBodyBytes: 3 };
+    const check = (method: string, body: unknown) => routeBodyRefusal({ req: { method, body } as express.Request, spec });
+    expect(check('POST', 'éé')).toEqual({
+      maxBytes: 3,
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request body is larger than the 3 bytes this address accepts. Send less data.' },
+    });
+    expect(check('POST', 'éa')).toBeUndefined();
+    expect(check('POST', null)).toBeUndefined();
+    expect(check('HEAD', 'éé')).toBeUndefined();
+  });
+
   it('refuses a body over the spec cap with 413 and the plain-words refusal, before the handler runs', async () => {
     const host = await hostWith(64);
     const response = await host.post(jsonOfBytes(65));

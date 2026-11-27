@@ -17,6 +17,7 @@ import { InMemorySpanExporter, SimpleSpanProcessor, type ReadableSpan } from "@o
 import { OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
+import { PluginProviderStartupError } from "@jini-ai/core/contracts/plugin-sdk";
 
 import { OBSERVABILITY_CONTEXT, describeTelemetryFailure, hostScope, withHost } from "./observability-host.js";
 import { createOtelFactories as otelFactories, createOtelObservabilityAdapter as otelAdapter } from "../observability-opentelemetry/opentelemetry.js";
@@ -59,6 +60,26 @@ test('provider configuration rejects a non-string optional field before starting
   assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.test', tracerName: 7 }),
     new TypeError('tracerName must be a string'));
   assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture' }), new TypeError('an OTLP endpoint is required'));
+});
+
+test('provider startup gives fixed operator guidance and retains a private initialization cause', () => {
+  const failure = new Error('endpoint reader failed with private deployment details');
+  const context = {
+    ...OBSERVABILITY_CONTEXT,
+    resolveObservabilityConfig: (): ObservabilityConfigEnabled => ({
+      ...TEST_CONFIG,
+      get endpoint() { throw failure; },
+    }),
+  };
+  assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.test' }, { context }),
+    (error: unknown) => {
+      assert.ok(error instanceof PluginProviderStartupError);
+      assert.equal(error.cause, failure);
+      assert.equal(error.message, 'The OpenTelemetry exporter could not initialize.');
+      assert.equal(error.reason, 'The OpenTelemetry exporter could not initialize.');
+      assert.equal(error.action, 'Check the OTLP endpoint and authentication settings, then save again.');
+      return true;
+    });
 });
 
 test('active IDs follow nested async spans, concurrent work and scope exit', async () => {
@@ -701,4 +722,24 @@ test("span admission caps attribute count and value length, including late attri
     assert.equal(String(finished[0]!.attributes.long).length, 1024);
     assert.equal(Object.keys(finished[0]!.events[0]!.attributes!).length, 64);
   } finally { await factories.shutdown(); }
+});
+
+test('ended operation IDs are unavailable even while application work retains its old scope', () => {
+  const exporter = new InMemorySpanExporter();
+  const { port, dispose } = createOtelObservabilityAdapter({ config: TEST_CONFIG }, {
+    spanProcessors: [new SimpleSpanProcessor(exporter)], metricReaders: [],
+  });
+  disposers.push(dispose);
+  const operation = port.trackOperation({ name: 'site.archive' });
+  let live: ReturnType<NonNullable<typeof port.activeTraceIds>> = undefined;
+  operation.run(() => {
+    live = port.activeTraceIds?.();
+    operation.end({ outcome: 'completed', failed: false });
+    assert.equal(port.activeTraceIds?.(), undefined);
+    assert.equal(operation.traceIds?.(), undefined);
+  });
+  const [span] = exporter.getFinishedSpans();
+  assert.ok(span);
+  const { traceId, spanId } = span.spanContext();
+  assert.deepEqual(live, { traceId, spanId });
 });

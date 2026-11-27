@@ -629,6 +629,21 @@ describe('wrapE2bSandbox', () => {
       vi.useRealTimers();
     });
 
+    it('returns the HTTPS preview after a successful HEAD and clears its deadline', async () => {
+      vi.useFakeTimers();
+      const fake = createFakeHandle();
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG }, { fetchImpl });
+      try {
+        expect(await session.getPreview()).toEqual({ url: 'https://4000.sandbox.e2b.example' });
+        expect(fetchImpl).toHaveBeenCalledExactlyOnceWith('https://4000.sandbox.e2b.example', { method: 'HEAD', signal: expect.any(AbortSignal) });
+        expect(vi.getTimerCount()).toBe(0);
+        expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+      } finally {
+        await session.teardown();
+      }
+    });
+
     it('C55: rejects an ingress 502 instead of reporting the preview ready', async () => {
       const fake = createFakeHandle();
       const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 502 }));

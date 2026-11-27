@@ -66,6 +66,19 @@ test('piped oversized HTML resumes native backpressure without dropping chunks',
   expect(transform).not.toHaveBeenCalled();
 });
 
+test.each([
+  { body: '  <!doctype html><p>draft</p>', expected: 'rendered', transforms: 1 },
+  { body: 'literal <p> text', expected: 'literal <p> text', transforms: 0 },
+])('sniffs headerless markup without transforming plain text ($transforms transforms)', async ({ body, expected, transforms }) => {
+  const transform = vi.fn(async () => Buffer.from('rendered'));
+  const response = await request((_req, res) => {
+    captureHtmlResponse({ response: res, transform });
+    res.end(body);
+  });
+  expect(response.body).toBe(expected);
+  expect(transform).toHaveBeenCalledTimes(transforms);
+});
+
 test('sendFile HTML transforms with fresh lengths; binary output stays on native methods', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'html-response-'));
   try {

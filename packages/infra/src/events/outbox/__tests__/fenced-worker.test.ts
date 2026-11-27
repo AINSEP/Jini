@@ -221,6 +221,21 @@ test.each([false, true])('acknowledgement failure (committed=%s) cannot become a
   expect(f.args.dispatch).toHaveBeenCalledTimes(1);
 });
 
+test('a refused completion fence reports reconciliation and does not retry the dispatch', async () => {
+  const f = await fencedFixture();
+  f.outbox.complete.mockResolvedValueOnce(false);
+  expect(await processFencedOutbox(f.args, bounds)).toBe(1);
+  expect(f.stored()).toMatchObject({ status: 'dispatching', attempts: 1 });
+  expect(f.args.logger.error.mock.calls).toEqual([[
+    { message: '[fenced-outbox] completion fence rejected; host reconciliation required' },
+    { error: { status: 'delivered' } },
+  ]]);
+  f.advance(100);
+  expect(await processFencedOutbox(f.args, bounds)).toBe(0);
+  expect(f.stored()).toMatchObject({ status: 'uncertain', attempts: 1 });
+  expect(f.args.dispatch).toHaveBeenCalledOnce();
+});
+
 test('recovery/claim failures propagate before effects; invalid bounds do no storage work', async () => {
   const f = await fencedFixture();
   await expect(processFencedOutbox(f.args, { ...bounds, batchSize: 0 })).rejects.toThrow(RangeError);

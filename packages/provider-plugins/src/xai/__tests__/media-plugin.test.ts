@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { expect, it, vi } from 'vitest';
 import plugin, { createXaiMediaProvider, createXaiRoutesProvider, XaiMediaConfigError } from '../index.js';
 import { fakeWire } from '../media/__tests__/fake-wire.js';
+import { xaiRoutes } from '../routes.js';
 
 it('registers one media factory on setup and builds the contribution from the injected wire', () => {
   const register = vi.fn();
@@ -14,6 +15,18 @@ it('registers one media factory on setup and builds the contribution from the in
   expect(resource.port.provider.id).toBe('grok');
   expect(resource.dispose({})).toBeUndefined();
   expect(resource.dispose({}, {})).toBeUndefined();
+});
+
+it('initializes the route contribution with the xAI preset and fixed loopback callback', () => {
+  const resource = createXaiRoutesProvider({}, {});
+  expect(resource.port.routes).toBe(xaiRoutes);
+  expect(resource.port.providerConfig).toMatchObject({
+    providerId: 'xai', issuer: 'https://auth.x.ai',
+    authorizationEndpoint: 'https://auth.x.ai/oauth2/authorize', tokenEndpoint: 'https://auth.x.ai/oauth2/token',
+  });
+  expect(resource.port.redirectUri()).toBe('http://127.0.0.1:56121/callback');
+  resource.dispose({});
+  expect(resource.port.redirectUri()).toBe('http://127.0.0.1:56121/callback');
 });
 
 it('fails at initialize, in plain words, when the host injected no wire helpers', () => {

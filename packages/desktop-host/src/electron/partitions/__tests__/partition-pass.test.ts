@@ -1,7 +1,7 @@
 /** ST-2c.J partition pass and owner-confirmed sign-in removal over in-memory ports. No Electron is loaded. */
 import { describe, expect, it } from 'vitest';
 import { createPartitionInterlock, createRetirementLedger, listAmbiguousPartitions, listCandidates, removeAmbiguousPartition, runPartitionPass } from '../index.js';
-import type { PartitionPassReport, RetirementRecord } from '../index.js';
+import type { PartitionMaintenance, PartitionPassReport, RetirementRecord } from '../index.js';
 import { FakeClock, FakeScheduler, MemoryLock, MESSAGES } from './fakes.js';
 import { MemoryDurableJson, PassFs } from './pass-fakes.js';
 
@@ -52,11 +52,15 @@ function retire(w: World, name = A): RetirementRecord {
   } }, {});
 }
 
-async function pass(w: World, interlock: ReturnType<typeof proc>, scheduler: { sleep(r: { ms: number }): Promise<void> } = never): Promise<PartitionPassReport> {
+async function pass(
+  w: World, interlock: ReturnType<typeof proc>,
+  scheduler: { sleep(r: { ms: number }): Promise<void> } = never,
+  maintenance: PartitionMaintenance = async ({ partition, classification }) => { w.maintained.push(`${classification}:${partition}`); },
+): Promise<PartitionPassReport> {
   const reports: PartitionPassReport[] = [];
   const out = await runPartitionPass({
     interlock, ledger: w.ledger, fs: w.fs, root: { isManaged }, scheduler, newToken: w.token,
-    maintenance: async ({ partition, classification }) => { w.maintained.push(`${classification}:${partition}`); },
+    maintenance,
     report: ({ report }) => { reports.push(report); },
   });
   const report = out.state === 'finished' ? out.report : await out.done;
@@ -71,6 +75,57 @@ const onAsideRename = (w: World, run: () => Promise<void> | void) => {
 };
 
 describe('partition pass', () => {
+  it('holds a recovered whole aside separately when a newer partition occupies its name', async () => {
+    const w = world(), self = proc(w, 100);
+    w.tracked.names = [A];
+    const aside = `${A}.ab12`;
+    const held = `hold-${aside}`;
+    w.fs.tree(`${ASIDE}/${aside}`, { Cookies: 'older sign-in' });
+    w.fs.tree(`${ROOT}/${A}`, { Cookies: 'current sign-in' });
+
+    const report = await pass(w, self);
+    expect(report.restored).toEqual([]);
+    expect(report.skipped).toEqual([{ name: held, reason: 'hold' }]);
+    expect(await w.fs.readdir({ path: ASIDE })).toEqual([held]);
+    expect(await w.fs.readFile({ path: `${ASIDE}/${held}/Cookies` })).toBe('older sign-in');
+    expect(await w.fs.readFile({ path: `${ROOT}/${A}/Cookies` })).toBe('current sign-in');
+  });
+
+  it('reports one partition maintenance failure and still maintains the next tracked partition', async () => {
+    const w = world(), self = proc(w, 100);
+    w.tracked.names = [A, B];
+    w.fs.tree(`${ROOT}/${A}`);
+    w.fs.tree(`${ROOT}/${B}`);
+    const received: object[] = [];
+    const report = await pass(w, self, never, async ({ partition, path, classification }) => {
+      received.push({ partition, path, classification });
+      if (partition === A) throw Object.assign(new Error('cannot read cache'), { code: 'EIO' });
+      await w.fs.writeFile({ path: `${path}/maintenance-result`, data: 'cleared' });
+    });
+    expect(received).toEqual([
+      { partition: A, path: `${ROOT}/${A}`, classification: 'tracked' },
+      { partition: B, path: `${ROOT}/${B}`, classification: 'tracked' },
+    ]);
+    expect(report.result).toBe('done');
+    expect(report.skipped).toEqual([{ name: A, reason: 'maintenance-failed (EIO)' }]);
+    expect(await w.fs.readFile({ path: `${ROOT}/${B}/maintenance-result` })).toBe('cleared');
+  });
+
+  it('reports an unreadable retirement ledger and retains sign-ins while clearing cache', async () => {
+    const w = world(), self = proc(w, 100);
+    retire(w);
+    w.store.raw = { state: 'unreadable', text: '{"v":1,' };
+    const report = await pass(w, self);
+    expect(report).toMatchObject({
+      result: 'done',
+      removed: [],
+      cacheCleared: [A],
+      skipped: [{ name: 'ledger', reason: 'ledger unreadable' }],
+    });
+    expect(await w.fs.readdir({ path: `${ROOT}/${A}` })).toEqual(['Cookies']);
+    expect(await w.fs.readFile({ path: `${ROOT}/${A}/Cookies` })).toBe('jar');
+  });
+
   it('T-2c.1 retired partition removed only when all four checks pass', async () => {
     const scenarios: Array<[string, (w: World, self: ReturnType<typeof proc>) => Promise<void> | void]> = [
       ['other-instance', w => { proc(w, 200); }],

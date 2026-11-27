@@ -138,3 +138,18 @@ test('a document that refuses cookie access (sandboxed frame) still gets the ano
   expect(revoker).not.toBeNull();
   expect(request).toHaveBeenCalledOnce();
 });
+
+test('an anonymous collector rejection leaves revocation usable without starting an SDK', async () => {
+  const requested: Array<{ url: string; signal: AbortSignal | null | undefined }> = [];
+  const sdk = vi.fn(async () => ({ init: () => ({ set_config() {}, identify() {}, get_distinct_id: () => 'unused' }) }));
+  const adapter = createPostHogConsentAdapter({ ports: {
+    location: { origin: 'https://site.example', pathname: '/page', hostname: 'site.example' },
+    loadSdk: sdk,
+    request: async (url, init) => { requested.push({ url: String(url), signal: init?.signal }); throw new Error('collector unavailable'); },
+  } });
+  const signal = new AbortController().signal;
+  const revoker = await adapter.grant({ purge: purgeStorage, config: postHogConsentContribution(input).adapter.config, state: anonymous, signal });
+  expect(requested).toEqual([{ url: '/_consent/posthog/e/', signal }]);
+  expect(await revoker?.revoke?.()).toBe(true);
+  expect(sdk).not.toHaveBeenCalled();
+});

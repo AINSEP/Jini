@@ -122,3 +122,21 @@ test("reads trace ancestry before stripping private transport fields from each d
   assert.deepEqual(delivered.map(event => event.payload), [{ value: 1 }, { value: 1 }]);
   assert.equal(stored.payload.traceParent, "persisted-parent");
 });
+
+test("delivers a persisted event even when trace ancestry cannot be decoded", async () => {
+  const event = makeEvent("delivery-no-parent", "entry.published");
+  const publish = vi.fn<Parameters<typeof trackOutboxDelivery>[0]["bus"]["publish"]>(async () => {});
+  const recorded: unknown[] = [];
+  const tracker = { trace: async ({ name, run }: { name: string; run: (span: { setOutcome: (outcome: unknown) => void }) => Promise<unknown> }, options: unknown) => {
+    recorded.push({ name, options });
+    return run({ setOutcome: outcome => recorded.push(outcome) });
+  } } as unknown as Parameters<typeof trackOutboxDelivery>[0]["tracker"];
+  const readParent = vi.fn(() => { throw new Error("unreadable trace context"); });
+  await trackOutboxDelivery({ bus: { publish }, tracker }, { readParent }).publish({ event });
+  assert.deepEqual(readParent.mock.calls, [[{ event }]]);
+  assert.deepEqual(publish.mock.calls, [[{ event }]]);
+  assert.deepEqual(recorded, [
+    { name: "outbox.deliver", options: { attributes: { "event.name": "entry.published" } } },
+    { outcome: "delivered", failed: false },
+  ]);
+});

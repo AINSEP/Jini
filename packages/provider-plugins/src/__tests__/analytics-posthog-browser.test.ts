@@ -184,3 +184,18 @@ it('full pageviews preserve page paths but redact email-bearing path segments', 
   expect(event.properties.$current_url).toBe('https://site.example/members/:redacted/settings');
   expect(JSON.stringify(event)).not.toMatch(/visitor%40|token=|#secret/);
 });
+
+it('serves neither the SDK nor the collector for unsupported method and path combinations', async () => {
+  const effects: string[] = [];
+  const contribution = postHogBrowserContribution({
+    apiKey: 'phc_fixture', host: 'https://collector.example', sessionReplay: false, surface: 'site', attributes: {},
+  }, {
+    loadAsset: async () => { effects.push('sdk'); return 'export default fixture;'; },
+    request: async () => { effects.push('collector'); return new Response('1'); },
+  });
+  for (const [method, path] of [['GET', '/e/'], ['HEAD', `/sdk-${POSTHOG_BROWSER_VERSION}.js`], ['PATCH', '/e/']] as const) {
+    expect(await contribution.http!.handle({ method, path, body: new Uint8Array(), contentType: '' }))
+      .toEqual({ status: 404, body: '' });
+  }
+  expect(effects).toEqual([]);
+});

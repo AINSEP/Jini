@@ -50,6 +50,16 @@ describe('siteSearchRoute', () => {
     expect(log).toEqual([]);
   });
 
+  it.each([
+    [{ q: ['first', 'second'] }, "'q' must be given once"],
+    [{ q: 'needle', collection: 'post,Not_A_Collection' }, "'collection' must be up to 10 comma-separated names like 'post'"],
+    [{ q: 'needle', cursor: '' }, "'cursor' must be the nextCursor of a previous page"],
+  ] as const)('reports the specific malformed parameter in %j without a service query', async (query, message) => {
+    const { deps, log } = harness(okResult);
+    expect(await call({ ...query }, deps)).toEqual({ status: 400, body: { error: 'invalid_request', message } });
+    expect(log).toEqual([]);
+  });
+
   it('answers 503 not_configured without a runtime', async () => {
     const { deps } = harness(okResult, { runtime: false });
     expect(await call({ q: 'a' }, deps)).toEqual({ status: 503, body: { error: 'search_unavailable', reason: 'not_configured' } });
@@ -63,6 +73,32 @@ describe('siteSearchRoute', () => {
       { query: { siteId: 'site', workspaceId: 'ws', query: expect.objectContaining({ text: 'hello' }) }, optional: { audiences: ['members'] } },
       { event: { resultCountBucket: '1-10', durationBucket: '100ms-1s' } },
     ]);
+  });
+
+  it.each([
+    [99, '<100ms'], [100, '100ms-1s'], [999, '100ms-1s'], [1000, '>=1s'], [1001, '>=1s'],
+  ] as const)('reports %dms only as the %s duration bucket', async (elapsed, bucket) => {
+    const { deps, log } = harness(okResult);
+    let tick = 700;
+    const clock = { nowMs: () => { const value = tick; tick += elapsed; return value; } };
+    expect((await call({ q: 'visitor search terms' }, { ...deps, clock })).status).toBe(200);
+    expect(log.at(-1)).toEqual({ event: { resultCountBucket: '1-10', durationBucket: bucket } });
+  });
+
+  it('does not invent a duration bucket when no clock is installed', async () => {
+    const { deps: { clock: _clock, ...deps }, log } = harness(okResult);
+    expect((await call({ q: 'visitor search terms' }, deps)).status).toBe(200);
+    expect(log.at(-1)).toEqual({ event: { resultCountBucket: '1-10' } });
+  });
+
+  it.each([[10, '1-10'], [11, '11-50']] as const)('reports %d results as %s without exposing exact timing or terms', async (count, bucket) => {
+    const hits = Array.from({ length: count }, (_, i) => ({
+      key: { siteId: 'site', workspaceId: 'ws', collection: 'post', documentId: `post-${i}` },
+      revision: 3, url: `/posts/${i}`, title: `Post ${i}`, snippet: 'sample', highlights: [], score: 10,
+    }));
+    const { deps, log } = harness({ status: 'ok', providerId: 'p', page: { hits } });
+    expect((await call({ q: 'visitor search terms', limit: '20' }, deps)).status).toBe(200);
+    expect(log.at(-1)).toEqual({ event: { resultCountBucket: bucket, durationBucket: '100ms-1s' } });
   });
 
   it('asks without a token when the visitor has no session, and keeps the next cursor', async () => {

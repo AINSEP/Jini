@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoutineService } from '../scheduler.js';
+import { RoutineActiveError } from '../routine-errors.js';
 import type { Routine, RoutineDurablePersistence, RoutineRun, RoutineRunHandlerStart, RoutineRunHandler } from '../types.js';
 
 const hour = 3_600_000;
@@ -59,6 +60,27 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('durable routine slots', () => {
+  it('rejects a second manual run as active and discards the losing start handle', async () => {
+    const f = fixture();
+    f.service.start({});
+    try {
+      await f.service.whenReady();
+      await f.service.runNow({ routineId: 'r' });
+      const second = f.service.runNow({ routineId: 'r' });
+      await expect(second).rejects.toBeInstanceOf(RoutineActiveError);
+      await expect(second).rejects.toMatchObject({
+        name: 'RoutineActiveError', message: 'Routine already has an active run',
+      });
+      expect(f.runs.map(({ id, status, trigger }) => ({ id, status, trigger }))).toEqual([
+        { id: 'routine-run-1', status: 'running', trigger: 'manual' },
+      ]);
+      expect(f.start.mock.calls).toEqual([[]]);
+      expect(f.discardUnstarted.mock.calls).toEqual([[]]);
+    } finally {
+      f.service.stop({});
+    }
+  });
+
   it('restart after three missed slots fires once with catchUp and schedules the next future slot', async () => {
     const f = fixture(); f.routine.nextRunAt = boot - 3 * hour;
     f.service.start({}); await f.service.whenReady({}, {}); await vi.advanceTimersByTimeAsync(0);

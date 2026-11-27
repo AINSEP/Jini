@@ -9,3 +9,7 @@ it('pins the normalized migration source without VACUUM', () => {
   expect(pinnedChecksum({ id: '0001_jini_routines_v1' }, {})).toBe(createHash('sha256').update(normalized).digest('hex'));
   expect(source).not.toMatch(/\bVACUUM\b/i);
 });
+
+it.each(['0002_unregistered', 'constructor', '__proto__'])('rejects %s as an unpinned migration id', (id) => {
+  expect(() => pinnedChecksum({ id })).toThrow(`routine migration ${id} has no pinned checksum`);
+});

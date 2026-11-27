@@ -3,6 +3,28 @@ import { createInMemoryRoutineStore, summarizeLastRun } from '../routine-store.j
 import { ToolInputError } from '@jini-ai/core';
 import type { RoutineRun } from '../types.js';
 
+it('updates approval only for the matching live run and keeps its receipt details on settlement', async () => {
+  const store = createInMemoryRoutineStore({});
+  store.recordRun({ run: fixtureRun({ id: 'finished', status: 'succeeded', startedAt: 100 }) });
+  store.recordRun({ run: fixtureRun({ id: 'live', status: 'running', startedAt: 200, completedAt: null }) });
+  await store.setApproval({ runId: 'live', state: 'waiting' }, { ref: 'first', since: 201 });
+  expect(await store.getLatestRun({ routineId: 'routine-1' })).toMatchObject({
+    id: 'live', approvalState: 'waiting', approvalRef: 'first', approvalSince: 201,
+  });
+  await store.setApproval({ runId: 'live', state: 'waiting' }, { ref: 'second', since: 202 });
+  await store.setApproval({ runId: 'live', state: 'approved' }, { expectedRef: 'first' });
+  expect(await store.getLatestRun({ routineId: 'routine-1' })).toMatchObject({
+    id: 'live', approvalState: 'waiting', approvalRef: 'second', approvalSince: 202,
+  });
+  await store.setApproval({ runId: 'missing', state: 'waiting' });
+  await store.setApproval({ runId: 'finished', state: 'waiting' }, { ref: 'late', since: 203 });
+  await store.setApproval({ runId: 'live', state: 'approved' }, { expectedRef: 'second' });
+  const { items } = await store.listRuns({ routineId: 'routine-1' });
+  expect(items.map(({ id, approvalState, approvalRef, approvalSince }) => [id, approvalState, approvalRef, approvalSince])).toEqual([
+    ['live', 'approved', 'second', 202], ['finished', undefined, undefined, undefined],
+  ]);
+});
+
 function fixtureRun(overrides: Partial<RoutineRun> = {}): RoutineRun {
   return {
     id: 'run-1',
