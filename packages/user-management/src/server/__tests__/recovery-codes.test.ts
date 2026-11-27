@@ -115,3 +115,34 @@ test('kit issuance verifies an existing credential even when it exceeds the new-
   await f.auth.repos.users.save({ ...owner, passwordHash: `hashed:${password}` });
   assert.equal((await issueRecoveryCodes({ deps: f.deps, input: { ...f.scope, password } }, {})).codes.length, 10);
 });
+
+test('an owner id with no active principal row is refused as unavailable', async () => {
+  const f = await fixture();
+  const deps = { ...f.deps, seededOwnerPrincipalId: 'ghost' };
+  await assert.rejects(issueRecoveryCodes({ deps, input: { workspaceId: 'a', principalId: 'ghost', password: 'old' } }, {}),
+    { message: 'The owner account is unavailable. Ask the host operator to check the owner account.' });
+  assert.deepEqual(f.stored(), {});
+});
+
+test('a broken entropy source (repeated or malformed tokens) stores no kit', async () => {
+  const f = await fixture();
+  const real = f.auth.tokens;
+  for (const newToken of [() => 'a'.repeat(64), (() => { let n = 0; return () => `${++n}`.padStart(64, 'z'); })()]) {
+    const deps = { ...f.deps, auth: { ...f.auth, tokens: { newToken, hashToken: (input: { rawToken: string }) => real.hashToken(input) } } };
+    await assert.rejects(issueRecoveryCodes({ deps, input: { ...f.scope, password: 'old' } }, {}),
+      { message: 'Recovery code generation failed. Try again after the host operator checks the entropy source. Details: recovery-entropy' });
+  }
+  assert.deepEqual(f.stored(), {});
+});
+
+test('a code that is not 64 lowercase hex characters is refused before any lookup or password change', async () => {
+  const f = await fixture();
+  await issueRecoveryCodes({ deps: f.deps, input: { ...f.scope, password: 'old' } }, {});
+  const before = f.stored();
+  for (const code of ['', 'A'.repeat(64), 'a'.repeat(63), `${'a'.repeat(64)}\n`]) {
+    await assert.rejects(recoverOwner({ deps: f.deps, input: { ...f.scope, code, password: 'new' } }, {}),
+      { message: 'The recovery code was not accepted. Use an unused code from your latest download.' });
+  }
+  assert.deepEqual(f.stored(), before);
+  await login({ deps: f.auth, input: { workspaceId: 'a', username: 'renamed-owner', password: 'old' } }, {});
+});
