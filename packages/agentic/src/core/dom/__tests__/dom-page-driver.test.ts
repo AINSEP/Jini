@@ -84,6 +84,20 @@ describe('findElements', () => {
     expect(root.querySelector('button')!.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it.each([
+    ['an extra key', { type: 'plugin', id: 'design', name: 'Design' }],
+    ['an empty id', { type: 'plugin', id: '' }],
+    ['a non-string type', { type: 7, id: 'design' }],
+  ])('refuses an entity target with %s before navigating', async (_label, entity) => {
+    const navigate = vi.fn(async () => ({ path: '/plugins' }));
+    const navigation = { id: 'plugins', label: 'Plugins', description: 'Plugins', path: '/plugins',
+      routeTemplates: ['/plugins'], allowedQueryParams: {}, entityTargets: [{ type: 'plugin', routeTemplate: '/plugins' }] };
+    const driver = createDomPageDriver({ root, pages: { plugins: { label: 'Plugins', navigation, navigate } } });
+    await expect(executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: 'plugins', entity } }))
+      .rejects.toThrow('Entity requires exactly type and id strings');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('clicks and smoothly centers a disclosure, returning its expanded post-state', async () => {
     root.innerHTML = '<section data-agent-page="agent-lab"><button data-agent-element="plugin-details" data-agent-role="button" aria-expanded="false">Plugin details</button></section>';
     const button = root.querySelector('button')!;
