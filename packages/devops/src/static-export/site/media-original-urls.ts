@@ -18,6 +18,12 @@ function sameOrigin({ url, origin }: { url: string; origin: string }): boolean {
   try { return new URL(url, origin).origin === origin; } catch { return false; }
 }
 
+/** The configured origin as `URL.origin` spells it: a verified custom port is part of the origin
+ *  (a default port is dropped), and an unparsable configuration is never ours. */
+function configuredOrigin({ scheme, host, port }: { scheme: string; host: string; port?: number | undefined }): string | null {
+  try { return new URL(`${scheme}://${host}${port === undefined ? "" : `:${port}`}`).origin; } catch { return null; }
+}
+
 /** Local paths need no origin lookup; absolute references must belong to the configured site.
  * With no verified origin, absolute references stay as written: a link must never fail the export. */
 async function localOriginalPaths<R extends { status: string; kind?: string | undefined; source: { sha256: string } }>({ body, deps, locations }: { body: string; deps: ExportMediaUrlDeps<R>; locations: readonly { start: number; end: number }[] }, _optional: Record<string, never> = {}): Promise<Map<string, { prefix: string; key: string }>> {
@@ -27,7 +33,7 @@ async function localOriginalPaths<R extends { status: string; kind?: string | un
   for (const match of matches) {
     if (match[1]) {
       origin ??= await deps.originRegistry.canonicalOrigin({ workspaceId: deps.workspaceId })
-        .then(configured => `${configured.scheme}://${configured.host}`, () => null);
+        .then(configuredOrigin, () => null);
       if (!origin || !sameOrigin({ url: match[0], origin })) continue;
     }
     let key: string | undefined;

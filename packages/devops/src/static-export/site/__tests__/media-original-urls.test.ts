@@ -100,3 +100,28 @@ it('rewrites an absolute media URL only on the verified custom port', async () =
     '<img src="https://gallery.example:8443/m/cover/original.png?v=cover-sha"><img src="https://gallery.example/m/cover/original">',
   );
 });
+
+it('treats a verified default port as the plain origin', async () => {
+  const deps = localMedia(new Map([['cover', record('cover-sha')]]), new Map([['cover-sha', 'image/png']]));
+  deps.originRegistry.canonicalOrigin.mockResolvedValue({
+    scheme: 'https', host: 'gallery.example', port: 443, source: 'workspace-setting', verifiedAt: '2026-11-20T00:00:00Z',
+  });
+  const body = '<img src="https://gallery.example/m/cover/original"><img src="https://gallery.example:8443/m/cover/original">';
+
+  expect(await rewriteMediaOriginalUrls({ body, deps })).toBe(
+    '<img src="https://gallery.example/m/cover/original.png?v=cover-sha"><img src="https://gallery.example:8443/m/cover/original">',
+  );
+});
+
+it('keeps absolute media URLs as written when the configured origin cannot be parsed', async () => {
+  const deps = localMedia(new Map([['cover', record('cover-sha')]]), new Map([['cover-sha', 'image/png']]));
+  deps.originRegistry.canonicalOrigin.mockResolvedValue({
+    scheme: 'https', host: 'gallery example', source: 'workspace-setting', verifiedAt: '2026-11-20T00:00:00Z',
+  });
+  const body = '<img src="https://gallery.example/m/cover/original"><img src="/m/cover/original">';
+
+  expect(await rewriteMediaOriginalUrls({ body, deps })).toBe(
+    '<img src="https://gallery.example/m/cover/original"><img src="/m/cover/original.png?v=cover-sha">',
+  );
+  expect(deps.findMedia).toHaveBeenCalledExactlyOnceWith({ workspaceId: deps.workspaceId, idOrSlug: 'cover' });
+});

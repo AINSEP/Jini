@@ -198,7 +198,10 @@ test("reports enabled, disabled and saved-only provider guidance without opening
     ],
   };
   expect(await f.run("source_control_get_capabilities", {})).toEqual(expected);
-  expect(f.switchedOffPluginSentence.mock.calls).toEqual([[{ pluginIds: ["provider-off"] }], [{ pluginIds: ["provider-legacy"] }]]);
+  // One sentence per switched-off provider, each naming only its own plugin (call order is not the contract).
+  expect(f.switchedOffPluginSentence).toHaveBeenCalledTimes(2);
+  expect(f.switchedOffPluginSentence).toHaveBeenCalledWith({ pluginIds: ["provider-off"] });
+  expect(f.switchedOffPluginSentence).toHaveBeenCalledWith({ pluginIds: ["provider-legacy"] });
   expect(f.describeByLabel).toHaveBeenCalledExactlyOnceWith({ workspaceId: "site", label: "github" });
   expect(f.resolveByLabel).not.toHaveBeenCalled();
 });

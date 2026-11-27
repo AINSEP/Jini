@@ -126,14 +126,25 @@ it("moves an opaque envelope only to a loaded host that does not require paired 
   await expect(move({ providerId: "unknown" })).rejects.toThrow(new SourceControlCredentialValidationError("connection.providerId must be one of: paired, plain"));
 });
 
+/** Strict fake: exposes only the listed dependencies; reading any other one throws, so the test
+ *  proves the registry boundary touches nothing but the optional provider loader. */
+function onlyLoaderDeps(loader: Pick<SourceControlCredentialWriteDeps, "loadSourceControlProviders">): SourceControlCredentialWriteDeps {
+  const target: SourceControlCredentialWriteDeps = Object.create(null);
+  return new Proxy(target, {
+    get: (_target, key) => {
+      if (key === "loadSourceControlProviders") return loader.loadSourceControlProviders;
+      throw new Error(`unexpected dependency read: ${String(key)}`);
+    },
+  });
+}
+
 it("does not admit new providers when the host omits its provider loader", async () => {
-  // Only the optional loader is read by this boundary.
-  const unavailable = await credentialRegistry({ deps: {} as SourceControlCredentialWriteDeps, workspaceId: "site" });
+  const unavailable = await credentialRegistry({ deps: onlyLoaderDeps({}), workspaceId: "site" });
   expect(unavailable.list()).toEqual([]);
   expect(unavailable.get({ providerId: "paired" })).toBeUndefined();
   expect(unavailable.refusals).toEqual([]);
   const loadSourceControlProviders = vi.fn(async () => registry);
-  const loaded = await credentialRegistry({ deps: { loadSourceControlProviders } as SourceControlCredentialWriteDeps, workspaceId: "site" });
+  const loaded = await credentialRegistry({ deps: onlyLoaderDeps({ loadSourceControlProviders }), workspaceId: "site" });
   expect(loaded).toBe(registry);
   expect(loadSourceControlProviders).toHaveBeenCalledExactlyOnceWith({ workspaceId: "site" });
 });

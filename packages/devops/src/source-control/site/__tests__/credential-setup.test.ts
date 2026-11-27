@@ -116,7 +116,7 @@ function cardFixture(action: "submit" | "cancelled" | "expired" | "blank" | "aba
     formatCredentialHint: ({ hint }) => hint ? `Ends in ${hint.last4}` : "",
     assertCredentialFreeField: vi.fn(), reportCredentialFailure, buildSourceControlProvider,
     isProjectKeyCreateConflictError: (_error): _error is Error => false,
-    workspaceId: "site", authorize: async () => ({ allowed: true }),
+    workspaceId: "site", authorize: async () => ({ allowed: true, reason: "fixture grants credential writes" }),
     sourceControlCredentialSetRepo: store,
     siteAssistantSecretSealer: { seal: async () => { throw new Error("canonical key store owns sealing"); }, open: async () => { throw new Error("form must not open an old key"); } },
     siteAssistantSecretKeyring: { activeKey: async () => ({ keyId: "k" }), derive: async () => new Uint8Array(), deriveSigningSecret: async () => new Uint8Array() },

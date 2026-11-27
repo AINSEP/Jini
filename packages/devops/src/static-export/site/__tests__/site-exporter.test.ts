@@ -87,7 +87,7 @@ it("reports the multi-theme export size using the runner's actual report", async
     expect(themePreviewExportSize).toHaveBeenCalledExactlyOnceWith({
       report: await runner.run.mock.results.at(-1)?.value, themeCount: 3,
     });
-    expect(result.themePreview).toEqual(themePreview);
+    expect("themePreview" in result ? result.themePreview : "no themePreview on result").toEqual(themePreview);
     expect(reportInfo).toHaveBeenCalledExactlyOnceWith(
       "[export] Theme previews: 3 themes, 7 additional pages, 1.50x export bytes (2.13x HTML); shared assets are deduplicated.",
     );

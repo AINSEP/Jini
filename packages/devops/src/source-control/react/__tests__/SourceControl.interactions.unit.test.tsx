@@ -93,7 +93,10 @@ it("discloses token guidance and sends Manage Access Tokens to the security rout
   expect(disclosure.open).toBe(false);
   fireEvent.click(guide);
   expect(disclosure.open).toBe(true);
-  expect(within(disclosure).getByText("Grant read access").textContent?.trim()).toBe("Grant read access");
+  // The scope guidance and the token-page link share one hint paragraph, guidance first.
+  const hint = within(disclosure).getByText("Grant read access");
+  expect(hint.tagName).toBe("P");
+  expect(hint.textContent).toBe("Grant read access Create a token");
   const link = within(disclosure).getByRole("link", { name: "Create a token" });
   expect(link.getAttribute("href")).toBe("https://forge.example/settings/tokens");
   expect(link.getAttribute("rel")).toBe("noreferrer");
@@ -205,7 +208,7 @@ it("forwards a labeled tab selection and keeps the connection glyph decorative",
     TabBar={({ tabs, activeId, onChange, ariaLabel }) => <div role="tablist" aria-label={ariaLabel}>{tabs.map(tab =>
       <button key={tab.id} role="tab" aria-selected={tab.id === activeId} onClick={() => onChange(tab.id)}>{tab.icon}{tab.label}</button>)}</div>}
     onTabChange={onTabChange} providerIcon={<SourceControlIcon lineIcon={lineIcon} size={27} />}
-    providers={<section aria-label="Provider connections" />} headerAttrs={{}}
+    providers={<section aria-label="Provider connections" />} headerAttrs={{ "data-agent-element": "source-control-header" }}
     copy={{ descriptionKey: "Manage providers", providerTabHandleLabel: "Show providers" }}
   />);
   expect(resolveActiveTabId).toHaveBeenCalledExactlyOnceWith({ tabId: "stale", validIds: ["providers"], defaultId: "providers" });
