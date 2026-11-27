@@ -1,4 +1,5 @@
 import { JINI_MCP_SERVER_KEY, type CodexBridgeEntry, type CodexHttpEndpoint, type CodexToolApprovalOwner } from './contracts.js';
+import { CodexMcpIsolationError } from './isolation.js';
 
 /**
  * TOML basic-string escaping for the narrow value shapes {@link buildCodexMcpServerToml} emits (a
@@ -185,7 +186,7 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
     // The existing table scanner cannot safely rewrite inline/dotted root server values. Refuse
     // that uncommon shape when isolating servers rather than accidentally preserving a grant.
     if (optional.allServers && INLINE_MCP_SERVERS.test(line)) {
-      throw new Error('Cannot turn off personal MCP servers: the Codex config.toml declares mcp_servers inline (a dotted key or `mcp_servers = {...}`), which cannot be removed safely; move each server into its own [mcp_servers.<name>] table.');
+      throw new CodexMcpIsolationError('Cannot turn off personal MCP servers: the Codex config.toml declares mcp_servers inline (a dotted key or `mcp_servers = {...}`), which cannot be removed safely; move each server into its own [mcp_servers.<name>] table.');
     }
     const header = TOML_TABLE_HEADER.exec(line);
     // The header's key capture group is not optional, so `header[1]` is always set on a match.

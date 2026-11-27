@@ -16,5 +16,5 @@ it.each([
 ])('refuses a bridge-only staged home with %s', (_case, homeConfig, message) => {
   const verify = () => assertStagedHomeIsolated({ homeConfig, path: '/staged/config.toml' });
   expect(verify).toThrow(CodexMcpIsolationError);
-  expect(verify).toThrow(new Error(message));
+  expect(verify).toThrow(new CodexMcpIsolationError(message));
 });

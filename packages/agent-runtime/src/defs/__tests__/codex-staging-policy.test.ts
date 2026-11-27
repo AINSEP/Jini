@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { buildCodexHomeConfigToml } from '../codex/home-config.js';
+import { CodexMcpIsolationError } from '../codex/isolation.js';
 
 it('keeps personal MCP and CLI settings independently selectable in Codex staging', () => {
   const existingRaw = 'model = "personal-model"\n[mcp_servers.chrome]\ncommand = "chrome"\n[features]\nmulti_agent = true\n';
@@ -45,5 +46,5 @@ it('keeps an inline root MCP declaration untouched while personal MCP stays on',
 
 it('names the inline shape and the fix when personal MCP cannot be turned off', () => {
   expect(() => buildCodexHomeConfigToml({ existingRaw: "'mcp_servers' = { chrome = { command = \"chrome\" } }", entry: bridgeEntry, inheritUserMcp: false }))
-    .toThrow(new Error('Cannot turn off personal MCP servers: the Codex config.toml declares mcp_servers inline (a dotted key or `mcp_servers = {...}`), which cannot be removed safely; move each server into its own [mcp_servers.<name>] table.'));
+    .toThrow(new CodexMcpIsolationError('Cannot turn off personal MCP servers: the Codex config.toml declares mcp_servers inline (a dotted key or `mcp_servers = {...}`), which cannot be removed safely; move each server into its own [mcp_servers.<name>] table.'));
 });
