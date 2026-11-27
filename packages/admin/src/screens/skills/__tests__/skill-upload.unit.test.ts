@@ -67,3 +67,8 @@ it("requires SKILL.md for a folder and does not treat a ZIP beside another file 
   await expect(prepareSkillUpload({ files: files as unknown as File[] }))
     .rejects.toThrow("Choose a skill folder, ZIP, or SKILL.md.");
 });
+
+it("rejects a sparse selection before attempting to read a missing first file", async () => {
+  const selection = new Array<File>(1);
+  await expect(prepareSkillUpload({ files: selection })).rejects.toThrow("Skill upload has no first file.");
+});

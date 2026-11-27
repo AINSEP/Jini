@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -120,4 +121,33 @@ describe("AllSitesTab", () => {
     renderWithAdminKit(<AllSitesTab {...props({ listPrefs: { prefs: { hidden: [] }, ready: false, onPrefsChange: () => {}, loadError: null, saveError: null } })} />);
     expect(screen.queryByRole("group", { name: "Sites" })).toBeNull();
   });
+});
+
+it("reports an unsaved list preference without hiding the current cards", () => {
+  const initial = props();
+  renderWithAdminKit(<AllSitesTab {...initial} listPrefs={{ ...initial.listPrefs, saveError: "profile is read-only" }} />);
+  expect(screen.getByText("Your list choices could not be saved: profile is read-only. They apply until you reload.")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "atlas" })).toBeVisible();
+});
+
+it("uses a neutral tone for a host-specific status and toggles only the named pin", async () => {
+  const user = userEvent.setup();
+  const togglePin = vi.fn();
+  const { rerender } = renderWithAdminKit(<AllSitesTab {...props({
+    policy: policy({ resolveSiteStatusPill: () => ({ toneClass: "status-new", label: "Queued" }) }),
+    useSiteListViewHook: (input) => ({ ...listHook()(input), isPinned: (id) => id === "boreal", togglePin }),
+  })} />);
+  const boreal = within(screen.getByTitle("/sites/boreal"));
+  expect(boreal.getByText("Queued")).toHaveAttribute("data-tone", "neutral");
+  expect(boreal.getByRole("button", { name: "Unpin boreal", pressed: true })).toBeVisible();
+  await user.click(boreal.getByRole("button", { name: "Unpin boreal" }));
+  expect(togglePin.mock.calls).toEqual([["boreal"]]);
+
+  rerender(<AllSitesTab {...props({
+    policy: policy({ resolveSiteCardView: () => ({ lifecycle: null, openUrl: null, menu: [] }) }),
+  })} />);
+  expect(screen.getByRole("heading", { name: "boreal" })).toBeVisible();
+  expect(boreal.queryByRole("button", { name: "Stop boreal" })).toBeNull();
+  expect(boreal.queryByRole("link", { name: "Open boreal in a new tab" })).toBeNull();
+  expect(boreal.queryByText("Serving note")).toBeNull();
 });

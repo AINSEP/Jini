@@ -11,6 +11,10 @@ const DEFAULT_EXECUTION_CONFIG: ExecutionConfig = {
 };
 
 import {
+  accentSwatchName,
+  buildAccentSwatchNames,
+  externalMcpNeedsSignIn,
+  isBuiltInExternalMcpSource,
   areAnySlicesLoading,
   buildExternalMcpCardHandles,
   buildExternalMcpFieldSpecs,
@@ -482,4 +486,31 @@ describe("buildExternalMcpRemoveConfirmCopy", () => {
     expect(copy.body).not.toMatch(/sealed/i);
     expect(copy.body).toBe("This connection will stop working immediately. You'll need to re-enter its configuration to use it again.");
   });
+});
+
+it("takes built-in ownership only from the exact host flag", () => {
+  const external: Record<string, string>[] = [{}, { builtIn: "false" }, { builtIn: "TRUE" }, { name: "Built-in" }];
+  for (const fields of external) {
+    expect(isBuiltInExternalMcpSource({ source: { fields } })).toBe(false);
+  }
+  expect(isBuiltInExternalMcpSource({ source: { fields: { builtIn: "true" } } })).toBe(true);
+});
+
+it("offers sign-in only for OAuth rows with an explicitly non-connected status", () => {
+  const needs = (fields: Record<string, string>) => externalMcpNeedsSignIn({ source: { fields } });
+  expect(needs({ authMode: "oauth", oauthStatus: "disconnected" })).toBe(true);
+  expect(needs({ authMode: "oauth", oauthStatus: "connected" })).toBe(false);
+  expect(needs({ authMode: "oauth" })).toBe(false);
+  expect(needs({ authMode: "static_env", oauthStatus: "disconnected" })).toBe(false);
+});
+
+it("normalizes swatch codes but uses a custom name and retains unknown hex labels", () => {
+  const names = buildAccentSwatchNames({
+    presets: [{ color: "#AA44DD", nameKey: "Orchid" }, { color: "#9988FF", nameKey: "Iris" }],
+    extraNames: { "#aa44dd": "Host orchid", "#123456": "Harbor" },
+  });
+  expect(names).toEqual({ "#aa44dd": "Host orchid", "#9988ff": "Iris", "#123456": "Harbor" });
+  expect(accentSwatchName({ color: "#AA44DD", names })).toBe("Host orchid");
+  expect(accentSwatchName({ color: "#CAFE00", names })).toBe("#CAFE00");
+  expect(buildAccentSwatchNames({ presets: [{ color: "#0FF0AA", nameKey: "Mint" }] })).toEqual({ "#0ff0aa": "Mint" });
 });

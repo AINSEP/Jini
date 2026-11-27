@@ -370,3 +370,16 @@ it("shows the Desktop refusal URL without starting restart polling or changing t
   expect(polling.active.size).toBe(0);
   unmount();
 });
+
+it("does not start restart polling when a warm switch returns a URL but the host has no opener", async () => {
+  const snapshot = fixture();
+  const polling = pollingFakes();
+  const manageLocalSite = vi.fn<NonNullable<SitesPort["manageLocalSite"]>>().mockResolvedValue({ url: "https://localhost:53333/admin/", restarting: true });
+  const port = fakeSitesPort({ snapshot }, { manageLocalSite });
+  const { result, unmount } = renderHook(() => useLocalSites({ port, snapshot, t, deps }, { ...polling, confirm: () => true }));
+  await act(async () => { await result.current.run("alpha", "switch"); });
+  expect(manageLocalSite.mock.calls).toEqual([[{ name: "alpha", action: "switch", confirmed: true, checked: false }]]);
+  expect(result.current.error).toBeNull();
+  expect(polling.active.size).toBe(0);
+  unmount();
+});

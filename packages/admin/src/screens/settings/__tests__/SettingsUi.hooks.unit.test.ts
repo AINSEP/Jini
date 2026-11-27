@@ -1,7 +1,8 @@
+// @vitest-environment jsdom
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { KitDictionaries } from "../../../react/kit.js";
 import type { SettingsUiProps } from "../SettingsUi.js";
-import { createSettingsUiTranslators } from "../SettingsUi.hooks.js";
+import { createSettingsTabChange, createSettingsUiTranslators } from "../SettingsUi.hooks.js";
 import { aiAgentPanelDictionaries, t as tExecution } from "../settings-execution-i18n.js";
 
 describe("createSettingsUiTranslators (host dictionaries injected)", () => {
@@ -51,4 +52,21 @@ describe("settings-execution-i18n", () => {
     expect(out.xx).toEqual({ "Execution mode": "AI agent", "AI agent": "AI agent" });
     expect(Object.keys(out).sort()).toEqual(["es", "xx"]);
   });
+});
+
+it("replaces rather than pushes history when Settings first becomes a tab deep link", () => {
+  const state: unknown = window.history.state;
+  const previous = window.location.href;
+  try {
+    window.history.replaceState(null, "", "/admin/settings");
+    const historyLength = window.history.length;
+    const change = createSettingsTabChange({});
+    change("notifications");
+    expect(window.location.pathname + window.location.search).toBe("/admin/settings?tab=notifications");
+    change("memory");
+    expect(window.location.search).toBe("?tab=memory");
+    expect(window.history.length).toBe(historyLength);
+  } finally {
+    window.history.replaceState(state, "", previous);
+  }
 });

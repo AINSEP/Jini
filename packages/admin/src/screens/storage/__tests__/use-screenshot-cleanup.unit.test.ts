@@ -22,3 +22,20 @@ describe("useScreenshotCleanup", () => {
   });
 
 });
+
+it("reports a refused apply, discards its grant and resets to idle", async () => {
+  const refusal = new Error("Preview expired");
+  const client: ScreenshotCleanupClient = { preview: vi.fn(async () => PREVIEW), apply: vi.fn().mockRejectedValue(refusal) };
+  const describeError = vi.fn(({ error }: { error: unknown }) => error === refusal ? "Preview expired" : "Unexpected failure");
+  const { result } = renderHook(() => useScreenshotCleanup({ client, describeError }));
+  await act(async () => { await result.current.preview({ before: 80 }); });
+  expect(result.current.state).toEqual({ status: "shown", preview: PREVIEW });
+  await act(async () => { await result.current.confirm(); });
+  expect(client.apply).toHaveBeenCalledExactlyOnceWith({ previewToken: "t1" });
+  expect(describeError).toHaveBeenCalledExactlyOnceWith({ error: refusal });
+  expect(result.current.state).toEqual({ status: "error", message: "Preview expired" });
+  await act(async () => { await result.current.confirm(); });
+  expect(client.apply).toHaveBeenCalledTimes(1);
+  act(() => result.current.reset());
+  expect(result.current.state).toEqual({ status: "idle" });
+});

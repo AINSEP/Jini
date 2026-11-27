@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
@@ -75,4 +76,53 @@ describe('explicit saved MCP choices', () => {
     fireEvent.click(await screen.findByRole('button', { name: "Use this site's local connection" }));
     expect((await screen.findByRole('alert')).textContent).toBe('The local connection could not be selected. Try again.');
   });
+});
+
+it("keeps the grant on a failed stop, then shows the stopped state after retry", async () => {
+  const user = userEvent.setup();
+  let granted = true;
+  const stop = vi.fn<ExternalMcpSharedChoicePort["stopSharedMcpConnection"]>()
+    .mockRejectedValueOnce(new AdminApiError({ message: "This grant is busy.", status: 409 }))
+    .mockImplementationOnce(async () => { granted = false; });
+  const list = vi.fn<ExternalMcpSharedChoicePort["listSharedMcpConnections"]>(async ({ serverId }) => {
+    if (serverId !== "server-b") throw new Error("Unexpected server");
+    return { available: true, connections: [{ credentialId: "b", label: "Operator" }], current: { credentialId: "b", granted, status: "connected" } };
+  });
+  const onChanged = vi.fn();
+  render(<ExternalMcpSharedChoice t={t} serverId="server-b" busy={false} signIn={vi.fn()} onChanged={onChanged} useExternalMcpSharedChoiceHook={bind(fakePort({ listSharedMcpConnections: list, stopSharedMcpConnection: stop }))} />);
+  await user.click(screen.getByRole("button", { name: "Use a saved connection on this Mac" }));
+  await user.click(await screen.findByRole("button", { name: "Stop using here" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("This grant is busy.");
+  expect(screen.getByText("Shared connection: connected.")).toBeVisible();
+  expect(onChanged).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "Stop using here" }));
+  expect(await screen.findByText("This shared connection is stopped on this site.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Stop using here" })).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(stop.mock.calls).toEqual([[{ serverId: "server-b" }], [{ serverId: "server-b" }]]);
+  expect(list.mock.calls).toEqual([[{ serverId: "server-b" }], [{ serverId: "server-b" }]]);
+  expect(onChanged).toHaveBeenCalledTimes(1);
+});
+
+it("reports a failed saved selection without treating the placeholder or the failure as a grant", async () => {
+  const user = userEvent.setup();
+  const choose = vi.fn<ExternalMcpSharedChoicePort["useSharedMcpConnection"]>()
+    .mockRejectedValueOnce(new Error("internal credential details"));
+  const port = fakePort({
+    listSharedMcpConnections: async () => ({ available: true, connections: [{ credentialId: "saved-5", label: "Saved five" }], current: null }),
+    useSharedMcpConnection: choose,
+  });
+  const onChanged = vi.fn();
+  render(<ExternalMcpSharedChoice t={t} serverId="server-5" busy={false} signIn={vi.fn()} onChanged={onChanged} useExternalMcpSharedChoiceHook={bind(port)} />);
+  await user.click(screen.getByRole("button", { name: "Use a saved connection on this Mac" }));
+  const select = await screen.findByRole("combobox", { name: "Saved MCP connection" });
+  expect(select).toHaveValue("");
+  expect(screen.queryByRole("button", { name: "Use this site's local connection" })).toBeNull();
+  expect(choose).not.toHaveBeenCalled();
+  await user.selectOptions(select, "saved-5");
+  expect(await screen.findByRole("alert")).toHaveTextContent("This saved connection could not be granted to this server. Choose another connection or sign in.");
+  expect(choose.mock.calls).toEqual([[{ serverId: "server-5", credentialId: "saved-5" }]]);
+  expect(select).toBeEnabled();
+  expect(onChanged).not.toHaveBeenCalled();
 });

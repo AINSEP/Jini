@@ -99,3 +99,99 @@ describe("useExternalMcpOAuthConnect", () => {
     expect(result.current.state).toHaveProperty("error");
   });
 });
+
+it("finishes once on browser focus or a same-origin refusal when the popup is blocked", async () => {
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const onConnected = vi.fn();
+  const port: ExternalMcpOAuthConnectPort = {
+    connectExternalMcpOAuth: vi.fn<ExternalMcpOAuthConnectPort["connectExternalMcpOAuth"]>().mockResolvedValue({
+      auth: { kind: "redirect_required", authorizationUrl: "https://idp.example/connect", expiresAt: "z" },
+    }),
+    pollExternalMcpOAuthDevice: vi.fn(),
+  };
+  const { result, unmount } = renderHook(() => useExternalMcpOAuthConnect({
+    serverId: "atlas", grant: "authorization_code", onConnected, port, callbackMessageType: CALLBACK_TYPE,
+  }));
+  try {
+    await act(() => result.current.connect({ destination: "shared" }));
+    expect(open.mock.calls).toEqual([
+      ["about:blank", "_blank", "popup,width=520,height=720"],
+      ["https://idp.example/connect", "_blank", "popup,width=520,height=720"],
+    ]);
+    expect(port.connectExternalMcpOAuth).toHaveBeenCalledExactlyOnceWith({ serverId: "atlas" }, { destination: "shared" });
+    expect(result.current.state).toEqual({ phase: "waiting" });
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(result.current.state).toEqual({ phase: "idle" });
+    expect(onConnected).toHaveBeenCalledTimes(1);
+    act(() => window.dispatchEvent(new MessageEvent("message", { origin: window.location.origin, data: { type: CALLBACK_TYPE } })));
+    expect(onConnected).toHaveBeenCalledTimes(1);
+
+    await act(() => result.current.connect());
+    expect(result.current.state).toEqual({ phase: "waiting" });
+    act(() => window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin, data: { type: CALLBACK_TYPE, reason: "provider rejected" },
+    })));
+    expect(result.current.state).toEqual({ phase: "idle", error: "Sign-in could not start." });
+    act(() => window.dispatchEvent(new Event("focus")));
+    expect(onConnected).toHaveBeenCalledTimes(2);
+  } finally {
+    unmount();
+    open.mockRestore();
+  }
+});
+
+it("uses the complete device URI and clears poll timers after a provider refusal", async () => {
+  vi.useFakeTimers();
+  const { win, popup, opened } = fakeWindow();
+  const onConnected = vi.fn();
+  const port: ExternalMcpOAuthConnectPort = {
+    connectExternalMcpOAuth: vi.fn<ExternalMcpOAuthConnectPort["connectExternalMcpOAuth"]>().mockResolvedValue({
+      auth: { kind: "device_code", userCode: "ZX98", verificationUri: "https://idp.example/device",
+        verificationUriComplete: "https://idp.example/device?user_code=ZX98", expiresAt: "z", intervalSeconds: 7 },
+    }),
+    pollExternalMcpOAuthDevice: vi.fn().mockRejectedValue(new Error("unapproved provider diagnostics")),
+  };
+  const { result } = renderHook(() => useExternalMcpOAuthConnect({
+    serverId: "atlas", grant: "authorization_code", onConnected, port, callbackMessageType: CALLBACK_TYPE,
+  }, { win: () => win, fallbackError: "Try signing in again." }));
+  await act(() => result.current.connect());
+  expect(opened).toEqual(["about:blank", "https://idp.example/device?user_code=ZX98"]);
+  expect(popup.close).toHaveBeenCalledTimes(1);
+  expect(result.current.state).toEqual({ phase: "device", userCode: "ZX98", verificationUri: "https://idp.example/device?user_code=ZX98" });
+  await act(() => vi.advanceTimersByTimeAsync(6999));
+  expect(port.pollExternalMcpOAuthDevice).not.toHaveBeenCalled();
+  await act(() => vi.advanceTimersByTimeAsync(1));
+  expect(port.pollExternalMcpOAuthDevice).toHaveBeenCalledExactlyOnceWith({ serverId: "atlas" });
+  expect(result.current.state).toEqual({ phase: "idle", error: "Try signing in again." });
+  expect(onConnected).toHaveBeenCalledTimes(1);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("does not reopen a provider flow when the operator cancels before the request answers", async () => {
+  const { win, popup, opened, listeners } = fakeWindow();
+  type StartReply = Awaited<ReturnType<ExternalMcpOAuthConnectPort["connectExternalMcpOAuth"]>>;
+  let resolve!: (reply: StartReply) => void;
+  const starts = new Promise<StartReply>(done => { resolve = done; });
+  const onConnected = vi.fn();
+  const port: ExternalMcpOAuthConnectPort = {
+    connectExternalMcpOAuth: vi.fn(() => starts), pollExternalMcpOAuthDevice: vi.fn(),
+  };
+  const { result } = renderHook(() => useExternalMcpOAuthConnect({
+    serverId: "atlas", grant: "authorization_code", onConnected, port, callbackMessageType: CALLBACK_TYPE,
+  }, { win: () => win }));
+  let finished: Promise<void> = Promise.resolve();
+  act(() => { finished = result.current.connect(); });
+  expect(result.current.state).toEqual({ phase: "starting" });
+  expect(opened).toEqual(["about:blank"]);
+  act(() => result.current.cancel());
+  expect(result.current.state).toEqual({ phase: "idle" });
+  await act(async () => {
+    resolve({ auth: { kind: "redirect_required", authorizationUrl: "https://idp.example/connect", expiresAt: "z" } });
+    await finished;
+  });
+  expect(result.current.state).toEqual({ phase: "idle" });
+  expect(listeners.size).toBe(0);
+  expect(popup.close).toHaveBeenCalledTimes(1);
+  expect(popup.location.href).toBe("about:blank");
+  expect(onConnected).not.toHaveBeenCalled();
+});

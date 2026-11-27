@@ -63,3 +63,9 @@ describe("SiteTrashTab", () => {
     expect(screen.getByText("Site Trash is empty.")).toBeInTheDocument();
   });
 });
+
+it("treats a local snapshot from a host without a trash listing as empty", () => {
+  render(<SiteTrashTab snapshot={{ localManagementEnabled: true }} controller={controller([])} policy={policy} t={t} />);
+  expect(screen.getByText("Site Trash is empty.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull();
+});

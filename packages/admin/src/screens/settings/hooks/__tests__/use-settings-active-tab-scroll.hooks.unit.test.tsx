@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { useSettingsActiveTabScroll } from "../use-settings-active-tab-scroll.hooks.js";
 
 function Strip({ ready = true, active = "memory", isPhone }: {
-  ready?: boolean; active?: string; isPhone: () => boolean;
+  ready?: boolean; active?: string; isPhone?: () => boolean;
 }) {
-  const ref = useSettingsActiveTabScroll({ ready, tabId: active }, { isPhone });
+  const ref = useSettingsActiveTabScroll({ ready, tabId: active }, isPhone ? { isPhone } : {});
   return <div ref={ref}>{ready ? <nav className="jini-tabbed-dialog-sidebar">
     <button className="jini-tabbed-dialog-nav-item" aria-pressed={active === "execution"}>Execution</button>
     <button className="jini-tabbed-dialog-nav-item" aria-pressed={active === "memory"}>Memory</button>
@@ -72,4 +72,23 @@ describe("phone settings active tab", () => {
     act(() => window.dispatchEvent(new Event("resize")));
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
+});
+
+it("uses the browser's phone media query when no viewport override is supplied", () => {
+  const matchMedia = vi.fn((query: string) => ({ matches: query === "(max-width: 640px)" }));
+  vi.stubGlobal("matchMedia", matchMedia);
+  const scrollIntoView = vi.fn();
+  const original = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  try {
+    const { unmount } = render(<Strip active="execution" />);
+    expect(matchMedia.mock.calls).toEqual([["(max-width: 640px)"]]);
+    expect(scrollIntoView.mock.contexts).toEqual([screen.getByRole("button", { name: "Execution" })]);
+    expect(scrollIntoView.mock.calls).toEqual([[{ block: "nearest", inline: "center", behavior: "instant" }]]);
+    unmount();
+  } finally {
+    if (original === undefined) Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    else HTMLElement.prototype.scrollIntoView = original;
+    vi.unstubAllGlobals();
+  }
 });
