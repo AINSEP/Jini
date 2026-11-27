@@ -61,7 +61,7 @@ const archive = new Uint8Array([80, 75, 3, 4]);
 
 function toolRig(source: ToolSource['readRequest'], overrides: Partial<Binding> = {}) {
   const unexpected = () => { throw new Error('unexpected host port call'); };
-  const layout = createAgentPluginLayout({ root: '/agent-plugins-test' });
+  const layout = { ...createAgentPluginLayout({ root: '/agent-plugins-test' }), workspacesDir: '/agent-plugins-test/ws' };
   const readRequest = vi.fn<ToolSource['readRequest']>(source);
   const readArchive = vi.fn<ToolSource['readArchive']>(async ({ ownerId, runId }) => {
     if (ownerId !== 'owner' || runId !== 'run-b') throw new Error('wrong tool input scope');

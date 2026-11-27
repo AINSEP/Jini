@@ -34,7 +34,7 @@ it('bypasses uninitialized provider ports with explicit links and reuses lifecyc
 it('awaits readiness only for linked enable and refuses before writing', async () => {
   const order: string[] = [];
   const write = vi.fn();
-  class LinkedError extends Error {}
+  class LinkedError extends Error { constructor(input: { pluginId: string; providerPluginId: string }) { super(input.pluginId + ' is linked to ' + input.providerPluginId); } }
   const bound = createSetAgentPluginEnabled({
     createLifecycle: () => ({ setAgentPluginEnabled: write }),
     bindProviderFacePorts: () => ({ links: async () => new Map([['sample', 'provider']]) }),
@@ -49,12 +49,12 @@ it('awaits readiness only for linked enable and refuses before writing', async (
 });
 
 it('resolves workspace lazily for the link reader and carries conditional enable to the owner', async () => {
-  const layout = createAgentPluginLayout({ root: '/test-plugins' });
+  const layout = { ...createAgentPluginLayout({ root: '/test-plugins' }), workspacesDir: '/test-plugins/ws' };
   const reads: string[] = [];
   const write = vi.fn(async ({ enabled, pluginId }: { enabled: boolean; pluginId: string }, opts?: { unlessOperatorDisabled?: boolean }) => (
     { pluginId, enabled: enabled && opts?.unlessOperatorDisabled !== true }
   ));
-  class LinkedError extends Error {}
+  class LinkedError extends Error { constructor(input: { pluginId: string; providerPluginId: string }) { super(input.pluginId + ' is linked to ' + input.providerPluginId); } }
   const bound = createSetAgentPluginEnabled({
     createLifecycle: () => ({ setAgentPluginEnabled: write }),
     bindProviderFacePorts: ({ workspaceRoot }) => ({

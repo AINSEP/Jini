@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState, type ComponentProps } from "react";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { AgentPluginDetailsModal, type AgentPluginDetailsModalProps } from "../AgentPluginDetailsModal.js";
+
+afterEach(cleanup);
 
 it("selects package files without opening a listed Admin surface", () => {
   const opened = vi.fn();

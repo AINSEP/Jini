@@ -63,7 +63,7 @@ it("install while the first list is pending does not let an earlier empty result
   const pending = new Promise<{ agentPlugins: AgentPluginListRow[] }>(resolve => { complete = resolve; });
   const listAgentPlugins = vi.fn(() => pending);
   const { result } = renderPlugins({ listAgentPlugins, setAgentPluginEnabled: vi.fn(), getAgentPluginFiles: vi.fn() });
-  await waitFor(() => expect(listAgentPlugins).toHaveBeenCalled());
+  await waitFor(() => expect(listAgentPlugins).toHaveBeenCalledTimes(1));
   expect(result.current.agentPlugins).toBeNull();
   act(() => result.current.onInstalled(secondRow));
   expect(result.current.agentPlugins).toEqual([secondRow]);

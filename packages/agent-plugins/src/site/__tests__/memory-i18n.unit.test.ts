@@ -11,12 +11,20 @@ const locales = [
   'pl', 'hu', 'fr', 'uk', 'tr', 'th', 'it', 'hi', 'ur', 'bn',
 ] as const;
 
+// Words a language genuinely spells like English; each is pinned to its exact value instead.
+const cognates: Partial<Record<(typeof locales)[number], Partial<Record<(typeof english)[number], string>>>> = {
+  fr: { Note: 'Note' },
+  it: { File: 'File' },
+};
+
 test.each(locales)('%s translates every source label and distinguishes keeping from deleting memory', locale => {
   const translated = Object.fromEntries(english.map(key => [key, memoryText({ key, locale })]));
   for (const key of english) {
     const text = translated[key]!;
     expect(text.trim(), key).not.toBe('');
-    expect(text, key).not.toBe(key);
+    const cognate = cognates[locale]?.[key];
+    if (cognate === undefined) expect(text, key).not.toBe(key);
+    else expect(text, key).toBe(cognate);
   }
   expect(translated['Uninstall · keep memory']).not.toBe(translated['Uninstall and delete memory']);
 });

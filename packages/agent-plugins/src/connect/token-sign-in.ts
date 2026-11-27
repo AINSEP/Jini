@@ -50,5 +50,10 @@ export async function checkAgentPluginAccessToken(
   }
   const auth = plugin ? soleTokenAuth(plugin.servers) : null;
   if (!auth) return "unsupported";
-  return probeToken({ probeUrl: auth.probeUrl, token: input.token, credentials: deps.credentials, tokenValidator: deps.tokenValidator });
+  try {
+    return await probeToken({ probeUrl: auth.probeUrl, token: input.token, credentials: deps.credentials, tokenValidator: deps.tokenValidator });
+  } catch {
+    // A host probe that rejects (transport fault) is an outage, never its private fault text.
+    return "unavailable";
+  }
 }

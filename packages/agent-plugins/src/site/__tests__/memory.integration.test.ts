@@ -35,7 +35,7 @@ test('sibling migration locks finish before the active workspace lock is acquire
 
 test('site memory bindings preserve exact note context and use the active workspace migration result', async () => {
   const root = await filesystem.realpath(await filesystem.mkdtemp(path.join(tmpdir(), 'jini-site-memory-')));
-  const layout = createAgentPluginLayout({ root });
+  const layout = { ...createAgentPluginLayout({ root }), workspacesDir: path.join(root, 'ws') };
   const contain = async ({ root, entryPath }: { root: string; entryPath: string }) => path.resolve(root, entryPath);
   const locks: string[] = [];
   const bindings = createPluginMemoryBindings({
@@ -70,7 +70,7 @@ test('site memory bindings preserve exact note context and use the active worksp
 
 test('workspace discovery skips files and invalid ids, reports failed siblings and continues', async () => {
   const root = await filesystem.mkdtemp(path.join(tmpdir(), 'jini-sibling-memory-'));
-  const layout = createAgentPluginLayout({ root });
+  const layout = { ...createAgentPluginLayout({ root }), workspacesDir: path.join(root, 'ws') };
   const good = layout.forWorkspace({ workspaceId: 'good' }).root;
   const invalid: string[] = [];
   const failures: unknown[] = [];

@@ -31,7 +31,7 @@ function fixture() {
   const descriptors = { schemaVersion: 2, adapters: [
     relay,
     { ...relay, id: 'inconsistent', module: 'mismatch.mjs' },
-    { ...relay, id: 'bad-feedback', module: 'feedback.mjs', feedback: true },
+    { ...relay, id: 'bad_feedback', module: 'feedback.mjs', feedback: true },
     { ...relay, id: 'anonymous', module: 'anonymous.mjs', credentialKeys: [], credentialCard: { title: 'x', baseUrl: 'http://non-https.example' } },
   ] };
   const readFile = vi.fn(async ({ plugin: item, filename }: { plugin: typeof plugin; filename: string }) => {
@@ -49,7 +49,7 @@ function fixture() {
       switch (modulePath) {
         case 'relay.mjs': return { exported: relayModule };
         case 'mismatch.mjs': return { exported: { ...relayModule, id: 'another' } };
-        case 'feedback.mjs': return { exported: { ...relayModule, id: 'bad-feedback' } };
+        case 'feedback.mjs': return { exported: { ...relayModule, id: 'bad_feedback' } };
         case 'anonymous.mjs': return { exported: { ...relayModule, id: 'anonymous', domainReadConnection: undefined } };
         default: throw new Error('unexpected module');
       }
@@ -89,7 +89,7 @@ test('retains valid descriptor owners and exposes loader, key-card and v2-module
     'catalog omitted an untrusted plugin',
     "mail adapter 'anonymous' from 'postal' key card was ignored: adapters[3].credentialCard.baseUrl must be an https URL",
     "mail adapter 'inconsistent' from 'postal' was not loaded: its module id 'another' does not match the descriptor id 'inconsistent'",
-    "mail adapter 'bad-feedback' from 'postal' was not loaded: its descriptor feedback flag does not match the module's feedback parser",
+    "mail adapter 'bad_feedback' from 'postal' was not loaded: its descriptor feedback flag does not match the module's feedback parser",
   ]);
   expect(loaded.credentialLabelFor({ id: 'relay' })).toBe('Hosted Relay credential');
   expect(loaded.setupFor({ id: 'relay' }).fields.map(({ key, type }) => [key, type])).toEqual([['token', 'secret'], ['username', 'text'], ['baseUrl', 'url']]);
@@ -101,7 +101,7 @@ test('retains valid descriptor owners and exposes loader, key-card and v2-module
 test('filing credential cards uses the declaring plugin and exact saved label, independently of the source loader', async () => {
   const { catalog, deps, contributions, readFile } = fixture();
   const source = await contributions.loadMailAdapterRegistryFromSource(plugin);
-  expect(source.list().map(({ descriptor }) => descriptor.id)).toEqual(['relay', 'inconsistent', 'bad-feedback', 'anonymous']);
+  expect(source.list().map(({ descriptor }) => descriptor.id)).toEqual(['relay', 'inconsistent', 'bad_feedback', 'anonymous']);
   expect(source.refusals).toEqual([
     "mail adapter 'anonymous' from 'postal' key card was ignored: adapters[3].credentialCard.baseUrl must be an https URL",
   ]);
@@ -177,7 +177,7 @@ test('the contributed provider adapts the guarded HTTP seam and delivers through
   expect(relayModule.create).toHaveBeenCalledTimes(1);
   const [created] = relayModule.create.mock.calls[0]!;
   expect(created.credential).toEqual(credential);
-  const request = { url: 'https://relay.example/ping', method: 'GET', headers: {} } as const;
+  const request = { url: 'https://relay.example/ping', method: 'GET', headers: {}, timeoutMs: 5000 } as const;
   await expect(created.kit.httpClient.send(request, { redirect: 'error' })).rejects.toThrow('fixture HTTP refusal');
   expect(client.send.mock.calls).toEqual([[{ request }, { redirect: 'error' }]]);
   const message = { workspaceId: 'site-relay', to: { email: 'recipient@example.test' }, from: { email: 'sender@example.test' }, subject: 'Relay fixture', text: 'Your digest' };

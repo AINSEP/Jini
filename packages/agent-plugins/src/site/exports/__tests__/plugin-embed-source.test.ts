@@ -19,7 +19,7 @@ test('inactive export metadata is admitted only through the digest gate and acti
 test('isolates manifest faults and reads PNG bytes only through the lifecycle containment gate', async () => {
   const good = { pluginId: 'gallery', packageRoot: '/trusted/gallery' };
   const malformed = { pluginId: 'broken', packageRoot: '/trusted/broken' };
-  const anonymous = { pluginId: 'legacy', packageRoot: '/trusted/legacy' };
+  const invalidName = { pluginId: 'legacy', packageRoot: '/trusted/legacy' };
   const contained = '/canonical/gallery/exports/logo.png';
   const png = Uint8Array.of(137, 80, 78, 71, 255);
   const reads: unknown[] = [];
@@ -28,14 +28,14 @@ test('isolates manifest faults and reads PNG bytes only through the lifecycle co
     lifecycle: {
       findTrustedPluginPackages: async ({ workspaceId, requireActive }) => {
         assert.equal(workspaceId, 'site-gallery');
-        return (requireActive ? [good] : [malformed, anonymous, good]).map(trusted => ({ trusted }));
+        return (requireActive ? [good] : [malformed, invalidName, good]).map(trusted => ({ trusted }));
       },
       readTrustedPluginFile: async ({ plugin, filename }) => {
         reads.push({ plugin, filename });
         if (filename === 'exports/card.html' && plugin === good) return '<figure>Gallery</figure>';
         assert.equal(filename, 'plugin.json');
         if (plugin === malformed) return '{';
-        if (plugin === anonymous) return JSON.stringify({ ...baseManifest, name: 'legacy' });
+        if (plugin === invalidName) return JSON.stringify({ ...baseManifest, name: 'Legacy Plugin!' }); // schema-invalid name: parse refuses it
         return JSON.stringify({ ...baseManifest, name: 'gallery', extensions: { jini: { id: 'acme/gallery', displayName: 'Gallery' } } });
       },
       assertContainedOnDisk: async (input) => {
@@ -56,7 +56,7 @@ test('isolates manifest faults and reads PNG bytes only through the lifecycle co
   assert.equal(await source.readAsset({ plugin: good, filename: 'exports/card.html' }), '<figure>Gallery</figure>');
   assert.deepEqual(await source.readAsset({ plugin: good, filename: 'exports/logo.png' }), png);
   assert.deepEqual(reads, [
-    { plugin: malformed, filename: 'plugin.json' }, { plugin: anonymous, filename: 'plugin.json' }, { plugin: good, filename: 'plugin.json' },
+    { plugin: malformed, filename: 'plugin.json' }, { plugin: invalidName, filename: 'plugin.json' }, { plugin: good, filename: 'plugin.json' },
     { plugin: good, filename: 'exports/card.html' }, { plugin: good, filename: 'exports/card.html' },
     { packageRoot: '/trusted/gallery', entryPath: 'exports/logo.png' }, contained,
   ]);

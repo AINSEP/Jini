@@ -168,4 +168,8 @@ const dictionary: Record<string, Record<string, string>> = {
     "Note": "নোট"
   }
 };
-export function memoryText({ key, locale = "en" }: { key: string; locale?: string }, _optional = {}): string { return dictionary[locale]?.[key] ?? key; }
+export function memoryText({ key, locale = "en" }: { key: string; locale?: string }, _optional = {}): string {
+  // Own properties only: an inherited Object member (`constructor`, `toString`) is never copy.
+  const table = Object.hasOwn(dictionary, locale) ? dictionary[locale] : undefined;
+  return table !== undefined && Object.hasOwn(table, key) ? table[key]! : key;
+}

@@ -754,6 +754,7 @@ test('a non-contention failure after a background wait leaves the journal and st
     }) as typeof ports.fileLock.withFileLock };
     const boot = createAgentPluginLifecycle({
       ...h.context, fileLock, clock: { ...h.context.clock, sleepInBackground: async ({ ms }) => { waits.push(ms); } },
+    }, {
       onEvent: input => {
         h.context.onEvent?.(input);
         if (input.event === 'agent-plugin-update-recovery-failed') finished();
