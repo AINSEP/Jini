@@ -18,3 +18,39 @@ describe("createMenusApi", () => {
     ]);
   });
 });
+
+it("posts a menu with explicit authoring fields and omits them for an ordinary create", async () => {
+  const calls: unknown[][] = [];
+  const response = { menu: { id: "menu-42" } };
+  const request: MenusRequestFn = async <T>(...args: Parameters<MenusRequestFn>) => {
+    calls.push(args);
+    return response as T;
+  };
+  const api = createMenusApi({ request, workspaceId: "author-ws" });
+  const items = [{ id: "home", target: { kind: "url" as const, href: "/" } }];
+
+  await expect(api.createMenu({ slug: "custom", title: "Custom" }, { items, mode: "html", html: "<nav>Custom</nav>" }))
+    .resolves.toBe(response);
+  await expect(api.createMenu({ slug: "plain", title: "Plain" })).resolves.toBe(response);
+  expect(calls).toEqual([
+    [{ path: "/workspaces/author-ws/menus" }, { init: { method: "POST", body: JSON.stringify({
+      title: "Custom", slug: "custom", items, mode: "html", html: "<nav>Custom</nav>",
+    }) } }],
+    [{ path: "/workspaces/author-ws/menus" }, { init: { method: "POST", body: '{"title":"Plain","slug":"plain"}' } }],
+  ]);
+});
+
+it("supports a tree-only write without inventing optional metadata or dropping its expected version", async () => {
+  const calls: unknown[][] = [];
+  const response = { menu: { version: 8 } };
+  const request: MenusRequestFn = async <T>(...args: Parameters<MenusRequestFn>) => {
+    calls.push(args);
+    return response as T;
+  };
+  const api = createMenusApi({ request, workspaceId: "author-ws" });
+  const items = [{ id: "docs", target: { kind: "url" as const, href: "/docs" } }];
+  await expect(api.updateMenuTree({ id: "nav/7", expectedVersion: 7, items })).resolves.toBe(response);
+  expect(calls).toEqual([[{ path: "/workspaces/author-ws/menus/nav%2F7" }, { init: {
+    method: "PUT", body: JSON.stringify({ expectedVersion: 7, items }),
+  } }]]);
+});

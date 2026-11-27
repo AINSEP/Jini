@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MenusApi } from "../../api/menus-api.js";
-import { createMenusPort, type MenusTrashClient } from "../menus-dependencies.hooks.js";
+import { createFakeMenusPort, createMenusPort, type MenusTrashClient } from "../menus-dependencies.hooks.js";
 
 /**
  * @file Pins the LIVE `createMenusPort` binding: every port method forwards to the host-injected
@@ -47,5 +47,38 @@ describe("createMenusPort (live binding)", () => {
   it("returns the api's result unchanged", async () => {
     const port = createMenusPort({ api: recordingApi([]), trash: { trash: async () => ({ ok: true, version: null }) }, listPages: async () => ({ pages: [] }) });
     await expect(port.getMenu({ id: "x" })).resolves.toEqual({ name: "getMenu" });
+  });
+});
+
+describe("in-memory menus port", () => {
+  it("persists authored menus under both their generated ID and their requested slug", async () => {
+    const port = createFakeMenusPort();
+    const items = [{ id: "about", label: "About", target: { kind: "url" as const, href: "/about" } }];
+    const { menu } = await port.createMenu({ input: { title: "Header", slug: "main-nav" }, options: {
+      items, mode: "html", html: "<nav>Header</nav>",
+    } });
+    const expected = {
+      id: "fake-1", workspaceId: "fake-ws", slug: "main-nav", title: "Header", status: "draft",
+      items, mode: "html", html: "<nav>Header</nav>", locations: [], updatedAt: "1970-01-01T00:00:00.000Z", version: 1,
+    };
+    expect(menu).toEqual(expected);
+    await expect(port.listMenus()).resolves.toEqual({ menus: [expected] });
+    await expect(port.getMenu({ id: "main-nav" })).resolves.toEqual({ menu: expected });
+    await expect(port.getMenu({ id: "fake-1" })).resolves.toEqual({ menu: expected });
+    await expect(port.getMenu({ id: "wrong" })).rejects.toThrow("fake menu not found: wrong");
+  });
+
+  it("keeps HTML through an items edit, and rejects updates and trash of nonexistent IDs", async () => {
+    const port = createFakeMenusPort();
+    await port.createMenu({ input: { title: "Only menu", slug: "only" }, options: { mode: "html", html: "<nav/>" } });
+    await port.updateMenuTree({ target: { id: "fake-1", expectedVersion: 1, items: [] }, options: { mode: "items", slug: "only-updated" } });
+    const { menu } = await port.getMenu({ id: "only-updated" });
+    expect({ title: menu.title, mode: menu.mode, html: menu.html, version: menu.version })
+      .toEqual({ title: "Only menu", mode: "items", html: "<nav/>", version: 2 });
+    await expect(port.updateMenuTree({ target: { id: "missing", expectedVersion: 1, items: [] }, options: {} }))
+      .rejects.toThrow("fake menu not found: missing");
+    await expect(port.trash({ id: "missing" })).rejects.toThrow("fake menu not found: missing");
+    await expect(port.trash({ id: "fake-1" })).resolves.toEqual({ ok: true, version: 2 });
+    await expect(port.getMenu({ id: "fake-1" })).resolves.toEqual({ menu: { ...menu, status: "trash" } });
   });
 });

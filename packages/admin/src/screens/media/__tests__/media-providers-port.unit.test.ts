@@ -19,7 +19,7 @@ const { getMediaProviders, applyMediaProviderChanges, patchMediaProvider, remove
 
 import type { MediaRequestFn } from "../api/media-api.js";
 import { createMediaApi } from "../api/media-api.js";
-import { createMediaProvidersPort } from "../media-providers-port.js";
+import { createMediaProviderCatalogPort, createMediaProvidersPort } from "../media-providers-port.js";
 import { WORKSPACE_ID } from "@jini-ai/admin/shell/lib/admin-http/config";
 
 const mediaProvidersPort = createMediaProvidersPort({ mediaApi: { getMediaProviders, applyMediaProviderChanges, patchMediaProvider, removeMediaProvider } });
@@ -111,5 +111,33 @@ describe("mediaProvidersPort per-provider writes", () => {
     await expect(mediaProvidersPort.removeProvider({ providerId: "grok" })).resolves.toEqual(authoritative);
     expect(patchMediaProvider).toHaveBeenCalledWith({ providerId: "grok", fields: { baseUrl: "https://x.test" } });
     expect(removeMediaProvider).toHaveBeenCalledWith({ providerId: "grok" });
+  });
+});
+
+describe("media provider catalog", () => {
+  it("retains valid cards in host order and drops malformed cards even between valid entries", async () => {
+    const first = { id: "alpha", label: "Alpha", model: "a1" };
+    const last = { id: "omega", label: "Omega" };
+    const port = createMediaProviderCatalogPort({
+      mediaApi: { getMediaProviderCatalog: async () => ({
+        providers: [null, first, { id: "bad-label", label: 14 }, { id: 5, label: "bad-id" }, last, "tail"],
+      }) },
+    });
+    await expect(port.fetchMediaProviderCatalog()).resolves.toEqual([first, last]);
+  });
+
+  it.each([null, undefined, {}, { providers: {} }])("does not treat malformed or missing catalog %j as empty", async (payload) => {
+    const port = createMediaProviderCatalogPort({ mediaApi: { getMediaProviderCatalog: async () => payload } });
+    await expect(port.fetchMediaProviderCatalog()).resolves.toBeNull();
+  });
+
+  it("distinguishes an unreachable host from an authoritative empty catalog", async () => {
+    const getMediaProviderCatalog = vi.fn()
+      .mockRejectedValueOnce(new Error("catalog unavailable"))
+      .mockResolvedValueOnce({ providers: [] });
+    const port = createMediaProviderCatalogPort({ mediaApi: { getMediaProviderCatalog } });
+    await expect(port.fetchMediaProviderCatalog()).resolves.toBeNull();
+    await expect(port.fetchMediaProviderCatalog()).resolves.toEqual([]);
+    expect(getMediaProviderCatalog.mock.calls).toEqual([[], []]);
   });
 });

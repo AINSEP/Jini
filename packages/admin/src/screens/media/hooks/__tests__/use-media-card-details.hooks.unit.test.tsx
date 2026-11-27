@@ -49,3 +49,37 @@ describe("phone media card details", () => {
     expect(removeListener).toHaveBeenCalledTimes(1);
   });
 });
+
+it("keeps details available in a browser with no matchMedia implementation", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: undefined });
+  try {
+    const onToggleEdit = vi.fn<(id: string) => void>();
+    const { result } = renderHook(() => useMediaCardDetails({ onToggleEdit }));
+    expect(result.current.isPhone).toBe(false);
+    act(() => result.current.openDetails("asset-79"));
+    expect(onToggleEdit.mock.calls).toEqual([["asset-79"]]);
+  } finally {
+    if (descriptor) Object.defineProperty(window, "matchMedia", descriptor);
+    else Reflect.deleteProperty(window, "matchMedia");
+  }
+});
+
+it("reads the browser's initial phone match without waiting for a change event", () => {
+  const mediaQuery = Object.assign(new EventTarget(), {
+    matches: true, media: "(max-width: 640px)", onchange: null,
+    addListener: vi.fn(), removeListener: vi.fn(),
+  }) as MediaQueryList;
+  const matchMedia = vi.fn(() => mediaQuery);
+  const descriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
+  try {
+    const { result, unmount } = renderHook(() => useMediaCardDetails({ onToggleEdit: vi.fn() }));
+    expect(result.current.isPhone).toBe(true);
+    expect(matchMedia.mock.calls).toEqual([["(max-width: 640px)"], ["(max-width: 640px)"]]);
+    unmount();
+  } finally {
+    if (descriptor) Object.defineProperty(window, "matchMedia", descriptor);
+    else Reflect.deleteProperty(window, "matchMedia");
+  }
+});

@@ -87,3 +87,16 @@ it.each([
     choices: [{ id: "", title: "translated:Choose a page…" }, ...missing, ...(pages ?? [])],
   });
 });
+
+it("updates a nested legacy selection with the current public path, leaving an explicitly non-page sibling alone", () => {
+  const legacy: PageMenuTarget = { kind: "entryRef", entryId: "about", lastKnownHref: "/old" };
+  const article: PageMenuTarget = { kind: "entryRef", entryId: "about", entryType: "post" };
+  const children = [{ id: "page", target: legacy }, { id: "post", target: article }];
+  const root = { id: "root", target: { kind: "url" as const, href: "/" }, children };
+  expect(pageItemsForSave({ items: [root], pages: [{ id: "about", title: "About", status: "published", publicPath: "/new" }] }))
+    .toEqual([{ ...root, children: [
+      { id: "page", target: { kind: "entryRef", entryId: "about", entryType: "page", lastKnownHref: "/new" } },
+      { id: "post", target: article },
+    ] }]);
+  expect(legacy.lastKnownHref).toBe("/old");
+});

@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { resolveTabBarTabIndex, useTabBarKeyboard } from "@jini-ai/ui/tab-strip";
+import { ItemRow } from "../MenuItemRow.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AdminMenuItem } from "../api/menus-api.types.js";
+import type { AdminMenuItem, AdminMenuMode } from "../api/menus-api.types.js";
 import type { MenuEditorController } from "../hooks/use-menu-editor.hooks.js";
 import { useMenuItemRemove } from "../MenuEditor.hooks.js";
 import { MenuEditor } from "../MenuEditor.js";
-import { MenuItemTargetFields } from "../MenuItemFields.js";
+import { MenuItemAttrsFields, MenuItemTargetFields } from "../MenuItemFields.js";
 import { useMenuPageLinkFields, useMenuTargetEditor } from "../MenuPageLinkFields.hooks.js";
 import type { MenuTabStrip } from "../MenuModeTabs.js";
 import { targetForKind } from "../page-link-rules.js";
@@ -221,6 +224,28 @@ describe("injected hook seam (useMenuEditorHook)", () => {
     expect(controller.setHtml).toHaveBeenCalledWith("<nav>x</nav>");
   });
 
+  it("forwards independent title and slug edits and routes nested row movement and removal", async () => {
+    const user = userEvent.setup();
+    const setTitle = vi.fn();
+    const setSlug = vi.fn();
+    const removeAt = vi.fn();
+    const moveAt = vi.fn();
+    const controller = fakeController({
+      loading: false, title: "Navigation", slug: "nav", items: MENU_WITH_NESTED_CHILD.menu.items,
+      setTitle, setSlug, removeAt, moveAt,
+    });
+    render(<MenuEditor {...host} menuId={null} useMenuEditorHook={() => controller} />);
+    await user.type(screen.getByRole("textbox", { name: "Menu title" }), "!");
+    await user.type(screen.getByRole("textbox", { name: "Menu slug" }), "2");
+    expect(setTitle.mock.calls).toEqual([[{ next: "Navigation!" }]]);
+    expect(setSlug.mock.calls).toEqual([[{ next: "nav2" }]]);
+    const child = within(screen.getByDisplayValue("Child").closest<HTMLElement>(".jini-menu-item-fields")!);
+    await user.click(child.getByRole("button", { name: "Move item down" }));
+    await user.click(child.getByRole("button", { name: "Remove item" }));
+    expect(moveAt.mock.calls).toEqual([[{ path: [0, 0], direction: 1 }]]);
+    expect(removeAt.mock.calls).toEqual([[{ path: [0, 0] }]]);
+  });
+
   it("shows an unlabelled item's label field empty and types the label through changeAt", () => {
     const unlabelled = { id: "bare", target: { kind: "url", href: "/" } } as unknown as AdminMenuItem;
     // The updater reads the input's value when applied, so apply it inside the change event.
@@ -235,4 +260,101 @@ describe("injected hook seam (useMenuEditorHook)", () => {
     fireEvent.change(label, { target: { value: "Docs" } });
     expect(applied).toEqual([{ path: [0], next: { ...unlabelled, label: "Docs" } }]);
   });
+});
+
+it("changes editor mode through both keyboard navigation and click", async () => {
+  const user = userEvent.setup();
+  const changeMode = vi.fn<(mode: AdminMenuMode) => void>();
+  function Editor() {
+    const [mode, setMode] = useState<AdminMenuMode>("items");
+    const controller: MenuEditorController = {
+      copyHtmlEmbed: async () => {}, copyFeedback: null, isNew: true, menu: null,
+      title: "Header", setTitle: () => {}, slug: "header", setSlug: () => {}, items: [],
+      mode, changeMode: (next) => { changeMode(next); setMode(next); }, html: "<nav>Header</nav>", setHtml: () => {},
+      message: null, error: null, loading: false, confirmLeave: () => true, changeAt: () => {}, removeAt: () => {},
+      addChildAt: () => {}, moveAt: () => {}, addRootItem: () => {}, save: async () => {}, saving: false, t: (key) => key,
+    };
+    return <MenuEditor {...host} tabStrip={{ useTabBarKeyboard, resolveTabBarTabIndex }} menuId={null} useMenuEditorHook={() => controller} />;
+  }
+  render(<Editor />);
+  const options = screen.getByRole("tab", { name: "Options" });
+  const html = screen.getByRole("tab", { name: "HTML" });
+  expect(options).toHaveAttribute("aria-selected", "true");
+  options.focus();
+  await user.keyboard("{ArrowRight}");
+  expect(html).toHaveFocus();
+  expect(html).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("textbox", { name: "Menu HTML" })).toHaveValue("<nav>Header</nav>");
+  await user.click(options);
+  expect(options).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("textbox", { name: "Menu HTML" })).toBeNull();
+  expect(changeMode.mock.calls).toEqual([["html"], ["items"]]);
+});
+
+it("renders the page picker for a nested Page link and forwards edits and row actions to its nested path", async () => {
+  const user = userEvent.setup();
+  const child = { id: "child", label: "Child page", target: { kind: "entryRef" as const, entryId: "one", entryType: "page" } };
+  const changes: Array<{ path: number[]; result: AdminMenuItem }> = [];
+  const onChange = vi.fn((path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => { changes.push({ path, result: update(child) }); });
+  const onMove = vi.fn<(path: number[], direction: -1 | 1) => void>();
+  const onRemove = vi.fn<(path: number[]) => void>();
+  const pages = [
+    { id: "one", title: "Docs", status: "published" as const, publicPath: "/docs" },
+    { id: "two", title: "FAQ", status: "published" as const, publicPath: "/help" },
+  ];
+  render(<ItemRow item={{ id: "p", label: "Parent", target: { kind: "url", href: "/parent" }, children: [child] }}
+    path={[2]} pages={pages} hooks={host.rowHooks} t={key => key}
+    onChange={onChange} onRemove={onRemove} onMove={onMove} onAddChild={() => {}} />);
+  const fields = within(screen.getByDisplayValue("Child page").closest<HTMLElement>(".jini-menu-item-fields")!);
+  const page = fields.getByRole("combobox", { name: "Page" });
+  expect(page).toHaveValue("one");
+  expect(fields.queryByRole("textbox", { name: "Entry ID" })).toBeNull();
+  await user.selectOptions(page, "two");
+  expect(changes).toEqual([{ path: [2, 0], result: {
+    ...child, target: { kind: "entryRef", entryId: "two", entryType: "page", lastKnownHref: "/help" },
+  } }]);
+  await user.click(fields.getByRole("button", { name: "Move item up" }));
+  await user.click(fields.getByRole("button", { name: "Move item down" }));
+  await user.click(fields.getByRole("button", { name: "Remove item" }));
+  expect(onMove.mock.calls).toEqual([[[2, 0], -1], [[2, 0], 1]]);
+  expect(onRemove.mock.calls).toEqual([[[2, 0]]]);
+});
+
+it("keeps a legacy unknown target's label editable without treating the target as a URL", async () => {
+  const user = userEvent.setup();
+  // An older admin can encounter a target from a newer deployment's wire response.
+  const raw = { id: "external", label: "External link", target: { kind: "externalRef" } } as unknown as AdminMenuItem;
+  const changed: AdminMenuItem[] = [];
+  const onChange = vi.fn((_path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => changed.push(update(raw)));
+  render(<ItemRow item={raw} path={[0]} hooks={host.rowHooks} t={key => key}
+    onChange={onChange} onRemove={() => {}} onMove={() => {}} onAddChild={() => {}} />);
+  const label = screen.getByRole("textbox", { name: "Item label" });
+  const fields = within(label.closest<HTMLElement>(".jini-menu-item-fields")!);
+  expect(label).toHaveValue("External link");
+  expect(fields.getAllByRole("textbox")).toEqual([label]);
+  await user.type(label, "!");
+  expect(changed).toEqual([{ ...raw, label: "External link!" }]);
+});
+
+it("keeps link targets intact when advanced presentation fields change", async () => {
+  const user = userEvent.setup();
+  const item: AdminMenuItem = { id: "docs", label: "Docs", target: { kind: "url", href: "/docs" }, attrs: { icon: "book", openInNewTab: true } };
+  function Row() {
+    const [current, setCurrent] = useState(item);
+    return <><MenuItemAttrsFields item={current} t={key => key} path={[2, 0]}
+      onChange={(path, updater) => {
+        if (path[0] !== 2 || path[1] !== 0 || path.length !== 2) throw new Error(`Wrong row: ${path}`);
+        setCurrent(updater);
+      }} /><output aria-label="Saved draft">{JSON.stringify(current)}</output></>;
+  }
+  render(<Row />);
+  await user.click(screen.getByText("Advanced"));
+  const openInNewTab = screen.getByRole("checkbox", { name: "Open in new tab" });
+  expect(openInNewTab).toBeChecked();
+  expect(screen.getByRole("textbox", { name: "Icon" })).toHaveValue("book");
+  expect(screen.getByRole("textbox", { name: "Link rel" })).toHaveValue("");
+  await user.click(openInNewTab);
+  await user.type(screen.getByRole("textbox", { name: "Link rel" }), "nofollow");
+  const result = screen.getByLabelText("Saved draft").textContent!;
+  expect(JSON.parse(result)).toEqual({ ...item, attrs: { icon: "book", openInNewTab: false, rel: "nofollow" } });
 });
