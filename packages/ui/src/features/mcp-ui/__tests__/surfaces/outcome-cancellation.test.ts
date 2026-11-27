@@ -45,3 +45,16 @@ it('a rejected Skip stays retryable and an expired sign-in card explains that it
   expect(surface.statusState()).toBe('expired');
   expect(surface.disabledActions()).toEqual([true, true]);
 });
+
+it('a cancellable outcome with no link offers only Skip, and Skip still releases the exchange', async () => {
+  const { openLinkUrl: _link, openLinkLabel: _label, ...withoutLink } = spec;
+  const surface = mountSurface(renderOutcomeDocument(withoutLink));
+  expect(buildOutcomeSurface({ ...withoutLink, uri: 'ui://test/no-link' }).resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY]).toEqual({
+    title: 'Connect Example', actions: [{ id: 'cancel', label: 'Skip', variant: 'neutral' }],
+  });
+  surface.trustedClick('cancel');
+  expect(surface.api.callTool).toHaveBeenCalledWith('connect', spec.cancel.params);
+  await surface.settle('resolve', { delivered: true });
+  expect(surface.statusState()).toBe('dismissed');
+  expect(surface.api.openLink).not.toHaveBeenCalled();
+});

@@ -42,6 +42,16 @@ describe("siteListView sorting", () => {
     expect(ids(view([site("z", 1), site("m", 1)]).visible)).toEqual(["m", "z"]);
   });
 
+  it("orders two sites with the same name by id, so the list never reshuffles between renders", () => {
+    const twinB = { id: "b2", name: "Shop", createdAt: "" };
+    const twinA = { id: "a1", name: "shop", createdAt: "" };
+    expect(ids(view([twinB, twinA], { sort: "name" }).visible)).toEqual(["a1", "b2"]);
+  });
+
+  it("breaks an oldest-first tie on the creation date by name", () => {
+    expect(ids(view([site("z", 1), site("m", 1), site("e", 0)], { sort: "oldest" }).visible)).toEqual(["e", "m", "z"]);
+  });
+
   it("keeps pinned sites first whatever the sort", () => {
     expect(ids(view(items, { pinned: ["c"] }).visible)).toEqual(["c", "a", "b"]);
     expect(ids(view(items, { pinned: ["a"], sort: "oldest" }).visible)).toEqual(["a", "c", "b"]);

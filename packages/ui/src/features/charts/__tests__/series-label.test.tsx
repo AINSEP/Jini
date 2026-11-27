@@ -31,6 +31,12 @@ describe('chart series labels', () => {
     expect([...view.container.querySelectorAll('th')].map((th) => th.textContent)).toEqual(['month', 'Signups']);
   });
 
+  it('keeps a key made only of separators as its own label instead of an empty legend entry', async () => {
+    const { mounted } = renderBar({ data: [{ month: 'Sep', __: 4 }], categoryKey: 'month', valueKey: '__' });
+    await waitFor(() => expect(mounted).toHaveLength(1));
+    expect(mounted[0]!.series).toEqual([{ key: '__', label: '__' }]);
+  });
+
   it('uses a label the assistant passed', async () => {
     const { mounted } = renderBar({ data: rows, categoryKey: 'month', valueKey: 'signups', valueLabel: 'Sign-ups' });
     await waitFor(() => expect(mounted).toHaveLength(1));

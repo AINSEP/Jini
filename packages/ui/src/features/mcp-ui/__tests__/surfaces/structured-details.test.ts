@@ -116,6 +116,13 @@ describe('structured surface details', () => {
     expect(doc.querySelector('.mcpui-detail-unchanged')).toBeNull();
   });
 
+  it('shows a dash, not an empty row, when both snapshots are empty objects', () => {
+    const doc = parse(renderDetailList({ details: [{ label: 'Change', previous: {}, value: {} }] }));
+    expect(doc.querySelector('dd > .mcpui-detail-value')?.textContent).toBe('—');
+    expect(doc.querySelector('.mcpui-detail-group')).toBeNull();
+    expect(doc.querySelector('.mcpui-detail-unchanged')).toBeNull();
+  });
+
   it('keeps an explicit null unchanged when the key exists in both snapshots', () => {
     const doc = parse(renderDetailList({ details: [{ label: 'Change', previous: { empty: null }, value: { empty: null } }] }));
     expect(doc.querySelector('.mcpui-detail-unchanged')?.textContent).toContain('Empty');

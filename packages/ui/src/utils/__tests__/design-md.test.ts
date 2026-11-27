@@ -30,6 +30,13 @@ describe('designMdHeadings', () => {
     ]);
   });
 
+  it('keeps a whitespace-only heading title as its one raw character instead of an empty string', () => {
+    // At the very end of the body: `\s+` also matches a newline, so a blank heading mid-body
+    // swallows the next line as its title instead.
+    const body = 'intro\n##  ';
+    expect(designMdHeadings({ body, startOffset: 0 })).toEqual([{ start: 6, title: ' ' }]);
+  });
+
   it('ignores headings before startOffset', () => {
     const body = '## Typography\nbody\n\n## Palette\nmore';
     const paletteStart = body.indexOf('## Palette');

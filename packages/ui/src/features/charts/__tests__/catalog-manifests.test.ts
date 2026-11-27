@@ -130,6 +130,13 @@ describe('chart.spec multi-series props', () => {
     ]);
   });
 
+  it('accepts a finite numeric category (e.g. a year) and rejects a non-finite one', () => {
+    expect(issues({ ...valid, data: [{ month: 2024, revenue: 1, cost: 1 }] })).toEqual([]);
+    expect(issues({ ...valid, data: [{ month: Number.POSITIVE_INFINITY, revenue: 1, cost: 1 }] })).toContainEqual(
+      { path: ['spec', 'data', 0, 'month'], message: 'Row 0 "month" is not a string or number; every row needs it.' },
+    );
+  });
+
   it('rejects fields outside the neutral contract', () => {
     expect(issues({ ...valid, stacked: true })).not.toEqual([]);
     expect(issues({ ...valid, series: [{ key: 'revenue', fill: '#000' }] })).not.toEqual([]);
