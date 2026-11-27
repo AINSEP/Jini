@@ -337,3 +337,26 @@ describe("leased SQLite transactions", () => {
     });
   }
 });
+
+test("a checked iterator can stop early even when the borrowed driver omits optional return", () => {
+  const f = nativeFake();
+  const basePrepare = f.database.prepare.bind(f.database);
+  const nativeCalls: unknown[][] = [];
+  f.database.prepare = source => ({
+    ...basePrepare(source),
+    iterate(...parameters): IterableIterator<unknown> {
+      nativeCalls.push(parameters);
+      let nextId = 0n;
+      return {
+        [Symbol.iterator]() { return this; },
+        next() { nextId += 1n; return { done: false, value: { id: nextId } }; },
+      };
+    },
+  });
+  const client = createCheckedSqliteClient({ database: f.database });
+  const iterator = client.prepare("select id from borrowed_cursor where scope = ?").iterate("site-a");
+  assert.deepEqual(iterator.next(), { done: false, value: { id: 1 } });
+  assert.deepEqual(iterator.return?.(), { done: true, value: undefined });
+  assert.deepEqual(nativeCalls, [["site-a"]]);
+  assert.deepEqual(f.statements, ["select id from borrowed_cursor where scope = ?"]);
+});

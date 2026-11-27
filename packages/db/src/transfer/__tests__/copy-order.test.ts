@@ -74,3 +74,13 @@ test("topologicalTableCopyOrder counts two FKs to the same target once (duplicat
   ];
   assert.deepEqual(topologicalTableCopyOrder({ allExportNames: ["b", "a"], edges }), ["a", "b"]);
 });
+
+test("a newly ready last-sorting table is queued after already ready siblings", () => {
+  const edges: TableCopyDependency[] = [
+    { fromExportName: "zeta", toExportName: "alpha", selfReferencing: false },
+    { fromExportName: "middle", toExportName: "alpha", selfReferencing: false },
+    { fromExportName: "zeta", toExportName: "middle", selfReferencing: false },
+  ];
+  assert.deepEqual(topologicalTableCopyOrder({ allExportNames: ["zeta", "spare", "middle", "alpha"], edges }),
+    ["alpha", "middle", "spare", "zeta"]);
+});

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterAll, describe, test } from "vitest";
+import { sql } from "kysely";
 import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord } from "@jini-ai/core/settings";
 import { SqlSettingsRepo } from "../repo.sql.js";
 import { openSettingsKernel, TABLES, type OpenKernel } from "./support/settings-tables.fixture.js";
@@ -136,4 +137,24 @@ describe.each(["sqlite", "postgres"] as const)("settings sql repo [%s]", (dialec
     assert.notEqual(await repo.getGlobalValue("s-1"), null);
     assert.equal(await repo.getGlobalValue("s-2"), null);
   });
+});
+
+test("SQLite definitions prefer an active version, fall back to the latest deprecated version, and read legacy coercion tags", async () => {
+  const each = await openSettingsKernel({ dialect: "sqlite" });
+  opened.push(each);
+  const repo = new SqlSettingsRepo({ kernel: each.kernel, tables: TABLES }, {});
+  const find = (version?: number) => repo.findDefinitionBySettingId({ settingId: "def-1", ...(version === undefined ? {} : { version }) });
+  const retired = "deprecated" as const;
+  await repo.saveDefinition(definition({ status: retired, version: 4, coercionTag: "legacy-coercer" }));
+  await repo.saveDefinition(definition({ version: 2, coercionTag: "still-active" }));
+  await repo.saveDefinition(definition({ status: retired, version: 3, coercionTag: "older" }));
+  await each.kernel.execute(sql`UPDATE setting_definitions SET coercion_json = 'legacy-coercer' WHERE setting_id = 'def-1' AND version = 4`);
+  assert.deepEqual(await find(), definition({ version: 2, coercionTag: "still-active" }));
+  assert.deepEqual(await find(4), definition({ status: retired, version: 4, coercionTag: "legacy-coercer" }));
+  assert.equal(await find(99), null);
+  await repo.saveDefinition(definition({ status: retired, version: 2 }));
+  assert.deepEqual(await find(), definition({ status: retired, version: 4, coercionTag: "legacy-coercer" }));
+  await each.kernel.execute(sql`UPDATE setting_definitions SET coercion_json = '17' WHERE setting_id = 'def-1' AND version = 4`);
+  assert.deepEqual(await find(), definition({ status: retired, version: 4, coercionTag: "17" }));
+  assert.equal(await repo.findDefinitionBySettingId({ settingId: "missing" }), null);
 });

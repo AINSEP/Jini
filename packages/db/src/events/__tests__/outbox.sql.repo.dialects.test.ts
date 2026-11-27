@@ -173,3 +173,42 @@ test("an envelope preparation hook cannot erase or replace a stamped actor", () 
   assert.equal(Object.hasOwn(injected, 'actor'), false);
   assert.equal(Object.hasOwn(injected, 'actorId'), false);
 });
+
+test("a malformed envelope preparation cannot erase event data, and a retried claim retains the last error", async () => {
+  const kernel = await openEventsKernel({ dialect: "sqlite" });
+  opened.push(kernel);
+  const cases = [
+    { id: "first", malformed: null },
+    { id: "second", malformed: "not-an-envelope" },
+  ];
+  const due = "2026-11-18T00:05:00.000Z";
+  for (const { id, malformed } of cases) {
+    const original = event(id);
+    const prepared: DomainEvent[] = [];
+    const outbox = new SqlOutboxAdapter({ kernel, tables: TABLES, claimLeaseMs: LEASE_MS }, {
+      prepareOutboxEvent: ({ event: incoming }) => {
+        prepared.push(incoming);
+        return malformed as unknown as DomainEvent;
+      },
+    });
+    await outbox.enqueue(original);
+    assert.deepEqual(prepared, [original]);
+    const claimed = await outbox.claimPending({ batchSize: 5, nowIso: T0 });
+    assert.deepEqual(claimed.map(row => row.event), [original]);
+    await outbox.markFailed({ id, error: `failed to deliver ${id}`, nextAttemptAt: due, nextStatus: "pending" });
+  }
+  const outbox = new SqlOutboxAdapter({ kernel, tables: TABLES, claimLeaseMs: LEASE_MS }, {});
+  const records = await outbox.claimPending({ batchSize: 5, nowIso: due });
+  assert.deepEqual(records.sort((a,b) => a.id.localeCompare(b.id)), cases.map(({ id }) => ({
+    id, event: event(id), status: "processing", attempts: 2, nextAttemptAt: due, lastError: `failed to deliver ${id}`, createdAt: T0,
+  })));
+});
+
+test("preparation preserves a historical actor id without accepting a fabricated actor kind", () => {
+  const original = { ...event("historical"), actorId: "original-owner" };
+  const prepared = preparedOutboxEvent({ event: original }, { prepareOutboxEvent: ({ event }) => ({
+    ...event, actorId: "replacement", actor: { id: "replacement", kind: "system" }, metadata: { traceparent: PARENT },
+  }) });
+  assert.deepEqual(prepared, { ...original, actorId: "original-owner", metadata: { traceparent: PARENT } });
+  assert.equal(Object.hasOwn(prepared, "actor"), false);
+});

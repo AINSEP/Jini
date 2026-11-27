@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { sql } from "kysely";
 import { afterAll, describe, test } from "vitest";
 import { mintToken, type ConfirmationTokenRecord } from "@jini-ai/core/gated-mutations";
 import type { KyselyKernel } from "../../kernel/port.js";
@@ -80,4 +81,20 @@ describe.each(["sqlite", "postgres"] as const)("token sql store [%s]", (dialect)
     await store.save({ record: mint("p2") });
     assert.equal(await store.count(), 2);
   });
+});
+
+test("redemption does not report success when the database declines the guarded update", async () => {
+  const kernel = await openTokenKernel({ dialect: "sqlite" });
+  opened.push(kernel);
+  const store = new SqlTokenStore({ kernel, tables: TABLES });
+  const record = mint("gated");
+  await store.save({ record });
+  await kernel.execute(sql`CREATE TRIGGER decline_redemption BEFORE UPDATE OF status ON gated_mutation_tokens
+    WHEN NEW.status = 'redeemed' BEGIN SELECT RAISE(IGNORE); END`);
+  assert.deepEqual(await store.tryRedeem({ token: record.confirmationToken, now: LATER }), { redeemed: false, record });
+  assert.deepEqual(await store.findByToken({ token: record.confirmationToken }), record);
+  await kernel.execute(sql`DROP TRIGGER decline_redemption`);
+  const redeemed = { ...record, status: "redeemed" };
+  assert.deepEqual(await store.tryRedeem({ token: record.confirmationToken, now: LATER }), { redeemed: true, record: redeemed });
+  assert.deepEqual(await store.findByToken({ token: record.confirmationToken }), redeemed);
 });

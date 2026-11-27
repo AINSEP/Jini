@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { UnsupportedCapabilityError } from "@jini-ai/core/contracts/storage";
 import { buildKernel, type KernelDriver } from "../kernel/kernel-core.js";
 
 /** L2 §4 kernel-core: the own-transaction counter that decides whether a call may JOIN a foreign
@@ -55,4 +56,24 @@ describe("buildKernel foreign-transaction join", () => {
     const f = fakeDriver(); await buildKernel({ driver: f.driver }).close();
     expect(f.calls).toEqual(["close"]);
   });
+});
+
+it("a driver that declares backup but has no adapter fails with the typed capability error", async () => {
+  const { driver, calls } = fakeDriver();
+  const kernel = buildKernel({ driver: { ...driver, transport: "better-sqlite3", capabilities: { ...driver.capabilities, backup: true } } });
+  const failure = kernel.backupTo("/unused-pre-migration.db");
+  await expect(failure).rejects.toBeInstanceOf(UnsupportedCapabilityError);
+  await expect(failure).rejects.toMatchObject({ capability: "backup" });
+  expect(calls).toEqual([]);
+});
+
+it("lockKey refuses an unowned call, but a host-owned transaction uses the driver base executor", async () => {
+  const { driver, setForeign } = fakeDriver();
+  const lockKey = vi.fn<typeof driver.lockKey>(async () => {});
+  const kernel = buildKernel({ driver: { ...driver, lockKey } });
+  await expect(kernel.lockKey("unowned")).rejects.toThrow("lockKey() must be called inside transaction()");
+  expect(lockKey.mock.calls).toEqual([]);
+  setForeign(true);
+  await kernel.lockKey("host:id");
+  expect(lockKey.mock.calls).toEqual([[driver.base, "host:id"]]);
 });

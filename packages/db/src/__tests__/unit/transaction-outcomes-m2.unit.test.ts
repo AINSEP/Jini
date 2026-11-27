@@ -38,3 +38,22 @@ test('an ordinary AggregateError retains its parts when the owned transaction ro
     expect(client.inTransaction).toBe(false);
   } finally { await kernel.close(); }
 });
+
+test('failure-shaped domain data commits unless the root explicitly opts in and ok is the boolean false', async () => {
+  const database = new Database(':memory:');
+  const client = createCheckedSqliteClient({ database });
+  const kernel = sqliteKernel<unknown>({ source: client });
+  try {
+    await kernel.execute(sql`create table retained (value integer)`);
+    const commit = (value: number, outcome: { ok: boolean | number | string }, optional?: { rollbackOnFailedOutcome: boolean }) =>
+      withSqliteTransaction({ client, kernel, work: async ({ session }) => {
+        await session.execute({ statement: sql`insert into retained values (${value})` });
+        return outcome;
+      } }, optional);
+    const disabled = { ok: false };
+    expect(await commit(1, disabled)).toBe(disabled);
+    expect(await commit(2, { ok: 0 }, { rollbackOnFailedOutcome: true })).toEqual({ ok: 0 });
+    expect(await commit(3, { ok: "false" }, { rollbackOnFailedOutcome: true })).toEqual({ ok: "false" });
+    expect(database.prepare('select value from retained order by value').all()).toEqual([{ value: 1 }, { value: 2 }, { value: 3 }]);
+  } finally { database.close(); }
+});

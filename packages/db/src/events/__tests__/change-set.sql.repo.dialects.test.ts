@@ -5,6 +5,7 @@ import { sql } from "kysely";
 import type { KyselyKernel } from "../../kernel/port.js";
 import { SqlChangeSetRepo } from "../change-set-repo.sql.js";
 import { outboxEventValues } from "../outbox-repo.sql.js";
+import { toRow, type ChangeSetsTable } from "../repo.rows.js";
 import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
 
 /**
@@ -172,4 +173,33 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
 
 
 
+});
+
+test("actor-only writes preserve attribution, while missing optionals remain SQL NULL and legacy actor ids stay kindless", async () => {
+  const kernel = await openEventsKernel({ dialect: "sqlite" }, { actorKindColumn: true });
+  opened.push(kernel);
+  const repo = new SqlChangeSetRepo({ kernel, tables: TABLES }, { actorKindColumn: true });
+  const actor = { id: "original-agent", kind: "agent" } as const;
+  const bareItem = { id: "naked", changeSetId: "actor-only", entityType: "post", entityId: "post-1", operation: "update", position: 0 } as const;
+  // The live write port requires both attribution fields. Feed legacy archive records through
+  // the lower-level historical row mapper rather than lying about the new-write type.
+  await kernel.run(db => db.withTables<{ change_sets: ChangeSetsTable }>().insertInto("change_sets").values([
+    toRow({ id: "actor-only", workspaceId: "ws-a", actor, status: "proposed", summary: "actor-only write", createdAt: AT }, { actorKindColumn: true }),
+    toRow({ id: "legacy", workspaceId: "ws-a", actorId: "legacy-user", status: "proposed", summary: "legacy write", createdAt: AT }, { actorKindColumn: true }),
+    toRow({ id: "unowned", workspaceId: "ws-a", status: "proposed", summary: "unowned write", createdAt: AT }, { actorKindColumn: true }),
+  ]).execute());
+  await repo.insert({ record: header({ id: "write", idempotencyKey: undefined, intentRef: undefined }),
+    items: [{ ...bareItem, changeSetId: "write" }] });
+  assert.deepEqual(await kernel.query(sql`select id, actor_id, actor_kind, idempotency_key, intent_ref, applied_at, reverted_at from change_sets where id != 'write' order by id`), [
+    { id: "actor-only", actor_id: "original-agent", actor_kind: "agent", idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null },
+    { id: "legacy", actor_id: "legacy-user", actor_kind: null, idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null },
+    { id: "unowned", actor_id: null, actor_kind: null, idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null },
+  ]);
+  assert.deepEqual(await kernel.query(sql`select before_revision_id, after_revision_id, inverse_payload_json, entity_version_at_apply from change_set_items where id='naked'`),
+    [{ before_revision_id: null, after_revision_id: null, inverse_payload_json: null, entity_version_at_apply: null }]);
+  assert.deepEqual((await repo.findById({ workspaceId: "ws-a", id: "actor-only" }))?.changeSet.actor, actor);
+  assert.deepEqual((await repo.findById({ workspaceId: "ws-a", id: "legacy" }))?.changeSet, {
+    id: "legacy", workspaceId: "ws-a", actorId: "legacy-user", status: "proposed", summary: "legacy write", createdAt: AT,
+    idempotencyKey: undefined, intentRef: undefined, appliedAt: undefined, revertedAt: undefined,
+  });
 });

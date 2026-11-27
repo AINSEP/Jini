@@ -128,3 +128,14 @@ test("an update returning no row remains a conflict and rolls back the write", a
   await expect(new SqlSecretsVaultRepo({ kernel: missingResult }).put({ record: { ...b, revision: 2 }, expectedRevision: 1 })).rejects.toMatchObject({ code: "conflict" });
   expect(await repo.find(b)).toEqual(b);
 });
+
+test("an omitted placement during a same-group replacement does not promote a non-default record", async () => {
+  const a = await repo.put({ record: record({ id: "a" }), expectedRevision: null });
+  const b = await repo.put({ record: record({ id: "b" }), expectedRevision: null });
+  reads.length = 0;
+  const replaced = await repo.put({ record: { ...b, isDefault: undefined, revision: 2, updatedAt: "later" }, expectedRevision: 1 });
+  expect(reads).toEqual(['select * from "secrets_vault" where "workspace_id" = ? and "id" = ?']);
+  expect(await repo.find(b)).toEqual({ ...b, isDefault: false, revision: 2, updatedAt: "later" });
+  expect(replaced.isDefault).toBe(false);
+  expect(await repo.findDefault(group)).toEqual(a);
+});

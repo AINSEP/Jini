@@ -239,3 +239,21 @@ describe('SqliteDbOpsAdapter', () => {
     });
   });
 });
+
+it('a non-collision reservation error never invokes backup or overwrites a neighbouring artifact', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-dbops-reservation-'));
+  const backup = vi.fn(async () => { throw new Error('backup must not run'); });
+  const artifact = join(dir, 'restore-point-safe-wm5-9.db');
+  const failure = Object.assign(new Error('cannot create restore-point reservation'), { code: 'EACCES' });
+  const open = vi.spyOn(fs, 'open').mockRejectedValueOnce(failure);
+  try {
+    const previous = join(dir, 'restore-point-safe-wm5-8.db');
+    writeFileSync(previous, 'older valid snapshot');
+    const adapter = new SqliteDbOpsAdapter({ connection: { backup }, filePath: ':memory:', readWatermark: () => 5, now: () => 9 });
+    await expect(adapter.captureRestorePoint({ scopeId: 'safe' }, { directory: dir })).rejects.toBe(failure);
+    expect(open.mock.calls).toEqual([[artifact, 'wx', 0o600]]);
+    expect(backup.mock.calls).toEqual([]);
+    expect(existsSync(artifact)).toBe(false);
+    expect(readFileSync(previous, 'utf8')).toBe('older valid snapshot');
+  } finally { open.mockRestore(); rmSync(dir, { recursive: true, force: true }); }
+});

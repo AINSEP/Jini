@@ -1,8 +1,10 @@
 import { expect, it } from 'vitest';
+import { openMemorySqliteKernel } from '../kernel/sqlite/index.js';
+import { openSqlite } from './helpers.js';
 import { openPostgresKernel } from '../kernel/postgres/driver.js';
 import { scopeToSchema, withKernelSessionLock, kernelSessionPoolMax } from '../kernel/index.js';
 
-function database({ max = 10 } = {}) {
+function database({ max = 10, probe }: { max?: number; probe?: () => void } = {}) {
   const locks = new Set<string>();
   const statements: string[] = [];
   class Pool {
@@ -17,6 +19,7 @@ function database({ max = 10 } = {}) {
           return { rows: [{ locked }], command: 'SELECT', rowCount: 1 };
         }
         if (text.includes('pg_advisory_unlock')) locks.delete(key);
+        if (text === 'SELECT 1') probe?.();
         return { rows: [], command: 'SELECT', rowCount: 0 };
       },
       release() {},
@@ -89,4 +92,48 @@ it('pool capacity is readable before ownership and survives a schema wrapper', a
   expect(kernelSessionPoolMax({ kernel: scopeToSchema({ kernel, schema: 'site_a' }) })).toBe(1);
   expect(statements).toEqual([]);
   await kernel.close();
+});
+
+it('the owner probes its reserved session before the next cycle and unlocks on a probe refusal', async () => {
+  const failure = new Error('reserved session no longer responds');
+  const { kernel, locks, statements } = database({ probe: () => { throw failure; } });
+  try {
+    await expect(withKernelSessionLock({ kernel, key: 'worker:key', run: async ({ assertOwned }) => {
+      expect(locks.has('worker:key')).toBe(true);
+      await assertOwned();
+      return 'must not be returned';
+    } })).rejects.toBe(failure);
+    expect(statements).toEqual([
+      'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked',
+      'SELECT 1',
+      'SELECT pg_advisory_unlock(hashtextextended($1, 0))',
+    ]);
+    expect(locks.has('worker:key')).toBe(false);
+    expect(await withKernelSessionLock({ kernel, key: 'worker:key', run: async () => 'retry' })).toEqual({ acquired: true, value: 'retry' });
+  } finally { await kernel.close(); }
+});
+
+it('session locking refuses active transactions and unregistered kernel wrappers without taking the lock', async () => {
+  const { kernel, locks, statements } = database();
+  const run = async () => { throw new Error('must not run'); };
+  try {
+    await kernel.transaction(async () => {
+      await expect(withKernelSessionLock({ kernel, key: 'worker:key', run }))
+        .rejects.toThrow('A database session owner cannot start inside a transaction.');
+    });
+    await expect(withKernelSessionLock({ kernel: { ...kernel }, key: 'worker:key', run }))
+      .rejects.toThrow('A database session lock requires a kernel built by buildKernel.');
+    expect(locks.size).toBe(0);
+    expect(statements.filter(statement => /pg_.*advisory/.test(statement))).toEqual([]);
+  } finally { await kernel.close(); }
+});
+
+it('a SQLite kernel cannot become a PostgreSQL session owner', async () => {
+  const kernel = openMemorySqliteKernel<unknown>({ open: openSqlite });
+  try {
+    await expect(withKernelSessionLock({ kernel, key: 'worker:key', run: async () => {
+      throw new Error('must not run');
+    } })).rejects.toThrow('A database session lock requires the pooled PostgreSQL transport.');
+    expect(await kernel.transaction(async () => 'still usable')).toBe('still usable');
+  } finally { await kernel.close(); }
 });

@@ -116,3 +116,18 @@ test("an unknown restore point is refused before capability or plan work", async
   expect(f.deps.dbOps.getCapabilities).not.toHaveBeenCalled();
   expect(f.gatewayPlan).not.toHaveBeenCalled();
 });
+
+test("the contribution builds the bound restore and uses the point id alone when its timestamp is absent", async () => {
+  const f = fixture();
+  f.deps.restorePointsRepo.list = vi.fn(async () => []);
+  const contribution = f.binding.contributeRecoveryTools();
+  const row = contribution.build(f.deps, f.surfaces).find(tool => tool.descriptor.id === "backup_execute_restore");
+  if (!row) throw new Error("bound restore tool missing");
+  expect(await row.handler(ctx)).toEqual({ restored: false });
+  expect(f.dialogs).toEqual([{ toolId: "backup_execute_restore", errorCode: "RECOVERY", title: "Restore the site's data?",
+    details: [{ label: "Restore point", value: "point" }],
+    warning: "Your current data will be replaced with this restore point. Anything changed since then is lost. No restore point is taken first, so this can't be undone.",
+    danger: true, confirmLabel: "Replace current data" }]);
+  expect(f.gatewayConfirm.mock.calls).toEqual([]);
+  expect(f.gatewayExecute.mock.calls).toEqual([]);
+});

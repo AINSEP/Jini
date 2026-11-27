@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
+import { PGlite } from "@electric-sql/pglite";
+import { openPgliteKernel } from "../../kernel/pglite/index.js";
 import { afterEach, describe, test } from "vitest";
 import { sql } from "kysely";
 import { listTables, type KyselyKernel } from "../../kernel/index.js";
 import { UnsupportedCapabilityError, type MigrationStep } from "@jini-ai/core/contracts/storage";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
-import { migrate, runMigrations, type LegacyLedgerMapping } from "../../migrate/index.js";
+import { migrate, runMigrations, UnknownAppliedMigrationError, type LegacyLedgerMapping } from "../../migrate/index.js";
 
 const checksum = "a".repeat(64);
 const databases: Database.Database[] = [];
@@ -241,4 +243,47 @@ describe("opt-in additive history compatibility", () => {
     assert.deepEqual(await kernel.query(sql`SELECT id FROM project_history ORDER BY id`), steps.map(step => ({ id: step.id })));
     await assert.rejects(runMigrations(kernel, [{ ...steps[0]!, checksum: "b".repeat(64) }], { ledgerTable: "project_history", allowUnknownApplied: true }), /checksum/i);
   });
+});
+
+test("legacy ledger rejects blank column and name identifiers or extra identities before writing", async () => {
+  const cases: [string, (value: LegacyLedgerMapping) => void][] = [
+    ["legacy ledger columns must be four distinct nonempty identifiers", value => { value.columns.name = ""; }],
+    ["legacy names must be nonempty strings", value => { value.identities["0002_second"]!.name = ""; }],
+    ["legacy identities must match the supplied steps", value => { value.identities = { ...value.identities, "0004_extra": { version: 12, name: "extra" } }; }],
+  ];
+  for (const [message, modify] of cases) {
+    const { kernel } = fresh();
+    const legacyLedger = mapping();
+    modify(legacyLedger);
+    await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger }), { message });
+    assert.deepEqual(await listTables({ kernel }), []);
+  }
+});
+
+test("an unmapped persisted legacy row is identified and cannot be treated as a known step", async () => {
+  const { kernel, database } = fresh();
+  const legacyLedger = mapping();
+  await migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger });
+  database.prepare("insert into history values (?, ?, ?, ?)").run(31, "host-future", checksum, "newer");
+  await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger }),
+    error => error instanceof UnknownAppliedMigrationError && error.ids.join(",") === "legacy:31:host-future");
+  assert.deepEqual(await migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger, allowUnknownApplied: true }), {
+    applied: [], alreadyApplied: ["0001_first", "0002_second", "0003_third", "legacy:31:host-future"], notes: [],
+  });
+  assert.deepEqual(database.prepare("select name from history where version = 31").all(), [{ name: "host-future" }]);
+});
+
+test("Postgres legacy ledgers persist a safe version above the 32-bit integer maximum and do not replay it", async () => {
+  const kernel = openPgliteKernel<unknown>({ PGlite });
+  const first = step("0001_first");
+  const legacyLedger: LegacyLedgerMapping = { ...mapping(), timestamps: "iso", identities: {
+    "0001_first": { version: 4_294_967_296, name: "host-v4b" },
+  } };
+  const input = { kernel, steps: [first], ledgerTable: "history" };
+  try {
+    assert.deepEqual((await migrate(input, { legacyLedger, clock: { nowMs: () => 1000 } })).applied, ["0001_first"]);
+    assert.deepEqual(await kernel.query(sql`select version, name, checksum, applied_at from history`),
+      [{ version: 4_294_967_296, name: "host-v4b", checksum, applied_at: "1970-01-01T00:00:01.000Z" }]);
+    assert.deepEqual(await migrate(input, { legacyLedger }), { applied: [], alreadyApplied: ["0001_first"], notes: [] });
+  } finally { await kernel.close(); }
 });

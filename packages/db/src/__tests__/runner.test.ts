@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll as after, describe, test } from "vitest";
 
 import { sql } from "kysely";
@@ -216,4 +219,35 @@ describe("assertValidSteps", () => {
     assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t"), tableStep("0001_a", "t")] }), /out of order or duplicated/);
     assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t", "nope")] }), /sha256/);
   });
+});
+
+test("backup failure stops migration unless the caller opts in to continue with the exact failure", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "jini-migrate-backup-"));
+  const base = openMemorySqliteKernel<unknown>({ open: openSqlite });
+  const failure = new Error("backup destination stopped responding");
+  const backupPath = join(dir, "nested", "before.db");
+  const attempted: string[] = [];
+  const kernel: KyselyKernel<unknown> = {
+    ...base, async backupTo(target) { attempted.push(target); throw failure; },
+  };
+  const steps = [tableStep("0001_change", "changed"), tableStep("0002_second", "second", sum("b"))];
+  const options = { ledgerTable: LEDGER, backupPath };
+  try {
+    await base.execute(sql`CREATE TABLE existing (value TEXT)`);
+    await base.execute(sql`INSERT INTO existing VALUES ('keep')`);
+    await assert.rejects(runMigrations(kernel, steps, options), (error: unknown) => error === failure);
+    assert.deepEqual(await listTables({ kernel }), ["existing"]);
+    const errors: unknown[] = [];
+    const completed: unknown[] = [];
+    assert.deepEqual(await runMigrations(kernel, steps, {
+      ...options,
+      onBackupError: details => { errors.push(details); },
+      onBackupComplete: async details => { completed.push(details); },
+    }), { applied: ["0001_change", "0002_second"], alreadyApplied: [], notes: [] });
+    assert.deepEqual(attempted, [backupPath, backupPath]);
+    assert.deepEqual(errors, [{ error: failure, backupPath }]);
+    assert.deepEqual(completed, []);
+    assert.deepEqual(await kernel.query(sql`SELECT value FROM existing`), [{ value: "keep" }]);
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM app_migrations ORDER BY id`), [{ id: "0001_change" }, { id: "0002_second" }]);
+  } finally { await base.close(); rmSync(dir, { recursive: true, force: true }); }
 });

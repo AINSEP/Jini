@@ -353,3 +353,61 @@ describe('incrementalVacuumStep', () => {
     db.exec('ROLLBACK');
   });
 });
+
+describe('compaction storage failures', () => {
+  it.each(['SQLITE_CORRUPT', 'SQLITE_IOERR'])('never publishes a partial recovery copy after %s', async code => {
+    const before = digest(file);
+    const marker = memoryMarker();
+    const target = join(dir, 'pre-compact-content-1000.db');
+    const fault = Object.assign(new Error('recovery copy read failed'), { code });
+    const openCopy: StoppedSqliteOpener = (f, options) => {
+      if (f === target + '.partial' && options.readonly) {
+        expect(existsSync(f)).toBe(true);
+        throw fault;
+      }
+      return open(f, options);
+    };
+    const result = convert(marker, { open: openCopy });
+    if (code === 'SQLITE_CORRUPT') {
+      await expect(result).rejects.toThrow('The recovery copy made before compaction did not pass its check; nothing was changed.');
+    } else {
+      await expect(result).rejects.toBe(fault);
+    }
+    expect(marker.written).toEqual([{ state: 'copying', recoveryCopyPath: target, at: 1000 }]);
+    expect(existsSync(target)).toBe(false);
+    expect(existsSync(target + '.partial')).toBe(false);
+    expect(digest(file)).toBe(before);
+  });
+
+  it.each([undefined, 2])('keeps the recovery copy when the final checkpoint reports busy=%s', async busy => {
+    const marker = memoryMarker();
+    const openProbe: StoppedSqliteOpener = (f, options) => {
+      const db = new Database(f, options);
+      const pragma = db.pragma.bind(db);
+      if (!options.readonly) db.pragma = ((name: string, opts?: Database.PragmaOptions) =>
+        name === 'wal_checkpoint(TRUNCATE)' ? (busy === undefined ? [] : [{ busy }]) : pragma(name, opts)) as typeof db.pragma;
+      return db;
+    };
+    const recoveryCopyPath = join(dir, 'pre-compact-content-1000.db');
+    expect(await convert(marker, { open: openProbe })).toMatchObject({ status: 'deferred', reason: 'needs-attention', recoveryCopyPath });
+    expect(marker.written.at(-1)).toEqual({ state: 'needs-attention', recoveryCopyPath, at: 1000, reason: `final WAL checkpoint reported busy=${busy}` });
+    expect(rows(recoveryCopyPath)).toEqual({ n: 200 });
+  });
+
+  it('propagates a non-busy admission error after closing its probe and leaving the live file intact', async () => {
+    const db = keep(new Database(file));
+    const fault = Object.assign(new Error('failed to check database lock'), { code: 'SQLITE_IOERR' });
+    const exec = db.exec.bind(db);
+    db.exec = (statement: string) => {
+      if (statement === 'PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE; ROLLBACK;') throw fault;
+      return exec(statement);
+    };
+    const marker = memoryMarker();
+    const before = digest(file);
+    await expect(convert(marker, { open: () => db })).rejects.toBe(fault);
+    expect(db.open).toBe(false);
+    expect(marker.written).toEqual([]);
+    expect(copies()).toEqual([]);
+    expect(digest(file)).toBe(before);
+  });
+});

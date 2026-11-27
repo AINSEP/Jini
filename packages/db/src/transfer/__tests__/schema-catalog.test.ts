@@ -119,3 +119,18 @@ describe("snapshot planning", () => {
     expect(plan.leftOut.map((l) => l.table).sort()).toEqual(["ledger", "sys_x"]);
   });
 });
+
+it("planned tables ignore non-table exports and preserve an explicit foreign-key update action", () => {
+  const catalog = ports({ entries: table("entries", {
+    foreignKeys: () => [{ name: "entry_shared", columns: ["id"], foreignTable: "shared", foreignColumns: ["id"], onUpdate: "cascade" }],
+  }), absent: null, doc: "schema helper", helper: { utility: true } }, { copyOrder: () => ["entries"] });
+  const plan = planCatalogSnapshotTables({
+    catalog, source: sourceOf({ entries: ["id"], shared: ["id"] }),
+    policy: { migrationLedgers: new Set(), foreignOwnedTables: [], foreignOwnedReason: "other source", bookkeepingPrefixes: [], secretColumnPattern: /secret/ },
+  });
+  expect(plan.tables.map(value => value.name)).toEqual(["entries", "shared"]);
+  expect(plan.tables.find(value => value.name === "entries")?.foreignKeys).toEqual([
+    { name: "entry_shared", columns: ["id"], foreignTable: "shared", foreignColumns: ["id"], onDelete: "no action", onUpdate: "cascade" },
+  ]);
+  expect(plan.leftOut).toEqual([]);
+});

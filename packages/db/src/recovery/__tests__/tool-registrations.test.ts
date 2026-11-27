@@ -1,10 +1,11 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { toolMetadata } from "@jini-ai/core/tool-metadata/recovery";
-import { humanConfirmedHandler, type ToolExecutionContext } from "@jini-ai/core";
+import { humanConfirmedHandler, ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 import { createRecoveryAgentToolCatalog } from "../agent-tools.js";
+import { InMemoryRestorePointsRepo } from "../../site/repo.memory.js";
 import * as orchestrator from "../recovery-orchestrator.js";
 import type { buildRestoreHooks } from "../restore-hooks.js";
-import { buildRecoveryRegistrations, type RecoveryToolDeps, type RecoveryToolHost } from "../tool-registrations.js";
+import { buildRecoveryRegistrations, contributeRecoveryTools, type RecoveryToolDeps, type RecoveryToolHost } from "../tool-registrations.js";
 
 const ctx: ToolExecutionContext = { executionId: "execution", principal: { id: "human" }, run: { id: "run" }, signal: new AbortController().signal, input: { restorePointId: "point" } };
 afterEach(() => vi.restoreAllMocks());
@@ -126,3 +127,127 @@ test("the prepared restore preserves the gateway plan and an undefined createdAt
   expect((prepared as { plan: unknown }).plan).toBe(plan);
   expect(Object.hasOwn(prepared as object, "createdAt")).toBe(true);
 });
+
+function registered(f: ReturnType<typeof fixture>, id: string) {
+  const row = contributeRecoveryTools({ host: f.host }).build(f.deps, f.surfaces).find(candidate => candidate.descriptor.id === id);
+  if (!row) throw new Error(`missing tool ${id}`);
+  return row.handler;
+}
+
+const noInput: ToolExecutionContext = { ...ctx, input: undefined };
+
+test("Recovery lists authorized persisted restore points and reports injected capability guidance", async () => {
+  const f = fixture();
+  const points = new InMemoryRestorePointsRepo();
+  await points.save({ restorePointId: "ready", idempotencyKey: "key", trigger: "manual", createdBy: "operator", createdAt: "2026-10-01T00:00:00Z" });
+  f.deps.restorePointsRepo = points;
+  f.deps.dbOps.getCapabilities = vi.fn(async () => ({ restorePoint: { costClass: "expensive" as const, kind: "logical-dump" as const } }));
+  expect(await registered(f, "backup_list_restore_points")(noInput)).toEqual({ items: [
+    { id: "ready", trigger: "manual", costClass: "cheap", kind: "file-snapshot", watermarkAtCapture: null, createdAt: "2026-10-01T00:00:00Z", artifactRef: "memory://restore-point/ready" },
+  ] });
+  expect(await registered(f, "backup_get_capabilities")(noInput)).toEqual({
+    costClass: "expensive", kind: "logical-dump",
+    fullSiteBackup: { discoveryTool: "discover", planTool: "plan", pushTool: "push", guidance: "backup" },
+    portableExport: { href: "/export", guidance: "export" },
+  });
+  const permission = { deps: f.deps, ctx: noInput, permission: "read", entityType: "restore-point" };
+  expect(vi.mocked(f.host.authorize).mock.calls).toEqual([[permission], [permission]]);
+});
+
+test.each([
+  { status: "SERVING", banner: "operation-in-flight" },
+  { status: "PENDING_MIGRATION", banner: "pending-migration" },
+  { status: "BLOCKED_PENDING_RECOVERY", banner: "migration-interrupted" },
+] as const)("status for $status reads the site's lock and reports $banner", async ({ status, banner }) => {
+  const f = fixture();
+  f.deps.siteStatusRepo.get = vi.fn(async () => status);
+  f.host.isOperationInFlight = vi.fn(() => true);
+  expect(await registered(f, "recovery_get_status")(noInput)).toMatchObject({ costClass: "cheap", banner: { kind: banner } });
+  expect(vi.mocked(f.host.authorize).mock.calls).toEqual([[{ deps: f.deps, ctx: noInput, permission: "read", entityType: "restore-point" }]]);
+  expect(vi.mocked(f.deps.siteStatusRepo.get).mock.calls).toEqual([["site"]]);
+  expect(vi.mocked(f.host.isOperationInFlight).mock.calls).toEqual([[{ siteId: "site" }, {}]]);
+  expect(f.host.operationLock.acquireOperationLock).not.toHaveBeenCalled();
+});
+
+const envelope = { v: 1, correlationId: "corr", siteId: "site", ledgerEventId: "ledger-1", restorePointId: "saved-point",
+  drift: "none", intent: "restore", issuedAt: "2026-10-01T00:00:00Z" };
+
+test("deep-link resolution authorizes first, retrieves the captured point, and never trusts supplied metadata", async () => {
+  const f = fixture();
+  const stored = { restorePointId: "saved-point", capturedAt: "2026-09-29T10:00:00Z" };
+  f.deps.deepLinkRestorePointLookup.findRestorePointById = vi.fn(async (id) => {
+    f.calls.push(`lookup:${id}`);
+    return id === "saved-point" ? stored : null;
+  });
+  const resolve = registered(f, "recovery_resolve_deep_link");
+  const request = { ...noInput, input: { envelope } };
+  expect(await resolve(request)).toEqual({ found: true, restorePoint: stored });
+  expect(f.calls).toEqual(["authorize", "lookup:saved-point"]);
+  expect(vi.mocked(f.host.authorize).mock.calls[0]).toEqual([{ deps: f.deps, ctx: request, permission: "read", entityType: "restore-point" }]);
+  expect(await resolve({ ...noInput, input: { envelope: { ...envelope, ledgerEventId: null, restorePointId: null } } })).toEqual({ found: false, restorePoint: null });
+  expect(vi.mocked(f.deps.deepLinkRestorePointLookup.findRestorePointById).mock.calls).toEqual([["saved-point"]]);
+});
+
+test.each([
+  { input: [], message: "'envelope' (object) is required" },
+  { input: { envelope: null }, message: "'envelope' (object) is required" },
+  { input: { envelope: { ...envelope, v: "1" } }, message: "'envelope.v' (number) is required" },
+  { input: { envelope: { ...envelope, siteId: 99 } }, message: "'envelope.siteId' (string) is required" },
+  { input: { envelope: { ...envelope, restorePointId: 99 } }, message: "'envelope.restorePointId' must be a string or null" },
+])("invalid deep link refuses before authorization or lookup ($message)", async ({ input, message }) => {
+  const f = fixture();
+  const rejected = registered(f, "recovery_resolve_deep_link")({ ...noInput, input });
+  await expect(rejected).rejects.toBeInstanceOf(ToolInputError);
+  await expect(rejected).rejects.toThrow(message);
+  expect(f.host.authorize).not.toHaveBeenCalled();
+  expect(f.deps.deepLinkRestorePointLookup.findRestorePointById).not.toHaveBeenCalled();
+});
+
+test("restore planning returns the plan with only covered discarded-write counts", async () => {
+  const f = fixture();
+  f.host.coveredCategories = ["posts", "pages"];
+  f.deps.disclosureWatermarkSource = {
+    getBaseline: async () => ({ available: true, watermarkAtCapture: 4 }),
+    getCategoryCounts: async () => ({ posts: 5, excluded: 99 }),
+  };
+  expect(await registered(f, "backup_plan_restore")(ctx)).toEqual({
+    plan: { planId: "plan", planHash: "hash" }, disclosure: { partial: true, watermarkBaselineAvailable: true, counts: { posts: 5, pages: 0 } },
+  });
+  expect(vi.mocked(f.host.plan).mock.calls).toEqual([[{ deps: f.deps, actorId: "human", restorePointId: "point", principalKind: "agent" }]]);
+  expect(f.calls).toEqual(["authorize", "plan:human:agent"]);
+});
+
+test.each([{ code: "REFUSED" }, { code: "REFUSED", message: "The plan expired" }])(
+  "restore planning surfaces the gateway diagnostic $code ($message) without calculating disclosure",
+  async error => {
+    const f = fixture();
+    f.host.plan = vi.fn(async () => ({ ok: false as const, error }));
+    await expect(registered(f, "backup_plan_restore")(ctx)).rejects.toThrow(error.message ?? error.code);
+    expect(f.deps.disclosureWatermarkSource.getBaseline).not.toHaveBeenCalled();
+    expect(f.host.confirm).not.toHaveBeenCalled();
+  },
+);
+
+test.each([{ code: "TOKEN_DENIED" }, { code: "TOKEN_DENIED", message: "The confirmation was not accepted" }])(
+  "a failed confirmation surfaces its diagnostic $code ($message) without acquiring the lock",
+  async error => {
+    const f = fixture();
+    f.host.confirm = vi.fn(async () => ({ ok: false as const, error }));
+    await expect(registered(f, "backup_execute_restore")(ctx, { emitSurface: vi.fn() })).rejects.toThrow(error.message ?? error.code);
+    expect(f.host.operationLock.acquireOperationLock).not.toHaveBeenCalled();
+    expect(f.host.execute).not.toHaveBeenCalled();
+  },
+);
+
+test.each([{ code: "RESTORE_REJECTED" }, { code: "RESTORE_REJECTED", message: "The snapshot cannot be read" }])(
+  "a failed execute surfaces its diagnostic $code ($message) and releases the shared lock",
+  async error => {
+    const f = fixture();
+    f.host.execute = vi.fn(async () => { f.calls.push("failed execution"); return { ok: false as const, error }; });
+    await expect(registered(f, "backup_execute_restore")(ctx, { emitSurface: vi.fn() })).rejects.toThrow(error.message ?? error.code);
+    expect(f.calls).toEqual(["authorize", "plan:human:agent", "confirm:human:user", "lock", "failed execution", "release"]);
+    expect(vi.mocked(f.host.operationLock.releaseOperationLock).mock.calls).toEqual([[
+      { deps: { clock: f.deps.clock }, input: { siteId: "site", handle: { siteId: "site", operationKind: "restore", acquiredAt: "now" } } },
+    ]]);
+  },
+);
