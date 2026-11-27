@@ -99,4 +99,30 @@ describe('plugin reload rollback pin', () => {
     await runtime.dispose({}, {});
     warn.mockRestore();
   });
+  it('reloads this workspace first, so a failed local load leaves another workspace on the approved version', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { runtime, source, repo } = await sealedTwiceHost((version) => version === '0.1.1');
+    // List the other workspace's row ahead of this one, so only the this-workspace-first order protects it.
+    const here = (await repo.getActivation({ workspaceId: WS as never, pluginId: ID }))!;
+    await repo.deleteActivation({ workspaceId: WS as never, pluginId: ID });
+    await repo.save({ pluginId: ID, workspaceId: 'ws-b' as never, version: '0.1.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' });
+    await repo.save(here);
+    expect((await repo.listAll()).map((row) => row.workspaceId)).toEqual(['ws-b', WS]);
+    const sealed = await source.seal({ id: ID }, {});
+    expect(sealed).toMatchObject({ installed: true, reloaded: false });
+    expect(await repo.getActivation({ workspaceId: 'ws-b' as never, pluginId: ID })).toMatchObject({ version: '0.1.0', enabled: true });
+    expect(runtime.pluginLoadedVersion({ id: ID })).toBe('0.1.0');
+    await runtime.dispose({}, {});
+    warn.mockRestore();
+  });
+
+  it('a successful reload moves every enabled workspace to the new version and reports the local reload', async () => {
+    const { runtime, source, repo } = await sealedTwiceHost(() => false);
+    await repo.save({ pluginId: ID, workspaceId: 'ws-b' as never, version: '0.1.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' });
+    expect(await source.seal({ id: ID }, {})).toMatchObject({ installed: true, reloaded: true });
+    expect(await repo.getActivation({ workspaceId: 'ws-b' as never, pluginId: ID })).toMatchObject({ version: '0.1.1', enabled: true });
+    expect(await repo.getActivation({ workspaceId: WS as never, pluginId: ID })).toMatchObject({ version: '0.1.1', enabled: true });
+    expect(runtime.pluginLoadedVersion({ id: ID })).toBe('0.1.1');
+    await runtime.dispose({}, {});
+  });
 });
