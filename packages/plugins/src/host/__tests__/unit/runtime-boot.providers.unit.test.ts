@@ -17,13 +17,20 @@ const manifestFor = (id: string, provides: boolean): PluginManifest => ({
 });
 type Setup = () => void | Promise<void>;
 
-function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean; setup?: Setup }>) {
+function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean; setup?: Setup }>, options: { failListAllCall?: number } = {}) {
   const importModule = vi.fn(async (entryPath: string) => {
     const plugin = plugins.find((candidate) => `entry:${candidate.id}` === entryPath)!;
     return { default: { definition: { setup: plugin.setup ?? (() => {}) } } };
   });
   const sources: PluginRuntimeSource[] = plugins.map(({ id, provides }) => ({ source: 'built-in', manifest: manifestFor(id, provides), entryPath: `entry:${id}`, importModule }));
   const repo = new InMemoryPluginActivationRepo({ initialRows: plugins.map(({ id, enabled }) => ({ pluginId: id, workspaceId: WS as never, version: '1.0.0', enabled, updatedAt: '2026-11-27T00:00:00.000Z' })) });
+  let listAllCalls = 0;
+  const listAll = repo.listAll.bind(repo);
+  repo.listAll = async (...args: Parameters<typeof repo.listAll>) => {
+    listAllCalls += 1;
+    if (listAllCalls === options.failListAllCall) throw new Error('activation store offline');
+    return listAll(...args);
+  };
   const runtime = createPluginRuntimeCore({
     workspaceId: WS, clock: { nowMs: () => 0 } as never, activationRepo: repo, sources,
     pluginSourcePolicy: { localInstallEnabled: () => false, confirmEnable: () => false },
@@ -42,7 +49,7 @@ function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean; 
     text: { scaffoldEntry: 'export default {};\n', reloadApprovalRequired: () => 'approve', restoreFailedReason: 'restore failed' },
     quarantineTelemetry: ({ pluginId }: { pluginId: string }) => ({ event: { kind: 'q', pluginId }, options: {} }),
   }, {});
-  return { runtime, importModule };
+  return { runtime, importModule, repo };
 }
 
 let warn: ReturnType<typeof vi.spyOn>;
@@ -106,6 +113,31 @@ describe('provider plugin admission', () => {
     await runtime.attachEnabledPluginsAtBoot();
     expect(importModule.mock.calls).toEqual([['entry:plain']]);
     expect(runtime.pluginLoadedVersion({ id: 'prov-a' })).toBeUndefined();
+    await runtime.dispose({}, {});
+  });
+
+  it('quarantines one of two enabled plugins that claim the same provider at boot, durably and with a logged reason', async () => {
+    const spy = quietWarn();
+    const { runtime, repo } = host([
+      { id: 'prov-a', provides: true, enabled: true },
+      { id: 'prov-b', provides: true, enabled: true },
+    ]);
+    await runtime.attachEnabledPluginsAtBoot();
+    const rows = await repo.listAll();
+    const off = rows.filter((row) => !row.enabled).map((row) => row.pluginId);
+    expect(off).toHaveLength(1);
+    const lines = spy.mock.calls.map((call) => String(call[0]));
+    expect(lines.filter((line) => line.startsWith(`[plugin-runtime] '${off[0]}' quarantined at boot: `))).toHaveLength(1);
+    await runtime.dispose({}, {});
+  });
+
+  it('attaches nothing at boot when the conflict pass cannot finish, and logs why', async () => {
+    const spy = quietWarn();
+    // Boot reads activations for its own list (call 1), then the conflict pass reads them again (call 2).
+    const { runtime, importModule } = host([{ id: 'plain', provides: false, enabled: true }], { failListAllCall: 2 });
+    await runtime.attachEnabledPluginsAtBoot();
+    expect(importModule).not.toHaveBeenCalled();
+    expect(spy.mock.calls.map((call) => String(call[0]))).toContainEqual(expect.stringContaining('[plugin-runtime] boot conflict check failed, no plugin attached'));
     await runtime.dispose({}, {});
   });
 });
