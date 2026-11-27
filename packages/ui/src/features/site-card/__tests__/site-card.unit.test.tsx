@@ -91,6 +91,17 @@ describe("SiteCardPin", () => {
   });
 });
 
+describe("SiteCardPin state", () => {
+  it("draws an outline pin while unpinned and a filled pin once pinned", () => {
+    const { rerender } = render(<SiteCardPin pinned={false} label="Pin Atlas" onToggle={vi.fn()} />);
+    const pin = screen.getByRole("button", { name: "Pin Atlas" });
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+    expect(pin.querySelector("svg")?.getAttribute("fill")).toBe("none");
+    rerender(<SiteCardPin pinned label="Pin Atlas" onToggle={vi.fn()} />);
+    expect(pin.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+  });
+});
+
 describe("SiteListToolbar", () => {
   it("offers Hidden only once something is hidden", () => {
     const { rerender } = render(<SiteListToolbar list={controller()} copy={copy} />);

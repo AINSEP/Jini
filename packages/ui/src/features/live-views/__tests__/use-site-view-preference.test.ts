@@ -43,3 +43,39 @@ test('useSiteViewPreference: without a bridge the default stands', () => {
   assert.equal(hook.result.current.value, 1);
   hook.unmount();
 });
+
+test('useSiteViewPreference: a saved snapshot that arrives first is applied, clamped to the bounds', async () => {
+  const bridge: LiveViewPreferenceBridge = { getMaximumLiveSiteViews: async () => 9 };
+  const getBridge = () => bridge;
+  const hook = renderHook(() => useSiteViewPreference({ getBridge, bounds }));
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(hook.result.current.value, 5);
+  hook.unmount();
+});
+
+/** A bridge whose read and change event the test settles by hand, after the hook let go of it. */
+function heldBridge() {
+  const held = { resolveRead: (_value: unknown) => {}, listener: (_saved: unknown) => {} };
+  const bridge: LiveViewPreferenceBridge = {
+    getMaximumLiveSiteViews: () => new Promise((resolve) => { held.resolveRead = resolve; }),
+    // The event may already be in flight when the hook detaches, so the listener is kept.
+    onMaximumLiveSiteViewsChanged: ({ listener }) => { held.listener = listener; return () => {}; },
+  };
+  return { bridge, held };
+}
+
+test('useSiteViewPreference: after switching bridges, the old bridge\'s late snapshot and change event are ignored', async () => {
+  const old = heldBridge();
+  const next: LiveViewPreferenceBridge = { getMaximumLiveSiteViews: async () => 2 };
+  const getOld = () => old.bridge;
+  const getNext = () => next;
+  const hook = renderHook(({ getBridge }) => useSiteViewPreference({ getBridge, bounds }), { initialProps: { getBridge: getOld } });
+  hook.rerender({ getBridge: getNext });
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(hook.result.current.value, 2);
+  act(() => old.held.listener(4));
+  assert.equal(hook.result.current.value, 2, 'a detached change event does not apply');
+  await act(async () => { old.held.resolveRead(5); await Promise.resolve(); });
+  assert.equal(hook.result.current.value, 2, 'a detached snapshot does not apply');
+  hook.unmount();
+});

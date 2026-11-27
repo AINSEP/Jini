@@ -6,6 +6,7 @@ import { BrandLogo } from '../../components/BrandLogo.js';
 import { Notice } from '../../components/Notice.js';
 import { OnboardingDropdown, useOnboardingDropdown } from '../../components/OnboardingDropdown.js';
 import { PillButton } from '../../components/PillButton.js';
+import { AGENT_LABEL_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { PopoverItem } from '../../components/PopoverItem.js';
 import { SecretInput } from '../../components/SecretInput.js';
 
@@ -24,6 +25,18 @@ describe('PillButton agent-handle hook', () => {
     render(<PillButton label="Schedule" onClick={vi.fn()} agentHandle="mine" useAgentHandleHook={useAgentHandleHook} />);
     expect(useAgentHandleHook).toHaveBeenCalledWith(expect.objectContaining({ agentHandle: 'mine' }));
     expect(screen.getByRole('button', { name: 'Schedule' }).outerHTML).toContain('fake-handle');
+  });
+});
+
+describe('PillButton agent label', () => {
+  it('labels a handle-addressed button by its text, and as "Action" when the label is markup with no aria-label', () => {
+    const useAgentHandleHook = () => 'pill';
+    render(<>
+      <PillButton label="Schedule" onClick={vi.fn()} useAgentHandleHook={useAgentHandleHook} />
+      <PillButton label={<span>Rich</span>} onClick={vi.fn()} useAgentHandleHook={useAgentHandleHook} />
+    </>);
+    expect(screen.getByRole('button', { name: 'Schedule' }).getAttribute(AGENT_LABEL_ATTRIBUTE)).toBe('Schedule');
+    expect(screen.getByRole('button', { name: 'Rich' }).getAttribute(AGENT_LABEL_ATTRIBUTE)).toBe('Action');
   });
 });
 

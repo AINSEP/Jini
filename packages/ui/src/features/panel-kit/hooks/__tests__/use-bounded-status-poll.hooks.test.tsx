@@ -113,4 +113,16 @@ describe('useBoundedStatusPoll (T23J)', () => {
     await tick(5);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('a status that lands after unmount is dropped: no onStatus, no re-arm', async () => {
+    let answer: (status: Status) => void = () => {};
+    const { fetch, statuses, unmount } = harness(() => new Promise<Status>((resolve) => { answer = resolve; }));
+    await tick(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    unmount();
+    await act(async () => { answer({ status: 'running' }); await Promise.resolve(); });
+    await tick(3);
+    expect(statuses).toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 });

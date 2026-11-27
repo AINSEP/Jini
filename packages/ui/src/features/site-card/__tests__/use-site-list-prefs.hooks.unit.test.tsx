@@ -48,6 +48,15 @@ describe("useSiteListPrefs", () => {
     await waitFor(() => expect(result.current.saveError).toBeNull());
   });
 
+  it("reports a store that rejects with a bare string (not an Error) by that string, for the read and for a save", async () => {
+    const save = vi.fn<SiteListPrefsPort["save"]>().mockRejectedValue("quota exceeded");
+    const { result } = await ready({ load: () => Promise.reject("storage locked"), save });
+    expect(result.current.loadError).toContain("storage locked");
+    const saving = await ready({ load: async () => undefined, save });
+    act(() => saving.result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    await waitFor(() => expect(saving.result.current.saveError).toContain("quota exceeded"));
+  });
+
   it("never saves after a failed read, so the defaults on screen cannot overwrite the real choices", async () => {
     const save = vi.fn<SiteListPrefsPort["save"]>();
     const { result } = await ready({ load: async () => { throw new Error("offline"); }, save });
