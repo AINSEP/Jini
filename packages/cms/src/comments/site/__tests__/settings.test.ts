@@ -165,7 +165,7 @@ test("registers the built-in provider default and preserves selection when a sta
   assert.equal(await store.compareAndSet({ siteId: WORKSPACE, providerId: "retired-addon", expectedRevision: 0, actorPrincipalId }), true);
   const selected = await store.read({ siteId: WORKSPACE });
   assert.equal(selected.providerId, "retired-addon");
-  assert.ok(selected.revision > 0);
+  assert.equal(selected.revision, await settingsRepo.maxRevisionSeq());
   assert.deepEqual(await store.read({ siteId: "other-workspace" }), { providerId: "built-in", revision: 0 });
   const revisionBefore = await settingsRepo.maxRevisionSeq();
   await assert.rejects(store.compareAndSet({ siteId: WORKSPACE, providerId: null, expectedRevision: 0, actorPrincipalId }), { message: "Comments provider changed; read it again." });
@@ -175,6 +175,7 @@ test("registers the built-in provider default and preserves selection when a sta
   const disabled = await store.read({ siteId: WORKSPACE });
   assert.equal(disabled.providerId, null);
   assert.ok(disabled.revision > selected.revision);
+  assert.equal(disabled.revision, await settingsRepo.maxRevisionSeq());
   assert.deepEqual(calls.map((input) => (input as { permission: string }).permission), ["comments.configure", "comments.configure", "comments.configure"]);
 });
 

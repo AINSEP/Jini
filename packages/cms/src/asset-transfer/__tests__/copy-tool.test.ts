@@ -33,7 +33,7 @@ function fixture() {
     },
     documentArchiveReader: { entries: vi.fn<FilesCopyToolDeps<AssetTheme>["documentArchiveReader"]["entries"]>() },
     documents: { maxBytes: 50 * 1024 * 1024, validate: vi.fn(async () => ({})) },
-    isFsShapeRejection: (_input: { error: unknown }) => false, isDocumentShapeRejection: () => false, isThemeShapeRejection: () => false, isImportShapeRejection: () => false,
+    isFsShapeRejection: (_input: { error: unknown }): boolean => false, isDocumentShapeRejection: () => false, isThemeShapeRejection: () => false, isImportShapeRejection: () => false,
   } satisfies FilesCopyToolDeps<AssetTheme>;
   const described = vi.fn(({ batch }: { batch: PreparedAssetBatch<Buffer>; toolId: string }) => ({ toolId: "files_copy", errorCode: "FILES", title: "Copy", confirmLabel: "Confirm", details: [{ label: "Bytes", value: batch.writes.map(({ bytes }) => bytes.toString()).join(",") }] }));
   const askHuman = vi.fn(async () => ({ confirmed: true as const }));
@@ -61,10 +61,17 @@ describe("files copy execution", () => {
     const input = { sources: [{ root: "site", path: "clip.mp4" }], destination: { kind: "media" } };
     expect(await handler(ctx(input))).toEqual({ applied: true, written: ["clip.mp4"], skipped: [], media: [media] });
     expect(deps.source.readAsset).toHaveBeenCalledExactlyOnceWith({ ctx: expect.objectContaining({ principal: { id: "agent" } }), input: input.sources[0], maxBytes: deps.mediaVideoMaxBytes }, {});
-    expect(deps.destination.media.persist).toHaveBeenCalledExactlyOnceWith({ actorId: "agent", sourceUrl: "", input: { workspaceId: "workspace", bytes, filename: "clip.mp4", contentType: "video/mp4", createdByPrincipal: "agent" } }, {});
+    // Identity, not deep equality: the read buffer itself is persisted (and a 10 MB element-wise compare is too slow).
+    expect(deps.destination.media.persist).toHaveBeenCalledOnce();
+    const [persisted, persistOptions] = deps.destination.media.persist.mock.calls[0]!;
+    expect(persisted.input.bytes).toBe(bytes);
+    expect({ ...persisted, input: { ...persisted.input, bytes: "<read buffer>" } })
+      .toEqual({ actorId: "agent", sourceUrl: "", input: { workspaceId: "workspace", bytes: "<read buffer>", filename: "clip.mp4", contentType: "video/mp4", createdByPrincipal: "agent" } });
+    expect(persistOptions).toEqual({});
     expect(encode).not.toHaveBeenCalledWith("base64");
     expect(askHuman).not.toHaveBeenCalled();
-    expect(described).not.toHaveBeenCalled();
+    // The approval description is built from an empty batch: no video bytes enter an approval payload.
+    expect(described.mock.calls).toEqual([[{ batch: { folder: "", writes: [] }, toolId: "files_copy" }, {}]]);
     expect(deps.destination.fs.prepareSite).not.toHaveBeenCalled();
     expect(deps.destination.fs.preparePicked).not.toHaveBeenCalled();
     encode.mockRestore();
@@ -170,7 +177,11 @@ it("adds caller-facing input guidance only for a classified source refusal", asy
   deps.isFsShapeRejection = ({ error }: { error: unknown }) => error === refused;
   deps.source.readAsset.mockRejectedValueOnce(refused).mockRejectedValueOnce(privateFailure);
   const input = { sources: [{ root: "site", path: "source.txt" }], destination: { kind: "site" } };
-  await expect(handler(ctx(input))).rejects.toBeInstanceOf(ToolInputError);
+  const guided: unknown = await handler(ctx(input)).then(() => undefined, (failure: unknown) => failure);
+  expect(guided).toBeInstanceOf(ToolInputError);
+  if (!(guided instanceof Error)) throw new Error("expected a caller input error");
+  expect(guided.message.startsWith(refused.message)).toBe(true);
+  expect(guided.message.length).toBeGreaterThan(refused.message.length);
   await expect(handler(ctx(input))).rejects.toBe(privateFailure);
   expect(deps.destination.fs.writePrepared.mock.calls).toEqual([]);
 });

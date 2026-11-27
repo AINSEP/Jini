@@ -286,7 +286,7 @@ test("one command persists one actor on both atomic records", async () => {
 });
 
 test("the memory change-set ledger preserves workspace-local idempotency and forwards only the supplied event", async () => {
-  const events: AttributedDomainEvent[] = [];
+  const events: DomainEvent[] = [];
   const changeSets = new InMemoryChangeSetRepo([], [], { ...fakeOutbox(), enqueue: async (event) => { events.push(event); } });
   const primary: NewChangeSetRecord = {
     id: "manual-1", workspaceId: "ws-a", idempotencyKey: "same-retry", status: "applied",

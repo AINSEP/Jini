@@ -47,7 +47,8 @@ export function rewriteFormActions<F extends FormActionFile>(required: { files: 
   });
   return required.files.map((file) => {
     if (!file.file.toLowerCase().endsWith(".html")) return file;
-    const text = typeof file.data === "string" ? file.data : file.data.toString("utf8");
+    // TextDecoder, not toString: a plain Uint8Array's toString ignores the encoding and yields "60,112,...".
+    const text = typeof file.data === "string" ? file.data : new TextDecoder().decode(file.data);
     const rewritten = text.replace(FORM_ACTION, (_match, slug: string) => `action="${base}/forms/${slug}/submit"`);
     if (rewritten === text) return file;
     return { ...file, data: typeof file.data === "string" ? rewritten : Buffer.from(rewritten, "utf8") };

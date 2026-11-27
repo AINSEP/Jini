@@ -36,7 +36,8 @@ import { adaptLegacyAuthorize } from "@jini-ai/core";
  * `build(...)` time — once per real composition, after boot registration has finished — is what makes
  * the registry's contents visible here at all.
  */
-import { buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireString, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { isNonArrayRecord } from "@jini-ai/core/records";
 import { requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { ToolInputError } from "@jini-ai/core";
@@ -64,7 +65,7 @@ const OVERRIDE_KEYS = ["title", "slug", "status"] as const;
 function readOverrides(input: Record<string, unknown>): { title?: string; slug?: string; status?: string } {
   const candidate = { value: input.overrides };
   if (candidate.value === undefined) return {};
-  if (!isRecord(candidate)) throw new ToolInputError({ message: "'overrides' must be an object" });
+  if (!isNonArrayRecord(candidate)) throw new ToolInputError({ message: "'overrides' must be an object" });
   const raw = candidate.value;
 
   for (const key of Object.keys(raw)) {
