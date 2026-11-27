@@ -58,7 +58,7 @@ function describeFailure(error: unknown): RoutinesApiError {
 }
 
 function refusalOf(failure: RoutinesApiError): RoutinesListResult | null {
-  if (failure.status !== 503 || failure.reason === null || !(failure.reason in REASON_TO_STATE)) return null;
+  if (failure.status !== 503 || failure.reason === null || !Object.hasOwn(REASON_TO_STATE, failure.reason)) return null;
   const reason = failure.reason as RoutineRefusalReason;
   return { state: REASON_TO_STATE[reason], reason, errorId: failure.errorId };
 }

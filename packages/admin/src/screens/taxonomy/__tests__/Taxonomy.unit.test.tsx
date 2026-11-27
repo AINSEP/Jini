@@ -93,7 +93,7 @@ function setup(initial = seeded()) {
 }
 
 function group(name: string) {
-  const section = screen.getByRole("heading", { name, exact: true }).closest("section");
+  const section = screen.getByRole("heading", { name }).closest("section");
   if (!section) throw new Error(`Taxonomy card not found: ${name}`);
   return within(section);
 }
@@ -102,12 +102,14 @@ afterEach(cleanup);
 
 it("distinguishes a held first load, a load refusal and an empty ready list", async () => {
   const first = setup([]);
-  let reject!: (error: Error) => void;
-  first.port.listTaxonomies = () => new Promise((_resolve, fail) => { reject = fail; });
+  let reject: ((error: Error) => void) | null = null;
+  const list = vi.fn(() => new Promise<never>((_resolve, fail) => { reject = fail; }));
+  first.port.listTaxonomies = list;
   const view = render(<Taxonomy {...first.props} />);
   expect(screen.getByText("Loading taxonomies…")).toBeVisible();
   expect(screen.queryByRole("button", { name: "New taxonomy" })).toBeNull();
-  await act(async () => { reject(new AdminApiError({ message: "Catalog unavailable", status: 503 })); });
+  await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+  await act(async () => { reject?.(new AdminApiError({ message: "Catalog unavailable", status: 503 })); });
   expect(await screen.findByText("Catalog unavailable")).toBeVisible();
   expect(screen.queryByText("No taxonomies yet")).toBeNull();
   view.unmount();
@@ -189,7 +191,8 @@ it("navigates the detail with keyboard and clears it only after the selected tax
   birds.focus();
   await user.keyboard("{Enter}");
   expect(screen.getByRole("heading", { name: "Birds" })).toBeVisible();
-  expect(birds).toHaveAttribute("aria-current", "true");
+  // Selecting switches Taxonomy to its detail layout, which renders a fresh term list; read the row there.
+  expect(screen.getByRole("button", { name: "Birds, subcategory of Nature" })).toHaveAttribute("aria-current", "true");
   expect(screen.getByRole("textbox", { name: "Rename" })).toHaveValue("Birds");
   expect(screen.queryByRole("option", { name: "Birds" })).toBeNull();
 

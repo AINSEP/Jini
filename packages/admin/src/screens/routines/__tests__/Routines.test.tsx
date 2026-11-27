@@ -132,7 +132,7 @@ const kit: RoutinesKit = {
         <button type="button" onClick={() => onCancel()}>{cancelLabel}</button>
         <button type="button" onClick={() => onConfirm()}>{confirmLabel}</button>
       </div>
-    : null,
+    : <></>,
   RecurringSchedulePicker: ({ value, onChange }) => <button type="button" onClick={() => onChange({ kind: "hourly", minute: 47 })}>{value.kind === "hourly" ? `Minute ${value.minute}` : "Change schedule"}</button>,
 };
 

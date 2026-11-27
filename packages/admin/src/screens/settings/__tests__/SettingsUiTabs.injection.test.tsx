@@ -5,7 +5,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { settingsUiTabs, type SettingsUiView } from "../SettingsUiTabs.js";
 import { SettingsUi, type SettingsUiProps } from "../SettingsUi.js";
-import type { PrivacyConsentState, SettingsSlice } from "../../../react/kit.js";
+import type { NotificationsPreferences, PrivacyConsentState, SettingsSlice } from "../../../react/kit.js";
+import type { InterfaceConfig } from "../../../core/settings-tab-preferences.js";
 import type { ExecutionConfig, ExecutionPort } from "@jini-ai/core/contracts/execution";
 import { BrowserAgentSettingsPanel } from "../../webmcp/BrowserAgentSettingsPanel.js";
 import { createAdminByokKeyPanelTranslator } from "../../../shell/components/AdminByokKeyPanel.hooks.js";
@@ -58,9 +59,9 @@ function setupScreen() {
   const controller: ReturnType<SettingsUiProps["hooks"]["useSettingsUiHook"]> = {
     memoryTopTab: "memories", setMemoryTopTab: vi.fn(), port,
     execution: settingsSlice(config), instructions: settingsSlice("Use short examples."),
-    notifications: settingsSlice({ soundEnabled: false, successSoundId: "chime", failureSoundId: "knock", desktopEnabled: true }),
+    notifications: settingsSlice<NotificationsPreferences>({ soundEnabled: false, successSoundId: "chime", failureSoundId: "knock", desktopEnabled: true }),
     privacy: settingsSlice<PrivacyConsentState>({ telemetry: {}, installationId: null, privacyDecisionAt: null }),
-    language: settingsSlice("fr"), interface: settingsSlice({ wrapTabs: true, hideChatFabWhileOpen: true, adminTheme: "glass" }),
+    language: settingsSlice("fr"), interface: settingsSlice<InterfaceConfig>({ wrapTabs: true, hideChatFabWhileOpen: true, adminTheme: "glass" }),
     loading: true, loadError: null, save: { status: "idle" },
   };
   const navigate = vi.fn<SettingsUiProps["deps"]["navigate"]>();

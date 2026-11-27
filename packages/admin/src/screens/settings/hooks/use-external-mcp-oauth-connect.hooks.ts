@@ -70,10 +70,14 @@ export function useExternalMcpOAuthConnect(
   const [state, setState] = useState<ExternalMcpOAuthConnectState>({ phase: "idle" });
   // Everything that must stop on cancel/unmount: a poll timer, the message/focus listeners.
   const cleanup = useRef<(() => void) | null>(null);
+  // Bumped by every stop (cancel, unmount, a new connect), so a start request that answers after
+  // the operator cancelled cannot reopen the provider flow.
+  const attempt = useRef(0);
   const onConnectedRef = useRef(onConnected);
   useEffect(() => { onConnectedRef.current = onConnected; }, [onConnected]);
 
   const stop = useCallback(() => {
+    attempt.current += 1;
     cleanup.current?.();
     cleanup.current = null;
   }, []);
@@ -122,11 +126,16 @@ export function useExternalMcpOAuthConnect(
 
   const connect = useCallback(async (options: { destination?: "shared" } = {}) => {
     stop();
+    const current = attempt.current;
     const w = win();
     const popup = grant === "device_code" ? null : w.open({ url: "about:blank" });
     setState({ phase: "starting" });
     try {
       const { auth } = await startConnection({ port, serverId, options });
+      if (current !== attempt.current) {
+        popup?.close();
+        return;
+      }
       if (auth.kind === "redirect_required") {
         if (popup) popup.location.href = auth.authorizationUrl;
         else w.open({ url: auth.authorizationUrl });
@@ -140,6 +149,7 @@ export function useExternalMcpOAuthConnect(
       pollDevice(auth.intervalSeconds);
     } catch (error) {
       popup?.close();
+      if (current !== attempt.current) return;
       setState({ phase: "idle", error: describeApiError({ e: error, fallback: fallbackError }) });
     }
   }, [stop, win, grant, port, serverId, awaitRedirect, pollDevice, fallbackError]);
