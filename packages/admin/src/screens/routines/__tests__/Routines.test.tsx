@@ -102,7 +102,7 @@ it("edits the row with a nondefault model and does not submit again on Cancel", 
   expect(onSave).toHaveBeenCalledExactlyOnceWith({ name: "Digest", prompt: "Summarize", agentId: "coder", model: "next-model", schedule: { kind: "hourly", minute: 15 } });
   expect(onCancel).not.toHaveBeenCalled();
   await user.click(form.getByRole("button", { name: "Cancel" }));
-  expect(onCancel).toHaveBeenCalledExactlyOnceWith();
+  expect(onCancel).toHaveBeenCalledTimes(1); // wired as onClick={onCancel}: React hands it the click event
   expect(onSave).toHaveBeenCalledTimes(1);
 });
 

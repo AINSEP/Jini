@@ -22,9 +22,11 @@ it("loads the project note, protects unsaved edits, and saves a renamed note lit
   const initial = deferred<PluginMemoryListing>();
   const pending = deferred<PluginMemoryListing>();
   let saved = listing("planner", [{ relativePath: "notes.md", text: "Other notes" }, { relativePath: "project.md", text: "Original project" }]);
+  let reads = 0;
   const read = vi.fn<AgentPluginMemoryPort["read"]>(({ pluginId }) => {
     if (pluginId !== "planner") throw new Error(`unexpected read: ${pluginId}`);
-    return read.mock.calls.length === 1 ? initial.promise : Promise.resolve(saved);
+    reads += 1;
+    return reads === 1 ? initial.promise : Promise.resolve(saved);
   });
   const saveNote = vi.fn<AgentPluginMemoryPort["saveNote"]>(() => pending.promise);
   const port = { read, saveNote };

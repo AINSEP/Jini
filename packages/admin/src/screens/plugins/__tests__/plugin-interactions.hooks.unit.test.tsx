@@ -93,7 +93,7 @@ it("traps Tab in the named removal dialog and removes its Escape listener when c
       t={t} rules={makeRules()} />
     <button>After dialog</button>
   </>, { kit });
-  const dialog = screen.getByRole("dialog", { name: 'Move "Metrics name: "Move Metrics $& to the Trash?"" to trash?' });
+  const dialog = screen.getByRole("dialog", { name: 'Move "Metrics $&" to trash?' });
   expect(within(dialog).getByText(translatedBody)).toBeInTheDocument();
   const cancel = within(dialog).getByRole("button", { name: "Cancel" });
   const confirm = within(dialog).getByRole("button", { name: "Move to trash" });

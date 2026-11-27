@@ -33,7 +33,9 @@ export type IsInstallApiError = (error: unknown) => error is InstallApiError;
 
 function errorKey({ error, fallback, isApiError }: { error: unknown; fallback: string; isApiError: IsInstallApiError }, _optional = {}): string {
   if (!isApiError(error)) return fallback;
-  return (error.code ? ERROR_CODE_KEYS[error.code] : undefined) ?? ERROR_STATUS_KEYS[error.status] ?? fallback;
+  // Own keys only: a server code such as "toString" must not resolve to an Object.prototype member.
+  const known = error.code && Object.hasOwn(ERROR_CODE_KEYS, error.code) ? ERROR_CODE_KEYS[error.code] : undefined;
+  return known ?? ERROR_STATUS_KEYS[error.status] ?? fallback;
 }
 
 /** The sentence key for a failed preview or install: the error's own when it has one, else a generic one. */

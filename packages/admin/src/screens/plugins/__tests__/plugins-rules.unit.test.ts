@@ -268,7 +268,7 @@ it("keeps a saved secret write-only while honoring the host validation when an a
   const headers: AdminPluginProviderSettingField = { name: "headers", label: "Headers", required: false, saved: true, secret: true };
   const isProviderSettingRequired = vi.fn<PluginRulesDeps["isProviderSettingRequired"]>(({ values }) => values["mode"] === "authenticated");
   const rules = createPluginRules({ productName: "Acme", translate: ({ key }) => key, isProviderSettingRequired,
-    isApiError: (e): e is FakeApiError => e instanceof FakeApiError, describeApiError: ({ fallback }) => fallback,
+    isApiError: (e): e is Error & { code?: string } => e instanceof FakeApiError, describeApiError: ({ fallback }) => fallback,
   });
   const values = { mode: "authenticated", headers: "saved" };
   const input = { field, fields: [field, headers], entered: { headers: "  " }, values };

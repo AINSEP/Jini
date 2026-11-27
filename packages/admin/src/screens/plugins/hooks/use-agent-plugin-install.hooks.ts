@@ -54,7 +54,9 @@ function errorKeys(productName: string): Readonly<Record<string, string>> {
 function errorKey(required: { error: unknown; retry: string; host: Pick<AgentPluginInstallHost, "isApiError" | "productName"> }, _optional: Record<string, never> = {}): string {
   const { error, retry, host } = required;
   if (!host.isApiError(error)) return retry;
-  const known = error.code ? errorKeys(host.productName)[error.code] : undefined;
+  const keys = errorKeys(host.productName);
+  // Own keys only: a server code such as "toString" must not resolve to an Object.prototype member.
+  const known = error.code && Object.hasOwn(keys, error.code) ? keys[error.code] : undefined;
   if (known) return known;
   if (error.status === 403) return "You don't have permission to install plugins.";
   if (error.status === 400) return "This .zip contains files or links that plugins may not include.";

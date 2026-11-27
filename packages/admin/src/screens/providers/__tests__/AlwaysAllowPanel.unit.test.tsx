@@ -50,7 +50,12 @@ describe("AlwaysAllowPanel", () => {
     render(<AlwaysAllowPanel useAlwaysAllowHook={() => controller({ groups, revoke, pendingKey: "github/list_prs", revokeError: "Couldn't revoke. Try again." })} />);
     expect(screen.getByRole("heading", { name: "GitHub" })).toBeTruthy();
     expect(screen.getByText("Couldn't revoke. Try again.")).toBeTruthy();
-    const buttons = screen.getAllByRole("button", { name: /Revoke Always allow/ });
+    // The long agent description is an agent-handle attribute, not the accessible name ("Revoke").
+    const buttons = screen.getAllByRole("button", { name: "Revoke" });
+    expect(buttons.map((button) => button.getAttribute("data-agent-label"))).toEqual([
+      "Revoke Always allow for get_file on GitHub; it will ask again",
+      "Revoke Always allow for list_prs on GitHub; it will ask again",
+    ]);
     expect((buttons[0] as HTMLButtonElement).disabled).toBe(false);
     expect((buttons[1] as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(buttons[0] as HTMLButtonElement);
@@ -75,7 +80,7 @@ function mountAlwaysAllow(port: AlwaysAllowPort) {
 }
 function toolRow(label: string, tool: string) {
   const table = within(screen.getByRole("heading", { name: label }).closest("section")!).getByRole("table");
-  return within(table).getByRole("cell", { name: tool, exact: true }).closest("tr")!;
+  return within(table).getByRole("cell", { name: tool }).closest("tr")!;
 }
 
 it.each(["removed", "already absent"] as const)("hides just the accepted revoke (%s) while waiting for the refreshed approvals", async (outcome) => {
@@ -109,7 +114,7 @@ it.each(["removed", "already absent"] as const)("hides just the accepted revoke 
   await act(async () => { finishRead({ approvals: [gitList, diskRead] }); });
   expect(toolRow("Disk", "get_file")).toBeInTheDocument();
   const repo = screen.getByRole("heading", { name: "Repository" }).closest("section")!;
-  expect(within(repo).queryByRole("cell", { name: "get_file", exact: true })).toBeNull();
+  expect(within(repo).queryByRole("cell", { name: "get_file" })).toBeNull();
   await act(async () => { window.dispatchEvent(new Event("focus")); }); // Another client grants the same tool again.
   expect(toolRow("Repository", "get_file")).toBeInTheDocument();
 });
