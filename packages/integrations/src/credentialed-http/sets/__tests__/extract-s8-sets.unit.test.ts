@@ -121,6 +121,74 @@ it('errors are the canonical classes; foreign-owner rows get the host canonical 
   expect(s.policy.vaultErrors.codeOf(refused)).toBe('context');
 });
 
+it('normalizes and deduplicates additional origins while keeping short-token hints private', async () => {
+  const s = makeHost();
+  const made = await entry.createCredentialSet({ host: s.host, deps: s.deps, input: {
+    ...input,
+    connection: { token: 'short', username: 'operator' },
+    additionalHosts: ['https://uploads.second.test/path', 'https://uploads.second.test/other', 'http://localhost:8080/a'],
+  } });
+
+  expect(made.additionalHosts).toEqual(['https://uploads.second.test', 'http://localhost:8080']);
+  expect(made.username).toBe('operator');
+  expect(made.tokenHint).toEqual({ length: 5, last4: null });
+  expect(await entry.describeCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } })).toEqual(made);
+  expect(s.counts.open).toBe(0);
+});
+
+it('rejects malformed credential metadata before sealing or inserting a row', async () => {
+  const cases: Array<{ patch: Partial<entry.CreateCredentialSetInput>; message: string }> = [
+    { patch: { label: 'x'.repeat(201) }, message: 'label must be 200 characters or fewer' },
+    { patch: { baseUrl: 'relative/path' }, message: 'baseUrl must be a valid absolute URL' },
+    { patch: { baseUrl: 'file:///secret' }, message: 'baseUrl must use http or https' },
+    { patch: { additionalHosts: 'https://uploads.second.test' }, message: 'additionalHosts must be an array' },
+    { patch: { additionalHosts: [''] }, message: 'additionalHosts[0] must be a non-empty string' },
+    { patch: { additionalHosts: ['relative'] }, message: 'additionalHosts[0] must be a valid absolute URL' },
+    { patch: { additionalHosts: ['ftp://uploads.second.test'] }, message: 'additionalHosts[0] must use http or https' },
+    { patch: { connection: null }, message: 'connection must be an object' },
+    { patch: { connection: { token: 'valid-token', username: '' } }, message: "'username' must be a non-empty string when provided" },
+  ];
+
+  for (const { patch, message } of cases) {
+    const s = makeHost();
+    await expect(entry.createCredentialSet({ host: s.host, deps: s.deps, input: { ...input, ...patch } }))
+      .rejects.toThrow(message);
+    expect(s.counts).toEqual({ open: 0, seal: 0 });
+    expect(await s.repo.listByWorkspace({ workspaceId: WS })).toEqual([]);
+  }
+});
+
+it('updates username metadata independently without reopening or replacing the token', async () => {
+  const s = makeHost();
+  const made = await entry.createCredentialSet({ host: s.host, deps: s.deps, input: {
+    ...input, connection: { token: 'tok-abcdefghijklmnop', username: 'before' },
+  } });
+
+  const renamed = await entry.updateCredentialSet({ host: s.host, deps: s.deps, input: {
+    workspaceId: WS, id: made.id, username: 'after', connection: { token: '' },
+  } });
+  expect(renamed.username).toBe('after');
+  expect(s.counts).toEqual({ open: 0, seal: 1 });
+  expect((await entry.resolveCredentialSetByLabel({ host: s.host, deps: s.deps, input: { workspaceId: WS, label: 'Main' } }))?.connection)
+    .toEqual({ token: 'tok-abcdefghijklmnop', username: 'after' });
+
+  const cleared = await entry.updateCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id, username: null } });
+  expect(cleared).not.toHaveProperty('username');
+  expect((await entry.resolveCredentialSetByLabel({ host: s.host, deps: s.deps, input: { workspaceId: WS, label: 'Main' } }))?.connection)
+    .toEqual({ token: 'tok-abcdefghijklmnop' });
+  await expect(entry.updateCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id, username: '' } }))
+    .rejects.toThrow("'username' must be a non-empty string, or null to clear it");
+});
+
+it('deletes an existing credential and treats a repeated delete as an idempotent no-op', async () => {
+  const s = makeHost();
+  const made = await entry.createCredentialSet({ host: s.host, deps: s.deps, input });
+  await entry.deleteCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } });
+  expect(await entry.describeCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } })).toBeNull();
+  await entry.deleteCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } });
+  expect(await s.repo.listByWorkspace({ workspaceId: WS })).toEqual([]);
+});
+
 it('emitted declarations reference only @jini-ai/core subpaths and same-directory files, and keep the @agent-notes', () => {
   const dir = new URL('dist/credentialed-http/sets/', packageRoot);
   const files = readdirSync(dir).filter(name => name.endsWith('.d.ts')).sort();
