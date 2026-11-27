@@ -55,11 +55,14 @@ async function currentVersion<DB>({ kernel, workspaceId, entityId }: { kernel: M
   async function flipAndReport<DB>(required: { at: string; flip: () => Promise<TrashMarkerResult>; workspaceId: string; entityId: string }, deps: { kernel: () => MarkerStore<DB>; changes?: MediaTrashAdapterDeps<DB>["changes"] }): Promise<TrashMarkerResult> {
     const k = deps.kernel();
     return k.transaction(async () => {
+      // Read in the same transaction as the flip: an idempotent retry in the same clock tick leaves
+      // `updated_at` equal to `at`, so only a moved version proves this call made the transition.
+      const before = deps.changes ? await currentVersion({ kernel: k, workspaceId: required.workspaceId, entityId: required.entityId }) : null;
       const result = await required.flip();
       if (!result.ok || !deps.changes) return result;
       const row = await k.run((db) => loose(db).selectFrom("media").select(["kind", "version", "updated_at"])
         .where("workspace_id", "=", required.workspaceId).where("id", "=", required.entityId).executeTakeFirst());
-      if (row && typeof row.kind === "string" && typeof row.updated_at === "string" && row.updated_at === required.at) {
+      if (row && typeof row.kind === "string" && typeof row.updated_at === "string" && row.updated_at === required.at && Number(row.version) !== before) {
         await deps.changes.changed({ workspaceId: required.workspaceId, mediaId: required.entityId, kind: row.kind, marker: `v${Number(row.version)}:${row.updated_at}` });
       }
       return result;

@@ -30,7 +30,7 @@ function parseMode({ value, visitorTools }: { value: unknown; visitorTools: Visi
  */
 export function parseVisitorToolsConfigure({ value, visitorTools }: { value: unknown; visitorTools: VisitorToolsHostContract }, _options = {}): VisitorToolsConfigureInput {
   const input = visitorTools.object({ value, keys: ["toolId", "expectedRevisionSeq", "mode", "limits"] });
-  if (typeof input.toolId !== "string" || !/^[a-z][a-z0-9_]{0,127}$/.test(input.toolId)) throw new visitorTools.ValidationError("Use a toolId from visitor_tools_list, or site.");
+  if (typeof input.toolId !== "string" || !/^[a-z][a-z0-9_.]{0,127}$/.test(input.toolId)) throw new visitorTools.ValidationError("Use a toolId from visitor_tools_list, or site.");
   if (!Number.isSafeInteger(input.expectedRevisionSeq) || (input.expectedRevisionSeq as number) < 0) throw new visitorTools.ValidationError("List visitor tools first and supply expectedRevisionSeq.");
   const mode = parseMode({ value: input.mode, visitorTools });
   if (input.mode === undefined && input.limits === undefined) throw new visitorTools.ValidationError("Supply mode or limits.");

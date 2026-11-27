@@ -336,7 +336,6 @@ test("embed rejections tell the model whether the host, placement, or reorder in
   }
   const shape = await rejection(call("widgets_reorder_embeds", { hostEntryId: host.id, baseVersion: 1, orderedWidgetEntryIds: [""] }));
   assert.ok(shape instanceof ToolInputError);
-  assert.match(shape.message, /'orderedWidgetEntryIds' \(non-empty string array\) is required/);
-  assert.match(shape.message, /widgets_reorder_embeds/);
+  assert.equal(shape.message, "'orderedWidgetEntryIds' (non-empty string array) is required");
   assert.deepEqual(await fixture.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: host.id }), host);
 });

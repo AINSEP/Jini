@@ -86,7 +86,7 @@ it("prepares public access without writing, then saves only the approved choice 
   const f = fixture();
   const prepared = await f.management.prepare(buildInput({ limits: { perSitePerDay: 18 } }));
   const next = { mode: "ask", limits: { perIpPerHour: 3, perSitePerDay: 18 } };
-  expect(prepared).toEqual({ revisionSeq: 0, catalog: [tool], changes: [{ tool, previous: off, next }],
+  expect(prepared).toEqual({ revisionSeq: 0, catalog: [tool], changes: [{ tool: { ...tool, ...off }, previous: off, next }],
     requiresApproval: true, policy: { version: 1, tools: { lookup: next } } });
   expect(await readVisitorToolsSnapshot(f.store)).toEqual({ revisionSeq: 0, policy: { version: 1, tools: {} } });
   expect(await f.management.apply({ callerPrincipalId, prepared })).toEqual({
