@@ -139,7 +139,7 @@ function publicationStates({ registry, order }: { registry: ReadonlyMap<string, 
     const version = registry.get(name)!.pkg.version!;
     const state = npmState(name, version);
     console.log(`${state.padEnd(15)}  ${name}@${version}`);
-    if (state === 'pending') pending.push(name);
+    if (state === 'pending' || state === 'never-published') pending.push(name);
     if (state === 'on-npm') rows.push([`${name}@${version}`, 'skipped: already on npm']);
     if (state === 'never-published') {
       console.log(`::warning::${name}@${version} skipped: never published, so npm has no trusted publisher for it yet`);
@@ -154,7 +154,7 @@ function publicationStates({ registry, order }: { registry: ReadonlyMap<string, 
  * @complexity O(p + e) package planning plus one pack/publication per pending package. */
 /** A prerelease (e.g. `0.7.3-next.1`) goes to the `next` dist-tag; npm 11 refuses one without a tag, and it must never become `latest`. */
 export function npmPublishArgs(required: { tarball: string; version: string }): string[] {
-  const args = ['publish', required.tarball, '--access', 'public', '--provenance'];
+  const args = ['publish', required.tarball, '--access', 'public'];
   return required.version.includes('-') ? [...args, '--tag', 'next'] : args;
 }
 
