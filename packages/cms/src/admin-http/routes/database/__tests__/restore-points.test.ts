@@ -154,3 +154,16 @@ describe('adminDatabaseRestorePointsCreateRoute', () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 });
+
+it("does not capture a restore point without an authenticated actor", async () => {
+  const deps = createDeps();
+  const captureRestorePoint = vi.fn(deps.dbOps.captureRestorePoint);
+  const findByIdempotencyKey = vi.fn(deps.restorePointsRepo.findByIdempotencyKey);
+  await expect(adminDatabaseRestorePointsCreateRoute.handle({
+    input: parseCreate({ idempotencyKey: "missing-actor" }), authorize: async () => {},
+    deps: { ...deps, dbOps: { ...deps.dbOps, captureRestorePoint }, restorePointsRepo: { ...deps.restorePointsRepo, findByIdempotencyKey } },
+  })).rejects.toThrow(new Error("restore-point create requires an authenticated principal"));
+  expect(captureRestorePoint).not.toHaveBeenCalled();
+  expect(findByIdempotencyKey).not.toHaveBeenCalled();
+  expect(deps.saved).toEqual([]);
+});

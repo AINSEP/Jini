@@ -122,3 +122,13 @@ describe("plugin provider settings specs", () => {
     await expect(pluginProviderSettingsSaveRoute.handle({ input: { pluginId: "obs", values: {} }, deps: deps({ tracker: {} as never }).value, authorize: recorder().authorize })).rejects.toThrow(/no authenticated principal/);
   });
 });
+
+it("saves settings declared without provider contracts and records an empty telemetry contract list", async () => {
+  const tracker = { capture: () => undefined } as NonNullable<ProviderSettingsRouteDeps["tracker"]>;
+  const d = deps({ tracker, discoverPlugins: async () => [{ id: "obs", manifest: { contributes: {} } }] });
+  expect(await put(d.value, { host: "eu" })).toMatchObject({ ok: true, value: { pluginId: "obs", appliesAt: "now" } });
+  expect(d.saves).toEqual([{
+    pluginId: "obs", config: d.value.providerConfig, fields: FIELDS, values: { host: "eu" },
+    telemetry: { tracker, contracts: [], userId: PRINCIPAL.id },
+  }]);
+});

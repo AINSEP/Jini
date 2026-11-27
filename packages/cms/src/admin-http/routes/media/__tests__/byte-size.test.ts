@@ -81,3 +81,27 @@ test("older blob adapters report null without payload or repository I/O; empty p
   assert.equal(lookups, 0, "missing stat capability and empty pages perform no database calls");
   assert.equal(downloads, 0, "byte sizes never download payloads");
 });
+
+test("a later size read recovers after a transient repository failure without reusing a null result", async () => {
+  let unavailable = true;
+  const lookedUp: unknown[] = [];
+  const statted: unknown[] = [];
+  const deps = {
+    workspaceId: "garden",
+    assetBlobRepo: { list: async (required: unknown, options: unknown) => {
+      lookedUp.push([required, options]);
+      if (unavailable) throw new Error("storage temporarily unavailable");
+      return [{ sha256: "flower", storageKey: "orig/flower" }];
+    } },
+    blobStore: { sizeOf: async (required: unknown) => { statted.push(required); return 812; } },
+  } as unknown as Required["deps"];
+  const media = [{ source: { sha256: "flower" } }];
+  assert.deepEqual(await resolveMediaByteSizes({ deps, media }), new Map([["flower", null]]));
+  assert.deepEqual(statted, []);
+  unavailable = false;
+  assert.deepEqual(await resolveMediaByteSizes({ deps, media }), new Map([["flower", 812]]));
+  assert.deepEqual(lookedUp, [
+    [{ workspaceId: "garden" }, { sha256s: ["flower"] }], [{ workspaceId: "garden" }, { sha256s: ["flower"] }],
+  ]);
+  assert.deepEqual(statted, [{ storageKey: "orig/flower" }]);
+});

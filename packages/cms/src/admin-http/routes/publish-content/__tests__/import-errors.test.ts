@@ -31,3 +31,9 @@ it("keeps the exact 403/409/404 distinction and answers undefined for unknown fa
   expect(knownImportErrorResponse({ err: new Error("private driver detail"), host })).toBeUndefined();
   expect(knownImportErrorResponse({ err: "string", host })).toBeUndefined();
 });
+
+it("keeps the stale-plan code without leaking a non-Error classifier value", () => {
+  const stale = "private upstream detail";
+  expect(knownImportErrorResponse({ err: stale, host: { ...host, isStalePlan: ({ error }) => error === stale } }))
+    .toStrictEqual({ status: 409, body: { code: "PLAN_STALE", error: "" } });
+});

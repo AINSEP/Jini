@@ -114,3 +114,14 @@ describe("memberRequestMagicLinkRoute", () => {
     expect(order).toEqual([]);
   });
 });
+
+it("returns the classified mailer failure if it is delivered as a string", async () => {
+  const failure = "Sign-in mail is temporarily disabled";
+  const { deps, order } = fixture({ send: async () => { throw failure; } });
+  const classifyMemberError: MemberErrorClassifier = ({ err }) => err === failure ? "sign-in-unavailable" : undefined;
+  expect(await refusalOf(() => memberRequestMagicLinkRoute.handle({
+    input: { body: { email: "maria@example.test" } }, deps: { ...deps, classifyMemberError },
+    context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  }))).toStrictEqual({ status: 503, body: { error: "Sign-in mail is temporarily disabled", code: "MEMBER_SIGN_IN_UNAVAILABLE" } });
+  expect(order[0]).toStrictEqual({ key: "maria@example.test" });
+});

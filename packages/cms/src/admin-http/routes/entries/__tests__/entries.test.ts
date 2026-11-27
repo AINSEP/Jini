@@ -128,3 +128,81 @@ describe("entryLifecycleRoute", () => {
     await expect(entryLifecycleRoute.handle({ input: { id: "e", body: { op: "publish", expectedVersion: 1 } }, deps, context: PRINCIPAL, authorize })).rejects.toThrow("db down");
   });
 });
+
+it("lists only the requested collection from the parsed query", async () => {
+  const { deps } = await seeded();
+  const registration = await registerContentType({ deps: contentTypeWriteDeps({ deps }), input: {
+    actorId: PRINCIPAL.id, workspaceId: deps.workspaceId, key: "article", label: "Article", fields: [
+      { name: "title", kind: "text", required: false, queryable: false },
+    ],
+  } });
+  if (!registration.ok) throw registration.error;
+  await createSoup(deps);
+  const { authorize } = recordingAuthorize();
+  const create = await entryCreateRoute.handle({ input: { body: { type: "article", slug: "garden", title: "Garden" } }, deps, context: PRINCIPAL, authorize });
+  if (!create.ok) throw new Error("could not create the second collection's entry");
+  const parsed = await entryListRoute.parse(raw(undefined, {}, { type: "article" }));
+  if (!parsed.ok) throw new Error("expected a parsed type filter");
+  const result = await entryListRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize });
+  if (!result.ok) throw new Error("expected a list response");
+  expect(result.value.items.map(({ type, slug }) => [type, slug])).toEqual([["article", "garden"]]);
+});
+
+it("creates an entry from the HTTP body and stores explicit fields and document content", async () => {
+  const { deps } = await seeded();
+  const { authorize } = recordingAuthorize();
+  const fieldsJson = { ext: { site: { title: "Broth" } } };
+  const bodyJson = { type: "doc", content: [{ type: "paragraph" }] };
+  const parsed = await entryCreateRoute.parse(raw({ type: "recipe", slug: "broth", title: "Broth", fieldsJson, bodyJson }));
+  if (!parsed.ok) throw new Error("expected a parsed entry");
+  const created = await entryCreateRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize });
+  if (!created.ok) throw new Error("entry was not created");
+  expect(created.value.entry).toMatchObject({ slug: "broth", fieldsJson: { ext: { site: { title: "Broth" } } }, bodyJson: { type: "doc", content: [{ type: "paragraph" }] } });
+  expect(await deps.entryRepo.findById({ workspaceId: deps.workspaceId, id: created.value.entry.id })).toEqual(created.value.entry);
+});
+
+it.each(["type", "slug"] as const)("refuses a non-string entry %s without writing", async (key) => {
+  const { deps, drains } = await seeded();
+  const body = { type: "recipe", slug: "broth", title: "Broth", [key]: 7 };
+  expect(await refusalOf(() => entryCreateRoute.handle({ input: { body }, deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize }))).toStrictEqual({
+    status: 400, body: { error: "'type', 'slug', and 'title' (strings) are required", code: "VALIDATION_ERROR" },
+  });
+  expect(drains()).toBe(0);
+});
+
+it("a document-only update keeps the original title and persists the new body", async () => {
+  const { deps } = await seeded();
+  const { entry } = await createSoup(deps);
+  const bodyJson = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Bring to a boil" }] }] };
+  const result = await entryUpdateRoute.handle({ input: { id: entry.id, body: { bodyJson, expectedVersion: entry.version } },
+    deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize });
+  expect(result).toMatchObject({ ok: true, value: { entry: { id: entry.id, version: entry.version + 1, title: "Soup", bodyJson } } });
+  expect(await deps.entryRepo.findById({ workspaceId: deps.workspaceId, id: entry.id })).toMatchObject({ title: "Soup", bodyJson });
+});
+
+it("uses the parsed entry id to unpublish an existing published entry", async () => {
+  const { deps, events, drains } = await seeded();
+  const { entry } = await createSoup(deps);
+  const { authorize } = recordingAuthorize();
+  const published = await entryLifecycleRoute.handle({ input: { id: entry.id, body: { op: "publish", expectedVersion: entry.version } },
+    deps, context: PRINCIPAL, authorize });
+  if (!published.ok) throw new Error("could not publish entry");
+  const parsed = await entryLifecycleRoute.parse(raw({ op: "unpublish", expectedVersion: published.value.entry.version }, { id: entry.id }));
+  if (!parsed.ok) throw new Error("could not parse the transition");
+  const result = await entryLifecycleRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize });
+  expect(result).toMatchObject({ ok: true, value: { entry: { id: entry.id, status: "unpublished" } } });
+  expect(await deps.entryRepo.findById({ workspaceId: deps.workspaceId, id: entry.id })).toMatchObject({ status: "unpublished" });
+  expect(events.map(({ name }) => name)).toContain("entry.unpublished");
+  expect(drains()).toBe(3);
+});
+
+it("refuses to publish with a non-numeric version before attempting a write", async () => {
+  const { deps, drains } = await seeded();
+  const { entry } = await createSoup(deps);
+  expect(await refusalOf(() => entryLifecycleRoute.handle({ input: { id: entry.id, body: { op: "publish", expectedVersion: "1" } },
+    deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize }))).toEqual({
+    status: 400, body: { error: "'expectedVersion' (number) is required", code: "VALIDATION_ERROR" },
+  });
+  expect(await deps.entryRepo.findById({ workspaceId: deps.workspaceId, id: entry.id })).toStrictEqual(entry);
+  expect(drains()).toBe(1);
+});

@@ -126,3 +126,13 @@ describe("body and id reading", () => {
     expect(calls).toEqual([]);
   });
 });
+
+it("serializes text thrown by a host-classified template refusal", async () => {
+  const failure = "template is no longer available";
+  const calls: Call[] = [];
+  const deps = { ...ops(calls, failure), isTemplateNotFound: ({ err }: { err: unknown }) => err === failure };
+  expect(await refusalOf(() => emailTemplateGetRoute.handle({
+    input: { templateId: "t-9" }, deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  }))).toStrictEqual({ status: 404, body: { error: "template is no longer available", code: "ENTRY_NOT_FOUND" } });
+  expect(calls).toEqual([{ op: "get", args: { id: "t-9" } }]);
+});

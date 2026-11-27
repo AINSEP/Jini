@@ -83,3 +83,15 @@ describe("assistantTestConnectionRoute", () => {
     await expect(run(input(), { ...deps().deps, testConnection: async () => { throw new Error("boom"); } })).rejects.toThrow("boom");
   });
 });
+
+it("a whitespace-only failure detail does not hide the probe's failure kind", async () => {
+  expect(await run(input(), deps({ ok: false, kind: "auth_failed", detail: " \t " }).deps))
+    .toEqual({ ok: true, value: { ok: false, message: "Connection failed (auth_failed)" } });
+});
+
+it("a missing JSON body cannot supply probe credentials or a model", async () => {
+  expect(await assistantTestConnectionRoute.parse({ body: undefined, params: { workspaceId: WORKSPACE_ID }, query: {} }))
+    .toStrictEqual({ ok: true, value: { protocol: "", baseUrl: "", apiVersion: undefined, typedKey: "",
+      useStoredCredential: false, useAdminStoredCredential: false, model: "",
+    } });
+});

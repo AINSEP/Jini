@@ -114,3 +114,8 @@ describe("publish-content peer route specs", () => {
     expect(calls).toEqual([]);
   });
 });
+
+it("the peer list parser ignores caller-selected peer and workspace filters", () => {
+  expect(peerListRoute.parse({ params: { workspaceId: WORKSPACE_ID }, query: { peerId: "hidden", workspaceId: "other" }, body: undefined }))
+    .toStrictEqual({ ok: true, value: {} });
+});

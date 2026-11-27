@@ -77,3 +77,8 @@ describe("formsGetRoute", () => {
     });
   });
 });
+
+it("form provider discovery does not accept caller-selected providers or workspace", () => {
+  expect(formsProvidersRoute.parse(raw({ workspaceId: "ws-1" }, { query: { provider: "formspree", workspaceId: "other" } })))
+    .toStrictEqual({ ok: true, value: {} });
+});

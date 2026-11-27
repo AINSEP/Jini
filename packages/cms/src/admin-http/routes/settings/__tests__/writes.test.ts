@@ -120,3 +120,17 @@ describe("settings write specs", () => {
     expect(auth.calls).toEqual([]);
   });
 });
+
+it.each([
+  { body: null, error: "namespace, key, and scope (global|workspace|user) are required" },
+  { body: { namespace: "n", key: "k", scope: "wrong" }, error: "namespace, key, and scope (global|workspace|user) are required" },
+  { body: { namespace: "n", key: "k", scope: "workspace", workspaceId: "other" }, error: "workspaceId 'other' does not match this route's workspace; a settings write cannot target another workspace" },
+])("CLEAR refuses invalid write input before authorization or write ($error)", async ({ body, error }) => {
+  const { deps, calls } = writeDeps();
+  const auth = recordingAuthorize();
+  expect(await refusalOf(() => invoke(settingsClearRoute, { deps, body, authorize: auth.authorize }))).toStrictEqual({
+    status: 400, body: { error, code: "VALIDATION_ERROR" },
+  });
+  expect(auth.calls).toEqual([]);
+  expect(calls).toEqual([]);
+});

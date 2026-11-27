@@ -205,3 +205,12 @@ describe("fsCustomRootDeleteRoute", () => {
     await expect(fsCustomRootDeleteRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize })).rejects.toThrow("EACCES: site dir");
   });
 });
+
+it("returns the host-classified path validation text even when the store throws a string", async () => {
+  const failure = "That folder is outside the allowed tree";
+  const deps = { ...putDeps(), writeCustomRoot: async () => { throw failure; },
+    isInvalidRootError: ({ err }: { err: unknown }) => err === failure };
+  expect(await refusalOf(() => fsCustomRootPutRoute.handle({ input: { path: "/srv/files" }, deps,
+    context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  }))).toStrictEqual({ status: 400, body: { error: "That folder is outside the allowed tree", code: "INVALID_PATH" } });
+});

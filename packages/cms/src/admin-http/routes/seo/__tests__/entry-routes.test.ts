@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
 import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
 
@@ -8,6 +8,10 @@ import {
 } from "../../../../seo/errors.js";
 import { seoGetEntryRoute } from "../get-entry.js";
 import { seoGetEntryAnalyzeRoute } from "../get-entry-analyze.js";
+import { InMemoryPostRepo, buildPostRecord } from "../../../../seo/__tests__/support/post.fixture.js";
+import { InMemoryTransformDefinitionRepo } from "../../../../media/repo.memory.js";
+import type { SeoPostWritePort } from "../../../../seo/ports.js";
+import type { GetEntryMetaDeps } from "../../../../seo/seo.js";
 import { seoPutEntryRoute } from "../put-entry.js";
 import { PRINCIPAL, raw, recordingAuthorize, refusalOf, WORKSPACE_ID } from "./helpers.js";
 
@@ -113,4 +117,81 @@ describe("seoPutEntryRoute", () => {
     await expect(seoPutEntryRoute.handle({ input: { entryId: "e1", rawExpectedVersion: undefined, patch: {} }, deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("private storage details");
     await expect(seoPutEntryRoute.handle({ input: { entryId: "e1", rawExpectedVersion: undefined, patch: {} }, deps, context: undefined, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
   });
+});
+
+function liveEntryFixture() {
+  const postRepo = new InMemoryPostRepo([buildPostRecord({
+    workspaceId: WORKSPACE_ID, id: "post-garden", title: "Herb garden", slug: "herb-garden", version: 6,
+  })]);
+  const lookupSettings = vi.fn<GetEntryMetaDeps["settings"]["getSeoSettings"]>().mockResolvedValue({
+    titleTemplate: "%s | Field Notes", defaultRobots: { noindex: false, nofollow: true }, sitemapEnabled: true, robotsRules: [],
+  });
+  const seoDeps: GetEntryMetaDeps & { postRepo: SeoPostWritePort } = {
+    postRepo,
+    settings: { getSeoSettings: lookupSettings, isDefaultRobotsNoindexExplicitlySet: async () => false },
+    media: {
+      featuredImage: {
+        findMediaByIdOrSlug: async () => null,
+        mediaUrlKey: ({ asset }) => asset.slug,
+        mediaPublicPath: ({ key }) => `/m/${key}`,
+        resolveFeaturedImageRef: async () => ({ ok: false, reason: "no media" }),
+      },
+      transformDefinitionRepo: new InMemoryTransformDefinitionRepo({}),
+    },
+    originRegistry: {
+      canonicalOrigin: async () => ({ scheme: "https", host: "garden.example.test", verifiedAt: "2026-11-20T00:00:00Z", source: "workspace-setting" }),
+      isAllowedRedirectTarget: async () => false, isAllowedEgressTarget: async () => false,
+    },
+    runtimeMode: "production",
+    urls: { postPublicPath: ({ slug }) => `/posts/${slug}`, urlFor: async () => null },
+    liveness: { isScheduledAt: () => false, isLiveAt: () => true, postDisplayDateIso: () => "2026-11-20T00:00:00Z" },
+    clock: { nowIso: () => "2026-11-20T00:00:00Z" },
+  };
+  return { postRepo, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, seoDeps }, lookupSettings };
+}
+
+it("returns a live entry's resolved SEO metadata in the data envelope", async () => {
+  const { deps, lookupSettings } = liveEntryFixture();
+  const { authorize, calls } = recordingAuthorize();
+  expect(await seoGetEntryRoute.handle({ input: { entryId: "post-garden" }, deps, context: PRINCIPAL, authorize }))
+    .toMatchObject({ ok: true, value: { data: {
+      title: "Herb garden | Field Notes", canonical: "https://garden.example.test/posts/herb-garden",
+      robots: { noindex: false, nofollow: true },
+    } } });
+  expect(calls).toEqual([{ permission: "admin.seo.manage", entityType: "seo-entry", entityId: "post-garden" }]);
+  expect(lookupSettings.mock.calls).toEqual([[{ workspaceId: WORKSPACE_ID }]]);
+});
+
+it("returns the live entry's SEO score and actionable description warning", async () => {
+  const { deps } = liveEntryFixture();
+  expect(await seoGetEntryAnalyzeRoute.handle({ input: { entryId: "post-garden" }, deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize }))
+    .toMatchObject({ ok: true, value: { data: {
+      entryId: "post-garden", score: 80, resolved: { title: "Herb garden | Field Notes" },
+      issues: [{ code: "missing_description", field: "description", severity: "warning", message: "Description is missing." }],
+    } } });
+});
+
+it("persists an SEO override against a matching version and returns its newly resolved metadata", async () => {
+  const { deps, postRepo } = liveEntryFixture();
+  const entryAuthorize = vi.fn(async () => ({ allowed: true, reason: "SEO editor" }));
+  const invalidateSitemapCache = vi.fn();
+  const run = (expectedVersion: number, title: string) => seoPutEntryRoute.handle({
+    input: { entryId: "post-garden", rawExpectedVersion: expectedVersion, patch: { title } },
+    deps: { ...deps, entryAuthorize, invalidateSitemapCache, clock: { nowMs: () => Date.parse("2026-11-20T00:00:00Z") } },
+    context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  });
+  const readBack = () => postRepo.findById({ workspaceId: WORKSPACE_ID, id: "post-garden" });
+  expect(await run(6, "Kitchen herb guide")).toMatchObject({ ok: true, value: { data: {
+    title: "Kitchen herb guide", openGraph: { title: "Kitchen herb guide" },
+  } } });
+  expect(await readBack()).toMatchObject({ version: 7, title: "Herb garden", seoExtJson: '{"title":"Kitchen herb guide"}' });
+  expect(entryAuthorize.mock.calls).toEqual([[{
+    principalId: "principal-1", workspaceId: "ws-1", entityId: "post-garden", entityType: "seo-entry", permission: "admin.seo.manage",
+  }]]);
+  expect(invalidateSitemapCache).not.toHaveBeenCalled();
+
+  expect(await refusalOf(() => run(6, "Stale editor title"))).toMatchObject({
+    status: 409, body: { code: "VERSION_CONFLICT", details: { recordId: "post-garden", expectedVersion: 6, currentVersion: 7 } },
+  });
+  expect(await readBack()).toMatchObject({ version: 7, seoExtJson: '{"title":"Kitchen herb guide"}' });
 });

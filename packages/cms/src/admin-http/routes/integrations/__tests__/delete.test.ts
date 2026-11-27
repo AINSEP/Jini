@@ -64,3 +64,11 @@ describe("integrationsDeleteRoute", () => {
     expect(deleted).toBe(0);
   });
 });
+
+it("preserves the host-classified non-Error message in the webhook not-found refusal", async () => {
+  const failure = "subscription 'gone' was not found";
+  const deps = { ...makeDeps(async () => { throw failure; }), isNotFoundError: ({ err }: { err: unknown }) => err === failure };
+  expect(await refusalOf(() => integrationsDeleteRoute.handle({
+    input: { subscriptionId: "gone" }, deps, authorize: recordingAuthorize().authorize,
+  }, { signal }))).toStrictEqual({ status: 404, body: { error: "subscription 'gone' was not found" } });
+});

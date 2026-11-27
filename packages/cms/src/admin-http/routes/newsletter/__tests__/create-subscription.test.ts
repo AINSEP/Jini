@@ -43,3 +43,7 @@ describe("newsletterCreateSubscriptionRoute", () => {
     expect(result).toEqual({ ok: true, value: { data: fakeSubscription() } });
   });
 });
+
+it("refuses a null subscription body with the specific subscriber validation error", async () => {
+  expect(await refusalOf(() => route.parse(raw(params, null)))).toStrictEqual(NO_SUBSCRIBER);
+});

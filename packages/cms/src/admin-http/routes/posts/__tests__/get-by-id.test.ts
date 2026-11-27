@@ -61,3 +61,11 @@ describe("postGetRoute", () => {
     expect(d.reads).toEqual([]);
   });
 });
+
+it("maps a host-classified post lookup string without passing it to the Error formatter", async () => {
+  const failure = "post 'old-slug' was not found";
+  const d = deps({ readPost: async () => { throw failure; }, isPostNotFound: ({ err }) => err === failure,
+    outwardErrorMessage: () => { throw new Error("format only Error objects"); } });
+  expect(await refusalOf(() => postGetRoute.handle({ input: { idOrSlug: "old-slug" }, deps: d,
+    context: PRINCIPAL, authorize: recordingAuthorize().authorize }))).toStrictEqual({ status: 404, body: { error: "post 'old-slug' was not found" } });
+});

@@ -100,3 +100,11 @@ describe("agentPluginSetEnabledRoute", () => {
     await expect(agentPluginSetEnabledRoute.handle({ input: { pluginId: "acme", enabled: true }, deps: deps(), context: undefined, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
   });
 });
+
+it("keeps actual display metadata when toggling one plugin and fills only missing fields", async () => {
+  const candidate = fakeCandidate({ displayName: undefined, version: undefined, summary: "Team events", description: "Read calendars" });
+  const result = await run(deps([], { loadCandidates: async () => [fakeCandidate({ pluginId: "other" }), candidate] }));
+  expect(result).toMatchObject({ ok: true, value: { agentPlugin: {
+    pluginId: "acme", enabled: true, displayName: null, version: null, summary: "Team events", description: "Read calendars",
+  } } });
+});

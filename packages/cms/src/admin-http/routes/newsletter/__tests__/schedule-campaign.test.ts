@@ -33,3 +33,12 @@ describe("newsletterScheduleCampaignRoute", () => {
     expect(result).toEqual({ ok: true, value: { data: fakeCampaign({ status: "scheduled" }) } });
   });
 });
+
+it("a bodyless schedule request reaches the scheduler at the injected current time", async () => {
+  const scheduled: unknown[] = [];
+  const parsed = await route.parse({ params: { id: "camp-1" }, body: undefined, query: {} });
+  if (!parsed.ok) throw new Error("an omitted schedule time must parse");
+  expect(await route.handle({ input: parsed.value, deps: deps(scheduled), context: PRINCIPAL, authorize: recordingAuthorize().authorize }))
+    .toEqual({ ok: true, value: { data: fakeCampaign({ status: "scheduled" }) } });
+  expect(scheduled).toStrictEqual([{ workspaceId: WORKSPACE_ID, id: "camp-1", actorId: PRINCIPAL.id, scheduledAt: NOW }]);
+});

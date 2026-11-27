@@ -117,3 +117,8 @@ describe("seoPostSitemapRegenerateRoute", () => {
     expect(regenerated).toBe(0);
   });
 });
+
+it("the sitemap trigger ignores body and query attempts to select a different workspace", () => {
+  expect(seoPostSitemapRegenerateRoute.parse({ body: { workspaceId: "other" }, query: { workspaceId: "other" }, params: { workspaceId: "ws-1" } }))
+    .toStrictEqual({ ok: true, value: {} });
+});

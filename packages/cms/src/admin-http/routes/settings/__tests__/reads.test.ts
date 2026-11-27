@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { settingsGetRawRoute } from "../get-raw.js";
 import { settingsGetEffectiveRoute } from "../get-effective.js";
-import { settingsListDefinitionsRoute } from "../list-definitions.js";
+import { settingsListDefinitionsRoute, type SettingsListDefinitionsRouteDeps } from "../list-definitions.js";
 import { CROSS_READ, PRINCIPAL, baseDeps, invoke, recordingAuthorize, refusalOf } from "./helpers.js";
 
 const BASE = "/api/admin/v1/workspaces/:workspaceId/settings";
@@ -94,4 +94,29 @@ describe("settings read specs", () => {
     ] });
     expect(auth.calls).toEqual([{ permission: "settings.read.definitions", entityType: "setting-definition" }]);
   });
+});
+
+it("GET raw refuses a missing namespace even if a key was provided", async () => {
+  const { deps, calls, targets } = readDeps();
+  expect(await refusalOf(() => invoke(settingsGetRawRoute, { deps, query: { key: "k" } }))).toStrictEqual({
+    status: 400, body: { error: "'namespace' and 'key' query params are required", code: "VALIDATION_ERROR" },
+  });
+  expect(calls).toEqual([]);
+  expect(targets).toEqual([]);
+});
+
+it("GET definitions sorts keys within a namespace and keeps lifecycle metadata without defaults", async () => {
+  const { deps } = readDeps();
+  const lookup: SettingsListDefinitionsRouteDeps["settingsService"] = () => ({
+    listDefinitions: async () => [
+      { namespace: "site", key: "zeta", ownerKind: "site", scopes: 2, status: "active", version: 4, defaultValue: "private" },
+      { namespace: "core", key: "site", ownerKind: "core", scopes: 1, status: "active", version: 1 },
+      { namespace: "site", key: "alpha", ownerKind: "site", scopes: 3, status: "alias", version: 2 },
+    ] as unknown as Awaited<ReturnType<ReturnType<SettingsListDefinitionsRouteDeps["settingsService"]>["listDefinitions"]>>,
+  });
+  expect(await invoke(settingsListDefinitionsRoute, { deps: { ...deps, settingsService: lookup } })).toStrictEqual({ data: [
+    { namespace: "core", key: "site", ownerKind: "core", scopes: 1, status: "active", version: 1 },
+    { namespace: "site", key: "alpha", ownerKind: "site", scopes: 3, status: "alias", version: 2 },
+    { namespace: "site", key: "zeta", ownerKind: "site", scopes: 2, status: "active", version: 4 },
+  ] });
 });

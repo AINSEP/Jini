@@ -84,3 +84,14 @@ describe('adminDatabaseTimelineRoute', () => {
     expect(getTimeline).not.toHaveBeenCalled();
   });
 });
+
+it("answers with a safe validation message for a classified non-Error ledger rejection", async () => {
+  const failure = "private ledger detail";
+  const predicate = vi.fn(({ err }: { err: unknown }) => err === failure);
+  const result = await refusalOf(Promise.resolve(adminDatabaseTimelineRoute.handle({
+    input: parse({ limit: "8" }), deps: deps(async () => { throw failure; }, predicate),
+    context: { id: "p-1" }, authorize: async () => {},
+  })));
+  expect(predicate.mock.calls).toEqual([[{ err: failure }]]);
+  expect(result).toStrictEqual({ status: 400, body: { code: "VALIDATION_ERROR", error: "Invalid timeline query." } });
+});

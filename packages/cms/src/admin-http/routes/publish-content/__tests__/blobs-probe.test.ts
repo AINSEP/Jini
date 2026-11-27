@@ -84,3 +84,10 @@ describe("blobsProbeRoute", () => {
     expect(asked).toEqual([]);
   });
 });
+
+it("never probes blob presence without an authorizer", async () => {
+  const { deps, asked } = makeDeps([]);
+  await expect(blobsProbeRoute.handle({ input: { shas: [sha("a")] }, deps, context: { id: "u1" } }))
+    .rejects.toThrow(new Error("publish-content admin route has no authorizer"));
+  expect(asked).toEqual([]);
+});

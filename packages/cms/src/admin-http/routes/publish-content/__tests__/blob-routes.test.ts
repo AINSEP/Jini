@@ -182,3 +182,17 @@ describe("blobPutRoute", () => {
     expect(decodeBlobBytes({ rawBody: { dataBase64: "a$Gk=" } })).toBeNull();
   });
 });
+
+it("an inconsistent blob-store key does not verify or report a successful transfer", async () => {
+  const { deps } = putDeps();
+  const verified: unknown[] = [];
+  const writes: unknown[] = [];
+  await expect(blobPutRoute.handle({
+    input: putInput({ dataBase64: Buffer.from(BYTES).toString("base64") }), context: PRINCIPAL,
+    authorize: recordingAuthorize().authorize,
+    deps: { ...deps, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { storageKey: "different-key", written: true }; } },
+      verifyStoredBlob: async (input) => { verified.push(input); } },
+  })).rejects.toThrow(new Error("Stored blob key does not match the fenced key"));
+  expect(writes).toEqual([{ workspaceId: WS, sha256: SHA, bytes: BYTES }]);
+  expect(verified).toEqual([]);
+});

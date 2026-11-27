@@ -12,3 +12,8 @@ it('authorizes media.read before catalog lookup and returns exactly the provider
   await expect(mediaProviderCatalogRoute.handle({ ...input, authorize: async () => { throw new Error('denied'); } }, { signal: new AbortController().signal })).rejects.toThrow('denied');
   expect(order).toEqual([]);
 });
+
+it("catalog parsing accepts no caller-selected provider or workspace", () => {
+  expect(mediaProviderCatalogRoute.parse({ params: { workspaceId: "ws-1" }, query: { provider: "other" }, body: { workspaceId: "ws-2" } }))
+    .toStrictEqual({ ok: true, value: {} });
+});

@@ -58,3 +58,8 @@ describe("externalMcpToolApprovals routes", () => {
     expect(repo.asked).toEqual([]);
   });
 });
+
+it("the approval list uses host workspace scope rather than caller filters", () => {
+  expect(externalMcpToolApprovalsListRoute.parse({ params: { workspaceId: "ws-1" }, body: {},
+    query: { workspaceId: "ws-2", toolName: "untrusted" } })).toStrictEqual({ ok: true, value: {} });
+});

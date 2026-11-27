@@ -200,3 +200,13 @@ describe("postAutosavePutRoute", () => {
     expect([writes, normalized]).toEqual([[], []]);
   });
 });
+
+it("preserves a host-classified author validation string without saving a snapshot", async () => {
+  const { deps, writes } = makePutDeps();
+  const failure = "invalid byline";
+  deps.normalizeAuthor = () => { throw failure; };
+  deps.isPostValidation = ({ err }) => err === failure;
+  expect(await refusalOf(() => put(deps, { ...DOC_BODY, author: "Ada" })))
+    .toStrictEqual({ status: 400, body: { error: "invalid byline", code: "VALIDATION_ERROR" } });
+  expect(writes).toEqual([]);
+});

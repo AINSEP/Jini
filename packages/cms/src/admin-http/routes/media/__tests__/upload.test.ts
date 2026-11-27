@@ -182,3 +182,16 @@ describe("mediaUploadRoute", () => {
     });
   });
 });
+
+it("reports precise decoded bytes for padded document payloads refused before storage", async () => {
+  const partial = "A".repeat(4 * Math.ceil(52_428_800 / 3) + 2);
+  for (const [lastTwo, fileBytes] of [["A=", 52_428_803], ["==", 52_428_802]] as const) {
+    const writes: string[] = [];
+    expect(await refusalOf(() => run({
+      ...FIELDS, kind: "document", filename: "oversized.txt", dataBase64: partial + lastTwo,
+    }, deps(writes)))).toStrictEqual({ status: 400, body: {
+      error: "document exceeds the 50 MiB limit", code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes, limitBytes: 52_428_800,
+    } });
+    expect(writes).toEqual([]);
+  }
+});

@@ -155,3 +155,8 @@ describe("publish-content backstop route specs", () => {
     expect(await refusalOf(() => undo(undoDeps(log(), { mayUseBackstop: async () => false })))).toEqual({ status: 403, body: { error: FORBIDDEN, code: "FORBIDDEN" } });
   });
 });
+
+it("the backstop status route does not accept a caller-supplied audit target", () => {
+  expect(backstopStatusRoute.parse({ params: { workspaceId: WORKSPACE_ID }, body: { workspaceId: "other" }, query: { runId: "foreign" } }))
+    .toStrictEqual({ ok: true, value: undefined });
+});

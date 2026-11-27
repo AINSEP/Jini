@@ -52,3 +52,13 @@ describe("formsGetSubmissionRoute", () => {
     expect(await refusalOf(() => call("contact", "sub-other"))).toEqual({ status: 404, body: { error: "submission 'sub-other' was not found", code: "FORMS_SUBMISSION_NOT_FOUND" } });
   });
 });
+
+it.each(["0", "1.5"] as const)("refuses an out-of-bound or fractional limit %s", async (limit) => {
+  const deps = { workspaceId: WORKSPACE_ID, ...(await seededRepos()) };
+  expect(await refusalOf(() => formsListSubmissionsRoute.handle({
+    input: { formId: "contact", limit, cursor: undefined }, deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  }))).toEqual({ status: 400, body: {
+    error: "limit must be an integer between 1 and 100", code: "FORMS_FIELD_VALIDATION_ERROR",
+    details: { fieldErrors: [{ field: "limit", reason: "must be 1-100" }] },
+  } });
+});

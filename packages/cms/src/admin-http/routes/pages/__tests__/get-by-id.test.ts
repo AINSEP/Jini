@@ -104,3 +104,11 @@ describe("pageGetRoute", () => {
     expect(await run(noBody)).toEqual({ ok: true, value: { id: "about", dto: true } });
   });
 });
+
+it("keeps the availability of a catalog match with no display label", async () => {
+  const port = catalogOf([{ plugin: "acme/demo", component: "unlabelled", availability: "ready" }]);
+  expect(await run(deps({ bodyHtml: marker("acme/demo", "unlabelled"), pluginExports: () => port })))
+    .toStrictEqual({ ok: true, value: { id: "about", dto: true, pluginEmbeds: [
+      { plugin: "acme/demo", component: "unlabelled", availability: "ready" },
+    ] } });
+});

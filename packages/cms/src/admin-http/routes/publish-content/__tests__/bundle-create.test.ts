@@ -137,3 +137,11 @@ describe("bundleCreateRoute", () => {
     expect(staged).toMatchObject({ sourcePrincipalId: "u1", workspaceId: WORKSPACE_ID });
   });
 });
+
+it("an omitted bundle body is refused after authorization before any bundle is staged", async () => {
+  const { deps, repo } = makeDeps();
+  expect(await refusalOf(() => run({ body: undefined, deps }))).toStrictEqual({
+    status: 400, body: { error: "artifactFormatVersion must be an integer" },
+  });
+  expect(await repo.findById({ workspaceId: WORKSPACE_ID, id: "bundle-1" })).toBeNull();
+});

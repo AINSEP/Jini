@@ -66,3 +66,37 @@ describe("exportRoute", () => {
     expect(() => JSON.parse(text)).toThrow(SyntaxError);
   });
 });
+
+it("cannot read a workspace or start packing without an authenticated export principal", async () => {
+  const { deps, seen } = makeDeps();
+  const reads: string[] = [];
+  await expect(exportRoute.handle({
+    raw: { params: { workspaceId: WS }, body: undefined, query: {} }, context: undefined, authorize: recordingAuthorize().authorize,
+    deps: { ...deps, workspaceRepo: { findById: async () => { reads.push("workspace"); return { name: "Private" }; } } },
+  }, { signal: new AbortController().signal })).rejects.toThrow(new Error("publish-content export has no authenticated principal"));
+  expect(reads).toEqual([]);
+  expect(seen.pack).toEqual([]);
+});
+
+it("cancelling a partially read export releases the contributor iterator", async () => {
+  const { deps } = makeDeps();
+  const closed: string[] = [];
+  const response = await run({ ...deps, packEntities: async function* ({ principalId }) {
+    try {
+      yield { id: "first", requiredBlobs: [] };
+      yield { id: "second", requiredBlobs: [] };
+    } finally { closed.push(principalId); }
+  } });
+  if (!response.body) throw new Error("expected a streaming export");
+  const reader = response.body.getReader();
+  try {
+    const opening = await reader.read();
+    const entity = await reader.read();
+    expect(new TextDecoder().decode(opening.value)).toBe(`${HEAD}"sourceLabel":"Site","entities":[`);
+    expect(new TextDecoder().decode(entity.value)).toBe('{"id":"first","requiredBlobs":[]}');
+    await reader.cancel("consumer stopped");
+    expect(closed).toEqual(["u1"]);
+  } finally {
+    reader.releaseLock();
+  }
+});

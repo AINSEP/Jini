@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import {
   importConfirmRoute,
@@ -164,4 +165,13 @@ describe("import route specs", () => {
     const unmapped = planDeps({ planImport: async () => { throw new Error("disk on fire"); } });
     await expect(plan({ bundleId: "b1" }, unmapped.deps)).rejects.toThrow("disk on fire");
   });
+});
+
+it("passes an already-worded route refusal through import without reclassifying it", async () => {
+  const failure = new RouteRefusalError({ status: 409, body: { error: "Already processing", code: "IN_PROGRESS" } });
+  const { deps } = planDeps({
+    planImport: async () => { throw failure; },
+    importRefusal: () => { throw new Error("must not invoke the host classifier for a route refusal"); },
+  });
+  await expect(plan({ bundleId: "b1" }, deps)).rejects.toBe(failure);
 });

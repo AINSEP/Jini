@@ -168,3 +168,45 @@ describe("collections write routes outward copy", () => {
     expect((refusal.body as { error: string }).error).toMatch(/^host: /);
   });
 });
+
+it("reactivates the schema selected by the lifecycle route's path", async () => {
+  const { deps, drains } = writeDeps();
+  await registerRecipe(deps);
+  const { authorize } = recordingAuthorize();
+  const deprecated = await contentTypeLifecycleRoute.handle({ input: { key: "recipe", body: { op: "deprecate", expectedVersion: 1 } }, deps, context: PRINCIPAL, authorize });
+  if (!deprecated.ok) throw new Error("could not deprecate recipe");
+  const parsed = await contentTypeLifecycleRoute.parse(raw({ op: "reactivate", expectedVersion: deprecated.value.contentType.version }, { key: "recipe" }));
+  if (!parsed.ok) throw new Error("could not parse the lifecycle input");
+  expect(await contentTypeLifecycleRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize }))
+    .toMatchObject({ ok: true, value: { contentType: { key: "recipe", status: "active" } } });
+  const read = await contentTypeListRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize });
+  expect(read).toMatchObject({ ok: true, value: { items: [{ key: "recipe", status: "active" }] } });
+  expect(drains()).toBe(2);
+});
+
+it("refuses a malformed replacement schema without calling the update service", async () => {
+  const { deps, drains } = writeDeps();
+  await registerRecipe(deps);
+  const unexpected = { ...deps, updateContentTypeFields: async () => { throw new Error("invalid schema reached the service"); } };
+  const result = await refusalOf(() => contentTypeUpdateFieldsRoute.handle({
+    input: { key: "recipe", body: { expectedVersion: 1, fields: "title" } }, deps: unexpected, context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+  }));
+  expect(result).toMatchObject({ status: 400, body: { code: "VALIDATION_ERROR", error: expect.stringMatching(/fields.*array/) } });
+  expect(drains()).toBe(0);
+});
+
+it("fails closed when a collection read is mounted without its authorizer", async () => {
+  const { deps } = writeDeps();
+  await expect(contentTypeListRoute.handle({ input: {}, deps, context: PRINCIPAL }))
+    .rejects.toThrow(new Error("collections admin route has no authorizer"));
+});
+
+it("fails closed without a collection write principal and stores nothing", async () => {
+  const { deps } = writeDeps();
+  const { authorize, calls } = recordingAuthorize();
+  await expect(contentTypeRegisterRoute.handle({ input: { body: { key: "recipe", label: "Recipe", fields: RECIPE_FIELDS } },
+    deps, authorize })).rejects.toThrow(new Error("collections admin route has no authenticated principal"));
+  expect(calls).toEqual([]);
+  expect(await contentTypeListRoute.handle({ input: {}, deps, authorize, context: PRINCIPAL }))
+    .toEqual({ ok: true, value: { items: [] } });
+});

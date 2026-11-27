@@ -3,7 +3,7 @@ import type {
   AdminMediaDto, AdminMediaEnvelope, AdminMediaKind, AdminMediaListEnvelope, AdminMediaStatus,
 } from "@jini-ai/core/contracts/site/cms-media";
 
-import type { MediaKind, MediaStatus } from "../../../media/types.js";
+import { MediaValidationError, type MediaKind, type MediaStatus } from "../../../media/types.js";
 import { toAdminMediaListResponse, toAdminMediaResponse } from "../media.js";
 import { mediaIdParam } from "../../routes/media/shared.js";
 import { fakeMedia, fakeMediaDto } from "../../routes/media/__tests__/helpers.js";
@@ -46,4 +46,30 @@ describe("media wire DTOs", () => {
     const parity: [Same<AdminMediaStatus, MediaStatus>, Same<AdminMediaKind, MediaKind>, Same<AdminMediaDto["status"], MediaStatus>] = [true, true, true];
     expect(parity).toEqual([true, true, true]);
   });
+});
+
+it("preserves a verified video codec and distinguishes a zero-byte blob from an unmeasured one", () => {
+  const media = fakeMedia({ id: "vid-1", kind: undefined, originalFilename: undefined, createdBy: undefined,
+    source: { sha256: "c".repeat(64), videoCodec: "h264" } });
+  const list = toAdminMediaListResponse({
+    media: [media], contentTypesBySha256: new Map([["c".repeat(64), "video/mp4"]]),
+    publicUrlsById: new Map([["vid-1", "/media/vid-1"]]), byteSizesBySha256: new Map([["c".repeat(64), 0]]),
+  });
+  expect(list.media).toEqual([expect.objectContaining({
+    id: "vid-1", kind: "media", originalFilename: null, createdBy: null, videoCodec: "h264",
+    contentType: "video/mp4", publicUrl: "/media/vid-1", byteSize: 0,
+  })]);
+});
+
+it("derives a private document's MIME and display name without publishing its blob URL", () => {
+  const media = fakeMedia({ kind: "document", title: "Board minutes", originalFilename: "upload.PDF" });
+  expect(toAdminMediaResponse({ media, contentType: "image/png", publicUrl: "/media/unsafe", byteSize: 367 }))
+    .toMatchObject({ kind: "document", originalFilename: "upload.PDF", displayFilename: "Board minutes.PDF",
+      contentType: "application/pdf", publicUrl: null, byteSize: 367 });
+});
+
+it("rejects a document row with no filename instead of guessing a content type", () => {
+  const media = fakeMedia({ kind: "document", originalFilename: null });
+  expect(() => toAdminMediaResponse({ media, contentType: "application/pdf", publicUrl: null, byteSize: 367 }))
+    .toThrow(new MediaValidationError({ message: "document filename must be a plain filename of at most 255 characters" }));
 });

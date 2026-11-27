@@ -91,3 +91,44 @@ describe("pages write specs", () => {
     await expect(pageUpdateRoute.handle({ input: { pageId: "pg1", body: {}, idempotencyKey: undefined }, deps: f.deps, context: undefined }, { signal })).rejects.toThrow(/pages admin route has no authenticated principal/);
   });
 });
+
+it("restores the original page and skips the drain when recording the updated page fails", async () => {
+  const { deps, gateway, store } = writeFixture();
+  const failure = new Error("change-set storage unavailable");
+  const before = { id: "pg1", version: 1, kind: "page", title: "about" };
+  const edits: unknown[] = [];
+  deps.updateEntry = async ({ id }: { id: string }) => {
+    const post = { id, version: 2, kind: "page" as const, title: "renamed" };
+    store.rows.set(id, post);
+    edits.push(post);
+    return { post };
+  };
+  gateway.changeSets.insert = async () => { throw failure; };
+  await expect(pageUpdateRoute.handle({
+    input: { pageId: "pg1", body: { title: "renamed" }, idempotencyKey: undefined }, deps, context: PRINCIPAL,
+  }, { signal })).rejects.toBe(failure);
+  expect(edits).toEqual([{ id: "pg1", version: 2, kind: "page", title: "renamed" }]);
+  expect(await store.findEntry({ workspaceId: WORKSPACE_ID, id: "pg1" })).toEqual(before);
+  expect(gateway.drains).toEqual([]);
+  expect(await gateway.changeSets.listByWorkspace({ workspaceId: WORKSPACE_ID })).toEqual([]);
+});
+
+it("compensates a real page trash write if the change-set ledger cannot record it", async () => {
+  const { deps, gateway, store } = writeFixture();
+  const before = { id: "pg1", kind: "page", version: 1, title: "about" };
+  let trashed: unknown;
+  deps.trashEntry = async ({ id }: { id: string }) => {
+    const post = { id, kind: "page" as const, title: "about", version: 2, deletedAt: "2026-11-24T00:00:00Z" };
+    store.rows.set(id, post);
+    trashed = await store.findEntry({ workspaceId: WORKSPACE_ID, id });
+    return { post };
+  };
+  const failure = new Error("cannot record trash change");
+  gateway.changeSets.insert = async () => { throw failure; };
+  await expect(pageDeleteRoute.handle({
+    input: { pageId: "pg1", idempotencyKey: "trash-9" }, deps, context: PRINCIPAL,
+  }, { signal })).rejects.toBe(failure);
+  expect(trashed).toEqual({ ...before, version: 2, deletedAt: "2026-11-24T00:00:00Z" });
+  expect(await store.findEntry({ workspaceId: WORKSPACE_ID, id: "pg1" })).toEqual(before);
+  expect(gateway.drains).toEqual([]);
+});

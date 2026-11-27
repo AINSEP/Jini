@@ -59,3 +59,8 @@ describe("menuCreateRoute", () => {
     await expect(menuCreateRoute.handle({ input: { title: "X", slug: "x", items: [], authoring: {} }, deps, context: PRINCIPAL, authorize })).rejects.toThrow("db down");
   });
 });
+
+it("treats a null request body as an empty menu draft", () => {
+  expect(menuCreateRoute.parse(raw({}, null)))
+    .toStrictEqual({ ok: true, value: { title: "", slug: "", items: undefined, authoring: {} } });
+});

@@ -76,3 +76,17 @@ describe("resolveTestAgentOutcome", () => {
       .toEqual({ ok: true, message: "CLI A is installed and authenticated, and offers 'a'." });
   });
 });
+
+it("does not reject a selected model when the installed agent reports no model catalog", async () => {
+  const { deps: d, probes } = deps([agent({ authStatus: "ok", models: [] })]);
+  expect(await run({ agentId: "cli-a", model: "saved-external" }, d))
+    .toEqual({ ok: true, value: { ok: true, message: "CLI A is installed and authenticated, and offers 'saved-external'." } });
+  expect(probes).toEqual(["cli-a"]);
+});
+
+it("without a mount authorizer, the test-agent route never probes the runtime", async () => {
+  const { deps: d, probes } = deps();
+  await expect(assistantTestAgentRoute.handle({ input: { agentId: "cli-a", model: "m1" }, deps: d, context: PRINCIPAL }))
+    .rejects.toThrow(new Error("assistant execution route has no authorizer"));
+  expect(probes).toEqual([]);
+});

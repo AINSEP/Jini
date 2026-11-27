@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { toStoredMediaResponse } from "../stored-media-response.js";
 import type { MediaRecord } from "../../../../media/types.js";
+import { fakeMedia } from "./helpers.js";
 
 it("reports stored SVG bytes and does not read sizes for other content", async () => {
   const media: MediaRecord = { id: "media", workspaceId: "ws", title: "Image", slug: "image", alt: "", caption: "", credit: "", source: { sha256: "sha" }, status: "active", createdAt: "now", updatedAt: "now", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null };
@@ -15,4 +16,14 @@ it("reports stored SVG bytes and does not read sizes for other content", async (
   expect((await toStoredMediaResponse({ ...input, contentType: "image/png" })).media.byteSize).toBe(999);
   expect(resolveByteSizes).toHaveBeenCalledTimes(1);
   expect((await toStoredMediaResponse({ ...input, contentType: "image/svg+xml", resolveByteSizes: async () => new Map() })).media.byteSize).toBeNull();
+});
+
+it("serializes a missing URL lookup as null and keeps the original non-SVG byte length", async () => {
+  const media = fakeMedia();
+  const resolvePublicUrls = vi.fn(async () => new Map<string, string>());
+  const resolveByteSizes = vi.fn(async () => new Map<string, number>());
+  expect(await toStoredMediaResponse({ media, contentType: "image/png", byteLength: 724, resolvePublicUrls, resolveByteSizes }))
+    .toMatchObject({ media: { id: "a1", publicUrl: null, byteSize: 724, contentType: "image/png" } });
+  expect(resolvePublicUrls.mock.calls).toEqual([[{ media: [media] }]]);
+  expect(resolveByteSizes).not.toHaveBeenCalled();
 });

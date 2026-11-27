@@ -73,3 +73,13 @@ describe("posts delete spec", () => {
     await expect(run(fixture({ fail: new Error("boom") }))).rejects.toThrow("boom");
   });
 });
+
+it("does not interpret a transient slug lookup failure as a missing post id", async () => {
+  const f = fixture();
+  const failure = new Error("post lookup temporarily unavailable");
+  f.deps.findPostId = async () => { throw failure; };
+  await expect(run(f)).rejects.toBe(failure);
+  expect(f.store.rows.get("p1")).toEqual({ id: "p1", version: 2, kind: "post", title: "hello" });
+  expect(f.gateway.authCalls).toEqual([]);
+  expect(f.gateway.drains).toEqual([]);
+});

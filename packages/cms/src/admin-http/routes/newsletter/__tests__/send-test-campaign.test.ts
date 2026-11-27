@@ -40,3 +40,9 @@ describe("newsletterSendTestCampaignRoute", () => {
     ] } } });
   });
 });
+
+it("a null send-test body refuses an absent recipient list with a 400", async () => {
+  expect(await refusalOf(() => route.parse(raw({ id: "camp-1" }, null)))).toStrictEqual({
+    status: 400, body: { error: "testAddresses must be an array of email strings", code: "VALIDATION_ERROR" },
+  });
+});

@@ -115,3 +115,10 @@ describe("rejectAssistantError", () => {
     expect(() => rejectAssistantError({ err: unmapped, mappings: HOST_WRITE_ERRORS })).toThrow(unmapped);
   });
 });
+
+it("serializes a host-classified non-Error refusal using its string value", async () => {
+  const failure = "settings policy in transition";
+  expect(await refusalOf(() => rejectAssistantError({ err: failure, mappings: [
+    { matches: ({ err }) => err === failure, status: 409, code: "SETTINGS_IN_TRANSITION" },
+  ] }))).toStrictEqual({ status: 409, body: { error: "settings policy in transition", code: "SETTINGS_IN_TRANSITION" } });
+});

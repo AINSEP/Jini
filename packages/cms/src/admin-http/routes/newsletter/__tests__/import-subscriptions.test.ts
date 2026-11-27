@@ -38,3 +38,7 @@ describe("newsletterImportSubscriptionsRoute", () => {
     expect(result).toEqual({ ok: true, value: outcome });
   });
 });
+
+it("a missing JSON body produces an explicit batch validation refusal", async () => {
+  expect(await refusalOf(() => route.parse({ params, query: {}, body: undefined }))).toStrictEqual(REFUSAL);
+});

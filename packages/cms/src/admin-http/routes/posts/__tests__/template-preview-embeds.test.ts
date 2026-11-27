@@ -151,3 +151,25 @@ it("projects preview video ids in first-occurrence order", () => {
     "https://www.youtube-nocookie.com/embed/abc_123-XYZ", "https://evil.example/embed/ghi_789-RST",
   ] })).toEqual({ youtubeIds: ["abc_123-XYZ", "def_456-UVW"] });
 });
+
+it.each([
+  "relative/embed/abc_123-XYZ",
+  "http://youtu.be/abc_123-XYZ",
+  "https://reader@youtu.be/abc_123-XYZ",
+  "https://reader:password@youtu.be/abc_123-XYZ",
+  "https://youtu.be:8443/abc_123-XYZ",
+  "https://youtu.be/abc_123-XYZ/more",
+  "https://youtu.be/too-short",
+  "https://www.youtube.com/watch/abc_123-XYZ",
+  "https://www.youtube.com/embed/abc_123-XYZ/more",
+  "https://www.youtube.com/embed/too-short",
+])("ignores the non-embed source %s and retains the next valid video", (invalid) => {
+  expect(projectPreviewYoutubeIds({ iframeSources: [invalid, "https://youtu.be/def_456-UVW"] }))
+    .toStrictEqual({ youtubeIds: ["def_456-UVW"] });
+});
+
+it("rejects a password-bearing URL even when the username is empty", () => {
+  expect(projectPreviewYoutubeIds({ iframeSources: [
+    "https://:password@youtu.be/abc_123-XYZ", "https://www.youtube.com:443/embed/def_456-UVW",
+  ] })).toStrictEqual({ youtubeIds: ["def_456-UVW"] });
+});

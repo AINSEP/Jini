@@ -120,3 +120,12 @@ describe("publish-content destination route specs", () => {
     expect(calls).toEqual([]);
   });
 });
+
+it("shows the stored candidate label even if an older deploy saved it without a scheme", async () => {
+  const { deps } = makeDeps({ findCandidate: async () => "legacy.example.test" });
+  expect(await destinationReadRoute.handle({ input: {}, deps, authorize: recordingAuthorize().authorize }))
+    .toStrictEqual({ ok: true, value: {
+      connected: false, site: null, candidateUrl: "legacy.example.test",
+      message: "Publish to legacy.example.test?", nextStep: null,
+    } });
+});

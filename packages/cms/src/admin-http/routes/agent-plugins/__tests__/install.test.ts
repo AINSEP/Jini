@@ -72,3 +72,13 @@ describe("agent plugin install/update upload spec", () => {
     await expect(run(agentPluginInstallZipRoute, unknown)).rejects.toThrow("private /path");
   });
 });
+
+it("an already-installed archive answers 200 and defaults missing warnings to an empty list", async () => {
+  const f = fixture({ query: { expectedSha256: DIGEST, replace: "false" } });
+  vi.mocked(f.deps.installUpload).mockResolvedValueOnce({ pluginId: "p", alreadyInstalled: true });
+  expect(await run(agentPluginInstallZipRoute, f)).toStrictEqual({
+    status: 200, type: "application/json; charset=utf-8",
+    body: { alreadyInstalled: true, warnings: [], agentPlugin: { pluginId: "p" } },
+  });
+  expect(f.deps.installUpload).toHaveBeenCalledWith(expect.objectContaining({ replace: false }));
+});

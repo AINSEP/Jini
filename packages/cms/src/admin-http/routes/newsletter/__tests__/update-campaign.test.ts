@@ -61,3 +61,17 @@ describe("newsletterUpdateCampaignRoute", () => {
     expect(saved).toEqual([]);
   });
 });
+
+it("a bodyless PATCH keeps the complete campaign draft when forwarding its patch", async () => {
+  const saved: unknown[] = [];
+  const existing = fakeCampaign({ preheader: "Old preview", bodyJson: { type: "doc", content: ["old"] } });
+  const parsed = await route.parse({ params: { id: "camp-1" }, query: {}, body: undefined });
+  if (!parsed.ok) throw new Error("an absent patch must parse");
+  expect(await route.handle({ input: parsed.value, deps: deps(saved, existing), context: PRINCIPAL, authorize: recordingAuthorize().authorize }))
+    .toEqual({ ok: true, value: { data: fakeCampaign() } });
+  expect(saved).toStrictEqual([{
+    workspaceId: WORKSPACE_ID, id: "camp-1", actorId: PRINCIPAL.id, expectedVersion: undefined,
+    fields: { subject: "Autumn", bodyJson: { type: "doc", content: ["old"] }, preheader: "Old preview", fromName: "Acme",
+      fromEmail: "news@acme.test", replyTo: "help@acme.test", listId: "list-1" },
+  }]);
+});

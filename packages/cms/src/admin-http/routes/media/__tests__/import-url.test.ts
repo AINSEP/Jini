@@ -126,3 +126,13 @@ describe("mediaImportUrlRoute", () => {
     await expect(handle(d, { url: "https://cdn.example/a" })).rejects.toThrow("private fetch failure");
   });
 });
+
+it("fails closed without the importing principal before fetching or storing remote content", async () => {
+  const d = deps();
+  await expect(mediaImportUrlRoute.handle({ input: { body: { url: "https://images.example.test/flower.png" } },
+    deps: d, authorize: recordingAuthorize().authorize,
+  }, { signal })).rejects.toThrow(new Error("media admin route has no authenticated principal"));
+  expect(d.fetches).toEqual([]);
+  expect(d.uploads).toEqual([]);
+  expect(d.recorded).toEqual([]);
+});

@@ -26,3 +26,25 @@ it('maps known external MCP errors and leaves unknown failures private', () => {
   expect(externalMcpErrorStatus({ error: new OAuth('unreachable'), deps })).toMatchObject({ status: 502 });
   expect(externalMcpErrorStatus({ error: new Error('private'), deps })).toBeUndefined();
 });
+
+it.each([
+  { kind: "bad-input", status: 400, code: "bad-input", detail: {} },
+  { kind: "validation", status: 400, code: "INVALID_MCP_SERVER", detail: { details: { field: "endpoint" } } },
+  { kind: "reauth", status: 409, code: "REAUTH", detail: { details: { retryable: false, settingsLink: "/settings/integrations" } } },
+  { kind: "oauth", status: 502, code: "OAUTH_PROVIDER_UNREACHABLE", detail: { details: {
+    retryable: true, operatorAction: "Retry later", retryAfterSeconds: 8,
+  } } },
+])("preserves the external MCP $kind recovery contract", ({ kind, status, code, detail }) => {
+  class ApiError extends Error { code = "bad-input"; }
+  class Validation extends Error { field = "endpoint"; }
+  class Reauth extends Error { code = "REAUTH"; settingsLink = "/settings/integrations"; }
+  class Secret extends Error {}
+  class OAuth extends Error {
+    code = "OAUTH_PROVIDER_UNREACHABLE"; retryable = true; operatorAction = "Retry later"; retryAfterSeconds = 8;
+  }
+  const errors = { "bad-input": ApiError, validation: Validation, reauth: Reauth, oauth: OAuth };
+  const ErrorType = errors[kind as keyof typeof errors];
+  const deps = { apiConnection: ApiError, validation: Validation, reauth: Reauth, secretStoreUnconfigured: Secret, oauth: OAuth };
+  expect(externalMcpErrorStatus({ error: new ErrorType("Safe operator copy"), deps }))
+    .toStrictEqual({ status, body: { error: "Safe operator copy", code, ...detail } });
+});

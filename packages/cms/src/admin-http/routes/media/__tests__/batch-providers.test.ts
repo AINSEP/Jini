@@ -94,3 +94,32 @@ it("a denied provider batch never reaches the service or changes the vault", asy
   expect(apply).not.toHaveBeenCalled();
   expect(await vault.list(scope)).toEqual(before);
 });
+
+it.each([
+  { label: "non-object batch", body: "invalid" },
+  { label: "null batch", body: null },
+  { label: "array batch", body: [] },
+  { label: "unknown batch field", body: { removes: [], patches: [], provider: {} } },
+  { label: "non-array removes", body: { removes: "old", patches: [] } },
+  { label: "non-array patches", body: { removes: [], patches: "new" } },
+  { label: "non-string removed id", body: { removes: ["old", 1], patches: [] } },
+  { label: "non-object patch", body: { removes: [], patches: ["not a patch"] } },
+  { label: "null patch", body: { removes: [], patches: [null] } },
+  { label: "array patch", body: { removes: [], patches: [[]] } },
+  { label: "unknown patch field", body: { removes: [], patches: [{ providerId: "new", fields: {}, extra: true }] } },
+  { label: "non-string patch id", body: { removes: [], patches: [{ providerId: 1, fields: {} }] } },
+  { label: "non-string editable value", body: { removes: [], patches: [{ providerId: "new", fields: { model: 34 } }] } },
+])("refuses $label without applying any provider changes", async ({ body }) => {
+  const applyProviderChanges = vi.fn<MediaBatchProvidersRouteDeps["applyProviderChanges"]>();
+  const { authorize, calls } = recordingAuthorize();
+  const parsed = await mediaBatchProvidersRoute.parse({ body, query: {}, params: { workspaceId: WORKSPACE_ID } });
+  if (!parsed.ok) throw new Error("the body must be validated only after authorization");
+  expect(await refusalOf(() => mediaBatchProvidersRoute.handle({ input: parsed.value, context: PRINCIPAL, authorize, deps: {
+    workspaceId: WORKSPACE_ID, applyProviderChanges, saveErrorMappings: [], outwardErrorMessage: () => "unexpected store failure",
+  } }))).toStrictEqual({ status: 400, body: {
+    error: "Send the settings for one provider only: its API key, base URL or model, each as text.",
+    code: "MEDIA_PROVIDER_FIELDS_INVALID",
+  } });
+  expect(calls).toEqual([{ permission: "admin.integrations.manage", entityType: "media" }]);
+  expect(applyProviderChanges).not.toHaveBeenCalled();
+});

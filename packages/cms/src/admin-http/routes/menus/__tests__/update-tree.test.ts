@@ -94,3 +94,13 @@ describe("menuUpdateTreeRoute", () => {
     await expect(menuUpdateTreeRoute.handle({ input, deps, context: PRINCIPAL, authorize })).rejects.toThrow("boom");
   });
 });
+
+it("parses a replacement title without manufacturing a missing slug", () => {
+  expect(menuUpdateTreeRoute.parse(raw({ menuId: "m1" }, { title: "New label", items: [], expectedVersion: 3 })))
+    .toStrictEqual({ ok: true, value: { menuId: "m1", title: "New label", slug: undefined, items: [], expectedVersion: 3, authoring: {} } });
+});
+
+it("refuses a null update body with the missing items message", async () => {
+  expect(await refusalOf(() => menuUpdateTreeRoute.parse(raw({ menuId: "m1" }, null))))
+    .toEqual({ status: 400, body: { error: "items must be an array" } });
+});

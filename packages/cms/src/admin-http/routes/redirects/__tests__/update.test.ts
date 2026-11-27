@@ -50,3 +50,12 @@ describe("redirectUpdateRoute", () => {
     await expect(redirectUpdateRoute.handle({ input: { id: "red-1", body: {} }, deps: { workspaceId: WORKSPACE_ID, redirectsWriteDeps: await seeded() }, context: PRINCIPAL, authorize: async () => { throw new Error("denied"); } })).rejects.toThrow("denied");
   });
 });
+
+it("persists explicit boolean override and numeric priority on the selected redirect", async () => {
+  const deps = await seeded();
+  expect(await call({ override: true, priority: 9 }, deps)).toMatchObject({
+    ok: true, value: { data: { id: "red-1", override: true, priority: 9, version: 2 } },
+  });
+  expect(await deps.repo.findById({ workspaceId: WORKSPACE_ID, id: "red-1" }))
+    .toMatchObject({ override: true, priority: 9, version: 2 });
+});

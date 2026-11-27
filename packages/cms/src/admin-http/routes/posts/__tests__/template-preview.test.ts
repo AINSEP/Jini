@@ -105,3 +105,16 @@ describe("template-preview specs", () => {
     await expect(renderAuthorizedTemplatePreview({ deps: failing.deps, postId: "p1", rawTemplateChoice: undefined, body: undefined })).rejects.toBe(gone);
   });
 });
+
+it("an omitted route identifier is forwarded to the lookup as empty, not the string undefined", async () => {
+  const { deps, log } = makeDeps({ getPost: async (required) => {
+    if (required.idOrSlug !== "") throw new Error("unexpected non-empty id");
+    throw new ReferenceError("No post was selected");
+  } });
+  const response = await templatePreviewGetRoute.handle({
+    raw: { params: { workspaceId: "ws1" }, query: {}, body: undefined, readBody: async () => { throw new Error("must not read body"); } },
+    deps, context: undefined, authorize: async () => {},
+  }, { signal: new AbortController().signal });
+  expect([response.status, await response.text()]).toEqual([404, "No post was selected"]);
+  expect(log.renders).toEqual([]);
+});

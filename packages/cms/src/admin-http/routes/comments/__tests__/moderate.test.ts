@@ -66,3 +66,15 @@ describe("commentsPurgeRoute", () => {
       .toEqual({ status: 404, body: { error: "not-found" } });
   });
 });
+
+it("a missing comment mount authorizer or principal never purges a comment", async () => {
+  const { calls, commentWriteService } = writeService();
+  const input = { commentId: "c-1", body: { note: "duplicate" } };
+  const deps = { workspaceId: WORKSPACE_ID, commentWriteService };
+  await expect(commentsPurgeRoute.handle({ input, deps, context: PRINCIPAL }, { signal }))
+    .rejects.toThrow(new Error("comments admin route has no authorizer"));
+  const authorization = recordingAuthorize();
+  await expect(commentsPurgeRoute.handle({ input, deps, authorize: authorization.authorize }, { signal }))
+    .rejects.toThrow(new Error("comments admin route has no authenticated principal"));
+  expect(calls).toEqual([]);
+});

@@ -209,3 +209,12 @@ describe("changeSetRevertRoute per-item policy", () => {
     expect(broken.writes).toEqual([]);
   });
 });
+
+it("preserves a system principal's audit attribution when it reverts another principal's change", async () => {
+  const { deps, events, applied } = setup();
+  await run(deps, { changeSetId: "cs-1", force: false }, { id: "restore-worker", kind: "system" });
+  expect(applied).toEqual(["item-1"]);
+  expect(events.map(({ name, actorId, actor }) => [name, actorId, actor])).toEqual([
+    ["change-set.reverted", "restore-worker", { id: "restore-worker", kind: "system" }],
+  ]);
+});

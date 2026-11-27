@@ -48,3 +48,8 @@ describe("menuAssignLocationRoute", () => {
     expect(reads).toBe(0);
   });
 });
+
+it("a null request body refuses the missing assignment location instead of throwing an internal error", async () => {
+  expect(await refusalOf(() => menuAssignLocationRoute.parse(raw({ menuId: "m1" }, null))))
+    .toEqual({ status: 400, body: { error: "locationKey is required" } });
+});

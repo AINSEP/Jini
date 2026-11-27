@@ -7,7 +7,9 @@ import {
   toAdminFormDefinitionResponse,
   toAdminFormSubmissionDto,
   toAdminFormSubmissionListResponse,
+  toAdminFormSubmissionResponse,
 } from "../forms.js";
+import { fakeDefinition, fakeSubmission } from "../../routes/forms/__tests__/helpers.js";
 
 /**
  * @file Characterization of the admin forms DTO projections after they moved into the engine. The host
@@ -75,4 +77,48 @@ test("a submission DTO keeps an expired (null) IP as an empty string and copies 
   assert.deepEqual(dto, { id: "s1", formDefinitionId: "f1", workspaceId: "w1", data, sourceIp: "", submittedAt: "2026-01-01T00:00:00.000Z" });
   assert.notEqual(dto.data, data);
   assert.deepEqual(toAdminFormSubmissionListResponse({ items: [submission], nextCursor: "c2" }), { data: [dto], nextCursor: "c2" });
+});
+
+test("an external collection provider survives admin form serialization", () => {
+  const definition: HtmlFormDefinitionRecord = {
+    ...fakeDefinition(),
+    provider: { id: "formspree", config: { endpoint: "https://formspree.io/f/abc123" } },
+  };
+  assert.deepEqual(toAdminFormDefinitionResponse({ definition }).data.provider, {
+    id: "formspree", config: { endpoint: "https://formspree.io/f/abc123" },
+  });
+});
+
+test("submission details include isolated consent evidence while list rows expose only its hash", () => {
+  const submission = fakeSubmission({
+    sourceIp: "192.0.2.24",
+    evidence: {
+      version: 1, fields: [{ id: "accept", label: "Original wording", type: "checkbox", required: true }],
+      consent: [{ fieldId: "accept", wording: "Original wording" }],
+      schemaHash: "a".repeat(64), capturedAt: "2026-01-02T00:00:00.000Z", source: "cloudflare",
+    },
+    validation: { status: "invalid", fieldErrors: [{ field: "accept", reason: "required" }] },
+  });
+  const publicRow = {
+    id: "sub-1", workspaceId: "ws-1", formDefinitionId: "form-1", data: { name: "Ada" },
+    sourceIp: "192.0.2.24", submittedAt: "2026-01-02T00:00:00.000Z",
+    schemaHash: "a".repeat(64), validation: { status: "invalid", fieldErrors: [{ field: "accept", reason: "required" }] },
+  };
+  const details = toAdminFormSubmissionResponse({ submission });
+  assert.deepEqual(details, { data: { ...publicRow, evidence: {
+    version: 1, fields: [{ id: "accept", label: "Original wording", type: "checkbox", required: true }],
+    consent: [{ fieldId: "accept", wording: "Original wording" }],
+    schemaHash: "a".repeat(64), capturedAt: "2026-01-02T00:00:00.000Z", source: "cloudflare",
+  } } });
+  assert.notEqual(details.data.evidence?.consent, submission.evidence?.consent);
+  assert.deepEqual(toAdminFormSubmissionListResponse({ items: [submission], nextCursor: null }), {
+    data: [publicRow], nextCursor: null,
+  });
+});
+
+test("legacy submission details omit evidence and validation that were never recorded", () => {
+  assert.deepEqual(toAdminFormSubmissionResponse({ submission: fakeSubmission() }), { data: {
+    id: "sub-1", workspaceId: "ws-1", formDefinitionId: "form-1", data: { name: "Ada" },
+    sourceIp: "", submittedAt: "2026-01-02T00:00:00.000Z",
+  } });
 });

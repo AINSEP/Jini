@@ -131,3 +131,19 @@ describe("consent route specs", () => {
     await expect(run(consentSettingsGetRoute, { authorize: async () => { throw refused; } })).rejects.toBe(refused);
   });
 });
+
+it("a consent preview refuses an unwired authorizer or missing principal before invoking the service", async () => {
+  const { deps, calls } = fakeDeps();
+  const input = raw({ body: { path: "/privacy" } });
+  await expect(consentPreviewRoute.handle({ input, deps, context: { id: "owner" } }))
+    .rejects.toThrow(new Error("consent admin route has no authorizer"));
+  await expect(consentPreviewRoute.handle({ input, deps, authorize: async () => {} }))
+    .rejects.toThrow(new Error("consent admin route has no authenticated principal"));
+  expect(calls).toEqual([]);
+});
+
+it("passes a supplied consent preview config without treating it as a save", async () => {
+  const { deps, calls } = fakeDeps();
+  await run(consentPreviewRoute, { deps, body: { path: "/privacy", config: { banner: "Choose cookies" } } });
+  expect(calls).toEqual([{ op: "preview", args: { principalId: "owner", path: "/privacy", config: { banner: "Choose cookies" } } }]);
+});

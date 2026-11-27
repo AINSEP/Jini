@@ -186,3 +186,11 @@ describe("parseMediaGridInput", () => {
     });
   });
 });
+
+it.each([
+  { field: "cursor", value: ["resume-a", "resume-b"], message: "the cursor is not valid" },
+  { field: "itemId", value: ["m1", "m2"], message: "itemId must not be empty" },
+])("rejects a multi-valued $field instead of silently selecting one value", async ({ field, value, message }) => {
+  expect(await refusalOf(() => parseMediaGridInput({ query: { tab: "all", orderBy: "created", [field]: value } })))
+    .toStrictEqual({ status: 400, body: { error: message } });
+});

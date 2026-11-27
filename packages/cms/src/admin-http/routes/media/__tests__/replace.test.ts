@@ -143,3 +143,11 @@ describe("mediaReplaceRoute", () => {
     });
   });
 });
+
+it("refuses a missing body after looking up a replaceable asset, without storing anything", async () => {
+  const log: string[] = [];
+  expect(await refusalOf(() => run(undefined, deps(log)))).toStrictEqual({
+    status: 400, body: { error: "filename, contentType, and dataBase64 are required" },
+  });
+  expect(log).toEqual([`find:${WORKSPACE_ID}:m-1`]);
+});

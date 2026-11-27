@@ -40,3 +40,7 @@ describe("newsletterCreateCampaignRoute", () => {
     await expect(route.handle({ input: { fields: { ...VALID, preheader: null } }, deps, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
   });
 });
+
+it("returns the campaign validation refusal rather than reading fields from a missing JSON body", async () => {
+  expect(await refusalOf(() => route.parse({ params: {}, query: {}, body: undefined }))).toStrictEqual(REFUSAL);
+});

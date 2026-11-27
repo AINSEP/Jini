@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { resolveProbeCredential } from "../stored-credential-probe.js";
+import { resolveProbeCredential, type StoredProbeCredential } from "../stored-credential-probe.js";
 
 it("never forwards a stored key to a different or unset endpoint", async () => {
   const input = { requestedBaseUrl: "https://other/v1", typedKey: "", useStoredCredential: true };
@@ -24,4 +24,18 @@ it("bypasses stores for typed keys and selects admin before site", async () => {
   expect(openAdmin.mock.calls).toEqual([[{ principalId: "person" }]]); expect(openSite).not.toHaveBeenCalled();
   await resolveProbeCredential({ ...required, input: { requestedBaseUrl: "https://saved", typedKey: "", useStoredCredential: false } });
   expect(openAdmin).toHaveBeenCalledTimes(1); expect(openSite).not.toHaveBeenCalled();
+});
+
+it.each(["admin", "site"] as const)("a missing requested %s credential keeps the requested endpoint and uses an empty key", async (store) => {
+  const openAdmin = vi.fn(async () => null);
+  const openSite = vi.fn(async (): Promise<StoredProbeCredential | null> => ({ apiKey: "unrelated-site-key", baseUrl: "https://stored.example.test/v1" }));
+  if (store === "site") openSite.mockResolvedValueOnce(null);
+  const result = await resolveProbeCredential({
+    input: { typedKey: "", requestedBaseUrl: "https://requested.example.test/v2", principalId: "principal-7",
+      useStoredCredential: true, useAdminStoredCredential: store === "admin" },
+    subjects: { admin: "admin credential", site: "site credential" }, openAdmin, openSite,
+  });
+  expect(result).toStrictEqual({ ok: true, apiKey: "", baseUrl: "https://requested.example.test/v2" });
+  expect(openAdmin.mock.calls).toEqual(store === "admin" ? [[{ principalId: "principal-7" }]] : []);
+  expect(openSite.mock.calls).toEqual(store === "site" ? [[{}]] : []);
 });

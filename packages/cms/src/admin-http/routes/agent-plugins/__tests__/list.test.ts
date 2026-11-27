@@ -60,3 +60,18 @@ describe("agentPluginsListRoute", () => {
     await expect(agentPluginsListRoute.handle({ input: {}, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
   });
 });
+
+it("retains present display metadata and serializes absent values as null per plugin", async () => {
+  const result = await agentPluginsListRoute.handle({
+    input: {}, context: PRINCIPAL, authorize: recordingAuthorize().authorize,
+    deps: { ...deps(), loadCandidates: async () => [
+      fakeCandidate({ pluginId: "notes", displayName: undefined, version: undefined }),
+      fakeCandidate({ pluginId: "calendar", displayName: "Calendar", version: "2.1.0", summary: "Team events", description: "Read calendars" }),
+    ] },
+  });
+  if (!result.ok) throw new Error("expected plugin list");
+  expect(result.value.agentPlugins.find(({ pluginId }) => pluginId === "notes"))
+    .toMatchObject({ displayName: null, version: null, summary: null, description: null });
+  expect(result.value.agentPlugins.find(({ pluginId }) => pluginId === "calendar"))
+    .toMatchObject({ displayName: "Calendar", version: "2.1.0", summary: "Team events", description: "Read calendars" });
+});

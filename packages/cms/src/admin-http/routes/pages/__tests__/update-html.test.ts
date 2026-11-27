@@ -138,3 +138,15 @@ describe("pageUpdateHtmlRoute", () => {
     expect(calls).toEqual([]);
   });
 });
+
+it("uses the recognized host failure's string when the underlying store rejects with a non-Error", async () => {
+  const { deps } = makeDeps();
+  const failure = "page changed during conversion";
+  deps.pagesHtmlStore = () => ({
+    ensureHtmlFormat: async () => { throw failure; },
+    write: async () => { throw new Error("must not write after failed conversion"); },
+  });
+  deps.isPageConcurrentEdit = ({ err }) => err === failure;
+  expect(await refusalOf(() => run(deps, { html: "<main>Edited</main>" })))
+    .toStrictEqual({ status: 409, body: { error: "page changed during conversion", code: "CONCURRENT_EDIT" } });
+});

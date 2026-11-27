@@ -41,3 +41,11 @@ it("builds the installed row from named fields only", () => {
   expect(JSON.stringify(row)).not.toContain("/srv/secret");
   expect(installedAgentPluginRow({ candidate: undefined })).toBeNull();
 });
+
+it("preserves provided installed-plugin summary, version and description verbatim", () => {
+  const candidate = { pluginId: "calendar", keywords: [], skills: [], mcpServerIds: [], enabled: false,
+    displayName: "Calendar", summary: "Sync team events", description: "Read the team calendar", version: "2.1.0" };
+  expect(installedAgentPluginRow({ candidate })).toMatchObject({
+    pluginId: "calendar", displayName: "Calendar", summary: "Sync team events", description: "Read the team calendar", version: "2.1.0",
+  });
+});

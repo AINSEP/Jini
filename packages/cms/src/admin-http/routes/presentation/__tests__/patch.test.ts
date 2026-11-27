@@ -88,3 +88,11 @@ describe("presentationPatchRoute", () => {
     await expect(presentationPatchRoute.handle({ input: { activeThemeId: "beta" }, deps: fakeDeps().deps, context: PRINCIPAL }, { signal })).rejects.toThrow(/no authorizer/);
   });
 });
+
+it("never changes the active theme without a principal to attribute it to", async () => {
+  const { deps, log } = fakeDeps();
+  await expect(presentationPatchRoute.handle({
+    input: { activeThemeId: "beta" }, deps, authorize: recordingAuthorize().authorize,
+  }, { signal })).rejects.toThrow(new Error("presentation admin route has no authenticated principal"));
+  expect(log).toEqual([]);
+});

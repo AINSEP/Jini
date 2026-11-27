@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PeerCallDeps } from "../../../../publish/content/peer-transport.js";
-import { peerPushPlanRoute, peerPushConfirmRoute, peerPushExecuteRoute, peerPullRoute, type PeerActionRefusalFn } from "../peer-transport.js";
+import { peerPushPlanRoute, peerPushConfirmRoute, peerPushExecuteRoute, peerPullRoute, acceptOverwriteEntityKeys, createPeerCallResolver, OVERWRITE_REFUSED, type PeerActionRefusalFn } from "../peer-transport.js";
 import { raw, recordingAuthorize, refusalOf, WORKSPACE_ID } from "./transport-helpers.js";
 
 const PULL = "/api/admin/v1/workspaces/:workspaceId/publish-content/peers/:peerId/pull";
@@ -101,4 +101,89 @@ it("keeps confirm and execute payloads distinct and forwards remote refusals unc
   expect(await peerPushConfirmRoute.handle({ input: { peerId: "p", body: { planId: "plan", planHash: "hash" } }, deps: { openPeer, confirm }, authorize, context })).toEqual({ ok: true, value: { refused: true } });
   expect(await peerPushExecuteRoute.handle({ input: { peerId: "p", body: { bundleId: "b", confirmationToken: "t", overwriteEntityKeys: [] } }, deps: { openPeer, execute, requireOverwriteSession: () => { throw new Error("must not call"); } }, authorize, context })).toEqual({ ok: true, value: { refused: true } });
   expect(calls).toEqual([["confirm", { peer, planId: "plan", planHash: "hash" }], ["execute", { peer, bundleId: "b", confirmationToken: "t", overwriteEntityKeys: [] }]]);
+});
+
+function scopedPlanFixture() {
+  const credential = { id: "live-3", label: "Live", baseUrl: "https://live.example.test", apiKey: "test-key", remoteWorkspaceId: "remote" };
+  const peer: PeerCallDeps<string> = { credential, httpClient: { send: async () => { throw new Error("unexpected peer I/O"); } } };
+  const openPeer = vi.fn(async () => peer);
+  const requireOverwriteSession = vi.fn();
+  const plan = vi.fn(async () => ({ updates: 2 }));
+  const run = (body: unknown) => peerPushPlanRoute.handle({
+    input: { peerId: "live-3", body }, context: { id: "owner-7" }, authorize: async () => {},
+    deps: { openPeer, requireOverwriteSession, plan },
+  });
+  return { peer, run, openPeer, requireOverwriteSession, plan };
+}
+
+it.each([
+  { name: "array scope", body: { scope: [] }, message: "'scope' must be an object with 'entityTypes' and/or 'entityKeys'" },
+  { name: "scalar scope", body: { scope: "post" }, message: "'scope' must be an object with 'entityTypes' and/or 'entityKeys'" },
+  { name: "empty entity types", body: { scope: { entityTypes: [] } }, message: "'scope.entityTypes' must be a non-empty array of strings" },
+  { name: "non-array entity types", body: { scope: { entityTypes: "post" } }, message: "'scope.entityTypes' must be a non-empty array of strings" },
+  { name: "too many entity keys", body: { scope: { entityTypes: ["post"], entityKeys: Array.from({ length: 1_001 }, (_, index) => `post:${index}`) } }, message: "'scope.entityKeys' must be a non-empty array of strings" },
+  { name: "invalid entity key between valid ones", body: { scope: { entityKeys: ["post:1", 7, "post:3"] } }, message: "'scope.entityKeys' must be a non-empty array of strings" },
+  { name: "non-string selected key", body: { selectedEntityKeys: ["post:1", 7, "post:3"] }, message: "'selectedEntityKeys' must be an array of strings" },
+  { name: "scalar selected keys", body: { selectedEntityKeys: "post:1" }, message: "'selectedEntityKeys' must be an array of strings" },
+])("rejects $name before opening a peer", async ({ body, message }) => {
+  const { run, openPeer, requireOverwriteSession, plan } = scopedPlanFixture();
+  expect(await run(body)).toStrictEqual({ ok: true, value: {
+    status: 400, body: { error: message, code: "VALIDATION_ERROR" },
+  } });
+  expect(openPeer).not.toHaveBeenCalled();
+  expect(requireOverwriteSession).not.toHaveBeenCalled();
+  expect(plan).not.toHaveBeenCalled();
+});
+
+it("forwards scoped keys at the limit, independently of row selection and overwrite", async () => {
+  const { run, peer, openPeer, plan } = scopedPlanFixture();
+  const entityKeys = Array.from({ length: 1_000 }, (_, index) => `post:${index}`);
+  expect(await run({ scope: { entityKeys }, selectedEntityKeys: ["post:9"], overwriteEntityKeys: ["post:9"] }))
+    .toStrictEqual({ ok: true, value: { updates: 2 } });
+  expect(openPeer.mock.calls).toEqual([[{ peerId: "live-3" }]]);
+  expect(plan.mock.calls).toEqual([[{ peer, principalId: "owner-7", scope: { entityKeys },
+    selectedEntityKeys: ["post:9"], overwriteEntityKeys: ["post:9"],
+  }]]);
+});
+
+it("the overwrite adapter distinguishes malformed input from an authorization refusal and a successful empty selection", () => {
+  const json = vi.fn();
+  const res = { status: vi.fn(() => ({ json })) };
+  const mayOverwrite = vi.fn<Parameters<typeof acceptOverwriteEntityKeys>[0]["mayOverwrite"]>()
+    .mockImplementation(({ res, overwriteEntityKeys }) => {
+      if (overwriteEntityKeys?.length) {
+        res.status(403).json({ error: "Need a session", code: "OVERWRITE_DENIED" });
+        return false;
+      }
+      return true;
+    });
+  expect(acceptOverwriteEntityKeys({ res, raw: ["post:1", 2], mayOverwrite })).toBe(OVERWRITE_REFUSED);
+  expect(mayOverwrite).not.toHaveBeenCalled();
+  expect(acceptOverwriteEntityKeys({ res, raw: ["post:1"], mayOverwrite })).toBe(OVERWRITE_REFUSED);
+  expect(acceptOverwriteEntityKeys({ res, raw: [], mayOverwrite })).toEqual([]);
+  expect(acceptOverwriteEntityKeys({ res, raw: undefined, mayOverwrite })).toBeNull();
+  expect(res.status.mock.calls).toEqual([[400], [403]]);
+  expect(json.mock.calls).toEqual([
+    [{ error: "'overwriteEntityKeys' must be an array of strings", code: "VALIDATION_ERROR" }],
+    [{ error: "Need a session", code: "OVERWRITE_DENIED" }],
+  ]);
+  expect(mayOverwrite.mock.calls).toEqual([
+    [{ res, overwriteEntityKeys: ["post:1"] }], [{ res, overwriteEntityKeys: [] }], [{ res, overwriteEntityKeys: null }],
+  ]);
+});
+
+it("opens each peer credential in the local workspace and uses that scope for publish history", async () => {
+  const credential = { id: "remote-7", label: "Live", baseUrl: "https://live.example.test", apiKey: "test-key",
+    remoteWorkspaceId: "overseas" };
+  const resolveCredential = vi.fn(async () => credential);
+  const store = { recordSuccess: vi.fn(async () => {}) };
+  const clock = { nowMs: () => 47_000 };
+  const httpClient = { send: vi.fn(async () => { throw new Error("unexpected peer I/O"); }) };
+  const resolvePeer = createPeerCallResolver({ workspaceId: "local", resolveCredential, httpClient, publishHistory: { store, clock } });
+  expect(resolveCredential).not.toHaveBeenCalled();
+  expect(await resolvePeer({ peerId: "remote-7" })).toStrictEqual({
+    credential, httpClient, publishHistory: { store, clock, workspaceId: "local" },
+  });
+  expect(resolveCredential.mock.calls).toEqual([[{ workspaceId: "local", id: "remote-7" }]]);
+  expect(httpClient.send).not.toHaveBeenCalled();
 });
