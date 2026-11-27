@@ -49,3 +49,13 @@ describe('allocateStaticExportThemes', () => {
     expect(() => allocateStaticExportThemes({ themeIds: ['a'], siteSlug: 's', policy: { validateSharePath: () => { throw new Refused('no'); }, sharePathAlias: alias } })).toThrow(Refused);
   });
 });
+
+it('keeps an id equal to the branding prefix and gives case-colliding folders unique names', () => {
+  const themeIds = ['museum-', 'poster', 'museum-Poster'];
+  const actual = allocateStaticExportThemes({ themeIds, siteSlug: 'museum-site', policy: { validateSharePath: policy.validateSharePath, sharePathAlias: alias } });
+  expect(actual).toEqual([
+    { themeId: 'museum-', name: 'museum-' },
+    { themeId: 'poster', name: 'poster-2' },
+    { themeId: 'museum-Poster', name: 'Poster' },
+  ]);
+});

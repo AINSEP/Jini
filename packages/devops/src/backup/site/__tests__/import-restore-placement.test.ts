@@ -94,3 +94,16 @@ describe('writeExclusive', () => {
     expect(() => writeExclusive({ root, relative: 'c.txt', bytes: Buffer.from('x'), validatePath: refusing })).toThrow('policy says no');
   });
 });
+
+it('rejects compiled declarations outside the static tier or without a string source directory before loading anything', async () => {
+  const badTier = 'themes/declarative/built/theme.json';
+  const badSource = 'themes/static/other/theme.json';
+  const root = await stage({
+    [badTier]: JSON.stringify({ tier: 'declarative', build: { source: 'compiled', sourceDir: 'source' } }),
+    [badSource]: JSON.stringify({ tier: 'static', build: { source: 'compiled', sourceDir: 123 } }),
+  });
+  const loadTheme = vi.fn(() => ({ status: 'valid' }));
+  const result = inspectThemeManifests({ root, files: [badTier, badSource], checks: checks({ loadTheme }) });
+  expect(result).toEqual({ quarantinedThemes: new Set(['declarative/built', 'static/other']), compiledSources: new Map() });
+  expect(loadTheme).not.toHaveBeenCalled();
+});

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createShareHosting, type ShareHostingRegistry, type SharePeerDeps } from "../share-hosting.js";
 import { SiteShareRefusal } from "../share-refusal.js";
 
@@ -157,4 +157,20 @@ describe("delivery selection", () => {
     expect(JSON.stringify(warnings)).toContain("STORAGE_SETUP");
     expect(JSON.stringify(warnings)).not.toContain("secret");
   });
+});
+
+it("verifies runtime shares with an abortable anonymous HEAD request and treats 404 as confirmed removal", async () => {
+  const { hosting, registry } = fixture();
+  const signal = new AbortController().signal;
+  type Http = Parameters<typeof hosting.createRuntimeShareDelivery>[0]["http"];
+  const send = vi.fn<Http["send"]>()
+    .mockResolvedValueOnce({ status: 200, headers: Object.fromEntries(attachment(7).headers), bodyText: "" })
+    .mockResolvedValueOnce({ status: 404, headers: {}, bodyText: "" });
+  const store = hosting.createRuntimeShareDelivery({ registry, site: "ws", publicOrigin: "https://share.example.test", http: { send } }).store;
+  const url = `https://share.example.test/${KEY}`;
+  expect(await store.verify({ key: KEY, url, present: true, bytes: 7 }, { signal })).toBe(true);
+  expect(await store.verify({ key: KEY, url, present: false }, { signal })).toBe(true);
+  expect(send.mock.calls).toEqual(Array(2).fill([{
+    request: { method: "HEAD", url, headers: {}, idleTimeoutMs: 15_000, totalDeadlineMs: 20_000, maxResponseBytes: 1024, signal },
+  }, { redirect: "error" }]));
 });

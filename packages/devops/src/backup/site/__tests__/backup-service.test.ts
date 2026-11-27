@@ -2,10 +2,14 @@ import { CustomCredentialValidationError } from "@jini-ai/integrations/credentia
 import { buildAuthorizationHeader } from "@jini-ai/integrations/credentialed-http";
 import { normalizeWriteFilePath, validateBranch, validateCommitMessage } from "@jini-ai/integrations/custom-credentials/write-files-validation";
 import { expect, it, vi } from "vitest";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
+import { SiteShareRefusal } from "../share-refusal.js";
+import type { PlannedDiskFile } from "../sources.js";
 import { createSiteBackupService, planSiteBackup, pushSiteBackup, type SiteBackupToolDeps, type SiteBackupPlan, type SiteBackupRequestDeps, type SiteBackupRepositoryPlanContent } from "../backup-service.js";
 import { SiteBackupPushJobs } from "../../push-jobs.js";
 import { SiteBackupPlanStore } from "../../plan-store.node.js";
-import { runObservedBackupPush } from "../backup-service.push.js";
+import { inProgressResult, pushWaitBudget, runObservedBackupPush } from "../backup-service.push.js";
+import { providerRefusal } from "../backup-service.shared.js";
 
 import { initialPushProgress, uploadBackupPlan, commitBackupPlan } from "../push-content.js";
 import type { SiteBackupSources } from "../sources.js";
@@ -167,4 +171,351 @@ it("a push refused as a private target uploads and commits nothing", async () =>
   expect(f.uploadBackupBlob).not.toHaveBeenCalled();
   expect(f.commitBackupTree).not.toHaveBeenCalled();
   expect(f.deps.siteBackupFailureLog).toHaveBeenCalledWith("[site-backup] site_backup_push: failed code=repo-not-private detail=private target refused");
+});
+
+it("lists only matching labels when implicit credentials are ambiguous and never opens one", async () => {
+  const { deps } = fixture();
+  const resolve = vi.fn<SiteBackupToolDeps["resolveCustomCredentialByLabel"]>();
+  const list = vi.fn<SiteBackupToolDeps["listCustomCredentials"]>(async () => [
+    { label: "broken", baseUrl: "not a URL" },
+    { label: "west", baseUrl: "https://git.example/api" },
+    { label: "foreign", baseUrl: "https://other.example" },
+    { label: "east", baseUrl: "https://git.example" },
+  ]);
+  expect(await resolveBackupCredential({ deps: { ...deps, listCustomCredentials: list, resolveCustomCredentialByLabel: resolve }, requested: undefined })).toEqual({
+    ok: false, code: "CREDENTIAL_AMBIGUOUS", message: "2 saved credentials point at https://git.example (saved labels: 'west', 'east'); name one with 'credential'.",
+  });
+  expect(list).toHaveBeenCalledExactlyOnceWith({ deps: deps.request }, { workspaceId: "w" });
+  expect(resolve).not.toHaveBeenCalled();
+});
+
+it("logs disabled provider details and stops before reading credentials when no provider is available", async () => {
+  const { deps } = fixture();
+  const log = vi.fn();
+  const list = vi.fn<SiteBackupToolDeps["listCustomCredentials"]>();
+  expect(await resolveBackupCredential({ deps: {
+    ...deps, request: { ...deps.request, siteBackupFailureLog: log },
+    listCustomCredentials: list,
+    buildSourceControlProviders: async () => ({ providers: [], refusals: ["git plugin is off"], noProviderMessage: "Enable a git plugin first." }),
+  }, requested: "key" })).toEqual({ ok: false, code: "NO_PROVIDER", message: "Enable a git plugin first." });
+  expect(log.mock.calls).toEqual([["[site-backup] git plugin is off"]]);
+  expect(deps.siteBackupFailureLog).not.toHaveBeenCalled();
+  expect(list).not.toHaveBeenCalled();
+});
+
+it.each([
+  { username: "operator", requested: "chat-connection" },
+  { username: undefined, requested: undefined },
+])("uses the chat-saved host connection when there is no matching custom credential ($requested)", async ({ username, requested }) => {
+  const { deps, provider } = fixture();
+  const request = { ...deps.request, sourceControlCredentialSetRepo: {} };
+  const connection = { providerId: "git", token: "fixture-token", ...(username === undefined ? {} : { username }) };
+  const resolveDefault = vi.fn<SiteBackupToolDeps["resolveDefaultForSourceControl"]>(async () => ({ id: "record", label: "chat-connection", connection }));
+  const resolveCustom = vi.fn<SiteBackupToolDeps["resolveCustomCredentialByLabel"]>();
+  const bound = { ...deps, request, resolveDefaultForSourceControl: resolveDefault, resolveCustomCredentialByLabel: resolveCustom, listCustomCredentials: async () => [] };
+
+  expect(await resolveBackupCredential({ deps: bound, requested })).toEqual({
+    ok: true, label: "chat-connection", baseUrl: "https://git.example", provider,
+    connection: username === undefined ? { token: "fixture-token" } : { token: "fixture-token", username },
+  });
+  expect(resolveDefault).toHaveBeenCalledExactlyOnceWith({ deps: request }, { workspaceId: "w", providerId: "git" });
+  expect(resolveCustom).not.toHaveBeenCalled();
+  expect(await resolveBackupCredential({ deps: bound, requested: "different" })).toEqual({
+    ok: false, code: "CREDENTIAL_NOT_FOUND", message: "no saved credential is labeled 'different' (none are saved)",
+  });
+});
+
+it.each([
+  { site: true, status: { active: false, invalid: true }, expected: "invalid Git connection" },
+  { site: false, status: { active: false }, expected: "missing Git connection" },
+])("diagnoses an unreadable chat connection using the correct key scope ($expected)", async ({ site, status, expected }) => {
+  const { deps } = fixture();
+  const cause = new Error("private store details");
+  const siteProbe = vi.fn(() => status);
+  const serverProbe = vi.fn(() => status);
+  const bound = { ...deps, request: { ...deps.request, siteBackupSources: site ? deps.request.siteBackupSources : undefined, sourceControlCredentialSetRepo: {} },
+    listCustomCredentials: async () => [], resolveDefaultForSourceControl: async () => { throw cause; },
+    siteBackupSiteKeyStatus: siteProbe, serverSiteKeyStatus: serverProbe,
+    isSourceControlCredentialSecretStoreUnconfiguredError: (error: unknown) => error === cause,
+    credentialMessages: {
+      active: ({ label }: { label: string }) => `active ${label}`,
+      invalid: ({ label }: { label: string }) => `invalid ${label}`,
+      missing: ({ label }: { label: string }) => `missing ${label}`,
+    },
+  };
+  expect(await resolveBackupCredential({ deps: bound, requested: undefined })).toEqual({ ok: false, code: "CREDENTIAL_UNREADABLE", message: expected });
+  if (site) {
+    expect(siteProbe).toHaveBeenCalledExactlyOnceWith({ siteDir: "/site" });
+    expect(serverProbe).not.toHaveBeenCalled();
+  } else {
+    expect(serverProbe).toHaveBeenCalledExactlyOnceWith();
+    expect(siteProbe).not.toHaveBeenCalled();
+  }
+  await expect(resolveBackupCredential({ deps: { ...bound, isSourceControlCredentialSecretStoreUnconfiguredError: () => false }, requested: undefined })).rejects.toBe(cause);
+});
+
+it("does not reuse a credential that disappeared or changed to an unsupported API since listing", async () => {
+  const { deps } = fixture();
+  const open = vi.fn<SiteBackupToolDeps["resolveCustomCredentialByLabel"]>()
+    .mockResolvedValueOnce(null).mockResolvedValueOnce({ baseUrl: "https://unregistered.example", connection: { token: "fixture" } });
+  const pick = vi.fn<SiteBackupToolDeps["pickSourceControlProviderForApi"]>(() => ({ ok: false, message: "No plugin supports the new API" }));
+  const bound = { ...deps, resolveCustomCredentialByLabel: open, pickSourceControlProviderForApi: pick };
+  expect(await resolveBackupCredential({ deps: bound, requested: "key" })).toEqual({
+    ok: false, code: "CREDENTIAL_NOT_FOUND", message: "the credential 'key' was deleted while the backup was being prepared",
+  });
+  expect(pick).not.toHaveBeenCalled();
+  expect(await resolveBackupCredential({ deps: bound, requested: "key" })).toEqual({
+    ok: false, code: "NO_PROVIDER", message: "No plugin supports the new API",
+  });
+  expect(open.mock.calls).toEqual(Array(2).fill([{ deps: deps.request }, { workspaceId: "w", label: "key" }]));
+});
+
+const planCall = (input: Record<string, unknown> = {}) => ({
+  input: { owner: "owner", repo: "repo", ...input }, principal: { id: "owner" }, signal: new AbortController().signal,
+});
+
+it.each([
+  { id: "non-object", include: 0, message: "'include' must be an object of true/false switches" },
+  { id: "null", include: null, message: "'include' must be an object of true/false switches" },
+  { id: "array", include: [], message: "'include' must be an object of true/false switches" },
+  { id: "unknown scope", include: { accounts: true }, message: "'include' has unknown switch(es): accounts (known: database, media, themes, plugins, settings)" },
+  { id: "non-boolean", include: { media: "false" }, message: "'include.media' must be true or false" },
+  { id: "all off", include: { database: false, media: false, themes: false, plugins: false, settings: false }, message: "'include' switches everything off; there would be nothing to back up" },
+])("rejects invalid inclusion switches before calling the provider ($id)", async ({ include, message }) => {
+  const f = fixture();
+  const result = planSiteBackup({ deps: f.deps, call: planCall({ include }) });
+  await expect(result).rejects.toBeInstanceOf(CustomCredentialValidationError);
+  await expect(result).rejects.toMatchObject({ message });
+  expect(f.provider.inspectBackupRepository).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+});
+
+it("uses the folder name if config cannot be read and preserves explicit scope switches in the stored plan", async () => {
+  const f = fixture();
+  const store = new SiteBackupPlanStore<SiteBackupRepositoryPlanContent>({}, { now: () => 0, newId: () => "folder-plan" });
+  const include = { database: false, media: true, themes: true, plugins: true, settings: true };
+  f.collectSiteBackupFiles.mockResolvedValue({ files: [], skipped: [], scopeNotes: { media: "No local media" } });
+  const deps: SiteBackupToolDeps = {
+    ...f.deps, siteBackupPlanStore: store, readConfigText: async () => { throw new Error("unreadable config"); },
+    siteBackupNow: () => new Date(0), runtimeSchemaVersion: () => ({ index: 3, tag: "three" }),
+    completePlanContent: ({ content }) => content, defaultCommitMessage: ({ siteName }) => `Backup of ${siteName}`,
+    formatByteSize: ({ bytes }) => `${bytes} B`, checkSiteBackupLimits: () => ({ ok: true, totalBytes: 0 }),
+    skipOversizedFiles: ({ files }) => ({ files: [...files], skipped: [] }), manifestName: "backup.json",
+  };
+  expect(await planSiteBackup({ deps, call: planCall({ include: { database: false } }) })).toMatchObject({
+    planned: true, planId: "folder-plan", include, notes: ["No local media"], files: [], credentialWarnings: [],
+  });
+  expect(store.take({ planId: "folder-plan", workspaceId: "w", principalId: "owner" })).toMatchObject({
+    ok: true, plan: { include, site: { name: "site", folderName: "site" }, commitMessage: "Backup of site", database: null },
+  });
+  expect(f.captureDatabaseSnapshot).not.toHaveBeenCalled();
+  expect(f.collectSiteBackupFiles).toHaveBeenCalledExactlyOnceWith({ include, sources: deps.request.siteBackupSources });
+});
+
+it("refuses a failed snapshot before collection and keeps diagnostics on the server", async () => {
+  const f = fixture();
+  f.captureDatabaseSnapshot.mockResolvedValue({ ok: false, message: "Unable to capture database", logDetail: "SQLite busy" });
+
+  expect(await planSiteBackup({ deps: f.deps, call: planCall() })).toEqual({
+    planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "Unable to capture database",
+  });
+  expect(f.captureDatabaseSnapshot).toHaveBeenCalledExactlyOnceWith({ dbOps: f.deps.request.dbOps, scopeId: "site-backup" });
+  expect(f.deps.siteBackupFailureLog).toHaveBeenCalledExactlyOnceWith("[site-backup] site_backup_plan: failed code=database-snapshot detail=SQLite busy");
+  expect(f.collectSiteBackupFiles).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+});
+
+it("returns the projection's typed refusal but does not relabel an unexpected projection failure", async () => {
+  const f = fixture();
+  const unexpected = new Error("projection crashed");
+  f.captureDatabaseSnapshot.mockResolvedValue({ ok: true, bytes: Buffer.from("snapshot"), watermarkAtCapture: 7 });
+  const sanitize = vi.fn<SiteBackupToolDeps["siteBackupSanitize"]>()
+    .mockRejectedValueOnce(new SiteShareRefusal({ code: "UNSUPPORTED_DATA", message: "Table requires a portable projection" }))
+    .mockRejectedValueOnce(unexpected);
+  const deps = { ...f.deps, siteBackupSanitize: sanitize };
+  expect(await planSiteBackup({ deps, call: planCall() })).toEqual({ planned: false, code: "UNSUPPORTED_DATA", message: "Table requires a portable projection" });
+  await expect(planSiteBackup({ deps, call: planCall() })).rejects.toBe(unexpected);
+  expect(f.collectSiteBackupFiles).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+});
+
+it("scans readable backup bytes but refuses a changed file without saving the plan", async () => {
+  const f = fixture();
+  const report: PlannedDiskFile = { scope: "settings", path: "settings/report.json", bytes: 3, absPath: "/site/settings/report.json", root: "/site", identity: null, nlink: 1, mtimeMs: 1 };
+  const stale = { ...report, path: "settings/stale.json", absPath: "/site/settings/stale.json" };
+  const bytes = Buffer.from("123");
+  const readPlannedFile = vi.fn<SiteBackupToolDeps["readPlannedFile"]>()
+    .mockResolvedValueOnce({ ok: true, bytes }).mockResolvedValueOnce({ ok: false, message: "stale.json changed" });
+  const requireShareSecretFree = vi.fn();
+  f.collectSiteBackupFiles.mockResolvedValue({ files: [report, stale], skipped: [], scopeNotes: {} });
+  const deps: SiteBackupToolDeps = { ...f.deps, readPlannedFile, requireShareSecretFree,
+    checkSiteBackupLimits: () => ({ ok: true, totalBytes: 6 }), skipOversizedFiles: ({ files }) => ({ files: [...files], skipped: [] }) };
+  expect(await planSiteBackup({ deps, call: planCall({ include: { database: false } }) })).toEqual({
+    planned: false, code: "PLAN_STALE", message: "stale.json changed",
+  });
+  expect(readPlannedFile.mock.calls).toEqual([[report], [stale]]);
+  expect(requireShareSecretFree).toHaveBeenCalledExactlyOnceWith({ path: report.path, bytes }, { credentialWarnings: [] });
+  expect(f.save).not.toHaveBeenCalled();
+});
+
+it.each([
+  { state: "accepted", outcome: "completed", failed: false },
+  { state: "abandoned", outcome: "cancelled", failed: false },
+  { state: "refused", outcome: "not_pushed", failed: true },
+  { state: "threw", outcome: "failed", failed: true },
+])("ends the observed backup with the actual outcome ($state)", async ({ state, outcome, failed }) => {
+  const f = fixture();
+  const controller = new AbortController();
+  const end = vi.fn();
+  const fault = new Error("upload port threw");
+  const trackOperation = vi.fn(() => ({ end, run: <T>(work: () => T): T => work() }));
+  const upload = vi.fn<SiteBackupToolDeps["uploadBackupPlan"]>(async () => {
+    if (state === "threw") throw fault;
+    if (state === "abandoned") controller.abort();
+    if (state === "refused") return { ok: false, code: "PLAN_STALE", message: "Content changed" };
+    return { ok: true, entries: [] };
+  });
+  const success = { pushed: true as const, commitSha: "new", commitUrl: "https://git.example/new", repository: "owner/repo", branch: "main", folder: "site", filesWritten: 1, totalBytes: 8, credentialWarnings: [] };
+  const commit = vi.fn<SiteBackupToolDeps["commitBackupPlan"]>(async () => ({ ok: true, result: success }));
+  const deps: SiteBackupToolDeps = {
+    ...f.deps, request: { ...f.deps.request, observability: { ...createNoopObservabilityPort({}), trackOperation } },
+    uploadBackupPlan: upload, commitBackupPlan: commit,
+    backupPushUploadPolicy: () => ({ databasePath: "database/content.db", readPlannedFile: vi.fn(), buildManifest: vi.fn(), cancelled: f.deps.cancelled }),
+  };
+
+  const result = runObservedBackupPush({ deps, plan: f.plan, run: { signal: controller.signal, progress: initialPushProgress({ plan: f.plan }) } });
+  if (state === "threw") await expect(result).rejects.toBe(fault);
+  else if (state === "accepted") await expect(result).resolves.toEqual(success);
+  else if (state === "abandoned") await expect(result).resolves.toEqual({ pushed: false, cancelled: false, reason: "abandoned" });
+  else await expect(result).resolves.toEqual({ pushed: false, cancelled: false, code: "PLAN_STALE", message: "Content changed" });
+  expect(trackOperation.mock.calls).toEqual([[{ name: "site.backup" }]]);
+  expect(upload).toHaveBeenCalledOnce();
+  expect(end.mock.calls).toEqual([[{ outcome, failed }]]);
+  expect(commit).toHaveBeenCalledTimes(state === "accepted" ? 1 : 0);
+});
+
+it("refuses planning without a site directory before inventory and preserves an explicit zero wait budget", async () => {
+  const f = fixture();
+  const buildSourceControlProviders = vi.fn(f.deps.buildSourceControlProviders);
+  const request = { ...f.deps.request, siteBackupSources: undefined, siteBackupPushWaitMs: 12 };
+  expect(await planSiteBackup({ deps: { ...f.deps, request, buildSourceControlProviders }, call: planCall() })).toEqual({
+    planned: false, code: "UNAVAILABLE", message: "site backup is not available in this runtime: it has no site folder on disk",
+  });
+  expect(buildSourceControlProviders).not.toHaveBeenCalled();
+  expect(pushWaitBudget({ deps: { request }, waitMs: 0 })).toBe(0);
+  expect(pushWaitBudget({ deps: { request }, waitMs: undefined })).toBe(12);
+  expect(pushWaitBudget({ deps: { request: {} }, waitMs: undefined })).toBe(240_000);
+});
+
+it("explains how to connect when no saved credential points at the configured provider", async () => {
+  const { deps } = fixture();
+  const open = vi.fn<SiteBackupToolDeps["resolveCustomCredentialByLabel"]>();
+  const listCustomCredentials = async () => [{ label: "different-host", baseUrl: "https://elsewhere.example" }];
+  expect(await resolveBackupCredential({ deps: { ...deps, listCustomCredentials, resolveCustomCredentialByLabel: open }, requested: undefined })).toEqual({
+    ok: false, code: "CREDENTIAL_NOT_FOUND",
+    message: "no saved credential points at https://git.example (saved labels: 'different-host'). Connect Git with credential_save with kind source-control (a form in this chat), or save a token on the Access Tokens page ('Add custom provider', base URL https://git.example), or name one with 'credential'.",
+  });
+  expect(open).not.toHaveBeenCalled();
+});
+
+it("reports completed versus total bytes and files and tells the caller how to resume the same push", () => {
+  const progress = { filesDone: 2, filesTotal: 7, bytesDone: 1_024, bytesTotal: 8_192 };
+  const formatByteSize = vi.fn(({ bytes }: { bytes: number }) => `${bytes / 1024} KiB`);
+  expect(inProgressResult({ formatByteSize, planId: "backup-7", progress, elapsedMs: 2_600 })).toEqual({
+    pushed: false, cancelled: false, inProgress: true, planId: "backup-7", progress,
+    message: "Still uploading after 3 s: 2 of 7 files (1 KiB of 8 KiB). Nothing is committed until every file is up. Call site_backup_push again with the same planId to keep waiting; it does not start a second upload.",
+  });
+  expect(formatByteSize.mock.calls).toEqual([[{ bytes: 1_024 }], [{ bytes: 8_192 }]]);
+});
+
+it("does not start an upload when the reviewed plan contains a credential warning", async () => {
+  const f = fixture();
+  const uploadBackupPlan = vi.fn<SiteBackupToolDeps["uploadBackupPlan"]>();
+  const commit = vi.fn<SiteBackupToolDeps["commitBackupPlan"]>();
+  const plan = { ...f.plan, credentialWarnings: [{ path: "settings.json", kind: "authorization header" }] };
+  await expect(runObservedBackupPush({
+    deps: { ...f.deps, uploadBackupPlan, commitBackupPlan: commit }, plan,
+    run: { signal: new AbortController().signal, progress: initialPushProgress({ plan }) },
+  })).resolves.toEqual({
+    pushed: false, cancelled: false, code: "UNSAFE_FILE",
+    message: "The export contains files with possible credentials. Remove the credentials and export again.",
+  });
+  expect(f.provider.inspectBackupRepository).toHaveBeenCalledOnce();
+  expect(uploadBackupPlan).not.toHaveBeenCalled();
+  expect(commit).not.toHaveBeenCalled();
+});
+
+it("keeps upload diagnostics out of the response and never commits a failed blob", async () => {
+  const f = fixture();
+  const buildManifest = vi.fn<ReturnType<SiteBackupToolDeps["backupPushUploadPolicy"]>["buildManifest"]>();
+  f.uploadBackupBlob.mockResolvedValue({ ok: false, code: "network-unreachable", message: "Git is unreachable", logDetail: "ECONNRESET" });
+  const deps: SiteBackupToolDeps = {
+    ...f.deps, deps: { ...f.deps.deps, buildAuthorizationHeader: () => "Bearer fixture" },
+    backupPushUploadPolicy: () => ({ databasePath: "db/content.db", readPlannedFile: vi.fn(), buildManifest, cancelled: f.deps.cancelled }),
+  };
+  await expect(runObservedBackupPush({
+    deps, plan: f.plan,
+    run: { signal: new AbortController().signal, progress: initialPushProgress({ plan: f.plan }) },
+  })).resolves.toEqual({ pushed: false, cancelled: false, code: "NETWORK_UNREACHABLE", message: "uploading 'db/content.db' failed: Git is unreachable" });
+  expect(f.uploadBackupBlob).toHaveBeenCalledExactlyOnceWith(
+    { baseUrl: "https://git.example", authorization: "Bearer fixture", owner: "owner", repo: "repo" },
+    { path: "db/content.db", content: Buffer.from("snapshot") },
+  );
+  expect(f.deps.siteBackupFailureLog).toHaveBeenCalledExactlyOnceWith("[site-backup] site_backup_push: failed code=network-unreachable detail=ECONNRESET");
+  expect(buildManifest).not.toHaveBeenCalled();
+  expect(f.commitBackupTree).not.toHaveBeenCalled();
+});
+
+it("forwards an unknown provider failure without logging details that were not supplied", () => {
+  const f = fixture();
+  expect(providerRefusal({ deps: f.deps, toolId: "site_backup_plan", failure: {
+    code: "vendor-capacity", message: "Repository temporarily unavailable",
+  } })).toEqual({
+    ok: false, code: "PROVIDER_ERROR", message: "Repository temporarily unavailable",
+  });
+  expect(f.deps.siteBackupFailureLog).not.toHaveBeenCalled();
+});
+
+it("checks the projected database size with the selected host's limits before reading any files", async () => {
+  const f = fixture();
+  f.captureDatabaseSnapshot.mockResolvedValue({ ok: true, bytes: Buffer.from("raw snapshot"), watermarkAtCapture: 2 });
+  const file: PlannedDiskFile = {
+    scope: "settings", path: "settings/report.json", bytes: 7,
+    absPath: "/site/settings/report.json", root: "/site", identity: null, nlink: 1, mtimeMs: 1,
+  };
+  f.collectSiteBackupFiles.mockResolvedValue({ files: [file], skipped: [], scopeNotes: {} });
+  const checkSiteBackupLimits = vi.fn<SiteBackupToolDeps["checkSiteBackupLimits"]>(() => ({ ok: false, message: "Database exceeds the host limit" }));
+  const siteBackupSanitize = vi.fn<SiteBackupToolDeps["siteBackupSanitize"]>(async () => ({ bytes: Buffer.from("clean"), media: [] }));
+  const readPlannedFile = vi.fn<SiteBackupToolDeps["readPlannedFile"]>();
+  const deps: SiteBackupToolDeps = {
+    ...f.deps, checkSiteBackupLimits, siteBackupSanitize, readPlannedFile, siteBackupDatabasePath: "db/content.db",
+    skipOversizedFiles: ({ files }) => ({ files: [...files], skipped: [] }),
+  };
+  await expect(planSiteBackup({ deps, call: planCall() })).resolves.toEqual({
+    planned: false, code: "LIMIT_EXCEEDED", message: "Database exceeds the host limit",
+  });
+  expect(siteBackupSanitize).toHaveBeenCalledExactlyOnceWith({ snapshot: Buffer.from("raw snapshot") });
+  expect(checkSiteBackupLimits).toHaveBeenCalledExactlyOnceWith({ files: [{ path: "db/content.db", bytes: 5 }, file], host: f.provider });
+  expect(readPlannedFile).not.toHaveBeenCalled();
+  expect(f.save).not.toHaveBeenCalled();
+});
+
+it("returns a distinct expired-plan refusal without trying to open a provider", async () => {
+  const f = fixture();
+  let now = 0;
+  const store = new SiteBackupPlanStore<SiteBackupRepositoryPlanContent>({}, { now: () => now, ttlMs: 50, newId: () => "expires" });
+  const plan = store.save({ principalId: "owner", workspaceId: "w", content: f.plan });
+  const buildSourceControlProviders = vi.fn(f.deps.buildSourceControlProviders);
+  const deps = { ...f.deps, siteBackupPlanStore: store, buildSourceControlProviders };
+  now = 50;
+  const args = { deps, call: { input: { planId: plan.planId }, principal: { id: "owner" }, signal: new AbortController().signal } };
+  await expect(pushSiteBackup(args)).resolves.toEqual({
+    pushed: false, cancelled: false, code: "PLAN_EXPIRED",
+    message: "that backup plan expired (plans last 10 minutes). Call site_backup_plan again.",
+  });
+  await expect(pushSiteBackup(args)).resolves.toEqual({
+    pushed: false, cancelled: false, code: "PLAN_NOT_FOUND",
+    message: "no backup plan with that planId is waiting (a planId works once, for this principal, and a server restart drops plans). Call site_backup_plan again.",
+  });
+  expect(buildSourceControlProviders).not.toHaveBeenCalled();
 });

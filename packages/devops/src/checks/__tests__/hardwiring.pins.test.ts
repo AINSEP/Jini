@@ -278,3 +278,11 @@ it('the host resolver runs for every edge even without plugin identities, so its
   const resolveImport = () => { throw new Error('Unresolved code import in site.ts (specifier omitted); refusing an incomplete public/plugin graph.'); };
   expect(() => scan('import "x";', { mode: 'consumer', file: 'site.ts', resolveImport })).toThrow('Unresolved code import in site.ts (specifier omitted); refusing an incomplete public/plugin graph.');
 });
+
+it('uses authored export aliases for public function inventory without misattributing their declaration', () => {
+  const tree = inspector.parse({ file: 'api.ts', source: 'const internal = () => 1;\nexport { internal as publicApi };\nexport type { internal as TypeOnly };' });
+  const publicFunctions = inspector.exportedFunctions({ tree });
+  expect(publicFunctions.map(({ name, node }) => [name, tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1])).toEqual([
+    ['publicApi', 1],
+  ]);
+});

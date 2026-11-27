@@ -1,3 +1,5 @@
+import Database from "better-sqlite3";
+import { migrateImportIndex } from "../schema.js";
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { ImportHistoryPolicy } from '@jini-ai/core/contracts/site/site-import-history';
@@ -73,4 +75,105 @@ describe('import index integrity memo', () => {
     openImportIndex(base, { readonly: true }).close({});
     expect(check).toHaveBeenCalledTimes(1);
   });
+});
+
+it('migrates a fresh database once and leaves the applied timestamp intact on reopen', () => {
+  const native = new Database(':memory:');
+  const db = native as unknown as SqliteSyncClient;
+  try {
+    migrateImportIndex({ db, clock: { nowMs: () => 7_654 } });
+    migrateImportIndex({ db, clock: { nowMs: () => 9_999 } });
+    expect(native.pragma('user_version', { simple: true })).toBe(1);
+    expect(native.prepare('SELECT id, checksum, applied_at FROM site_import_migrations').all()).toEqual([{
+      id: 'site-imports-v1', checksum: '483c2b21e3343c4b834bc499ca5136c1b7cb664a99fbd4cca6286460619549fb', applied_at: 7_654,
+    }]);
+    expect(native.prepare('SELECT key, value FROM meta').all()).toEqual([{ key: 'schema', value: 'site-imports-v1' }]);
+  } finally {
+    native.close();
+  }
+});
+
+it.each([
+  { version: 0, code: 'IMPORT_HISTORY_DAMAGED', message: 'Import history could not be read. Imports are paused and nothing was changed. Contact support with this error ID.' },
+  { version: 2, code: 'IMPORT_HISTORY_NEWER', message: 'Import history was written by a newer version of the app. Update the app to continue.' },
+])('rejects unsupported read-only user_version $version and closes the failed handle', ({ version, code, message }) => {
+  const native = new Database(':memory:');
+  native.pragma(`user_version = ${version}`);
+  const checkIntegrity = vi.fn();
+  try {
+    expect(() => openImportIndex({
+      file: ':memory:', open: () => native as unknown as SqliteSyncClient,
+      clock: { nowMs: () => 5 }, policy, checkIntegrity, integrityMemo: createImportIndexIntegrityMemo({}),
+    }, { readonly: true })).toThrow(expect.objectContaining({ code, status: 503, message }));
+    expect(native.open).toBe(false);
+    expect(checkIntegrity).not.toHaveBeenCalled();
+  } finally {
+    if (native.open) native.close();
+  }
+});
+
+it('rejects a read-only database with a modified migration checksum', () => {
+  const native = new Database(':memory:');
+  const db = native as unknown as SqliteSyncClient;
+  try {
+    migrateImportIndex({ db, clock: { nowMs: () => 5 } });
+    native.prepare('UPDATE site_import_migrations SET checksum = ? WHERE id = ?').run('modified', 'site-imports-v1');
+    const checkIntegrity = vi.fn();
+    expect(() => openImportIndex({
+      file: ':memory:', open: () => db, clock: { nowMs: () => 6 }, policy, checkIntegrity, integrityMemo: createImportIndexIntegrityMemo({}),
+    }, { readonly: true })).toThrow(expect.objectContaining({
+      code: 'IMPORT_HISTORY_DAMAGED', status: 503,
+      message: 'Import history could not be read. Imports are paused and nothing was changed. Contact support with this error ID.',
+    }));
+    expect(native.open).toBe(false);
+    expect(checkIntegrity).not.toHaveBeenCalled();
+  } finally {
+    if (native.open) native.close();
+  }
+});
+
+it('will not initialize an empty database when opening an existing writer', () => {
+  const native = new Database(':memory:');
+  const db = native as unknown as SqliteSyncClient;
+  const open = vi.fn((_file: string, _options: { readonly?: boolean; fileMustExist?: boolean }) => db);
+  const checkIntegrity = vi.fn();
+  try {
+    expect(() => openImportIndex({
+      file: '/history/site-imports.db', open, clock: { nowMs: () => 5 }, policy,
+      checkIntegrity, integrityMemo: createImportIndexIntegrityMemo({}),
+    }, { mustExist: true })).toThrow(expect.objectContaining({
+      name: 'ImportHistoryUnavailable', code: 'IMPORT_HISTORY_DAMAGED', status: 503,
+      message: 'Import history could not be read. Imports are paused and nothing was changed. Contact support with this error ID.',
+    }));
+    expect(open).toHaveBeenCalledExactlyOnceWith('/history/site-imports.db', { readonly: false, fileMustExist: true });
+    expect(checkIntegrity).not.toHaveBeenCalled();
+    expect(native.open).toBe(false);
+  } finally {
+    if (native.open) native.close();
+  }
+});
+
+it('accepts a migration that completed before the writer acquired its lock', () => {
+  const native = new Database(':memory:');
+  const db = native as unknown as SqliteSyncClient;
+  try {
+    const interrupted = new Proxy(db, {
+      get(target, property, receiver) {
+        // Simulate another writer committing after the first user_version read.
+        if (property === 'transaction') return (body: () => void) => {
+          migrateImportIndex({ db, clock: { nowMs: () => 4_000 } });
+          return db.transaction(body);
+        };
+        const value: unknown = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    migrateImportIndex({ db: interrupted, clock: { nowMs: () => 5_000 } });
+    expect(native.pragma('user_version', { simple: true })).toBe(1);
+    expect(native.prepare('SELECT id, applied_at FROM site_import_migrations').all()).toEqual([
+      { id: 'site-imports-v1', applied_at: 4_000 },
+    ]);
+  } finally {
+    native.close();
+  }
 });

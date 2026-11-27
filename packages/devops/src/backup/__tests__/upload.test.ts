@@ -232,3 +232,12 @@ test("in-flight duplicate bytes upload once and manifest inventory stays in inde
   assert.equal(f.progress.filesDone, 3);
   assert.equal(f.progress.bytesDone, 17);
 });
+
+test("refuses a missing entry in a sparse manifest input before issuing uploads", async () => {
+  // JS hosts can hand the typed API an array constructed at a known length but not yet filled.
+  const f = fixture({ files: new Array<PendingFile>(1) });
+  await assert.rejects(uploadPlannedContent(f.required), { name: "ToolInputError", message: "Backup upload has no file at index 0" });
+  assert.deepEqual(f.uploads, []);
+  assert.deepEqual(f.inventories, []);
+  assert.equal(f.progress.filesDone, 0);
+});

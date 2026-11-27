@@ -54,3 +54,22 @@ it('recovery text distinguishes unknown creation and acknowledged bytes without 
   expect(unknown).toContain('could not be confirmed');
   expect(unknown).not.toContain('No publish job was recorded');
 });
+
+it.each([0, 1.5, 1001])('rejects a retention limit outside the integer 1–1000 range (%s)', maxCompleted => {
+  expect(() => createPublishJobStore({}, { maxCompleted })).toThrow(new RangeError('Publish retention must be 1–1000 jobs.'));
+});
+
+it('fences retained publish ids and returns a job only for the same explicit request', () => {
+  const store = createPublishJobStore<{ url: string }>({});
+  const begin = { jobId: 'job', scopeId: 'site', target: 'host', requestId: 'request', startedAtIso: 'start' };
+  expect(store.latest()).toBeUndefined();
+  store.begin(begin);
+  store.settle({ jobId: 'job', status: 'completed', finishedAtIso: 'end', result: { url: 'https://new.test' } });
+  expect(() => store.begin({ ...begin, requestId: 'unrelated' })).toThrow('Publish job ID is already in use. Generate a new ID.');
+  expect(store.get({ scopeId: 'site', jobId: 'job', requestId: 'unrelated' })).toBeUndefined();
+  expect(store.get({ scopeId: 'site', jobId: 'job', requestId: 'request' })).toMatchObject({
+    requestId: 'request', status: 'completed', result: { url: 'https://new.test' },
+  });
+  store.settle({ jobId: 'job', status: 'errored', finishedAtIso: 'late', error: 'late error' });
+  expect(store.latest()).toMatchObject({ status: 'completed', finishedAtIso: 'end', result: { url: 'https://new.test' } });
+});

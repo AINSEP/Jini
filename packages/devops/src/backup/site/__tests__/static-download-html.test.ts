@@ -74,3 +74,46 @@ test("download transforms escape every interpolated value through the host-bound
   downloadDocumentBase({ html: '<meta http-equiv="refresh" content="0; url=/old">', rewrite: url => url, sourceEdits: spy });
   assert.deepEqual(escaped, ["0; url=/old"]);
 });
+
+test("inserts a dialog method when missing and disables only submit controls owned by the backend form", () => {
+  const html = [
+    '<form id="local" action="/send">',
+    '<div><button id="inside" formmethod="post">Inside</button></div>',
+    '<button id="external-owner" form="external" formmethod="post">External owner</button></form>',
+    '<form id="external" action="https://receiver.example/send" method="post"></form>',
+    '<button id="local-owner" form="local" formmethod="get">Local owner</button>',
+    '<button id="unowned" formmethod="get">Unowned</button>',
+  ].join('');
+  const result = downloadForms({ html, page: "/contact", sourceEdits });
+  const elements = sourceEdits.elements({ html: result.html });
+  const attrOf = (id: string, name: string) => {
+    const node = elements.find(node => sourceEdits.attribute({ node, name: "id" }) === id);
+    assert.ok(node, `Missing element ${id}`);
+    return sourceEdits.attribute({ node, name });
+  };
+  assert.equal(attrOf("local", "method"), "dialog");
+  assert.equal(attrOf("local", "action"), undefined);
+  assert.equal(attrOf("inside", "formmethod"), "dialog");
+  assert.equal(attrOf("local-owner", "formmethod"), "dialog");
+  assert.equal(attrOf("external-owner", "formmethod"), "post");
+  assert.equal(attrOf("external", "action"), "https://receiver.example/send");
+  assert.equal(attrOf("unowned", "formmethod"), "get");
+  assert.deepEqual(result.removed, [{ page: "/contact", url: "/send", attribute: "action", reason: "needs-server" }]);
+});
+
+test("refuses to emit an enabled backend form when the editor loses its opening-tag offsets", () => {
+  const html = '<form action="/contact"><button>Send</button></form>';
+  const missingOpeningTag: DownloadHtmlSourceEdits = {
+    ...sourceEdits,
+    elements(args) {
+      return sourceEdits.elements(args).map(node => {
+        if (node.tagName !== "form" || !node.sourceCodeLocation) return node;
+        const { startTag: _lost, ...location } = node.sourceCodeLocation;
+        return { ...node, sourceCodeLocation: location };
+      });
+    },
+  };
+  assert.throws(() => downloadForms({ html, page: "/contact", sourceEdits: missingOpeningTag }), {
+    name: "Error", message: "Static export form has no start tag location",
+  });
+});

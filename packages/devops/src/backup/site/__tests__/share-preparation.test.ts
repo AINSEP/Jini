@@ -158,3 +158,42 @@ describe("prepareShareContent", () => {
     await expect(prepareShareContent({ ...ports, deps }, { signal: AbortSignal.abort(new Error("stop")) })).rejects.toThrow("stop");
   });
 });
+
+it("reads a blob with a known size but no supplied hash without changing its bytes", async () => {
+  const steps = createShareSteps(stepDeps());
+  const seen: string[] = [];
+  const bytes = new Uint8Array([0, 255, 4]);
+  const blobStore = { get: async ({ storageKey }: { storageKey: string }) => {
+    if (storageKey !== "renders/one.webp") throw new Error("Unexpected blob key");
+    seen.push(storageKey);
+    return bytes;
+  } };
+  expect(await steps.fetchVerifiedBlob({ blobStore, media: { storageKey: "renders/one.webp" }, size: 3 })).toEqual(Buffer.from([0, 255, 4]));
+  expect(seen).toEqual(["renders/one.webp"]);
+});
+
+it("prepares a content-only site without inventing media, keys or notices", async () => {
+  const include = { database: true, media: true, zone: true };
+  const steps = createShareSteps(stepDeps());
+  const observed: Array<readonly unknown[]> = [];
+  const plan = await prepareShareContent({
+    dbOps, snapshotRoot: "/snapshot", sources: { siteDir: "/sites/no-media" }, blobStore: {}, imageTransformer: {},
+    sanitize: async () => ({ bytes: Buffer.from("projected"), media: [] }),
+    rewriteMedia: async ({ copies, bytes }) => {
+      if (copies.length !== 0) throw new Error("No media should be rewritten");
+      return bytes;
+    },
+    deps: {
+      include, steps, checkShareLimits: stepDeps().checkShareLimits,
+      prepareExtensions: async () => ({ files: [], plugins: [] }),
+      bufferArchiveMedia: async ({ sources }) => { observed.push(sources); return []; },
+      runtimeSchema: () => ({ index: 1, tag: "one" }),
+    },
+  });
+  expect(observed).toEqual([[]]);
+  expect(plan.media).toEqual([]);
+  expect(plan.notices).toEqual([]);
+  expect(plan.credentialWarnings).toEqual([]);
+  expect(plan).not.toHaveProperty("encryptedKeys");
+  expect(plan.bufferedFiles).toEqual([{ path: "settings.json", content: Buffer.from('{"name":"no-media","template":{}}') }]);
+});

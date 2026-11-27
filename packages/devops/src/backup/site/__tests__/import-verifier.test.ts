@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import type { ArchivePlugin } from "../archive-manifest.js";
 import { describe, it, expect } from "vitest";
 import { verifySiteImport, type SiteImportVerifierHost } from "../import-verifier.js";
 import { ARCHIVE_DATABASE_PATH } from "../archive-manifest.js";
@@ -42,4 +44,35 @@ describe("import verifier host injection", () => {
   it("refuses an archive without a content database through the injected refusal", async () => {
     await expect(verifySiteImport({ archive: Buffer.from("zip"), reader, schema, host: host({ "media/a.png": "png" }), sanitize: async () => ({ bytes: Buffer.alloc(0) }) })).rejects.toBeInstanceOf(Refused);
   });
+});
+
+it("trusts only the bundled agent package whose complete inventory is identical", async () => {
+  const digest = (text: string) => createHash("sha256").update(text).digest("hex");
+  const cases = ["exact", "edited", "extra", "missing", "changed", "unknown", "site"] as const;
+  const plugins: ArchivePlugin[] = cases.map((id, index) => ({
+    kind: id === "site" ? "site" : "agent", id, version: "1.0", digest: String(index + 1).repeat(64), enabled: false, shipped: true,
+  }));
+  const packageFiles = new Map(plugins.filter(p => p.id !== "unknown").map(p => [p.digest, new Map([["plugin.json", digest("manifest")], ["main.js", digest("script")]])]));
+  const files = new Map<string, Buffer>([[ARCHIVE_DATABASE_PATH, Buffer.from("db")]]);
+  for (const plugin of plugins) {
+    const prefix = `agent-plugins/${plugin.id}/package/`;
+    files.set(prefix + "plugin.json", Buffer.from("manifest"));
+    if (plugin.id !== "missing") files.set(prefix + "main.js", Buffer.from(plugin.id === "changed" ? "different" : "script"));
+    if (plugin.id === "extra") files.set(prefix + "extra.js", Buffer.from("extra"));
+  }
+  const h = host({}, {
+    parseShareManifest: () => ({ files: [], plugins, site: { name: "Example" } }),
+    sha256Hex: ({ bytes }) => createHash("sha256").update(bytes).digest("hex"),
+    readListedFiles: async ({ modified }) => { modified.add("agent-plugins/edited"); return files; },
+    readBundledPackageFiles: async () => { throw new Error("Expected caller bundle inventory"); },
+  });
+
+  const verified = await verifySiteImport({
+    archive: Buffer.from("zip"), reader, host: h, schema, sanitize: async () => ({ bytes: Buffer.from("clean") }),
+  }, { packageFiles });
+
+  expect(verified.trustedPlugins.map(p => p.id)).toEqual(["exact"]);
+  expect(verified.plugins).toEqual(plugins);
+  expect(verified.warnings).toEqual(["edited agent-plugins/edited"]);
+  expect(verified.files.get("runtime/agent-plugins/changed/package/main.js")).toEqual(Buffer.from("different"));
 });

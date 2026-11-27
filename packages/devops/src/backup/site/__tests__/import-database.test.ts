@@ -174,3 +174,24 @@ describe("tidyImportDatabases", () => {
     await expect(api({ withFileLock: async () => { throw Object.assign(new Error("boom"), { code: "EIO" }); } }).tidyImportDatabases({})).rejects.toThrow("boom");
   });
 });
+
+it("kills an unresponsive verifier at 90 seconds, keeps its timeout refusal, and removes staging", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let notifyForked!: () => void;
+    const forked = new Promise<void>(resolve => { notifyForked = resolve; });
+    const { fork, roots, children } = forkThat(() => notifyForked());
+    const result = api().rebuildImportDatabase(input, { statfs: plenty, fork });
+    const refused = expect(result).rejects.toMatchObject({
+      code: "DATABASE_TIMEOUT", message: "Import database verification exceeded 90 seconds.",
+    });
+    await forked;
+    await vi.advanceTimersByTimeAsync(89_999);
+    expect(children[0]!.kills).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await refused;
+    expect(children[0]!.kills).toEqual(["SIGKILL"]);
+    expect(fs.existsSync(roots[0]!)).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});

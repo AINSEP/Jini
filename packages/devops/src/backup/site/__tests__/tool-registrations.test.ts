@@ -1,3 +1,5 @@
+import { parseSiteImportInput } from "../import-backend.js";
+import { SiteShareRefusal } from "../share-refusal.js";
 import { expect, it, vi } from "vitest";
 import { indexCatalogById } from "@jini-ai/core";
 import type { ToolExecutionContext } from "@jini-ai/core";
@@ -86,4 +88,46 @@ it("dispatches import and share with live backends without constructing backup s
   await expect(registrations.find(tool => tool.descriptor.id === "site_share_list")!.handler(ctx)).rejects.toThrow();
   expect(resolveDeps).toHaveBeenCalledTimes(3); expect(listPage).toHaveBeenCalledOnce(); expect(list).toHaveBeenCalledOnce();
   expect(planSiteBackup).not.toHaveBeenCalled(); expect(pushSiteBackup).not.toHaveBeenCalled();
+});
+
+it("dispatches valid create, revoke and import inputs with the caller scope and preserves typed refusals", async () => {
+  const importBackup = vi.fn<NonNullable<SiteBackupToolDeps["siteImportBackend"]>["importBackup"]>().mockRejectedValue(
+    new SiteShareRefusal({ code: "BUSY", message: "Wait for a staged import" }),
+  );
+  const create = vi.fn<NonNullable<SiteBackupToolDeps["siteShareBackend"]>["create"]>();
+  const revoke = vi.fn<NonNullable<SiteBackupToolDeps["siteShareBackend"]>["revoke"]>();
+  const deps: SiteBackupToolDeps = {
+    workspaceId: "workspace", authorize: async () => ({ allowed: true, reason: "test" }),
+    siteImportBackend: { importBackup, listPage: vi.fn() }, siteShareBackend: { create, list: vi.fn(), revoke },
+  };
+  const bound = bindSiteBackupTools({ importDescription: "Import", commitDescription: "Commit", shareDescription: "Share",
+    catalogModule: "site-backup", toolMetadata: {}, modelFacingErrors: [], resolveDeps: ({ deps }: { deps: SiteBackupToolDeps }) => deps,
+    planSiteBackup: vi.fn(), pushSiteBackup: vi.fn(), parseStaticExportInput: vi.fn(), parseSiteImportInput, parseSiteImportListQuery: vi.fn(),
+  });
+  const registrations = bound.buildSiteBackupRegistrations({ deps, surfaces: {} as AssistantSurfaceDeps });
+  const signal = new AbortController().signal;
+  const call = (id: string, input: unknown) => registrations.find(tool => tool.descriptor.id === id)!.handler({
+    executionId: "exec", run: { id: "run" }, input, principal: { id: "site-owner" }, signal,
+  });
+  const jobId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+  expect(await call("site_share_create", { jobId: "invalid" })).toEqual({
+    ok: false, code: "INVALID_INPUT", message: "Only an optional share jobId is accepted.",
+  });
+  expect(await call("site_share_revoke", { shareId: "share", force: true })).toEqual({
+    ok: false, code: "INVALID_INPUT", message: "Only shareId is accepted.",
+  });
+  expect(create).not.toHaveBeenCalled();
+  expect(revoke).not.toHaveBeenCalled();
+
+  const fault = new Error("registry fault");
+  create.mockRejectedValueOnce(fault);
+  await expect(call("site_share_create", { jobId })).rejects.toBe(fault);
+  revoke.mockRejectedValueOnce(new SiteShareRefusal({ code: "NOT_FOUND", message: "Share not found for this site." }));
+  expect(await call("site_share_revoke", { shareId: "share" })).toEqual({ ok: false, code: "NOT_FOUND", message: "Share not found for this site." });
+  expect(await call("site_import_backup", { url: "https://share.example/a.zip", requestId: "request-1" })).toEqual({
+    ok: false, code: "BUSY", message: "Wait for a staged import",
+  });
+  expect(create.mock.calls).toEqual([[{ principalId: "site-owner", signal, jobId }]]);
+  expect(revoke.mock.calls).toEqual([[{ shareId: "share" }]]);
+  expect(importBackup.mock.calls).toEqual([[{ source: { url: "https://share.example/a.zip" }, requestId: "request-1", principalId: "site-owner" }, { signal }]]);
 });

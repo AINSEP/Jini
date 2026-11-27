@@ -131,3 +131,31 @@ describe('legacy import backfill', () => {
     }
   });
 });
+
+it.each(['SQLITE_FULL', 'INSUFFICIENT_STORAGE'])('blocks cutover when candidate storage is exhausted (%s)', code => {
+  const f = fixture({ [id]: { state: 'ok', value: base } });
+  f.openCandidate.mockImplementationOnce(() => { throw Object.assign(new Error('driver details'), { code }); });
+  expect(f.runBackfill()).toEqual({ state: 'blocked' });
+  expect(f.log.mock.calls).toEqual([[{ message: 'INSUFFICIENT_STORAGE', counts: {} }, {}]]);
+  expect(f.rows().size).toBe(0);
+  expect(f.fences().size).toBe(0);
+  expect(f.meta().has('db_id')).toBe(false);
+});
+
+it('backfills a digest fence that survives a new signed URL but rejects different bytes', () => {
+  const f = fixture({ [id]: { state: 'ok', value: { ...base, sourceDigest: 'AB'.repeat(32) } } });
+  expect(f.runBackfill()).toEqual({ state: 'cutover', dbId: other, cutoverAt: 1, backfillCount: 1 });
+  expect(f.fences().get(JSON.stringify(['one', 'key']))).toMatchObject({
+    fenceKind: 'sha256', fenceValue: 'ab'.repeat(32), importId: id,
+  });
+  const stored = f.fences().get(JSON.stringify(['one', 'key']))!;
+  const fence = {
+    principal_id: 'one', request_id: 'key', fence_kind: 'sha256' as const,
+    fence_value: String(stored.fenceValue), import_id: id, accepted_ms: 0, outcome_json: String(stored.outcomeJson),
+  };
+  const source = { url: 'https://share.example/reissued?token=new' };
+  const digestSource = vi.fn<Parameters<typeof sameFence>[0]['digestSource']>(() => 'AB'.repeat(32)).mockReturnValueOnce('CD'.repeat(32));
+  expect(sameFence({ fence, source, digestSource })).toBe(false);
+  expect(sameFence({ fence, source, digestSource })).toBe(true);
+  expect(digestSource.mock.calls).toEqual([[{ source }, {}], [{ source }, {}]]);
+});

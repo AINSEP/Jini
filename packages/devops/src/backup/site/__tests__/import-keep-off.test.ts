@@ -150,3 +150,20 @@ describe("unrecognisedThemes", () => {
     } finally { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+it("does not recheck or rewrite ordinary menu items and forms whose documents cannot be parsed", async () => {
+  const { s, log } = store({
+    menus: [{ id: 1, title: "Items", docJson: '{"mode":"items","html":"<script>fixture</script>"}' }],
+    forms: [{ id: 2, name: "Broken JSON", fieldsJson: '{"mode":' }],
+  });
+  const checked: string[] = [];
+  const guarded = { ...host, sanitizePageHtml: (...args: Parameters<KeepOffHost["sanitizePageHtml"]>) => {
+    checked.push(args[0].html);
+    host.sanitizePageHtml(...args);
+  } };
+  expect(await run(s, { host: guarded })).toEqual([]);
+  expect(checked).toEqual([]);
+  expect(log.menuDocs).toEqual([]);
+  expect(log.disabled).toEqual([]);
+  expect(log.closed).toBe(1);
+});

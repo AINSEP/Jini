@@ -142,3 +142,72 @@ describe("acknowledgeSiteShare", () => {
     expect((await reg.get({ shareId: row.shareId }))?.needsAcknowledgement).toBe(false);
   });
 });
+
+it("preserves the remote locator for retry when a failed upload cannot be purged", async () => {
+  const reg = registry();
+  const fake = store({ verify: async () => false });
+  const bound = delivery(fake.store, { binding: "bucket" });
+  const failure = service().createSiteShare({ registry: reg, site: "ws", name: "Site", archive: ARCHIVE }, { delivery: bound });
+  const error = await failure.catch((reason: unknown) => reason);
+  const rows = await reg.list({ site: "ws" });
+  expect(rows).toHaveLength(1);
+  const row = rows[0]!;
+  expect(error).toMatchObject({ code: "DELIVERY_CLEANUP_FAILED", message: `Share ${row.shareId} delivery failed and remote deletion/purge could not be verified. Retry site_share_revoke.` });
+  const key = `_share/${row.token}/site.pkg.zip`;
+  expect(row).toMatchObject({ status: "failed", url: null, storage: { provider: "s3", binding: "bucket", key, url: URL } });
+  expect(fake.calls.deletes).toEqual([key]);
+  expect(fake.calls.verifies).toEqual([{ key, url: URL, present: true, bytes: ARCHIVE.length }, { key, url: URL, present: false }]);
+  expect(await reg.findToken({ token: row.token, file: row.file })).toBeNull();
+});
+
+it("disables the token before surfacing a local ZIP delete failure", async () => {
+  const reg = registry();
+  const row = await service().createSiteShare({ registry: reg, site: "ws", name: "Site", archive: ARCHIVE });
+  const artifact = reg.artifactPath({ shareId: row.shareId });
+  fs.unlinkSync(artifact);
+  fs.mkdirSync(artifact);
+
+  await expect(service().revokeSiteShare({ registry: reg, site: "ws", shareId: row.shareId })).rejects.toMatchObject({
+    code: "DELETE_FAILED", message: "Share token is disabled but its ZIP could not be deleted. Retry revoke.",
+  });
+  expect((await reg.get({ shareId: row.shareId }))?.status).toBe("revoked");
+  expect(await reg.findToken({ token: row.token, file: row.file })).toBeNull();
+});
+
+it("requires remote disappearance and retries using the saved URL when no public link was issued", async () => {
+  const reg = registry();
+  const row = await service().createSiteShare({ registry: reg, site: "ws", name: "Site", archive: ARCHIVE });
+  await reg.put({ record: { ...row, storage: { provider: "s3", key: "remote/key", binding: "original", url: URL } } });
+  let purged = false;
+  const fake = store({ verify: async () => purged });
+  const revoke = () => service().revokeSiteShare({ registry: reg, site: "ws", shareId: row.shareId }, { delivery: delivery(fake.store, { binding: "original" }) });
+  await expect(revoke()).rejects.toMatchObject({
+    code: "DELETE_FAILED", message: "Share is disabled locally but remote deletion/purge is not verified. Retry revoke.",
+  });
+  expect(await reg.findToken({ token: row.token, file: row.file })).toBeNull();
+  purged = true;
+  expect(await revoke()).toMatchObject({ shareId: row.shareId, status: "revoked" });
+  expect(fake.calls.deletes).toEqual(["remote/key", "remote/key"]);
+  expect(fake.calls.verifies).toEqual(Array(2).fill({ key: "remote/key", url: URL, present: false }));
+});
+
+it("acknowledges a pending clean export only with the original delivery and never uploads it twice", async () => {
+  const reg = registry();
+  const row = await service().createSiteShare({ registry: reg, site: "ws", name: "Site", archive: ARCHIVE });
+  const key = `_share/${row.token}/site.pkg.zip`;
+  // Persist an older pending-clean record: current creation only sets acknowledgement for warned exports.
+  await reg.put({ record: { ...row, needsAcknowledgement: true, storage: { provider: "s3", key, binding: "original" } } });
+  const fake = store({ verify: async () => (await reg.get({ shareId: row.shareId }))?.needsAcknowledgement === false });
+  const required = { registry: reg, site: "ws", shareId: row.shareId };
+  await expect(service().acknowledgeSiteShare(required, { delivery: delivery(fake.store, { binding: "other" }) })).rejects.toMatchObject({
+    code: "UNAVAILABLE", message: "Acknowledgement delivery failed: reconnect this export's original storage and retry.",
+  });
+  expect((await reg.get({ shareId: row.shareId }))?.needsAcknowledgement).toBe(true);
+  expect(fake.calls.uploads).toEqual([]);
+  const original = delivery(fake.store, { binding: "original" });
+  const acknowledged = await service().acknowledgeSiteShare(required, { delivery: original });
+  expect(acknowledged).toMatchObject({ needsAcknowledgement: false, url: URL });
+  expect(await reg.get({ shareId: row.shareId })).toEqual(acknowledged);
+  expect(await service().acknowledgeSiteShare(required, { delivery: original })).toEqual(acknowledged);
+  expect(fake.calls.uploads).toEqual([{ key, bytes: ARCHIVE, headers: { ...SHARE_DOWNLOAD_HEADERS, "Content-Disposition": 'attachment; filename="site.pkg.zip"' } }]);
+});

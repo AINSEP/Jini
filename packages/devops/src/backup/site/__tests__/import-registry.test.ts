@@ -131,3 +131,64 @@ describe("import source helpers", () => {
     expect(a).not.toBe(importSourceDigest({ source: { url: "https://a.example.test/p?q=2" } }));
   });
 });
+
+it("requires legacy writes to recheck authority under the lock and resets the session on exit", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "import-legacy-authority-"));
+  dirs.push(directory);
+  const writes: string[] = [];
+  const fault = new Error("lost legacy authority");
+  const confirm = vi.fn().mockImplementationOnce(() => { throw fault; });
+  const history: NonNullable<SiteImportRegistry["history"]> = {
+    read: ({ run }) => run({ kind: "legacy" }),
+    locked: ({ run }) => run({ kind: "legacy", confirm }),
+  };
+  const registry = new SiteImportRegistry({ directory, history, payload: nodePayload({ writes, locks: [] }) });
+  const data = record({ expiresAt: 60_000 });
+  const lookup = { importId: data.importId, principalId: data.principalId };
+
+  expect(() => registry.put({ row: data })).toThrow("Legacy import history writes need the import lock.");
+  await expect(registry.exclusive({ run: async () => registry.put({ row: data }) })).rejects.toBe(fault);
+  expect(writes).toEqual([]);
+  expect(() => registry.get(lookup)).toThrow(expect.objectContaining({ code: "NOT_FOUND", message: "Import not found." }));
+  await registry.exclusive({ run: async () => registry.put({ row: data }) });
+  expect(registry.get(lookup)).toEqual(data);
+  expect(confirm.mock.calls).toEqual([[{}], [{}]]);
+  expect(() => registry.put({ row: { ...data, status: "failed" } })).toThrow("Legacy import history writes need the import lock.");
+  expect(registry.get(lookup)).toEqual(data);
+  expect(writes).toEqual([path.join(directory, `${data.importId}.json`)]);
+});
+
+it("leaves an inaccessible record intact and continues expiring the other owner's setup", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "import-expiry-fault-"));
+  dirs.push(directory);
+  const payload = nodePayload({ writes: [], locks: [] });
+  const log = vi.fn();
+  const fault = Object.assign(new Error("entry is locked"), { code: "EBUSY" });
+  const blocked = path.join(directory, `${ID_A}.json`);
+  let readable = true;
+  const registry = new SiteImportRegistry({ directory, payload: {
+    ...payload, clock: { nowMs: () => 500 },
+    readJsonAt: (args, options) => {
+      if (args.file === blocked && !readable) throw fault;
+      return payload.readJsonAt(args, options);
+    },
+  } }, { log });
+  const a = record({ status: "needs-owner", expiresAt: 100 });
+  const b = record({ importId: ID_B, principalId: "another-owner", status: "needs-owner", expiresAt: 200 });
+  await registry.exclusive({ run: async () => {
+    for (const row of [a, b]) {
+      registry.put({ row });
+      fs.mkdirSync(registry.stagePath(row));
+    }
+    readable = false;
+    registry.expireHistory({});
+  } });
+
+  expect(log.mock.calls).toEqual([[`[site-backup] import registry could not clear expired entry ${ID_A}.json; the rest of the sweep continues`, fault]]);
+  expect(JSON.parse(fs.readFileSync(blocked, "utf8"))).toEqual(a);
+  expect(fs.existsSync(registry.stagePath(a))).toBe(true);
+  expect(registry.get({ importId: ID_B, principalId: "another-owner" })).toMatchObject({
+    status: "failed", error: "Owner setup expired. Import the archive again.",
+  });
+  expect(fs.existsSync(registry.stagePath(b))).toBe(false);
+});

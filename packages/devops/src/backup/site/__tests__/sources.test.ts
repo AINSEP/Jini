@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstat, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +20,7 @@ import {
   type SiteBackupInclude,
   type SiteBackupSourceDeps,
   type SiteBackupSources,
+  type SiteBackupWalkFileSystem,
 } from "../sources.js";
 
 const NONE: SiteBackupInclude = { database: false, media: false, themes: false, plugins: false, settings: false };
@@ -228,4 +230,172 @@ describe("limits and manifest", () => {
     expect(manifest).toMatchObject({ format: "host-site-backup", host: { version: "9.9" }, database: { path: "database/content.db", engine: "sqlite", watermarkAtCapture: 3 } });
     expect(manifest.scopes.media).toEqual({ included: false, note: "note" });
   });
+});
+
+it("backs up local uploads and approved settings without including chat files or following setting links", async () => {
+  const site = tmp();
+  const media = path.join(site, "uploads");
+  write(path.join(media, "public", "photo.webp"), "photo");
+  write(path.join(media, "chat-attachments", "private.webp"), "chat");
+  write(path.join(site, "private", "config.json"), "private");
+  mkdirSync(path.join(site, ".site-meta.json"));
+  symlinkSync(path.join(site, "private", "config.json"), path.join(site, "config.json"));
+  const sources = makeSources(site, { mediaUploadsDir: media, isMediaRemote: async () => false });
+  const result = await collectSiteBackupFiles({ sources, include: { ...NONE, media: true, settings: true }, deps: makeDeps() });
+  expect(result.files.map(f => ({ path: f.path, bytes: f.bytes }))).toEqual([{ path: "uploads/public/photo.webp", bytes: 5 }]);
+  expect(result.skipped).toEqual([
+    { path: "settings/config.json", reason: "a symbolic link — never followed, so nothing outside the site can ride along" },
+    { path: "settings/.site-meta.json", reason: "not a regular file" },
+  ]);
+  expect(result.scopeNotes).toEqual({});
+});
+
+it("only walks installer-owned workspace package and memory paths, with linked workspaces and plugin roots reported", async () => {
+  const site = tmp();
+  const ap = path.join(site, "ap");
+  const ws = path.join(ap, "ws");
+  const working = path.join(ws, "normal");
+  write(path.join(working, "activations.json"), "{}");
+  write(path.join(working, "packages", "sha256", "legacy", "main.js"), "legacy");
+  write(path.join(working, "active", "package", "sha256", "current", "main.js"), "current");
+  write(path.join(working, "active", "memory", "notes", "notes.md"), "notes");
+  write(path.join(working, "active", "memory", "learned"), "not a directory");
+  write(path.join(working, "active", "data", "private.json"), "private");
+  write(path.join(working, "linked-memory", "package", "sha256", "fresh", "main.js"), "fresh");
+  mkdirSync(path.join(working, "linked-memory", "memory"));
+  symlinkSync(path.join(working, "active", "memory", "notes"), path.join(working, "linked-memory", "memory", "notes"));
+  mkdirSync(path.join(working, "staging"));
+  symlinkSync(path.join(working, "active"), path.join(working, "linked-plugin"));
+  symlinkSync(working, path.join(ws, "linked-workspace"));
+  mkdirSync(path.join(ws, "UNKNOWN"));
+  write(path.join(ws, "not-a-directory"), "not a workspace");
+  const layout = {
+    root: ap, workspacesDir: ws,
+    forWorkspace: ({ workspaceId }: { workspaceId: string }) => {
+      if (workspaceId !== "normal") throw new Error("Foreign workspace id");
+      const pluginRootDir = ({ pluginId }: { pluginId: string }) => {
+        if (!["active", "linked-memory", "linked-plugin"].includes(pluginId)) throw new Error("Not a plugin id");
+        return path.join(working, pluginId);
+      };
+      return { root: working, packages: path.join(working, "packages"), pluginRootDir,
+        pluginPackagesDir: ({ pluginId }: { pluginId: string }) => path.join(pluginRootDir({ pluginId }), "package", "sha256"),
+        pluginMemoryDir: ({ pluginId, kind }: { pluginId: string; kind: "learned" | "notes" }) => path.join(pluginRootDir({ pluginId }), "memory", kind),
+      };
+    },
+  } as unknown as AgentPluginLayout;
+  const result = await collectSiteBackupFiles({ sources: makeSources(site, { agentPlugins: layout }), include: { ...NONE, plugins: true }, deps: makeDeps() });
+  expect(result.files.map(f => f.path)).toEqual([
+    "agent-plugins/ws/normal/activations.json",
+    "agent-plugins/ws/normal/active/memory/notes/notes.md",
+    "agent-plugins/ws/normal/active/package/sha256/current/main.js",
+    "agent-plugins/ws/normal/linked-memory/package/sha256/fresh/main.js",
+    "agent-plugins/ws/normal/packages/sha256/legacy/main.js",
+  ]);
+  expect(result.skipped.map(f => [f.path, f.reason]).sort()).toEqual([
+    ["agent-plugins/ws/UNKNOWN", "not a workspace folder the plugin installer writes"],
+    ["agent-plugins/ws/linked-workspace", "a symbolic link — never followed, so nothing outside the site can ride along"],
+    ["agent-plugins/ws/normal/linked-memory/memory/notes", "a symbolic link — never followed, so nothing outside the site can ride along"],
+    ["agent-plugins/ws/normal/linked-plugin", "a symbolic link — never followed, so nothing outside the site can ride along"],
+  ]);
+});
+
+it("reports capture and readback failures separately and treats a missing snapshot as already removed", async () => {
+  const directory = tmp();
+  const absent = path.join(directory, "absent.db");
+  const capture = vi.fn<DbOpsPort["captureRestorePoint"]>()
+    .mockRejectedValueOnce(Object.assign(new Error("driver refused"), { code: "EIO" }))
+    .mockResolvedValueOnce({ artifactRef: absent, watermarkAtCapture: 4 } as Awaited<ReturnType<DbOpsPort["captureRestorePoint"]>>);
+  const dbOps = { getCapabilities: async () => ({ restorePoint: { costClass: "cheap", kind: "file-snapshot" } }), captureRestorePoint: capture } as unknown as DbOpsPort;
+  const args = { dbOps, scopeId: "fixture", snapshotDirPrefix: "snap-" };
+  const logger = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    expect(await captureDatabaseSnapshot(args)).toMatchObject({ ok: false, message: "the database snapshot failed; nothing was backed up" });
+    expect(await captureDatabaseSnapshot(args)).toMatchObject({ ok: false, message: "the database snapshot could not be read back; nothing was backed up" });
+    expect(capture.mock.calls).toEqual([[{ scopeId: "fixture" }], [{ scopeId: "fixture" }]]);
+    expect(logger).not.toHaveBeenCalled();
+  } finally { logger.mockRestore(); }
+});
+
+it("refuses a missing hash-pinned file before asking the reviewed-file reader and reports GiB accurately", async () => {
+  const root = realpathSync(tmp());
+  const file: PlannedDiskFile = {
+    path: "themes/missing.css", absPath: path.join(root, "missing.css"), root, bytes: 5, identity: null, nlink: 1, mtimeMs: 1, scope: "themes", sha256: sha("bytes"),
+  };
+  const readReviewedFile = vi.fn<SiteBackupSourceDeps["readReviewedFile"]>();
+  expect(await readPlannedFile(file, { deps: makeDeps({ readReviewedFile }) })).toEqual({
+    ok: false, message: "'themes/missing.css' changed since the plan was made. Call site_backup_plan again.",
+  });
+  expect(readReviewedFile).not.toHaveBeenCalled();
+  expect(formatByteSize({ bytes: 1024 ** 3 })).toBe("1 GiB");
+  expect(formatByteSize({ bytes: 1.5 * 1024 ** 3 })).toBe("1.5 GiB");
+});
+
+it("distinguishes a missing directory from an unreadable one instead of silently omitting its contents", async () => {
+  const site = tmp();
+  const sources = makeSources(site);
+  const required = { sources, include: { ...NONE, themes: true }, deps: makeDeps() };
+  expect((await collectSiteBackupFiles(required)).files).toEqual([]);
+  const denied = Object.assign(new Error("theme directory could not be read"), { code: "EACCES" });
+  const read = vi.fn<SiteBackupWalkFileSystem["readdir"]>().mockRejectedValue(denied);
+  const fileSystem: SiteBackupWalkFileSystem = {
+    readdir: read,
+    lstat: ({ file }) => lstat(file),
+    lstatBigInt: ({ file }) => lstat(file, { bigint: true }),
+  };
+  write(path.join(sources.themesDir, "index.html"), "published content");
+  await expect(collectSiteBackupFiles(required, { fileSystem })).rejects.toBe(denied);
+  expect(read.mock.calls).toEqual([[{ dir: sources.themesDir }]]);
+});
+
+it("propagates an unexpected settings read error but allows a setting removed during discovery", async () => {
+  const site = tmp();
+  const sources = makeSources(site);
+  const meta = path.join(site, ".site-meta.json");
+  write(meta, "{}");
+  const missing = Object.assign(new Error("removed"), { code: "ENOENT" });
+  const denied = Object.assign(new Error("settings unreadable"), { code: "EACCES" });
+  const fileSystem: SiteBackupWalkFileSystem = {
+    readdir: ({ dir }) => readdir(dir, { withFileTypes: true }),
+    lstat: async ({ file }) => { if (path.basename(file) === "config.json") throw missing; return lstat(file); },
+    lstatBigInt: ({ file }) => lstat(file, { bigint: true }),
+  };
+  const required = { sources, include: { ...NONE, settings: true }, deps: makeDeps() };
+  expect((await collectSiteBackupFiles(required, { fileSystem })).files.map(f => f.path)).toEqual(["settings/.site-meta.json"]);
+  await expect(collectSiteBackupFiles(required, { fileSystem: {
+    ...fileSystem, lstat: async ({ file }) => { if (file === meta) throw denied; throw missing; },
+  } })).rejects.toBe(denied);
+});
+
+it("passes the legacy open-file override and safe stat helpers to the reviewed-file port", async () => {
+  const root = realpathSync(tmp());
+  const absPath = path.join(root, "one");
+  write(absPath, "review");
+  const file: PlannedDiskFile = { path: "themes/one", bytes: 6, root, absPath, identity: null, nlink: 1, mtimeMs: 1, scope: "themes" };
+  const openFile = vi.fn<NonNullable<Parameters<typeof readPlannedFile>[1]["openFile"]>>();
+  const reader = vi.fn<SiteBackupSourceDeps["readReviewedFile"]>(async ({ file: input }, optional) => {
+    const fs = optional?.fileSystem;
+    if (!fs) throw new Error("Expected file system with explicit opener");
+    expect(fs.open).toBe(openFile);
+    expect(await fs.realpath(input.absPath)).toBe(absPath);
+    expect((await fs.lstat(input.absPath)).nlink).toBe(1n);
+    return Buffer.from("review");
+  });
+  expect(await readPlannedFile(file, { deps: makeDeps({ readReviewedFile: reader }), openFile })).toEqual({ ok: true, bytes: Buffer.from("review") });
+  expect(reader.mock.calls.map(([input]) => input)).toEqual([{ file }]);
+});
+
+it("does not capture a restore point when its private snapshot directory cannot be created", async () => {
+  const root = tmp();
+  const captureRestorePoint = vi.fn<DbOpsPort["captureRestorePoint"]>();
+  const dbOps = {
+    getCapabilities: async () => ({ restorePoint: { costClass: "cheap", kind: "file-snapshot" } }), captureRestorePoint,
+  } as unknown as DbOpsPort;
+  await expect(captureDatabaseSnapshot(
+    { dbOps, scopeId: "fixture", snapshotDirPrefix: "snap-" },
+    { snapshotRoot: path.join(root, "absent") },
+  )).resolves.toMatchObject({
+    ok: false, message: "the database snapshot failed; nothing was backed up", logDetail: expect.stringContaining("ENOENT"),
+  });
+  expect(captureRestorePoint).not.toHaveBeenCalled();
+  expect(existsSync(path.join(root, "absent"))).toBe(false);
 });

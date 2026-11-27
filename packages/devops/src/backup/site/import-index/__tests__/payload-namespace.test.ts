@@ -88,3 +88,72 @@ describe('payload namespace', () => {
     expect(f.fs.readdir).not.toHaveBeenCalled();
   });
 });
+
+it('preserves a destination of the wrong kind and its original payload', () => {
+  const f = fixture();
+  const original = `${root}/${id}.upload.zip`;
+  const destination = f.paths.upload({ uploadId: id });
+  f.entries.set(original, 'file');
+  f.entries.set(f.paths.dir, 'directory');
+  f.entries.set(destination, 'directory');
+
+  expect(() => ensurePayloadNamespace({ root, paths: f.paths, fs: f.fs })).toThrow(expect.objectContaining({
+    code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503,
+    message: 'Imports are paused because the app could not move its import files. Check that the app can write to its data folder, then try again.',
+  }));
+  expect(f.entries.get(original)).toBe('file');
+  expect(f.entries.get(destination)).toBe('directory');
+  expect(f.entries.has(f.paths.marker)).toBe(false);
+});
+
+it('retires a same-kind duplicate left by an interrupted move without replacing the destination', () => {
+  const f = fixture();
+  const original = `${root}/${id}.stage`;
+  const destination = f.paths.stage({ importId: id });
+  f.entries.set(original, 'directory');
+  f.entries.set(f.paths.dir, 'directory');
+  f.entries.set(destination, 'directory');
+  const rm = vi.fn(f.fs.rm);
+  const rename = vi.fn(f.fs.rename);
+  f.fs.rm = rm;
+  f.fs.rename = rename;
+
+  ensurePayloadNamespace({ root, paths: f.paths, fs: f.fs });
+
+  expect(f.entries.has(original)).toBe(false);
+  expect(f.entries.get(destination)).toBe('directory');
+  expect(f.entries.get(f.paths.marker)).toBe('file');
+  expect(rm.mock.calls).toEqual([[{ file: original, recursive: true }]]);
+  expect(rename).not.toHaveBeenCalled();
+});
+
+it('accepts an exclusive marker race only when the winner created a regular marker file', () => {
+  const f = fixture();
+  const writeExclusive = vi.fn<ImportPayloadFs['writeExclusive']>(({ file }) => {
+    f.entries.set(file, 'file');
+    throw Object.assign(new Error('marker already exists'), { code: 'EEXIST' });
+  });
+  f.fs.writeExclusive = writeExclusive;
+  ensurePayloadNamespace({ root, paths: f.paths, fs: f.fs });
+  expect(f.entries.get(f.paths.marker)).toBe('file');
+  expect(writeExclusive.mock.calls).toEqual([[{ file: f.paths.marker, mode: 0o600 }]]);
+  expect(f.fs.fsyncFile).toHaveBeenCalledWith({ file: f.paths.marker });
+
+  const g = fixture();
+  const error = Object.assign(new Error('non-file marker'), { code: 'EEXIST' });
+  g.fs.writeExclusive = ({ file }) => { g.entries.set(file, 'other'); throw error; };
+  expect(() => ensurePayloadNamespace({ root, paths: g.paths, fs: g.fs })).toThrow(error);
+  expect(g.fs.fsyncFile).not.toHaveBeenCalled();
+});
+
+it('reports exhausted disk space without committing the namespace marker', () => {
+  const f = fixture();
+  const raw = Object.assign(new Error('private driver detail'), { code: 'ENOSPC' });
+  f.fs.mkdir = () => { throw raw; };
+  expect(() => ensurePayloadNamespace({ root, paths: f.paths, fs: f.fs })).toThrow(expect.objectContaining({
+    code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 507,
+    message: 'There is not enough free disk space to prepare imports. Free up space and try again.',
+  }));
+  expect(f.entries.has(f.paths.dir)).toBe(false);
+  expect(f.entries.has(f.paths.marker)).toBe(false);
+});

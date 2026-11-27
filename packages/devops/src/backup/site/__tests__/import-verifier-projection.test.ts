@@ -68,3 +68,12 @@ describe('admitProjectedDocuments', () => {
     await expect(admitProjectedDocuments({ files: files({ 'uploads/d': 'DOC' }), documents: [doc], deps }, { signal: controller.signal })).rejects.toThrow('stop');
   });
 });
+
+it('keeps a rendition whose media reference has no checksum and preserves its bytes', async () => {
+  const map = files({ 'uploads/rendition': 'derivative byte fixture' });
+  const deps = makeDeps({ sha256Hex: () => { throw new Error('No checksum was declared'); } });
+  await applyShareProjection({
+    deps, files: map, projection: { media: [{ storageKey: 'rendition' }] }, manifest: { media: [] },
+  });
+  expect(map).toEqual(new Map([['uploads/rendition', Buffer.from('derivative byte fixture')]]));
+});

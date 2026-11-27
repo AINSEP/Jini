@@ -74,3 +74,22 @@ describe("archive manifest codec", () => {
     }
   });
 });
+
+const savedKeys = { version: 1, path: "secrets/saved-keys.json", format: "jini-passphrase-envelope" };
+const encrypted = { ...valid, encryptedKeys: savedKeys, files: [...base.files, { path: savedKeys.path, bytes: 23, sha256: hash }] };
+
+it("round-trips the versioned encrypted attachment when it is in the inventory", () => {
+  expect(parse(encrypted)).toEqual(encrypted);
+});
+
+it.each([
+  ["version", { ...encrypted, encryptedKeys: { ...savedKeys, version: 2 } }],
+  ["path", { ...encrypted, encryptedKeys: { ...savedKeys, path: "secrets/other.json" } }],
+  ["format", { ...encrypted, encryptedKeys: { ...savedKeys, format: "plaintext" } }],
+  ["missing inventory record", { ...encrypted, files: base.files }],
+  ["missing descriptor", { ...encrypted, encryptedKeys: undefined }],
+])("rejects an inconsistent encrypted attachment (%s)", (_reason, manifest) => {
+  expect(() => parse(manifest)).toThrow(expect.objectContaining({
+    code: "INVALID_ARCHIVE", message: "Invalid v2 share manifest, inventory or schema identity.",
+  }));
+});

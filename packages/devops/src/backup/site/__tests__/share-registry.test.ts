@@ -78,3 +78,26 @@ describe("site share registry host injection", () => {
     expect(await r.list({ site: "other" })).toEqual([]);
   });
 });
+
+it("reports an uninitialized registry and an unreserved but well-formed token as absent", async () => {
+  const r = registry();
+  const a = row();
+  fs.rmdirSync(r.directory);
+  expect(await r.list({})).toEqual([]);
+  await r.put({ record: a });
+  const missing = row();
+  expect(await r.findToken({ token: missing.token, file: missing.file })).toBeNull();
+  expect(await r.findToken({ token: a.token, file: a.file })).toEqual(a);
+});
+
+it("retries revocation without replacing its existing tombstone", async () => {
+  const r = registry();
+  const a = row();
+  await r.put({ record: a });
+  const first = await r.disable({ shareId: a.shareId, site: a.site });
+  const second = await r.disable({ shareId: a.shareId, site: a.site });
+  expect(first).toEqual({ ...a, status: "revoked", revokedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
+  expect(second).toEqual(first);
+  expect(await r.get({ shareId: a.shareId })).toEqual(first);
+  expect(await r.findToken({ token: a.token, file: a.file })).toBeNull();
+});

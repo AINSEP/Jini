@@ -282,3 +282,13 @@ test('classifiers strip long separator runs without changing directory boundarie
   expect(isMeasurableSourceFile({ file: 'services/api/routes/page.ts', rules: { ...rules, prefixes: [`services/api/routes${slashes}`] } })).toBe(true);
   expect(isMeasurableSourceFile({ file: 'services/api/routes-other/page.ts', rules: { ...rules, prefixes: [`services/api/routes${slashes}`] } })).toBe(false);
 });
+
+test('unions a declared but uncounted function as an unhit entry rather than dropping it', () => {
+  const first = functionReport(['FN:1,first', 'FN:7,second'], ['FNDA:3,first']);
+  const second = functionReport(['FN:1,first', 'FN:7,second'], ['FNDA:2,second']);
+  const merged = mergeCoverage({ reports: [first, second], isMeasurable: measurable }).get(rec().file);
+  expect(merged).toMatchObject({ fnf: 2, fnh: 2 });
+  expect(merged?.entries?.funcs).toEqual(new Map([
+    [JSON.stringify([1, null, 'first']), 3], [JSON.stringify([7, null, 'second']), 2],
+  ]));
+});

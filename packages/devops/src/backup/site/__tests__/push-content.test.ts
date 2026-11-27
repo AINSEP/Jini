@@ -44,3 +44,18 @@ it('commit uses the reviewed parent and base tree', async () => {
   expect(result).toEqual({ ok: true, result: { pushed: true, commitSha: 'commit', commitUrl: 'https://repo/commit',
     repository: 'owner/repo', branch: 'main', folder: 'backup', credentialWarnings: [], filesWritten: 1, totalBytes: 7 } });
 });
+
+it('propagates a non-force commit refusal without presenting it as a successful push', async () => {
+  const target = { baseUrl: 'https://repo.example', authorization: 'fixture', owner: 'owner', repo: 'repo' };
+  const plan = {
+    owner: 'owner', repo: 'repo', folder: 'backup', commitMessage: 'Backup',
+    repository: { branch: 'release', parentCommitSha: 'reviewed', baseTreeSha: 'tree', htmlUrl: 'https://repo.example/owner/repo', folderExists: false },
+  };
+  const refusal = { ok: false as const, code: 'diverged' as const, message: 'Ref changed before commit', logDetail: 'fixture diagnostic' };
+  const commitBackupTree = vi.fn<Parameters<typeof commitBackupPlan>[0]['provider']['commitBackupTree']>().mockResolvedValueOnce(refusal);
+  const entries = [{ path: 'manifest.json', bytes: 8, text: 'manifest', sha256: 'hash' }];
+
+  expect(await commitBackupPlan({ provider: { commitBackupTree }, target, plan, entries })).toEqual(refusal);
+  expect(commitBackupTree.mock.calls).toEqual([[{ ...target, folder: 'backup', commitMessage: 'Backup', branch: 'release',
+    parentCommitSha: 'reviewed', baseTreeSha: 'tree', htmlUrl: 'https://repo.example/owner/repo', entries }]]);
+});

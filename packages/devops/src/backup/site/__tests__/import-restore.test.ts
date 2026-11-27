@@ -184,3 +184,12 @@ describe('restoreStagedImport', () => {
     expect(none.restore.stagedImportWarnings({ root: none.h.root })).toEqual([]);
   });
 });
+
+it('restores portable content and emits a fixed notice when saved keys have no host adapter', async () => {
+  const { h, restore } = await staged({ 'uploads/photo.png': 'photo' }, { encryptedKeys: Buffer.from('sealed') });
+  await restore.restoreStagedImport(request(h, { siteId: 'allocated-site' }));
+  expect(read(h.dir, 'content.db')).toBe('db-bytes');
+  expect(read(h.dir, 'uploads/photo.png')).toBe('photo');
+  expect(read(h.dir, '.saved-keys.json')).toBeNull();
+  expect(restore.stagedImportWarnings({ root: h.root })).toEqual(['Saved keys were left out because their restore service was unavailable.']);
+});

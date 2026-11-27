@@ -140,3 +140,23 @@ describe("pure helpers", () => {
     expect(sha256Hex({ bytes: Buffer.from("abc") })).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 });
+
+it("claims explicit archive directories as directories without counting them as files", async () => {
+  const claims: Array<{ path: string; directory: boolean }> = [];
+  const h = host({ claimSharePath: ({ path, directory, aliases, files }) => {
+    claims.push({ path, directory });
+    aliases.set(path.toLowerCase(), path);
+    if (!directory) files.add(path.toLowerCase());
+  } });
+  const entries = [file("manifest.json", "{}"), { kind: "directory", entryPath: "media/" } as const, file("media/a.png")];
+  const scanned = await scanArchiveMetadata({ archive: Buffer.alloc(0), reader: reader(entries), host: h });
+  expect(claims).toEqual([
+    { path: "manifest.json", directory: false }, { path: "media", directory: true }, { path: "media/a.png", directory: false },
+  ]);
+  expect([...scanned.directories]).toEqual(["media"]);
+  expect([...scanned.fileAliases]).toEqual(["manifest.json", "media/a.png"]);
+
+  await expect(scanArchiveMetadata({ archive: Buffer.alloc(0), reader: reader([...entries, { kind: "directory", entryPath: "media/" }]), host: h })).rejects.toMatchObject({
+    code: "INVALID_ARCHIVE", message: "Duplicate directory or file/directory collision.",
+  });
+});

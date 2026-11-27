@@ -294,3 +294,13 @@ describe('import index state file', () => {
     expect(writeJson).toHaveBeenCalledTimes(1);
   });
 });
+
+it('binds indexed authority to the recorded cutover even when the database identity matches', () => {
+  const handle = fakeHandle({ meta: { db_id: DB_ID, cutover_at: '999' } });
+  const run = resolve({ read: valid(indexed), witness: true, access: 'read', open: () => handle });
+  expect(run.result).toEqual(refusedWith('IMPORT_HISTORY_MISSING'));
+  expect(run.openExisting.mock.calls).toEqual([[{ readonly: true }, {}]]);
+  expect(handle.close.mock.calls).toEqual([[{}, {}]]);
+  expect(run.backfill).not.toHaveBeenCalled();
+  expect(run.writes).toEqual([]);
+});

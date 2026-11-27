@@ -66,3 +66,20 @@ describe("prepareArchiveExtensions", () => {
     await expect(prepareArchiveExtensions({ sources, files, deps: makeDeps() })).rejects.toMatchObject({ code: "PLAN_STALE" });
   });
 });
+
+it("preserves unindexed agent package files without treating them as enabled", async () => {
+  const paths = [
+    `agent-plugins/ws/w1/alpha/package/sha256/${digestA}/agent.json`,
+    `agent-plugins/ws/w1/alpha/package/sha256/${digestA}/README.md`,
+  ];
+  const out = await prepareArchiveExtensions({ sources, files: paths.map(path => file(path)), deps: makeDeps() });
+  expect(out.files.map(f => f.path)).toEqual(paths);
+  expect(out.plugins).toEqual([{ kind: "agent", id: "alpha", version: "unknown", digest: digestA, enabled: false, shipped: true }]);
+});
+
+it("refuses two unindexed disk revisions for one agent plugin", async () => {
+  const files = [digestA, digestB].map(digest => file(`agent-plugins/ws/w1/alpha/package/sha256/${digest}/agent.json`));
+  await expect(prepareArchiveExtensions({ sources, files, deps: makeDeps() })).rejects.toMatchObject({
+    code: "UNSUPPORTED_PLUGIN", message: "Plugin 'alpha' has multiple installed digests.",
+  });
+});

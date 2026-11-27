@@ -44,3 +44,12 @@ describe("share file policy host injection", () => {
     expect(code("UNSAFE_FILE")(refused)).toBe(true);
   });
 });
+
+it("keeps a normal export file and reports a credential filename at its portable path but not for media", () => {
+  const credentialWarnings: CredentialWarning[] = [];
+  const bytes = Buffer.from("plain fixture bytes");
+  expect(policy.excludedSharePath({ path: "themes/studio/cover.css" })).toBe(false);
+  expect(policy.requireShareSecretFree({ path: "settings/hostkey_abcdef12.txt", bytes }, { credentialWarnings, shownPath: "archive/config.txt" })).toBe(true);
+  expect(policy.requireShareSecretFree({ path: "media/hostkey_abcdef12.txt", bytes }, { credentialWarnings })).toBe(true);
+  expect(credentialWarnings).toEqual([{ path: "archive/config.txt", kind: "credential filename" }]);
+});

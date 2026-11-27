@@ -94,3 +94,14 @@ describe("buildStaticSiteZip and claimArchivePaths", () => {
     expect(() => claimArchivePaths({ entries: [{ path: "manifest.json" }], host: host() }, { manifest: false })).not.toThrow();
   });
 });
+
+it("does not ship rendered pages or invent omission metadata for a successful static capture", async () => {
+  const build = vi.fn<ShareZipHost["buildArchiveManifest"]>(input => JSON.stringify(input));
+  const out = await buildShareZip({ plan: plan(), zip: zipNames, host: host({ buildArchiveManifest: build }) }, {
+    staticCopy: { filename: "demo.zip", files: [{ path: "index.html", content: Buffer.from("<p>Rendered</p>") }],
+      metadata: { exportedAt: "2026-11-09T00:00:00Z", theme: "Demo", routes: ["/"], failed: { routes: [], assets: [] }, skipped: { routes: [], assets: [], references: [] } } },
+  });
+  expect(await decode(out)).toEqual(["share/content.db", "manifest.json"]);
+  expect(build).toHaveBeenCalledOnce();
+  expect(build.mock.calls[0]![0]).not.toHaveProperty("staticSiteOmitted");
+});

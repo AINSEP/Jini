@@ -77,3 +77,18 @@ describe('import admission', () => {
     expect(f.immediate).toHaveBeenCalledTimes(1);
   });
 });
+
+it('rejects a link replay of a request already fenced to an upload', () => {
+  const f = fixture(0);
+  const args: Parameters<typeof admitImport>[0] = {
+    db: f.db, policy, principalId: 'one', requestId: 'key', clock: { nowMs: () => 1 },
+    source: { url: 'https://share.example/current.zip' }, digestSource: () => { throw new Error('Upload fences do not digest links'); },
+    requireBudget: f.requireBudget, makeRow: f.makeRow, beforeWrite: f.beforeWrite,
+  };
+  expect(() => admitImport(args)).toThrow(expect.objectContaining({
+    code: 'REQUEST_CONFLICT', message: 'requestId already belongs to another source.',
+  }));
+  expect(f.fences().map(fence => [fence.fence_kind, fence.fence_value])).toEqual([['upload', id]]);
+  expect(f.beforeWrite).not.toHaveBeenCalled();
+  expect(f.run).not.toHaveBeenCalled();
+});

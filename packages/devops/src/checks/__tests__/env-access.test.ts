@@ -122,3 +122,13 @@ describe('env-access debt (the hardwiring ratchet, keyed by rule, file and env n
     expect(diffHardwiringDebt({ baseline: one, current: hoisted }).added.map(v => v.rule)).toEqual(['HW12-env-import-time']);
   });
 });
+
+it("reports undeclared and rest reads in an environment destructuring assignment, but not declared keys", () => {
+  const source = 'export function read() {\n  let port, zone, rest;\n  ({ PORT: port,\n     REGION: zone,\n     ...rest } = process.env);\n  return { port, zone, rest };\n}';
+  const findings = scan(source, { envRoot: true, declaredEnvNames: new Set(['PORT']) });
+  expect(findings.map(({ rule, line, reason }) => ({ rule, line, reason }))).toEqual([
+    { rule: 'HW13-env-undeclared-entry', line: 4, reason: 'This process entry reads an environment name that is not declared for it; declare the name for this entry or take the value from the host.' },
+    { rule: 'HW13-env-undeclared-entry', line: 5, reason: 'This process entry reads the environment with a computed key or an unbounded rest; read declared names, and use readDeclaredEnvKey for a computed key.' },
+  ]);
+  expect(rules('export function forward() { let env; env = process.env; return env; }', { envRoot: true })).toEqual([]);
+});

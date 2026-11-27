@@ -127,3 +127,21 @@ describe('bufferArchiveMedia', () => {
     await expect(bufferArchiveMedia({ sources: [{ ...source('d', 'm', pdf), kind: 'document', originalFilename: 'm.pdf' }], blobStore: new Map([['d', pdf]]), imageTransformer: transformer({ n: 0 }), ledger: ledger(), host: broken })).rejects.toThrow('policy crashed');
   });
 });
+
+it('uses an unhashed stored webp rendition without substituting the original hash', async () => {
+  const counter = { n: 0 };
+  const l = ledger();
+  const photo: ArchiveMediaSource<Params> = {
+    ...source('photo', 'cover'), public: { version: 9, params: { format: 'webp' }, storageKey: 'rendition' },
+  };
+  const copies = await bufferArchiveMedia({
+    sources: [photo], blobStore: new Map([['photo', png], ['rendition', webp]]),
+    imageTransformer: transformer(counter), ledger: l, host,
+  });
+  expect(copies).toEqual([{
+    id: 'photo', slug: 'cover', path: 'media/cover.webp', sha256: hash(webp), workspaceId: 'ws',
+    storageKey: `ws/ws/blobs/${hash(webp)}`, contentType: 'image/webp', publicVersion: 9, documentOwned: undefined,
+  }]);
+  expect(l.buffered).toEqual([{ path: 'media/cover.webp', content: webp }]);
+  expect(counter.n).toBe(0);
+});

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { createSiteShareBackend, type SiteShareHost, type SiteShareRecord, type SiteShareContent } from "../share-backend.js";
+import { describe, it, expect, vi } from "vitest";
+import { createSiteShareBackend, type SiteShareHost, type SiteShareRecord, type SiteShareContent, type SiteShareBackendRequired } from "../share-backend.js";
 import { SiteShareRefusal } from "../share-refusal.js";
 import { SiteShareExportFailure } from "../share-export-failure.js";
 
@@ -24,11 +24,11 @@ function content(overrides: Partial<SiteShareContent> = {}): SiteShareContent {
   return { files: [], bufferedFiles: [{ path: "settings.json" }], scopeNotes: {}, totalBytes: 2, site: { folderName: "site-a" }, ...overrides };
 }
 
-function backend(options: { rows?: SiteShareRecord[]; reveal?: (input: { sealedPassword: unknown; shareId: string; workspaceId: string }) => Promise<{ password: string }>; host?: Partial<SiteShareHost>; prepare?: () => Promise<SiteShareContent> } = {}) {
+function backend(options: { rows?: SiteShareRecord[]; reveal?: (input: { sealedPassword: unknown; shareId: string; workspaceId: string }) => Promise<{ password: string }>; host?: Partial<SiteShareHost>; prepare?: () => Promise<SiteShareContent>; staticSite?: SiteShareBackendRequired["staticSite"]; delivery?: SiteShareBackendRequired["delivery"] } = {}) {
   const rows = options.rows ?? [row()];
   const registry = { get: async ({ site, shareId }: { site: string; shareId: string }) => rows.find(r => r.site === site && r.shareId === shareId) ?? null, list: async () => rows };
-  return createSiteShareBackend({ registry, site: "site-a", zip: {}, delivery: async () => undefined, ownerPrincipalId: Promise.resolve("owner"),
-    prepare: options.prepare ?? (async () => content()), host: host(options.host),
+  return createSiteShareBackend({ registry, site: "site-a", zip: {}, delivery: options.delivery ?? (async () => undefined), ownerPrincipalId: Promise.resolve("owner"),
+    ...(options.staticSite ? { staticSite: options.staticSite } : {}), prepare: options.prepare ?? (async () => content()), host: host(options.host),
     ...(options.reveal ? { savedKeys: { reveal: options.reveal as never } } : {}) });
 }
 const code = (expected: string) => (error: unknown) => error instanceof SiteShareRefusal && error.code === expected;
@@ -85,4 +85,143 @@ describe("share backend host injection", () => {
     await expect(open.create({ principalId: "owner", signal: new AbortController().signal }, { waitMs: 5000 })).rejects.toSatisfy((error: unknown) =>
       error instanceof SiteShareExportFailure && (error as SiteShareExportFailure & { step: string; appVersion?: string }).step === "archive" && (error as { appVersion?: string }).appVersion === "1.2.3");
   });
+});
+
+const fixedTime = new Date("2026-11-09T11:00:00Z");
+const captureContext: NonNullable<SiteShareBackendRequired["staticSite"]> = {
+  now: () => fixedTime,
+  context: async () => ({ name: "Gallery", slug: "gallery", theme: "Gallery A", themeId: "a" }),
+  themes: () => [{ themeId: "a", title: "Gallery A" }, { themeId: "b", title: "Gallery B" }],
+};
+
+it("captures selected themes in order, accounts for shared media once, and returns the static-download instructions", async () => {
+  const capture = vi.fn<SiteShareHost["captureStaticSite"]>(async (ports, { themeId, publicUrl }) => {
+    const snapshot = await ports.context();
+    if (snapshot.themeId !== themeId || ports.now() !== fixedTime || publicUrl !== "https://gallery.example") throw new Error("Lost capture context");
+    return { filename: `theme-${themeId}.zip`, themeId, files: [
+      { path: "index.html", content: Buffer.from(snapshot.theme) },
+      { path: "m/photo/cover.webp", content: Buffer.from(themeId === "b" ? "first bytes" : "other bytes") },
+    ], metadata: { exportedAt: fixedTime.toISOString(), theme: snapshot.theme, routes: ["/"], failed: { routes: [], assets: [] }, skipped: { routes: [], assets: [], references: [] } } };
+  });
+  const allocate = vi.fn<SiteShareHost["allocateStaticExportThemes"]>(({ themeIds }) => themeIds.map(id => ({ themeId: id, name: `theme-${id}` })));
+  const limits: Array<Array<{ path: string; bytes: number }>> = [];
+  const build = vi.fn<SiteShareHost["buildStaticSiteZip"]>(async () => Buffer.from("zip"));
+  const create = vi.fn<SiteShareHost["createSiteShare"]>(async ({ site, name }, options) => row({
+    shareId: "static-share", site, file: name, ...(options.notices ? { notices: options.notices } : {}),
+  }));
+  const b = backend({ staticSite: captureContext, host: {
+    allocateStaticExportThemes: allocate, buildStaticSiteZip: build, captureStaticSite: capture, createSiteShare: create,
+    checkShareLimits: ({ files }) => { limits.push(files.map(file => ({ ...file }))); },
+    parseStaticExportInput: () => ({ themeIds: ["b", "a"], publicUrl: "https://gallery.example" }),
+  } });
+
+  expect(await b.staticOptions({})).toEqual({ activeThemeId: "a", themes: [{ themeId: "a", name: "Gallery A" }, { themeId: "b", name: "Gallery B" }] });
+  const result = await b.create({ principalId: "owner", format: "static", signal: new AbortController().signal }, { waitMs: 5000 });
+  expect(capture.mock.calls.map(([, options]) => options)).toEqual([
+    { themeId: "b", publicUrl: "https://gallery.example" }, { themeId: "a", publicUrl: "https://gallery.example" },
+  ]);
+  expect(allocate.mock.calls).toEqual(Array(2).fill([{ themeIds: ["a", "b"], siteSlug: "gallery" }]));
+  expect(limits.at(-1)).toEqual([
+    { path: "index.html", bytes: 9 }, { path: "m/photo/cover.webp", bytes: 11 }, { path: "index.html", bytes: 9 },
+  ]);
+  const packaged = build.mock.calls[0]![0];
+  expect(packaged.copy.themeId).toBe("b");
+  expect(packaged.activeThemeId).toBe("a");
+  expect(packaged.copies.map(copy => [copy.themeId, copy.files.find(file => file.path === "m/photo/cover.webp")?.content.toString()])).toEqual([
+    ["b", "first bytes"], ["a", "first bytes"],
+  ]);
+  expect(create.mock.calls.map(([args]) => [args.site, args.name, args.archive.toString()])).toEqual([["site-a", "theme-b.zip", "zip"]]);
+  expect(result).toMatchObject({
+    downloadUrl: "/download/site-a/static-share",
+    message: "No domain was given, so sitemap.xml and feed.xml were left out. Extract the ZIP, then open index.html inside the extracted folder in your browser; it lists every exported theme and page. No local server is needed to view the exported pages. README.txt lists features that need a server.",
+  });
+  expect(b.hasWork?.({})).toBe(false);
+});
+
+it("refuses unavailable, unknown and failed static captures before packaging and releases the export lane", async () => {
+  const signal = new AbortController().signal;
+  const args = { principalId: "owner", format: "static" as const, signal };
+  await expect(backend().staticOptions({})).rejects.toMatchObject({ code: "UNAVAILABLE", message: "Static exporter is unavailable in this context." });
+  await expect(backend().create(args, { waitMs: 5000 })).rejects.toMatchObject({ code: "UNAVAILABLE", message: "Static exporter is unavailable in this context." });
+  const capture = vi.fn<SiteShareHost["captureStaticSite"]>(async () => ({ reason: "render down" }));
+  const zip = vi.fn<SiteShareHost["buildStaticSiteZip"]>();
+  let selected = ["retired"];
+  const b = backend({ staticSite: captureContext, host: {
+    captureStaticSite: capture, buildStaticSiteZip: zip, parseStaticExportInput: () => ({ themeIds: selected }),
+  } });
+  await expect(b.create(args, { waitMs: 5000 })).rejects.toMatchObject({ code: "INVALID_INPUT", message: "Every selected theme must be installed and valid." });
+  expect(capture).not.toHaveBeenCalled();
+  selected = ["b"];
+  await expect(b.create(args, { waitMs: 5000 })).rejects.toMatchObject({ code: "UNAVAILABLE", message: "b: render down" });
+  expect(capture.mock.calls.map(([, options]) => options)).toEqual([{ themeId: "b", publicUrl: undefined }]);
+  expect(zip).not.toHaveBeenCalled();
+  expect(b.hasWork?.({})).toBe(false);
+});
+
+it("uses only the unstyled site when the theme is off and only offers expiry for local storage", async () => {
+  const local = { provider: "local-fs", binding: "/catalog" };
+  const resolve = vi.fn<SiteShareBackendRequired["delivery"]>()
+    .mockResolvedValueOnce(local).mockRejectedValueOnce(new Error("storage discovery failed")).mockResolvedValueOnce({ provider: "remote" });
+  const listThemes = vi.fn(captureContext.themes!);
+  const b = backend({ staticSite: { ...captureContext, context: async () => ({ name: "Gallery", slug: "gallery", theme: "No theme", themeId: "none" }), themes: listThemes },
+    delivery: resolve, host: { isOwnShareFolder: ({ storage }) => storage.provider === "local-fs" && storage.binding === "/catalog" },
+  });
+  expect(await b.staticOptions({})).toEqual({ activeThemeId: "none", themes: [{ themeId: "none", name: "Current site" }] });
+  expect(listThemes).not.toHaveBeenCalled();
+  expect(await b.expiryChoices({})).toEqual([7, 30, 90]);
+  expect(await b.expiryChoices({})).toEqual([]);
+  expect(await b.expiryChoices({})).toEqual([]);
+  expect(resolve.mock.calls).toEqual([[{}], [{}], [{}]]);
+});
+
+it("acknowledges through the saved binding and still delegates revoke when remote storage resolution throws", async () => {
+  const storage = { provider: "remote", binding: "previous-bucket", key: "key" };
+  const rows = [row({ shareId: "retained", storage, needsAcknowledgement: true, credentialWarnings: [] })];
+  const resolvedStore = { kind: "fixture" };
+  const resolve = vi.fn<SiteShareBackendRequired["delivery"]>()
+    .mockResolvedValueOnce(resolvedStore).mockRejectedValueOnce(new Error("provider offline"));
+  const acknowledge = vi.fn<SiteShareHost["acknowledgeSiteShare"]>(async ({ site, shareId }) => {
+    const existing = rows.find(item => item.site === site && item.shareId === shareId)!;
+    const acknowledged = { ...existing, needsAcknowledgement: false };
+    rows.splice(rows.indexOf(existing), 1, acknowledged);
+    return acknowledged;
+  });
+  const revoke = vi.fn<SiteShareHost["revokeSiteShare"]>(async () => ({ ...rows[0]!, status: "revoked" }));
+  const b = backend({ rows, delivery: resolve, host: { acknowledgeSiteShare: acknowledge, revokeSiteShare: revoke, isOwnShareFolder: () => false } });
+
+  expect(await b.acknowledge({ shareId: "retained" })).toMatchObject({ needsAcknowledgement: false, downloadUrl: "/download/site-a/retained" });
+  expect((await b.list({})).find(item => item.shareId === "retained")?.needsAcknowledgement).toBe(false);
+  expect(await b.revoke({ shareId: "retained" })).toMatchObject({ status: "revoked", downloadUrl: "/download/site-a/retained" });
+  expect(resolve.mock.calls).toEqual(Array(2).fill([{ provider: "remote", binding: "previous-bucket" }]));
+  const request = { registry: b.registry, site: "site-a", shareId: "retained" };
+  expect(acknowledge.mock.calls).toEqual([[request, { delivery: resolvedStore }]]);
+  expect(revoke.mock.calls).toEqual([[request, { delivery: undefined }]]);
+});
+
+it("reports in-flight progress, blocks concurrent work and resumes only for the job owner", async () => {
+  let release!: (value: SiteShareContent) => void;
+  const held = new Promise<SiteShareContent>(resolve => { release = resolve; });
+  const prepare = vi.fn(() => held);
+  const b = backend({ prepare });
+  const args = { principalId: "owner", signal: new AbortController().signal };
+  const progress = await b.create(args, { waitMs: 0 }) as { jobId: string; phase: string; progress: unknown };
+  const { jobId } = progress;
+  expect(progress).toEqual({ jobId: expect.stringMatching(/^[a-f\d-]{36}$/), phase: "preparing", progress: {
+    filesDone: 0, filesTotal: 0, bytesDone: 0, bytesTotal: 0,
+  } });
+  expect(b.hasWork?.({})).toBe(true);
+  try {
+    await expect(b.create({ ...args, jobId, principalId: "other" }, { waitMs: 0 })).rejects.toMatchObject({
+      code: "JOB_NOT_FOUND", message: "Share job expired or belongs to another principal. Create a new export.",
+    });
+    await expect(b.create(args, { waitMs: 0 })).rejects.toMatchObject({
+      code: "BUSY", message: "Another share export is running for this site. Wait for it to finish.",
+    });
+    expect(await b.create({ ...args, jobId }, { waitMs: 0 })).toEqual(progress);
+  } finally { release(content()); }
+  expect(await b.create({ ...args, jobId }, { waitMs: 5000 })).toMatchObject({
+    downloadUrl: "/download/site-a/share-new", message: "ZIP only.",
+  });
+  expect(prepare).toHaveBeenCalledOnce();
+  expect(b.hasWork?.({})).toBe(false);
 });

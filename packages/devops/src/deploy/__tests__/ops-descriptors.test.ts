@@ -36,3 +36,23 @@ describe('asDeployOpsModule', () => {
     expect(asDeployOpsModule({ exported: { ...base, readSecret: async () => ({}) } })).toBe('secretCapabilities and readSecret need listSecrets(), setSecret() and unsetSecret()');
   });
 });
+
+it.each([
+  { override: { id: 'App-Host' }, reason: 'platforms[0].id must be a lowercase hyphenated id' },
+  { override: { label: 'a'.repeat(101) }, reason: 'platforms[0].label must be a non-empty string' },
+  { override: { hosts: [] }, reason: 'platforms[0].hosts must be a non-empty array of HTTPS hostnames' },
+  { override: { hosts: Array.from({ length: 9 }, (_, i) => `api${i}.host.example`) }, reason: 'platforms[0].hosts must be a non-empty array of HTTPS hostnames' },
+])('rejects invalid descriptor fields ($reason)', ({ override, reason }) => {
+  expect(parseDeployOpsFile({ raw: file([{ ...entry, ...override }]) })).toEqual({ ok: false, reason });
+});
+
+it.each([
+  { appliesOn: 'never', supportsStaging: false },
+  { appliesOn: 'immediately', supportsStaging: 'yes' },
+])('rejects a complete secrets adapter with invalid capabilities %#', secretCapabilities => {
+  const exported = {
+    status: async () => ({}), logs: async () => ({}), listSecrets: async () => ({}),
+    setSecret: async () => ({}), unsetSecret: async () => ({}), secretCapabilities,
+  };
+  expect(asDeployOpsModule({ exported })).toBe('secretCapabilities must declare appliesOn and supportsStaging');
+});

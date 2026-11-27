@@ -54,3 +54,16 @@ describe('import history paging', () => {
     }
   });
 });
+
+it('rejects a noncanonical encoding of an otherwise valid continuation cursor', () => {
+  const importId = '11111111-1111-1111-1111-111111111111';
+  const canonical = Buffer.from(`v1.0.${importId}`, 'ascii').toString('base64url');
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const tail = alphabet.indexOf(canonical.at(-1)!);
+  const sameBytes = canonical.slice(0, -1) + alphabet[tail + 1];
+  expect(Buffer.from(sameBytes, 'base64url').toString('ascii')).toBe(`v1.0.${importId}`);
+  expect(decodeCursor({ cursor: canonical })).toEqual({ createdMs: 0, importId });
+  expect(() => decodeCursor({ cursor: sameBytes })).toThrow(expect.objectContaining({
+    code: 'INVALID_CURSOR', message: 'This list of imports changed. Reload it to see the newest imports.',
+  }));
+});

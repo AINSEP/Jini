@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  deadlineSignal, downloadShareArchive, importSiteSlug, parseImportInput, reconcileInterruptedImports, requireFreeSpace, requireOwnerSetup,
+  consumeUpload, deadlineSignal, downloadShareArchive, projectExpiredOwnerSetup, importSiteSlug, parseImportInput, reconcileInterruptedImports, requireFreeSpace, requireOwnerSetup,
   requireStagingBudget, siteImportView, startImportedSite, type ImportHttpClient, type SiteImportStepsHost,
 } from "../import-backend-steps.js";
 import type { SiteImportRecord } from "@jini-ai/core/contracts/site/site-import-history";
@@ -159,4 +159,35 @@ describe("storage budget and interrupted imports", () => {
     expect(combined.aborted).toBe(true);
     expect(deadlineSignal({ timeoutMs: 60_000 }).aborted).toBe(false);
   });
+});
+
+it("claims an upload for exactly one import and refuses a second consumer", () => {
+  let stored: ReturnType<SiteImportRegistry["getUpload"]> = { uploadId: UPLOAD_ID, principalId: "p1", createdAt: 123 };
+  const getUpload = vi.fn<SiteImportRegistry["getUpload"]>(({ uploadId, principalId }) => {
+    if (uploadId !== stored.uploadId || principalId !== stored.principalId) throw new Error("Incorrect upload scope");
+    return stored;
+  });
+  const saveUpload = vi.fn<SiteImportRegistry["saveUpload"]>(({ row }) => { stored = row; });
+  const registry = { getUpload, saveUpload } as SiteImportRegistry;
+  const request = { registry, uploadId: UPLOAD_ID, principalId: "p1" };
+
+  expect(consumeUpload({ ...request, importId: "first" })).toBe(UPLOAD_ID);
+  expect(() => consumeUpload({ ...request, importId: "second" })).toThrow(expect.objectContaining({
+    code: "UPLOAD_USED", message: "This upload was already imported. Use the original requestId or upload again for a separate site.",
+  }));
+  expect(stored).toEqual({ uploadId: UPLOAD_ID, principalId: "p1", createdAt: 123, consumedBy: "first" });
+  expect(getUpload.mock.calls).toEqual(Array(2).fill([{ uploadId: UPLOAD_ID, principalId: "p1" }]));
+  expect(saveUpload.mock.calls).toEqual([[{ row: stored }]]);
+});
+
+it("projects only overdue owner setup as expired and clears stale notices without mutating the stored row", () => {
+  const pending = row({ expiresAt: 125, warnings: ["review"], credentialWarnings: [{ path: "settings.json", kind: "provider key shape" }] });
+  expect(projectExpiredOwnerSetup({ row: pending, nowMs: 125 })).toBe(pending);
+  expect(projectExpiredOwnerSetup({ row: pending, nowMs: 126 })).toEqual({
+    ...pending, status: "failed", error: "Owner setup expired", warnings: undefined, credentialWarnings: [],
+  });
+  expect(pending.status).toBe("needs-owner");
+  expect(pending.warnings).toEqual(["review"]);
+  const creating = { ...pending, status: "creating" as const };
+  expect(projectExpiredOwnerSetup({ row: creating, nowMs: 126 })).toBe(creating);
 });

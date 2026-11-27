@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from 'vitest';
 import { createBundledExportFilePolicy, type ClassifyBundledExportFile } from '../bundled-export-file-policy.js';
 
@@ -56,4 +59,22 @@ describe('createBundledExportFilePolicy', () => {
     });
     expect(await policy({ path: 'agent-plugins/other/package/a.txt', bytes: Buffer.from('x') })).toBe('scan');
   });
+});
+
+it('compares actual installed file bytes when no override reader is given', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'bundled-file-'));
+  try {
+    await writeFile(path.join(root, 'README.md'), 'bundled template');
+    const policy = createBundledExportFilePolicy({
+      selection: new Map([['sample', 'host/sample']]),
+      resolve: specifier => {
+        if (specifier !== 'host/sample/plugin.json') throw new Error(`Unexpected module ${specifier}`);
+        return path.join(root, 'plugin.json');
+      },
+      classifyBundledPluginFile: classify,
+    });
+    const pathInArchive = 'agent-plugins/sample/package/README.md';
+    expect(await policy({ path: pathInArchive, bytes: Buffer.from('bundled template') })).toBe('skip');
+    expect(await policy({ path: pathInArchive, bytes: Buffer.from('local edit') })).toBe('scan');
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -34,3 +34,13 @@ describe('asDeployConfigGeneratorModule', () => {
     expect(asDeployConfigGeneratorModule({ exported: null })).toBe('its module has no render() function');
   });
 });
+
+it.each([
+  { field: 'entry', entry: null, reason: 'generators[0] must be an object' },
+  { field: 'id length', entry: { id: 'a'.repeat(65), label: 'A', module: 'a.mjs' }, reason: 'generators[0].id must be a lowercase hyphenated id' },
+  { field: 'label', entry: { id: 'a', label: ' '.repeat(2), module: 'a.mjs' }, reason: 'generators[0].label must be a non-empty string' },
+  { field: 'module', entry: { id: 'a', label: 'A', module: '/app.mjs' }, reason: 'generators[0].module must be a relative path ending in .mjs' },
+  { field: 'candidate order', entry: { id: 'a', label: 'A', module: 'a.mjs', candidatePaths: [{ path: 'release.toml', order: '1' }] }, reason: 'generators[0].candidatePaths must contain repo-relative paths and finite orders' },
+])('refuses an invalid generator $field with its location', ({ entry, reason }) => {
+  expect(parseDeployConfigsFile({ raw: file([entry]) })).toEqual({ ok: false, reason });
+});
