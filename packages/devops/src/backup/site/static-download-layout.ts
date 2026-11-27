@@ -71,14 +71,20 @@ function rewriteSrcset({ value, rewrite, parsing }: { value: string; rewrite: Re
   // Ranges contain the original HTML spelling; protect the wrapper quote without double-escaping &amp;.
   const refs = parsing.extractHtmlReferences({ html: `<img srcset="${value.replaceAll('"', "&quot;")}">` });
   let cursor = 0;
-  const parts: string[] = [];
+  const kept: string[] = [];
   for (const { url } of refs) {
     const start = value.indexOf(url, cursor);
     if (start < 0) continue;
-    parts.push(value.slice(cursor, start), rewrite({ value: url }));
-    cursor = start + url.length;
+    // A candidate runs from its URL to the next comma; data URL commas sit inside `url` and are skipped.
+    const comma = value.indexOf(",", start + url.length);
+    const end = comma < 0 ? value.length : comma;
+    const replacement = rewrite({ value: url });
+    // An emptied URL drops its whole candidate: a bare leftover descriptor (" 2x") would parse as a URL.
+    if (replacement !== "") kept.push(value.slice(cursor, start) + replacement + value.slice(start + url.length, end));
+    cursor = comma < 0 ? end : comma + 1;
   }
-  return parts.join("") + value.slice(cursor);
+  const tail = value.slice(cursor);
+  return kept.join(",") + (cursor > 0 && value[cursor - 1] === "," ? `,${tail}` : tail);
 }
 
 /** Jini supplies linear CSS token ranges; only the URL inside each token changes. */

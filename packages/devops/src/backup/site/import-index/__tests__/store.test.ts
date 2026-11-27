@@ -60,7 +60,7 @@ it('scopes detail to the owner, exposes status by id and selects active work by 
     const waiting = { ...indexedRow, importId: '22222222-2222-2222-2222-222222222222', requestId: 'request-2' };
     const completed = { ...indexedRow, importId: '33333333-3333-3333-3333-333333333333', requestId: 'request-3' };
     const write = (row: SiteImportRecord) => store.put({ row, beforeWrite: () => {} });
-    for (const row of [indexedRow, waiting, completed, { ...indexedRow, status: 'needs-owner' }, active, { ...waiting, status: 'needs-owner' }, { ...completed, status: 'failed' }]) write(row);
+    for (const row of [indexedRow, waiting, completed, { ...indexedRow, status: 'needs-owner' as const }, active, { ...waiting, status: 'needs-owner' as const }, { ...completed, status: 'failed' as const }]) write(row);
     expect(store.get({ importId: active.importId, principalId: 'owner' })).toEqual(active);
     expect(store.get({ importId: active.importId, principalId: 'another-owner' })).toBeUndefined();
     expect(store.statusOf({ importId: waiting.importId })).toBe('needs-owner');

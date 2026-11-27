@@ -168,7 +168,9 @@ it("claims an upload for exactly one import and refuses a second consumer", () =
     return stored;
   });
   const saveUpload = vi.fn<SiteImportRegistry["saveUpload"]>(({ row }) => { stored = row; });
-  const registry = { getUpload, saveUpload } as SiteImportRegistry;
+  const fakeRegistry: Pick<SiteImportRegistry, "getUpload" | "saveUpload"> = { getUpload, saveUpload };
+  // consumeUpload reads only these two members; the rest of the registry is irrelevant here.
+  const registry = fakeRegistry as unknown as SiteImportRegistry;
   const request = { registry, uploadId: UPLOAD_ID, principalId: "p1" };
 
   expect(consumeUpload({ ...request, importId: "first" })).toBe(UPLOAD_ID);

@@ -87,7 +87,7 @@ it("reports an uninitialized registry and an unreserved but well-formed token as
   await r.put({ record: a });
   const missing = row();
   expect(await r.findToken({ token: missing.token, file: missing.file })).toBeNull();
-  expect(await r.findToken({ token: a.token, file: a.file })).toEqual(a);
+  expect(await r.findToken({ token: a.token, file: a.file })).toEqual({ ...a, credentialWarnings: [], needsAcknowledgement: false });
 });
 
 it("retries revocation without replacing its existing tombstone", async () => {
@@ -96,7 +96,7 @@ it("retries revocation without replacing its existing tombstone", async () => {
   await r.put({ record: a });
   const first = await r.disable({ shareId: a.shareId, site: a.site });
   const second = await r.disable({ shareId: a.shareId, site: a.site });
-  expect(first).toEqual({ ...a, status: "revoked", revokedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
+  expect(first).toEqual({ ...a, credentialWarnings: [], needsAcknowledgement: false, status: "revoked", revokedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
   expect(second).toEqual(first);
   expect(await r.get({ shareId: a.shareId })).toEqual(first);
   expect(await r.findToken({ token: a.token, file: a.file })).toBeNull();

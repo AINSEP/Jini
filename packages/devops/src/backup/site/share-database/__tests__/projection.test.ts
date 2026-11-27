@@ -24,7 +24,7 @@ it("refuses an unknown populated source table before portable projection or sear
     SHARE_LIMITS: { maxExpandedBytes: 1024 * 1024 }, SHARE_TABLES: ["portable"], SHARE_LEGACY_PRIVATE_TABLES: new Set(), CHAT_TABLE_NAMES: [],
     statfs, writeFile, databaseCapMessage: "cap", insufficientStorageMessage: "space", redactSecretShapes: ({ text }: { text: string }) => ({ text }),
     tempRoot: async ({ work }: { work: (required: { root: string }) => Promise<unknown> }) => { const root = await mkdtemp(path.join(tmpdir(), "wmz-projection-")); try { return await work({ root }); } finally { await rm(root, { recursive: true, force: true }); } },
-    openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly }) }),
+    openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly ?? false }) }),
     openContentDb: () => { fresh = new Database(":memory:"); fresh.exec("CREATE TABLE portable (id TEXT)"); return fresh; },
     sql, backfillPostSearchIndex,
   } as unknown as Parameters<typeof sanitizeShareDatabase>[0]["host"];
@@ -70,7 +70,7 @@ it("binds trusted bootstrap and preserves explicit staging scopes (mutation: ove
     deps: { listTables, listColumns, declareDataModule, sqliteKernel, sqliteClientOf, sqliteConnectionOf, closeSqliteConnection },
     SHARE_LIMITS: { maxExpandedBytes: 1024 * 1024 }, SHARE_TABLES: ["media", "asset_blobs", "asset_renditions", "transform_registry"], SHARE_LEGACY_PRIVATE_TABLES: new Set<string>(), CHAT_TABLE_NAMES: [], PUBLISHABLE_SETTINGS: {},
     statfs, writeFile, databaseCapMessage: "cap", insufficientStorageMessage: "space", redactSecretShapes: ({ text }: { text: string }) => ({ text }), tempRoot,
-    openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly }) }),
+    openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly ?? false }) }),
     openContentDb, sql, schemaErasedKernel: ({ store }: Parameters<Parameters<typeof sanitizeShareDatabase>[0]["host"]["schemaErasedKernel"]>[0]) => sqliteKernel({ source: store }), backfillPostSearchIndex,
   } as unknown as Parameters<typeof sanitizeShareDatabase>[0]["host"];
   const openSource = vi.fn(host.openSqliteFileKernel);
@@ -157,7 +157,7 @@ function projectionFixture(overrides: Partial<ShareProjectionHost> = {}) {
     SHARE_LEGACY_PRIVATE_TABLES: new Set<string>(), CHAT_TABLE_NAMES: [], PUBLISHABLE_SETTINGS: { "theme:headline": true, "theme:wrong-default": true, "theme:site-only": true, "theme:secret": true },
     statfs: async () => ({ bavail: 100000, bsize: 4096 }), writeFile, databaseCapMessage: "too large", insufficientStorageMessage: "not enough space",
     redactSecretShapes: ({ text }: { text: string }) => ({ text: text.replaceAll("fixture-marker", "[REDACTED:labeled_secret]"), redactions: text.includes("fixture-marker") ? 1 : 0 }),
-    tempRoot, openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly }) }),
+    tempRoot, openSqliteFileKernel: ({ filePath }: { filePath: string }, options: { readOnly?: boolean } = {}) => sqliteKernel({ source: new Database(filePath, { readonly: options.readOnly ?? false }) }),
     openContentDb: () => { const db = new Database(":memory:"); db.exec(portableSchema); return db; },
     sql, schemaErasedKernel: ({ store }: Parameters<ShareProjectionHost["schemaErasedKernel"]>[0]) => sqliteKernel({ source: store }),
     backfillPostSearchIndex: async () => 0, documentContentType,
@@ -177,7 +177,7 @@ function mediaSnapshot(mutate: (db: Database.Database) => void = () => {}): Buff
     media.run("trashed", "document", "trash", "trashed.pdf", null, hashC);
     media.run("omitted", "media", "active", null, "removed", hashD);
     const blob = db.prepare("INSERT INTO asset_blobs VALUES (?, 'ws', ?, ?, 'active', ?, 0, 'source-user', 't0', NULL)");
-    for (const [id, hash, type] of [["image", hashA, "image/png"], ["doc", hashB, "application/pdf"], ["trashed", hashC, "application/pdf"], ["omitted", hashD, "image/png"]]) blob.run(id, hash, mediaPath(hash), type);
+    for (const [id, hash, type] of [["image", hashA, "image/png"], ["doc", hashB, "application/pdf"], ["trashed", hashC, "application/pdf"], ["omitted", hashD, "image/png"]] as const) blob.run(id, hash, mediaPath(hash), type);
     const rendition = db.prepare("INSERT INTO asset_renditions VALUES (?, 'ws', ?, ?, ?, ?, 't0')");
     rendition.run("image:old", "image", "public", 1, "unused/1");
     rendition.run("image:public", "image", "public", 2, mediaPath(hashA));

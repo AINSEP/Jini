@@ -287,7 +287,7 @@ it("replays the original indexed outcome after the detailed record ages out of h
   let now = Date.parse("2026-11-10T00:00:00.000Z");
   const clock = { nowMs: () => now };
   const db = native as unknown as SqliteSyncClient;
-  const policy: ImportHistoryPolicy = { cutoverPolicy: "enable", historyVisibleMs: 100, replayFenceMs: 1_000, legacyRetireMs: 200, sweepOnClockRollback: false };
+  const policy: ImportHistoryPolicy = { cutoverPolicy: "enable", historyVisibleMs: 2_592_000_000, replayFenceMs: 31_536_000_000, legacyRetireMs: 2_592_000_000, sweepOnClockRollback: false };
   try {
     migrateImportIndex({ db, clock });
     const store = createImportIndexStore({ db, clock, policy });
@@ -306,7 +306,7 @@ it("replays the original indexed outcome after the detailed record ages out of h
     expect(ready).toMatchObject({ status: "ready", newSiteId: "site-1", adminUrl: "http://site.example/admin" });
     expect(await backend.listPage({ principalId: "p1" })).toMatchObject({ imports: [{ importId: pending.importId, status: "ready" }] });
 
-    now += 101;
+    now += 2_592_000_001;
     expect(await backend.listPage({ principalId: "p1" })).toEqual({ imports: [] });
     await expect(backend.importBackup(request)).resolves.toMatchObject({
       importId: pending.importId, status: "ready", newSiteId: "site-1", adminUrl: "http://site.example/admin",
