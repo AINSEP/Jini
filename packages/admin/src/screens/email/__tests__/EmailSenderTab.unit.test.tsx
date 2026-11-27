@@ -60,7 +60,7 @@ describe("Sender and DNS", () => {
     const sender = within(screen.getByRole("region", { name: "Sender" }));
     const name = await sender.findByRole("textbox", { name: "Name" });
     const email = sender.getByRole("textbox", { name: "From address" });
-    expect(name).toHaveValue("Old site");
+    await waitFor(() => expect(name).toHaveValue("Old site"));
     expect(email).toHaveValue("old@example.test");
     expect(sender.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(sender.getByText("The provider has not verified the sender's domain.")).toBeInTheDocument();

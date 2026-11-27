@@ -93,7 +93,7 @@ it('shows fix links only for actionable problems, with their corresponding tab',
     port={fakeConsentPort({ readiness: async () => readiness, get: async () => consentSnapshot({
       draft: revision('d2'), published: revision('p1'), effective: CONSENT_CONFIG,
     }) })} useTranslate={english} errors={consentErrors} ui={recordingUi().ui} />);
-  const blockers = within(screen.getByRole('region', { name: 'Before you turn it on' }));
+  const blockers = within(await screen.findByRole('region', { name: 'Before you turn it on' }));
   await blockers.findByText('Add the privacy policy link.');
   const item = (message: string) => within(blockers.getByText(message).closest('li')!);
   expect(item('Add the privacy policy link.').getByRole('link', { name: 'Fix' })).toHaveAttribute('href', '/admin/consent?tab=banner');

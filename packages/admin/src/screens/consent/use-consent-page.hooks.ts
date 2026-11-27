@@ -99,7 +99,10 @@ function createConsentPublisher(
     // canPublish implies a saved, loaded draft: draftId, the value and autosave all exist.
     const draftId = heads.draftId;
     if (draftId === null) throw new Error('cookie consent publish has no draft id');
-    if (valueRef.current === null) throw new Error('cookie consent publish has no settings');
+    // The server publishes the draft as it stands now, so this snapshot (not whatever the operator
+    // types while the request is in flight) is what goes live.
+    const publishedValue = valueRef.current;
+    if (publishedValue === null) throw new Error('cookie consent publish has no settings');
     const saver = autosave.current;
     if (!saver) throw new Error('cookie consent publish has no autosave');
     setPublishing(true);
@@ -107,9 +110,7 @@ function createConsentPublisher(
     try {
       await port.publish({ draftId, expectedPublishedId: heads.publishedId });
       setHeads({ draftId, publishedId: draftId });
-      const currentValue = valueRef.current;
-      if (!currentValue) throw new Error('cookie consent publish lost its settings');
-      setLiveEnabled(currentValue.enabled);
+      setLiveEnabled(publishedValue.enabled);
       setPublishedCount(count => count + 1);
     } catch (error) {
       if (errors.isConflict({ error })) { saver.stop(); setSaveState('conflict'); }

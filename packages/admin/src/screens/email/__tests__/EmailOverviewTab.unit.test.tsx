@@ -8,7 +8,11 @@ import type { EmailApi, MailTestSendResult, MailUseRow } from "../email-api.type
 import { useEmailOverview } from "../hooks/use-email-overview.hooks.js";
 
 class ApiError extends Error {
-  constructor(readonly status: number, message: string, readonly body?: Record<string, unknown>) { super(message); }
+  readonly body?: Record<string, unknown>;
+  constructor(readonly status: number, message: string, body?: Record<string, unknown>) {
+    super(message);
+    if (body !== undefined) this.body = body;
+  }
 }
 const envelope = { to: "operator@example.test", from: "relay@example.test", driver: "fixture", at: "2026-11-24T10:00:00Z" };
 const accepted = { ...envelope, outcome: "accepted", providerMessageId: "msg-29" } satisfies MailTestSendResult;

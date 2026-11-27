@@ -676,7 +676,7 @@ it.each(["create", "edit"] as const)("routes host dismissal through the %s dialo
   if (mode === "create") newDialogRef.current = newDialogController({ cancel });
   else editDialogRef.current = editDialogController({ cancel });
   const c = renderCollections(mode === "create" ? { showNewDialog: true } : { editingFieldsFor: TYPE });
-  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close", exact: true }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
   expect(cancel.mock.calls).toEqual([[]]);
   expect(c.setShowNewDialog).not.toHaveBeenCalled();
   expect(c.setEditingFieldsFor).not.toHaveBeenCalled();
@@ -690,12 +690,12 @@ it.each([
   lifecycleDialogRef.current = lifecycleDialogController({ autoFocusCancel });
   const c = renderCollections({ pendingLifecycle: { op, contentType: TYPE } });
   const dialog = within(screen.getByRole("dialog"));
-  const expectedFocus = dialog.getByRole("button", { name: autoFocusCancel ? "Cancel" : confirm, exact: true });
-  const other = dialog.getByRole("button", { name: autoFocusCancel ? confirm : "Cancel", exact: true });
+  const expectedFocus = dialog.getByRole("button", { name: autoFocusCancel ? "Cancel" : confirm });
+  const other = dialog.getByRole("button", { name: autoFocusCancel ? confirm : "Cancel" });
   // The injected Dialog reads this opt-in to choose the initial focus target.
   expect(expectedFocus).toHaveAttribute("data-jini-autofocus", "");
   expect(other).not.toHaveAttribute("data-jini-autofocus");
-  await user.click(dialog.getByRole("button", { name: "Close", exact: true }));
+  await user.click(dialog.getByRole("button", { name: "Close" }));
   expect(c.setPendingLifecycle).toHaveBeenCalledExactlyOnceWith(null);
   expect(c.runLifecycle).not.toHaveBeenCalled();
 });

@@ -425,7 +425,9 @@ function useCollectionEntryQuery(
         // Id or slug (readable-slugs S6b) — id first, since entry slugs are only unique per content
         // type while ids are globally unique; a slug is checked only when the id lookup misses.
         entry: props.entryId
-          ? (entriesResult.items.find((e) => e.id === props.entryId || e.slug === props.entryId) ?? null)
+          ? (entriesResult.items.find((e) => e.id === props.entryId)
+            ?? entriesResult.items.find((e) => e.slug === props.entryId)
+            ?? null)
           : null,
       };
     },

@@ -85,15 +85,19 @@ function usePaged<T>(required: { fetchPage: (cursor?: string) => Promise<Page<T>
   const { view, reload, setData } = required.useLoadHook({ ApiError, load: useCallback(() => fetchPage(), [fetchPage]) });
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
+  // The query a page belongs to: a page still in flight when the filter changes must not land on
+  // (and replace) the new filter's first page.
+  const currentFetch = useRef(fetchPage);
+  useEffect(() => { currentFetch.current = fetchPage; }, [fetchPage]);
   const loadMore = useCallback(async () => {
     if (view.kind !== "loaded" || !view.data.nextCursor) return;
     setLoadingMore(true);
     setMoreError(null);
     try {
       const next = await fetchPage(view.data.nextCursor);
-      setData({ ...next, items: [...view.data.items, ...next.items], empty: null });
+      if (currentFetch.current === fetchPage) setData({ ...next, items: [...view.data.items, ...next.items], empty: null });
     } catch (error) {
-      setMoreError(errorMessage({ error, ApiError }));
+      if (currentFetch.current === fetchPage) setMoreError(errorMessage({ error, ApiError }));
     } finally {
       setLoadingMore(false);
     }

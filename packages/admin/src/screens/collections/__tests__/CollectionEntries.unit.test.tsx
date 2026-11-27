@@ -104,18 +104,23 @@ describe("injected hook seam (useCollectionEntriesHook)", () => {
 });
 
 it("shows the loading notice when the registry lookup is unresolved, even with an empty entry list", () => {
-  render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
+  const { container } = render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
     contentType: undefined, entries: [], error: null, t: ({ key }) => key,
   })} />);
   expect(screen.getByText("Loading entries…")).toBeInTheDocument();
+  // Nothing else: no empty-collection state, no list, no create affordance under any name.
+  expect(container).toHaveTextContent(/^Loading entries…$/);
+  expect(container.querySelectorAll("a, button")).toHaveLength(0);
   expect(screen.queryByRole("link", { name: "New entry" })).not.toBeInTheDocument();
 });
 
 it("does not expose the create action while entry data is still pending for a known collection", () => {
   const contentType = { workspaceId: "w1", key: "recipe", label: "Recipe", status: "active" as const, version: 2, fields: [] };
-  render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
+  const { container } = render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
     contentType, entries: null, error: null, t: ({ key }) => key,
   })} />);
   expect(screen.getByText("Loading entries…")).toBeInTheDocument();
+  expect(container).toHaveTextContent(/^Loading entries…$/);
+  expect(container.querySelectorAll("a, button")).toHaveLength(0);
   expect(screen.queryByRole("link", { name: "New entry" })).not.toBeInTheDocument();
 });
