@@ -111,7 +111,7 @@ export function createSiteCommitter(kit, _optional = {}) {
   /** @param {Response} response @param {string} fallback */
   async function providerErrorMessage(response, fallback) {
     const body = await readJsonBody(response);
-    if (body.ok && typeof body.json.message === "string" && body.json.message.trim() !== "") return body.json.message;
+    if (body.ok && typeof body.json?.message === "string" && body.json.message.trim() !== "") return body.json.message;
     return `${fallback} (${response.status}).`;
   }
 
