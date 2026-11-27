@@ -113,7 +113,7 @@ it("never displays another restore point's disclosure after switching points", a
 it("never shows a failure from a restore point the operator already left", async () => {
   let failOld!: (reason: Error) => void;
   const oldResponse = new Promise<AdminDisclosureResult>((_resolve, reject) => { failOld = reject; });
-  const currentDisclosure: AdminDisclosureResult = { partial: false, watermarkBaselineAvailable: true, counts: { posts_pages: 1 } };
+  const currentDisclosure: AdminDisclosureResult = { partial: true, watermarkBaselineAvailable: true, counts: { posts_pages: 1 } };
   const port: RestoreFlowPort = {
     computeRecoveryDisclosure: ({ restorePointId }) => restorePointId === "before-import" ? oldResponse : Promise.resolve(currentDisclosure),
     planRestore: vi.fn(), confirmRestore: vi.fn(), executeRestore: vi.fn(),
