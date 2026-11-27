@@ -25,3 +25,14 @@ it("a ZIP larger than maxBytes is refused from stat before any read", async () =
   await expect(readPluginInstallArchive({ request: parse({ source: { kind: "zip", path: "/a.zip" } }), ownerId: "o", runId: "r", maxBytes: 8, files, messages })).rejects.toThrow("too large");
   expect(files.read).not.toHaveBeenCalled();
 });
+it("an owned attachment within the limit returns its bytes; an oversized one or a missing reader is refused", async () => {
+  const files = { stat: vi.fn(async () => ({ size: 1 })), read: vi.fn(async () => new Uint8Array([1])) };
+  const request = parse({ source: { kind: "zip", attachmentRef: "attachment:12345678" } });
+  const bytes = new Uint8Array([9, 8, 7]);
+  const owned = vi.fn(async () => ({ ok: true as const, bytes }));
+  expect(await readPluginInstallArchive({ request, ownerId: "o", runId: "r", maxBytes: 3, files, messages }, { readAttachment: owned })).toBe(bytes);
+  const big = vi.fn(async () => ({ ok: true as const, bytes: new Uint8Array(4) }));
+  await expect(readPluginInstallArchive({ request, ownerId: "o", runId: "r", maxBytes: 3, files, messages }, { readAttachment: big })).rejects.toThrow("too large");
+  await expect(readPluginInstallArchive({ request, ownerId: "o", runId: "r", maxBytes: 3, files, messages })).rejects.toThrow("unavailable");
+  expect(files.stat).not.toHaveBeenCalled();
+});

@@ -7,6 +7,7 @@ import { createInstallToolCatalog, PLUGINS_INSTALL_TOOL_ID } from "../install-to
 import type { PluginHostCopy } from "../plugin-host-copy.js";
 import { createPluginInstallMessages, createPluginToolMessages } from "../plugin-tool-messages.js";
 import { createPluginSourceAgentToolCatalog } from "../source-tool-catalog.js";
+import { pluginManagementToolIds, pluginSourceToolIds } from "../plugin-tool-ids.js";
 
 /**
  * @file Model-facing plugin text names the HOST's product, package format and install switch, which
@@ -73,4 +74,46 @@ test("enablement explains confirmation and live schema writes without a host doc
   assert.match(enabled, /discovery status is 'valid'/);
   assert.match(tool.description, /disabling flips the activation flag back/);
   assert.doesNotMatch(tool.description + enabled, /ADR-023/);
+});
+
+test("the restart note differs per family and direction, and agent-plugin notes name the host and the plugin", () => {
+  const messages = createPluginToolMessages({ copy });
+  assert.equal(messages.restartNote({ family: "site-runtime", pluginId: "p", enabled: false }),
+    "Disabled and saved. This takes effect immediately, with no restart: any tool this plugin contributed stays listed " +
+      "in the running daemon until Acme restarts, but every call to it is refused from now on.");
+  assert.equal(messages.restartNote({ family: "agent-plugin", pluginId: "guide", enabled: true }),
+    'Enabled and saved. Read its guidance now with load_agent_plugin({pluginId:"guide"}) and use ' +
+      "agent_plugin_connect for account sign-in when needed. Tool discovery refreshes without restarting; " +
+      "search for agent_plugin_guide to read its guidance. Do not ask the person to restart Acme.");
+  assert.equal(messages.restartNote({ family: "agent-plugin", pluginId: "guide", enabled: false }),
+    "Disabled and saved. Its guidance and provisioned external MCP tools stop immediately. " +
+      "The connection rows and saved sign-in are retained. Ask to turn the plugin on through plugins_set_enabled before using it again.");
+});
+
+test("only a pending update recommends a restart; other journal refusals name their code and forbid the restart loop", () => {
+  const messages = createPluginToolMessages({ copy });
+  assert.equal(messages.updatePendingNextStep({ code: "PLUGIN_UPDATE_JOURNAL_UNSAFE" }),
+    "Its update recovery record needs manual repair (PLUGIN_UPDATE_JOURNAL_UNSAFE); restarting Acme will not fix it. Tell the user an operator has to repair it first.");
+});
+
+test("the stale-uninstall and activation-record notes name the plugin, version and direction", () => {
+  const messages = createPluginToolMessages({ copy });
+  assert.equal(messages.changedSinceConfirmation({ pluginId: "p", name: "Pea", version: "2.0.0" }),
+    "'p' changed after the user was asked: the confirmation showed Pea version 2.0.0, and that " +
+      "is no longer what is installed. Nothing was removed. Call plugins_uninstall again so the user can review and confirm what is installed now.");
+  assert.match(messages.activationsUnreadableNote({ pluginId: "p", enabled: true }), /^Nothing changed: this workspace's Agent Plugin activation record could not be read, so 'p' was NOT enabled\. /);
+  assert.match(messages.activationsUnreadableNote({ pluginId: "p", enabled: false }), /so 'p' was NOT disabled\. Tell the user an operator has to repair activations\.json first/);
+  assert.match(messages.activationsBusyNote({ pluginId: "p", enabled: true }), /so 'p' was NOT enabled\. Tell the user nothing was changed/);
+});
+
+test("the install messages keep the OFF wording and the retry hint", () => {
+  const messages = createPluginInstallMessages({ copy });
+  assert.equal(messages.installedNote({ name: "Pea", version: "1.2.3" }),
+    "Installed Pea 1.2.3. It is OFF in every workspace; turn it on with plugins_set_enabled (family 'site-runtime') if the user wants it on.");
+  assert.equal(messages.retryInstallHint, " Call plugins_install again to install what is there now.");
+});
+
+test("the shared tool-id tables name exactly the tools the management and source catalogs declare", () => {
+  assert.deepEqual(createPluginAgentToolCatalog({ copy }).map((tool) => tool.name), Object.values(pluginManagementToolIds));
+  assert.deepEqual(createPluginSourceAgentToolCatalog({ copy }).map((tool) => tool.name).sort(), Object.values(pluginSourceToolIds).sort());
 });
