@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { computeBlobStorageKey, InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, type MediaRecord } from "../../index.js";
+import { computeBlobStorageKey, InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, MediaConflictError, MediaValidationError, type MediaRecord } from "../../index.js";
 import type { BlobFence } from "@jini-ai/core/contracts/blob-gc";
-import { importMediaEntity, type ImportMediaEntityDeps } from "../import-media-entity.js";
+import { importMediaEntity, restoreImportedMedia, type ImportMediaEntityDeps } from "../import-media-entity.js";
 import { bytesMatchSha256, isValidSha256Hex } from "../../../publish/transfer/blob-staging.js";
 
 /**
@@ -238,4 +238,206 @@ test("resurrects a verified tombstoned blob for a new row without re-stamping th
   assert.deepEqual(renewed, { id: "old", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey, status: "active",
     tombstonedAt: undefined, createdAt: "2026-09-16", createdByPrincipal: "original-owner" });
   assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: record.id }))?.source.sha256, HELLO_SHA256);
+});
+
+// --- Gap fill (cloud A2): races at the compare-and-set write, replacement refusals, rollback. ---
+
+const OTHER_BYTES = new TextEncoder().encode("other bytes");
+const OTHER_SHA256 = createHash("sha256").update(OTHER_BYTES).digest("hex");
+
+/** A real in-memory repo whose next conditional write first lets `race` run, as a concurrent writer would. */
+class RacingMediaRepo extends InMemoryVersionedMediaRepo {
+  race: ((repo: InMemoryVersionedMediaRepo) => Promise<{ applied: boolean } | void>) | null = null;
+  private async raced(write: () => Promise<{ applied: boolean }>): Promise<{ applied: boolean }> {
+    const race = this.race;
+    this.race = null;
+    const forced = race ? await race(this) : undefined;
+    return forced ?? write();
+  }
+  override async insertIfAbsent(record: MediaRecord): Promise<{ applied: boolean }> {
+    return this.raced(() => super.insertIfAbsent(record));
+  }
+  override async saveIfVersion(required: { record: MediaRecord; ifVersion: number }): Promise<{ applied: boolean }> {
+    return this.raced(() => super.saveIfVersion(required));
+  }
+}
+
+function racingDeps() {
+  const mediaRepo = new RacingMediaRepo({});
+  return { ...makeDeps(), mediaRepo };
+}
+
+function importInput(overrides: Partial<{ record: MediaRecord; bytes: Uint8Array | null; baseVersion: number | null; sourceReplacement: { version: number; sourceSha256: string } }> = {}) {
+  return { workspaceId: WORKSPACE_ID, record: makeRecord(), bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null, ...overrides };
+}
+
+test("a slug taken by another id between the precondition read and the insert is reported with the real holder", async () => {
+  const deps = racingDeps();
+  deps.mediaRepo.race = async (repo) => {
+    await repo.save(makeRecord({ id: "raced-holder" }));
+    throw new MediaConflictError({ message: "unique slug" });
+  };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput() }),
+    { status: "blocked", code: "slug-taken", reason: "slug 'a-photo' is already held by a different media ('raced-holder')" });
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
+});
+
+test("a slug race whose holder vanished again names it unknown, and a non-conflict write error propagates", async () => {
+  const deps = racingDeps();
+  deps.mediaRepo.race = async () => { throw new MediaConflictError({ message: "unique slug" }); };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput() }),
+    { status: "blocked", code: "slug-taken", reason: "slug 'a-photo' is already held by a different media ('unknown')" });
+  deps.mediaRepo.race = async () => { throw new Error("disk full"); };
+  await assert.rejects(importMediaEntity({ deps, input: importInput() }), /^Error: disk full$/);
+});
+
+test("an insert that loses to a concurrent insert of the same id reports the version it found", async () => {
+  const deps = racingDeps();
+  deps.mediaRepo.race = async (repo) => { await repo.save(makeRecord({ version: 3, slug: "elsewhere" })); };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput() }),
+    { status: "conflict", reason: "expected no existing row, found version 3" });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.slug, "elsewhere");
+});
+
+test("a refused write whose re-read shows no mismatch still reports a conflict, never success", async () => {
+  const deps = racingDeps();
+  deps.mediaRepo.race = async () => ({ applied: false });
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput() }),
+    { status: "conflict", reason: "expected no existing row, but the id is already in use" });
+  await importMediaEntity({ deps, input: importInput() });
+  deps.mediaRepo.race = async () => ({ applied: false });
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ baseVersion: 1 }) }),
+    { status: "conflict", reason: "expected version 1, but a concurrent write landed first" });
+});
+
+test("an update whose row was deleted mid-flight reports the row gone", async () => {
+  const deps = racingDeps();
+  await importMediaEntity({ deps, input: importInput() });
+  deps.mediaRepo.race = async (repo) => { await repo.remove({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }); };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ baseVersion: 1 }) }),
+    { status: "conflict", reason: "expected version 1, but the row is gone" });
+});
+
+test("a record with no source is refused as malformed before any read", async () => {
+  const deps = makeDeps();
+  const record = { ...makeRecord(), source: undefined } as unknown as MediaRecord;
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ record }) }),
+    { status: "blocked", code: "precondition", reason: "missing or malformed media source" });
+});
+
+test("an existing blob row stored under a key other than the fenced one fails closed with no media row", async () => {
+  const deps = makeDeps();
+  await deps.assetBlobRepo.save({ id: "b1", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey: "elsewhere/key",
+    status: "active", createdAt: "2026-09-16", createdByPrincipal: "owner" });
+  await assert.rejects(importMediaEntity({ deps, input: importInput() }),
+    (error: unknown) => error instanceof MediaValidationError && error.message === "Stored blob key does not match the fenced key");
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
+});
+
+test("a blob store that puts new bytes under a different key than the fence fails closed with no media row", async () => {
+  const deps = { ...makeDeps(), storageKeyFor: () => "fenced/other-key" };
+  await assert.rejects(importMediaEntity({ deps, input: importInput() }),
+    (error: unknown) => error instanceof MediaValidationError && error.message === "Stored blob key does not match the fenced key");
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
+});
+
+const REVIEWED = { version: 1, sourceSha256: HELLO_SHA256 };
+const LIVE_CHANGED = "The live file changed after review. Plan publishing again and review Overwrite on live.";
+
+test("a reviewed replacement is refused when the live row is missing, at another version, or on other bytes", async () => {
+  const replacement = importInput({ record: makeRecord({ source: { sha256: OTHER_SHA256 } }), bytes: OTHER_BYTES, sourceReplacement: REVIEWED });
+  const missing = makeDeps();
+  assert.deepEqual(await importMediaEntity({ deps: missing, input: { ...replacement, baseVersion: null } }), { status: "conflict", reason: LIVE_CHANGED });
+  const deps = makeDeps();
+  await importMediaEntity({ deps, input: importInput() });
+  assert.deepEqual(await importMediaEntity({ deps, input: { ...replacement, baseVersion: 1, sourceReplacement: { ...REVIEWED, version: 2 } } }),
+    { status: "conflict", reason: LIVE_CHANGED });
+  assert.deepEqual(await importMediaEntity({ deps, input: { ...replacement, baseVersion: 1, sourceReplacement: { ...REVIEWED, sourceSha256: OTHER_SHA256 } } }),
+    { status: "conflict", reason: LIVE_CHANGED });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.source.sha256, HELLO_SHA256);
+});
+
+/** The real repo with its optional atomic-replace capability absent, as an older destination has it. */
+function withoutAtomicReplace(repo: InMemoryVersionedMediaRepo): InMemoryVersionedMediaRepo {
+  return new Proxy(repo, { get: (target, key, receiver) => (key === "replaceFileIfVersion" ? undefined : Reflect.get(target, key, receiver)) });
+}
+
+test("a reviewed replacement on a destination without atomic replace is refused and leaves the row alone", async () => {
+  const deps = makeDeps();
+  await importMediaEntity({ deps, input: importInput() });
+  const result = await importMediaEntity({ deps: { ...deps, mediaRepo: withoutAtomicReplace(deps.mediaRepo) }, input: importInput({
+    record: makeRecord({ source: { sha256: OTHER_SHA256 } }), bytes: OTHER_BYTES, baseVersion: 1, sourceReplacement: REVIEWED }) });
+  assert.deepEqual(result, { status: "blocked", code: "precondition",
+    reason: "This destination cannot replace media files atomically. Update the live site and plan publishing again." });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.version, 1);
+});
+
+/** Imports v1, then makes `replaceFileIfVersion` behave as `outcome` says for the reviewed replacement. */
+async function replaceWithOutcome(outcome: () => Promise<{ applied: boolean }>) {
+  const deps = makeDeps();
+  await importMediaEntity({ deps, input: importInput() });
+  deps.mediaRepo.replaceFileIfVersion = outcome;
+  return importMediaEntity({ deps, input: importInput({ record: makeRecord({ source: { sha256: OTHER_SHA256 } }),
+    bytes: OTHER_BYTES, baseVersion: 1, sourceReplacement: REVIEWED }) });
+}
+
+test("a reviewed replacement that loses its compare-and-set reports a conflict", async () => {
+  assert.deepEqual(await replaceWithOutcome(async () => ({ applied: false })),
+    { status: "conflict", reason: "The live file changed during replacement. Plan publishing again." });
+});
+
+test("a reviewed replacement hitting a slug conflict is worded through the outward port; other failures propagate", async () => {
+  assert.deepEqual(await replaceWithOutcome(async () => { throw new MediaConflictError({ message: "slug clash" }); }),
+    { status: "blocked", code: "slug-taken", reason: "slug clash" });
+  await assert.rejects(replaceWithOutcome(async () => { throw new Error("db offline"); }), /^Error: db offline$/);
+});
+
+/** v1 on HELLO, then v2 via an import that keeps (`sameBytes`) or replaces the source. Returns v1 as `prior`. */
+async function importedTwice({ sameBytes }: { sameBytes: boolean }) {
+  const deps = makeDeps();
+  await importMediaEntity({ deps, input: importInput() });
+  const prior = await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" });
+  assert.ok(prior);
+  const second = sameBytes
+    ? importInput({ record: makeRecord({ title: "Retitled" }), baseVersion: 1 })
+    : importInput({ record: makeRecord({ source: { sha256: OTHER_SHA256 } }), bytes: OTHER_BYTES, baseVersion: 1, sourceReplacement: REVIEWED });
+  assert.equal((await importMediaEntity({ deps, input: second })).status, "imported");
+  return { deps, prior };
+}
+
+test("restoreImportedMedia puts back the prior row when the bytes did not change", async () => {
+  const { deps, prior } = await importedTwice({ sameBytes: true });
+  await restoreImportedMedia({ deps, prior });
+  assert.deepEqual(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), prior);
+});
+
+test("restoreImportedMedia switches a replaced source back to the prior blob atomically", async () => {
+  const { deps, prior } = await importedTwice({ sameBytes: false });
+  await restoreImportedMedia({ deps, prior });
+  const restored = await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" });
+  assert.equal(restored?.source.sha256, HELLO_SHA256);
+  assert.equal(restored?.version, 1);
+});
+
+test("restoreImportedMedia refuses when the live row is gone or was edited again", async () => {
+  const changed = "Could not restore media 'source-asset-1' after publishing failed. Restore the publish restore point; the live file changed.";
+  const { deps, prior } = await importedTwice({ sameBytes: true });
+  await assert.rejects(restoreImportedMedia({ deps, prior: { ...prior, version: 5 } }), { message: changed });
+  await deps.mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: "source-asset-1" });
+  await assert.rejects(restoreImportedMedia({ deps, prior }), { message: changed });
+});
+
+test("restoreImportedMedia refuses a source switch-back when the prior blob or atomic replace is unavailable", async () => {
+  const unavailable = "Could not restore media 'source-asset-1' after publishing failed. Restore the publish restore point; the live file changed or its original blob is unavailable.";
+  const { deps, prior } = await importedTwice({ sameBytes: false });
+  await assert.rejects(restoreImportedMedia({ deps: { ...deps, assetBlobRepo: new InMemoryAssetBlobRepo({}) }, prior }), { message: unavailable });
+  await assert.rejects(restoreImportedMedia({ deps: { ...deps, mediaRepo: withoutAtomicReplace(deps.mediaRepo) }, prior }), { message: unavailable });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.source.sha256, OTHER_SHA256);
+});
+
+test("restoreImportedMedia refuses when the compare-and-set loses to a concurrent edit", async () => {
+  const { deps, prior } = await importedTwice({ sameBytes: true });
+  deps.mediaRepo.saveIfVersion = async () => ({ applied: false });
+  await assert.rejects(restoreImportedMedia({ deps, prior }),
+    { message: "Could not restore media 'source-asset-1': the live file changed during rollback. Restore the publish restore point." });
 });
