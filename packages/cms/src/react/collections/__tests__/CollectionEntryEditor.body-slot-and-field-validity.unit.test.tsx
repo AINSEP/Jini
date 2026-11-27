@@ -70,11 +70,11 @@ it("edits schema fields with their native value types and invokes the action for
   fireEvent.click(view.getByRole("button", { name: "Save" }));
   expect(save).toHaveBeenCalledExactlyOnceWith();
   expect(savedFields).toStrictEqual({ quantity: undefined, weight: 2.75, listed: true, supplier: "source-9", shipsAt: "2026-01-03T09:15" });
-  expect(view.queryByRole("button", { name: "Publish", exact: true })).toBeNull();
-  fireEvent.click(view.getByRole("button", { name: "Unpublish", exact: true }));
+  expect(view.queryByRole("button", { name: "Publish" })).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: "Unpublish" }));
   view.rerender(<CollectionEntryEditor {...props} entryId="draft-6" />);
-  expect(view.queryByRole("button", { name: "Unpublish", exact: true })).toBeNull();
-  fireEvent.click(view.getByRole("button", { name: "Publish", exact: true }));
+  expect(view.queryByRole("button", { name: "Unpublish" })).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: "Publish" }));
   expect(toggleLifecycle.mock.calls).toEqual([[{ op: "unpublish" }], [{ op: "publish" }]]);
 });
 

@@ -26,7 +26,7 @@ it('propagates a real filesystem error instead of treating an unreadable config 
   try {
     const path = join(dir, 'trust.json');
     await mkdir(path);
-    await expect(nodeProvisioningFileIo.read({ path })).rejects.toMatchObject({ code: 'EISDIR', path });
+    await expect(nodeProvisioningFileIo.read({ path })).rejects.toMatchObject({ code: 'EISDIR', syscall: 'read' }); // Node's readFile EISDIR carries no `path`.
   } finally {
     await rm(dir, { force: true, recursive: true });
   }

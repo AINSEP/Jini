@@ -167,7 +167,9 @@ export function EntryFieldsSection(props: {
           useJsonFieldControlHook={props.useJsonFieldControlHook}
           key={field.name}
           field={field}
-          value={extFields[field.name] ?? props.readStoredField({ fieldsJson: entry?.fieldsJson, name: field.name })}
+          // An edited field shows its edit even when that edit is "cleared" (`undefined`), so the
+          // input matches what a save sends instead of snapping back to the stored value.
+          value={Object.hasOwn(extFields, field.name) ? extFields[field.name] : props.readStoredField({ fieldsJson: entry?.fieldsJson, name: field.name })}
           onChange={(value) => onFieldChange(field.name, value)}
           agentBase={agentBase}
           setFieldValidity={setFieldValidity}

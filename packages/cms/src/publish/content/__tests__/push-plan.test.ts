@@ -94,5 +94,6 @@ it("stages only the selected scoped page and the out-of-scope cover it reference
     entity("media", "unrelated", { title: "Other asset" }),
   ]);
   await s.run({ scope: { entityTypes: ["page"] }, selectedEntityKeys: ["page:p1"] });
-  expect(s.pushed).toEqual([{ keys: ["page:p1", "media:cover"] }]);
+  // Staging order follows the bundle's dependency order, not the selection; the SET is the contract.
+  expect(s.pushed.map(push => ({ ...push, keys: [...push.keys].sort() }))).toEqual([{ keys: ["media:cover", "page:p1"] }]);
 });

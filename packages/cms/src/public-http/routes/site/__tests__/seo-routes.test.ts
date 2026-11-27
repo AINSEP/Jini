@@ -1,4 +1,5 @@
 import type { RouteInputContext, RouteRequestFacts } from "@jini-ai/core/contracts/server";
+import type { SeoSettings } from "../../../../seo/types.js";
 import { describe, expect, it } from "vitest";
 import { feedRoute, type FeedRouteDeps } from "../feed.js";
 import { robotsRoute, type RobotsRouteDeps } from "../robots.js";
@@ -122,9 +123,9 @@ describe("feedRoute", () => {
 
 it("emits no phantom directive or newline when robots rules and sitemap are both disabled", async () => {
   const deps = robotsDeps("https://stored.test");
-  const getSeoSettings = async () => ({ sitemapEnabled: false, robotsRules: [] });
+  const getSeoSettings = async (): Promise<SeoSettings> => ({ titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: false, robotsRules: [] });
   const res = await robotsRoute.handle({
-    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { getSeoSettings } as RobotsRouteDeps['seoDeps']['settings'] } },
+    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { ...deps.seoDeps.settings, getSeoSettings } } },
   }, { signal });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("");
@@ -132,11 +133,11 @@ it("emits no phantom directive or newline when robots rules and sitemap are both
 
 it("writes only the allow and disallow directives that each robots agent actually declares", async () => {
   const deps = robotsDeps("https://stored.test");
-  const getSeoSettings = async () => ({ sitemapEnabled: false, robotsRules: [
+  const getSeoSettings = async (): Promise<SeoSettings> => ({ titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: false, robotsRules: [
     { userAgent: "IndexBot", allow: ["/reference"] }, { userAgent: "ArchiveBot", disallow: ["/drafts"] },
   ] });
   const res = await robotsRoute.handle({
-    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { getSeoSettings } as RobotsRouteDeps['seoDeps']['settings'] } },
+    raw: rawWith(facts()), deps: { ...deps, seoDeps: { ...deps.seoDeps, settings: { ...deps.seoDeps.settings, getSeoSettings } } },
   }, { signal });
   expect(await res.text()).toBe("User-agent: IndexBot\nAllow: /reference\n\nUser-agent: ArchiveBot\nDisallow: /drafts\n\n");
 });

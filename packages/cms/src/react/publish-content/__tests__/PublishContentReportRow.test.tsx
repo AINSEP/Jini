@@ -36,7 +36,9 @@ it('binds the publish checkbox to the current row and disables it once selection
   screen.rerender(row({ ...f.view, selectionEnabled: false, selectedKeys: new Set(), showOverwriteColumn: false }));
   expect(publish).not.toBeChecked();
   expect(publish).toBeDisabled();
-  fireEvent.click(publish);
+  // `HTMLElement.click()` is the platform's activation path, which a disabled control ignores
+  // (jsdom's `fireEvent.click` dispatches a raw event that skips that check).
+  publish.click();
   expect(f.onToggleRow).toHaveBeenCalledTimes(1);
   expect(screen.getAllByRole('cell')).toHaveLength(4);
 });

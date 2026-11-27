@@ -2,7 +2,7 @@ import { PublishContentBundleNotFoundError } from "../gated-hooks.js";
 import { connectDestination, disconnectDestination, PublishTrustConnectError } from "../../trust/connect.js";
 import { expect, it, vi } from "vitest";
 import { publishContentAgentToolCatalog } from "../agent-tools.js";
-import { ToolInputError } from "@jini-ai/core";
+import { humanConfirmedHandler, ToolInputError, type HumanConfirmer } from "@jini-ai/core";
 import { PlanStaleError } from "@jini-ai/core/gated-mutations";
 import { buildPublishContentRegistrations, contributePublishContentTools, requirePublishTrustProvisioning, type PublishContentToolDeps } from "../tool-registrations.js";
 import type { ToolExecutionContext } from "@jini-ai/core";
@@ -40,12 +40,17 @@ function fixture(observeDialog?: (dialog: HumanConfirmSpec) => void) {
     publishContentRunRepo: { save: vi.fn(), findById: async () => ({ phase: "planned", actorId: "agent", peerLabel: "Live" }) },
     publishContentBundleRepo: { findById: async () => ({ sourcePrincipalId: "agent", expiresAt: "2099-01-01T00:00:00Z" }) },
     gateway, gatedMutations: { gatewayDeps: {} }, dbOps: { getCapabilities: vi.fn() },
-    humanConfirmedToolHandler: (_surfaces: unknown, spec: { prepare: (r: { ctx: ToolExecutionContext }) => Promise<unknown>; dialog: (prepared: unknown) => HumanConfirmSpec; run: (r: { ctx: ToolExecutionContext; prepared: unknown; confirmer: { id: string; kind: string } }) => Promise<unknown> }) => async (context: ToolExecutionContext) => {
-      const prepared = await spec.prepare({ ctx: context });
-      if (observeDialog) observeDialog(spec.dialog(prepared));
-      effects.push("approval");
-      return spec.run({ ctx: context, prepared, confirmer: { id: "owner", kind: "owner" } });
-    },
+    // The real core wrapper: only a `humanConfirmedHandler` passes the registration gate, and it
+    // hands `run` the invoking principal as a `user` confirmer. The fake human always says yes.
+    humanConfirmedToolHandler: (_surfaces: unknown, spec: { prepare: (r: { ctx: ToolExecutionContext }) => Promise<unknown>; dialog: (prepared: unknown) => HumanConfirmSpec; run: (r: { ctx: ToolExecutionContext; prepared: unknown; confirmer: HumanConfirmer }) => Promise<unknown> }) => humanConfirmedHandler({
+      prepare: spec.prepare,
+      askHuman: async ({ prepared }) => {
+        if (observeDialog) observeDialog(spec.dialog(prepared));
+        effects.push("approval");
+        return { confirmed: true };
+      },
+      run: spec.run,
+    }),
     isPluginHookFailedError: () => false,
   } as unknown as PublishContentToolDeps;
   const registrations = buildPublishContentRegistrations({ routeDeps: deps, surfaces: { surfaceExchanges: {} as never } });
@@ -231,7 +236,7 @@ it.each(["applied report", "missing report", "unavailable backup"] as const)("ke
     workspaceId: "w", bundleId: "bundle", actor: { id: "agent", kind: "agent" }, forcedEntityKeys: new Set(["page:incoming"]),
   }));
   const expected = { deps: f.deps.gatedMutations.gatewayDeps, hooks: {}, signal: call.signal };
-  expect(confirm).toHaveBeenCalledExactlyOnceWith({ ...expected, principalId: "owner", principalKind: "owner", planId: "fresh", planHash: "fresh-hash" });
+  expect(confirm).toHaveBeenCalledExactlyOnceWith({ ...expected, principalId: "agent", principalKind: "user", planId: "fresh", planHash: "fresh-hash" });
   if (scenario === "unavailable backup") expect(f.gateway.execute).not.toHaveBeenCalled();
   else expect(f.gateway.execute).toHaveBeenCalledExactlyOnceWith({ ...expected, principalId: "agent", principalKind: "agent", confirmationToken: "human-token" });
 });
