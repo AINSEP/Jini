@@ -60,3 +60,11 @@ it("delegates the redirect to the injected useIntegrationsRedirectHook instead o
   expect(useIntegrationsRedirectHook).toHaveBeenCalledWith({ routePath: "/integrations" });
   expect(window.location.pathname).toBe("/admin/integrations");
 });
+
+it("fails explicitly without a destination instead of replacing the current history entry", () => {
+  window.history.replaceState(null, "", "/admin/integrations?tab=webhooks");
+  const before = window.location.href;
+  expect(() => renderHook(() => useIntegrationsRedirectWithDefault({ defaultRoutePath: undefined })))
+    .toThrow("integrations redirect has no destination");
+  expect(window.location.href).toBe(before);
+});

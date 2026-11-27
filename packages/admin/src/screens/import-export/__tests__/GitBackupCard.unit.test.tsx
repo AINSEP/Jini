@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { QueryResult } from "@jini-ai/core/fetch";
@@ -7,10 +7,11 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
 import { createDomPageDriver } from "@jini-ai/agentic/dom";
 import { AdminKitProvider } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
+import { deferred } from "../../../widgets/__tests__/fixtures/controller-harness.js";
 import type { SourceControlCredential } from "../../../source-control/models.js";
 import { GitBackupCard, SOURCE_CONTROL_HREF } from "../GitBackupCard.js";
 import { backupConnectionLabels, gitBackupPlanInput, gitBackupRefusalMessage } from "../git-backup-rules.js";
-import { createFakeGitBackupPort, type GitBackupPlan, type GitBackupPort } from "../hooks/git-backup-port.hooks.js";
+import { createFakeGitBackupPort, type GitBackupPlan, type GitBackupPort, type GitBackupPushResult } from "../hooks/git-backup-port.hooks.js";
 import { useGitBackup as useGitBackupHook } from "../hooks/use-git-backup.hooks.js";
 
 /**
@@ -307,4 +308,80 @@ describe("fake Git backup port", () => {
     renderInKit(<Harness port={createFakeGitBackupPort({ overrides: { listConnections: () => Promise.reject(new Error("")) } })} />);
     expect((await screen.findByRole("alert")).textContent).toBe("Couldn't load connections.");
   });
+});
+
+it("does not invent upload progress before the first push response and surfaces the first reported count", async () => {
+  const first = deferred<GitBackupPushResult>();
+  const next = deferred<GitBackupPushResult>();
+  const push = vi.fn<GitBackupPort["push"]>().mockImplementationOnce(() => first.promise).mockImplementationOnce(() => next.promise);
+  const port = createFakeGitBackupPort({ overrides: { listConnections: async () => [connection()], plan: async () => PLAN, push } });
+  renderInKit(<Harness port={port} />);
+  await screen.findByLabelText("Owner");
+  fillForm();
+  fireEvent.click(screen.getByRole("button", { name: "Plan backup" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Push backup" }));
+
+  expect(screen.getByRole("button", { name: "Pushing…" })).toHaveAttribute("aria-busy", "true");
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(push).toHaveBeenCalledExactlyOnceWith({ planId: "plan-1" });
+  await act(async () => { first.resolve({ pushed: false, inProgress: true, planId: "plan-1", progress: { filesDone: 7, filesTotal: 12 } }); });
+  expect(screen.getByRole("status").textContent).toBe("Uploaded 7 of 12 files…");
+  expect(push.mock.calls).toEqual([[{ planId: "plan-1" }], [{ planId: "plan-1" }]]);
+  await act(async () => { next.resolve({ pushed: true, repository: "me/site-backups", commitUrl: "https://github.com/me/site-backups/commit/def" }); });
+  expect(screen.getByRole("link", { name: "View commit" })).toHaveAttribute("href", "https://github.com/me/site-backups/commit/def");
+  expect(screen.getByRole("status").textContent).toBe("Backed up to me/site-backups.");
+});
+
+it.each([
+  { phase: "planned", message: "Git backup summary has no plan" },
+  { phase: "done", message: "Git backup completion has no result" },
+] as const)("rejects an inconsistent $phase state from the host controller", ({ phase, message }) => {
+  const port = createFakeGitBackupPort();
+  function MalformedHost() {
+    const controller = useGitBackup({ port, t });
+    return <GitBackupCard controller={{ ...controller, connections: ["GitHub"], phase }} t={t} agentHandle={agentHandle} />;
+  }
+  expect(() => renderInKit(<MalformedHost />)).toThrow(message);
+});
+
+it("does not present or describe a failed push after the controller's screen unmounts", async () => {
+  const pending = deferred<GitBackupPushResult>();
+  const plan = vi.fn<GitBackupPort["plan"]>().mockResolvedValue(PLAN);
+  const push = vi.fn<GitBackupPort["push"]>().mockImplementation(() => pending.promise);
+  const port = createFakeGitBackupPort({ overrides: { listConnections: async () => [connection()], plan, push } });
+  const describeError = vi.fn(describeApiError);
+  const hook = renderHook(() => useGitBackupHook({ port, t, host: { describeError } }), { wrapper: Kit });
+  await waitFor(() => expect(hook.result.current.connections).toEqual(["GitHub"]));
+  act(() => {
+    hook.result.current.setField({ field: "owner", value: "me" });
+    hook.result.current.setField({ field: "repo", value: "site-backups" });
+  });
+  await act(async () => { await hook.result.current.planBackup(); });
+  expect(plan).toHaveBeenCalledExactlyOnceWith({ credential: "GitHub", owner: "me", repo: "site-backups" });
+  let running!: Promise<void>;
+  act(() => { running = hook.result.current.pushBackup(); });
+  expect(hook.result.current.phase).toBe("pushing");
+  expect(push).toHaveBeenCalledExactlyOnceWith({ planId: "plan-1" });
+  hook.unmount();
+  await act(async () => { pending.reject(new Error("Socket closed after navigation")); await running; });
+  expect(describeError).not.toHaveBeenCalled();
+  expect(push).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a draft entered before connections resolve and chooses the eventual default for its first plan", async () => {
+  const connections = deferred<SourceControlCredential[]>();
+  const plan = vi.fn<GitBackupPort["plan"]>().mockResolvedValue(PLAN);
+  const port = createFakeGitBackupPort({ overrides: { listConnections: () => connections.promise, plan } });
+  const { result } = renderHook(() => useGitBackup({ port, t }), { wrapper: Kit });
+  act(() => {
+    result.current.setField({ field: "owner", value: "me" });
+    result.current.setField({ field: "repo", value: "site-backups" });
+  });
+  expect(result.current.form).toEqual({ connection: "", owner: "me", repo: "site-backups", branch: "" });
+  expect(result.current.canPlan).toBe(false);
+  await act(async () => { connections.resolve([connection({ label: "Credentials for site backups" })]); });
+  expect(result.current.form).toEqual({ connection: "Credentials for site backups", owner: "me", repo: "site-backups", branch: "" });
+  await act(async () => { await result.current.planBackup(); });
+  expect(plan).toHaveBeenCalledExactlyOnceWith({ credential: "Credentials for site backups", owner: "me", repo: "site-backups" });
+  expect(result.current.phase).toBe("planned");
 });
