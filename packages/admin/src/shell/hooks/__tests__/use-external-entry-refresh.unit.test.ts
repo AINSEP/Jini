@@ -625,3 +625,16 @@ describe("useExternalEntryRefresh — identity", () => {
     expect(env.result.current.checkForExternalChange).toBe(first);
   });
 });
+
+it("does not fetch or discard a local draft for Load latest while saving or before a row is loaded", async () => {
+  const env = setup({ loaded: { id: "a", version: 9 }, saving: true });
+  await act(() => env.result.current.loadExternalChange());
+  expect(env.fetchLatest).not.toHaveBeenCalled();
+  expect(env.discardStandingDraft).not.toHaveBeenCalled();
+  env.setSaving(false);
+  env.rerender({ loaded: null });
+  await act(() => env.result.current.loadExternalChange());
+  expect(env.fetchLatest).not.toHaveBeenCalled();
+  expect(env.applyLatest).not.toHaveBeenCalled();
+  expect(env.result.current.pendingExternalVersion).toBeNull();
+});

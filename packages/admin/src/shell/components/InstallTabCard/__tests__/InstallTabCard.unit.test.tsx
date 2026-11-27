@@ -3,10 +3,11 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRef } from "react";
+import userEvent from "@testing-library/user-event";
 import { useZipDrop } from "../use-zip-drop.hooks.js";
 import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstallTabCard, InstallTabFieldRow, InstallTabOption, ZipDropZone } from "../InstallTabCard.js";
+import { InstallTabAdvanced, InstallTabCard, InstallTabFieldRow, InstallTabOption, ZipDropZone } from "../InstallTabCard.js";
 
 /**
  * @file The install card's field row as a form: Enter or the button submits through the host's
@@ -68,4 +69,60 @@ it("a drag changes the dropzone outline without changing its accessible name", (
   expect(css).not.toMatch(/\.is-(soon|dragging)\b/);
   fireEvent.dragLeave(zone);
   expect(zone).not.toHaveClass("jini-install-tab-is-dragging");
+});
+
+it("opens the advanced disclosure and exposes its server-path control", async () => {
+  const user = userEvent.setup();
+  render(<InstallTabCard titleId="plugin-title" title="Add a plugin">
+    <InstallTabOption hint="Only use a path on this server.">
+      <InstallTabAdvanced summary="Advanced" hint="Choose an existing directory on the server." summaryProps={{ "data-agent-element": "advanced-install" }}>
+        <InstallTabFieldRow inputId="path" label="Directory" />
+      </InstallTabAdvanced>
+    </InstallTabOption>
+  </InstallTabCard>);
+  const disclosure = screen.getByText("Advanced");
+  const details = disclosure.closest("details");
+  expect(details?.open).toBe(false);
+  expect(disclosure.getAttribute("data-agent-element")).toBe("advanced-install");
+  await user.click(disclosure);
+  expect(details?.open).toBe(true);
+  expect(screen.getByRole("textbox", { name: "Directory" }).id).toBe("path");
+  expect(screen.getByText("Choose an existing directory on the server.").textContent).toBe("Choose an existing directory on the server.");
+  expect(screen.getByText("Only use a path on this server.").textContent).toBe("Only use a path on this server.");
+});
+
+it("offers a distinct multi-file folder picker and disables both choose actions while busy", async () => {
+  const user = userEvent.setup();
+  const onChoose = vi.fn();
+  const onChooseFolder = vi.fn();
+  const onFilesChange = vi.fn();
+  const inputRef = createRef<HTMLInputElement>();
+  const folderRef = createRef<HTMLInputElement>();
+  function Card({ busy }: { busy: boolean }) {
+    const drop = useZipDrop({ onDropFiles: vi.fn(), isLocked: () => busy });
+    return <ZipDropZone drop={drop} glyph="+" title="Drop ZIP" hint="ZIP or folder" busy={busy}
+      chooseLabel="Choose archive" onChoose={onChoose} inputRef={inputRef} inputLabel="ZIP package" onFileChange={vi.fn()}
+      folder={{ label: "Choose directory", inputLabel: "Package directory", inputRef: folderRef, onFilesChange, onChoose: onChooseFolder }} />;
+  }
+  const { rerender } = render(<Card busy={false} />);
+  const folder = screen.getByRole("button", { name: "Choose directory" });
+  const archive = screen.getByRole("button", { name: "Choose archive" });
+  const picker = screen.getByLabelText("Package directory") as HTMLInputElement;
+  expect(folderRef.current).toBe(picker);
+  expect(picker.hidden).toBe(true);
+  expect(picker.multiple).toBe(true);
+  expect(picker.getAttribute("webkitdirectory")).toBe("");
+  expect(inputRef.current?.accept).toBe(".zip,application/zip");
+  await user.click(folder);
+  expect(onChooseFolder).toHaveBeenCalledOnce();
+  expect(onChoose).not.toHaveBeenCalled();
+  const files = [new File(["payload"], "SKILL.md"), new File(["notes"], "README.md")];
+  await user.upload(picker, files);
+  expect(Array.from(picker.files ?? [])).toEqual(files);
+  expect(onFilesChange).toHaveBeenCalledOnce();
+  rerender(<Card busy />);
+  expect(folder).toBeDisabled();
+  expect(archive).toBeDisabled();
+  await user.click(folder);
+  expect(onChooseFolder).toHaveBeenCalledOnce();
 });

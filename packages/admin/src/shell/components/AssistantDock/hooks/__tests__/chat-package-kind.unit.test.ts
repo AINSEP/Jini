@@ -98,3 +98,13 @@ it("keeps agent-plugin browser folders together even when they bundle skills", a
   });
   expect(await partitionChatPackages({ files, legacyManifestNames })).toEqual({ skills: [], attachments: files });
 });
+
+it("does not treat an absolute legacy marker path as a package declaration", async () => {
+  const original = await archive(["xlegacy.plugin.json"]);
+  const bytes = new Uint8Array(await original.arrayBuffer());
+  const directory = new DataView(bytes.buffer).getUint32(bytes.length - 22 + 16, true);
+  const filename = bytes.subarray(directory + 46, directory + 46 + "xlegacy.plugin.json".length);
+  expect(new TextDecoder().decode(filename)).toBe("xlegacy.plugin.json");
+  filename[0] = 0x2f;
+  expect(await chatPackageKind({ file: new File([bytes], "absolute-marker.zip"), legacyManifestNames })).toBe("attachment");
+});

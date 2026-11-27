@@ -115,3 +115,12 @@ describe("createProbeErrorDescriber — ExecutionTab's describeProbeError, in a 
     expect(createProbeErrorDescriber({ t: spanish })("boom")).toBe("boom");
   });
 });
+
+it("ignores endpoint metadata when presence is false, but accepts a newly typed key", () => {
+  const stored = { isSet: false, baseUrl: GOOGLE };
+  const empty = { apiKey: "", stored, baseUrl: OPENAI };
+  expect(storedKeyIsForOtherEndpoint(empty)).toBe(false);
+  expect(storedKeyBlocksProbe(empty)).toBe(false);
+  expect(hasUsableKey(empty)).toBe(false);
+  expect(hasUsableKey({ ...empty, apiKey: "fixture" })).toBe(true);
+});

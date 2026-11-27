@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
-import { activateDockMenuItem, dockSettingsMenuSections, renameActiveConversation, shouldShowHeaderTip } from "../dock-header-rules.js";
+import { activateDockMenuItem, dockSettingsMenuSections, groupOptionTooltips, isChoiceSection, renameActiveConversation, shouldShowHeaderTip } from "../dock-header-rules.js";
 
 /**
  * @file The dock header's pure rules: when a header tooltip may open, how a chosen gear row runs,
@@ -90,5 +90,59 @@ describe("renameActiveConversation", () => {
     const rename = vi.fn(async () => undefined);
     expect(renameActiveConversation({ activeId: null, rename })("Quarterly report")).toBeUndefined();
     expect(rename).not.toHaveBeenCalled();
+  });
+});
+
+it("toggles transcript and runtime switches, selects plugin mode and opens more settings", () => {
+  const update = vi.fn();
+  const runtimeUpdate = vi.fn();
+  const pluginUpdate = vi.fn();
+  const more = vi.fn();
+  const sections = dockSettingsMenuSections({ t: identity, toolCallOptions: TOOL_CALL_OPTIONS, replyLengthOptions: REPLY_LENGTH_OPTIONS }, {
+    display: { preferences: DISPLAY, update },
+    runtime: {
+      preferences: { preferSubagents: true, useClaudeInChrome: false, replyLength: "short" }, update: runtimeUpdate,
+      visible: { preferSubagents: true, useClaudeInChrome: true, replyLength: true },
+    },
+    agentPlugins: { mode: "off", update: pluginUpdate },
+    onMoreSettings: more,
+  });
+  const byKey = new Map(sections.flatMap(section => section.items.map(item => [item.key, item] as const)));
+  expect(byKey.get("done-line")?.checked).toBe(true);
+  expect(byKey.get("thinking")?.checked).toBe(false);
+  expect(byKey.get("prefer-subagents")?.checked).toBe(true);
+  expect(byKey.get("use-claude-in-chrome")?.checked).toBe(false);
+  expect(byKey.get("agent-plugins-off")?.checked).toBe(true);
+  for (const key of ["done-line", "thinking", "prefer-subagents", "use-claude-in-chrome", "agent-plugins-ask", "more-settings"]) {
+    byKey.get(key)?.onSelect?.();
+  }
+  expect(update.mock.calls).toEqual([[{ showUsageLine: false }], [{ showThinking: true }]]);
+  expect(runtimeUpdate.mock.calls).toEqual([[{ preferSubagents: false }], [{ useClaudeInChrome: true }]]);
+  expect(pluginUpdate.mock.calls).toEqual([["ask"]]);
+  expect(more.mock.calls).toEqual([[]]);
+});
+
+it("omits optional settings and refuses an enabled row with no action", () => {
+  const sections = dockSettingsMenuSections({ t: identity, toolCallOptions: TOOL_CALL_OPTIONS, replyLengthOptions: REPLY_LENGTH_OPTIONS }, {
+    display: { preferences: DISPLAY, update: vi.fn() },
+  });
+  expect(sections.map(section => section.key)).toEqual(["tool-calls", "transcript"]);
+  const selectItem = vi.fn();
+  expect(activateDockMenuItem({ item: { key: "pending", label: "Pending" }, selectItem })).toBe(false);
+  expect(selectItem).not.toHaveBeenCalled();
+});
+
+it("moves option help into one tooltip only for nonempty all-radio groups", () => {
+  const show = { key: "show", label: "Show", role: "menuitemradio", tooltip: "See work" } as const;
+  const hide = { key: "hide", label: "Hide", role: "menuitemradio", tooltip: "Keep focus" } as const;
+  const apply = { key: "apply", label: "Apply", role: "menuitem", tooltip: "Save changes" } as const;
+  const choice = { key: "display", items: [show, hide] };
+  const mixed = { key: "mixed", items: [show, apply] };
+  expect(isChoiceSection({ key: "empty", items: [] })).toBe(false);
+  expect(isChoiceSection(choice)).toBe(true);
+  expect(isChoiceSection(mixed)).toBe(false);
+  expect(groupOptionTooltips(mixed)).toBe(mixed);
+  expect(groupOptionTooltips(choice)).toStrictEqual({ key: "display", tooltip: "• Show: See work\n• Hide: Keep focus",
+    items: [{ key: "show", label: "Show", role: "menuitemradio" }, { key: "hide", label: "Hide", role: "menuitemradio" }],
   });
 });

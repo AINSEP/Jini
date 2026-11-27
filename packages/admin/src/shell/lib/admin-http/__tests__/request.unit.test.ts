@@ -282,3 +282,21 @@ describe("createAdminHttp — legacy request shapes", () => {
     expect(Array.from(sent.entries())).toEqual([["content-type", "text/plain"], ["x-trace", "t"]]);
   });
 });
+
+it("sends a raw untyped Blob as octet-stream and honors explicit keepalive and signal options", async () => {
+  const r = recorder([jsonResponse({ saved: "asset-1" })]);
+  const http = createAdminHttp({ ports: r.ports, timeoutMs: 99 });
+  const body = new Blob(["binary fixture"]);
+  const signal = new AbortController().signal;
+  await expect(http.authenticatedAdminRequest({ path: "/uploads", method: "POST", body }, {
+    headers: { "X-Upload": "fixture" }, keepalive: false, signal,
+  })).resolves.toEqual({ saved: "asset-1" });
+  const call = r.fetch.mock.calls[0]![0];
+  expect(call.url).toBe("/api/a/uploads");
+  expect(call.init).toMatchObject({
+    method: "POST", headers: { "Content-Type": "application/octet-stream", "X-Upload": "fixture" },
+    keepalive: false, signal,
+  });
+  expect(call.init.body).toBe(body);
+  expect(r.calls).not.toContain("timeout 99");
+});

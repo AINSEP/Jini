@@ -186,3 +186,18 @@ describe("useDockAutoRail", () => {
     }
   });
 });
+
+it("uses the native media query result and releases its listener when disposed", () => {
+  const band = fakeBand(true);
+  const matchMedia = vi.fn(() => band);
+  vi.stubGlobal("matchMedia", matchMedia);
+  try {
+    const { result, unmount } = renderHook(() => useDockAutoRail({ dockOpen: true }));
+    expect(matchMedia).toHaveBeenCalledExactlyOnceWith("(min-width: 901px) and (max-width: 1171.98px)");
+    expect(result.current.railOverride).toBe(true);
+    act(() => band.set(false));
+    expect(result.current.railOverride).toBeNull();
+    unmount();
+    expect(band.listenerCount()).toBe(0);
+  } finally { vi.unstubAllGlobals(); }
+});

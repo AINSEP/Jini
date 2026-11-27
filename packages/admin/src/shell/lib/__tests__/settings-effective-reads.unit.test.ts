@@ -1,0 +1,50 @@
+import { expect, it, vi } from "vitest";
+import { dropInFlightSettingsReads, shareSettingsEffectiveRead } from "../settings-effective-reads.js";
+
+it("deduplicates refresh invalidation in one turn, resets it by the next, and ignores an old settlement", async () => {
+  const path = "/workspaces/one/settings/effective?namespace=ui.theme";
+  type Reply = Awaited<ReturnType<typeof shareSettingsEffectiveRead>>;
+  const complete: ((reply: Reply) => void)[] = [];
+  const read = vi.fn(() => new Promise<Reply>(resolve => complete.push(resolve)));
+  const request = () => shareSettingsEffectiveRead({ namespace: "ui.theme", path, port: { read } });
+  const initial = request();
+  expect(request()).toBe(initial);
+  dropInFlightSettingsReads({ namespaces: ["other.namespace"] });
+  expect(request()).toBe(initial);
+  dropInFlightSettingsReads({ namespaces: ["ui.theme"] });
+  const second = request();
+  expect(second).not.toBe(initial);
+  dropInFlightSettingsReads({ namespaces: ["ui.theme"] });
+  expect(request()).toBe(second);
+  complete[0]!({ data: [{ key: "theme", value: "classic", defVersion: 1, sourceLayer: "user" }] });
+  await expect(initial).resolves.toEqual({ data: [{ key: "theme", value: "classic", defVersion: 1, sourceLayer: "user" }] });
+  expect(request()).toBe(second);
+  dropInFlightSettingsReads({ namespaces: ["ui.theme"] });
+  const third = request();
+  expect(third).not.toBe(second);
+  expect(read).toHaveBeenCalledTimes(3);
+  complete[1]!({ data: [] });
+  complete[2]!({ data: [{ key: "theme", value: "glass", defVersion: 1, sourceLayer: "workspace" }] });
+  await second;
+  await expect(third).resolves.toEqual({ data: [{ key: "theme", value: "glass", defVersion: 1, sourceLayer: "workspace" }] });
+});
+
+it("drops all scopes only once per dispatch turn and permits another global refresh on the next turn", async () => {
+  const complete: (() => void)[] = [];
+  const read = () => new Promise<{ data: [] }>(resolve => complete.push(() => resolve({ data: [] })));
+  const request = (namespace: string) => shareSettingsEffectiveRead({ namespace, path: `/settings?namespace=${namespace}`, port: { read } });
+  const first = [request("ui.language"), request("ui.execution")];
+  dropInFlightSettingsReads({ namespaces: null });
+  const second = [request("ui.language"), request("ui.execution")];
+  expect(second[0]).not.toBe(first[0]);
+  expect(second[1]).not.toBe(first[1]);
+  dropInFlightSettingsReads({ namespaces: null });
+  expect(request("ui.language")).toBe(second[0]);
+  expect(request("ui.execution")).toBe(second[1]);
+  await Promise.resolve();
+  dropInFlightSettingsReads({ namespaces: null });
+  const third = request("ui.execution");
+  expect(third).not.toBe(second[1]);
+  for (const resolve of complete) resolve();
+  await Promise.all([...first, ...second, third]);
+});

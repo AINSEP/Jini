@@ -281,3 +281,9 @@ describe("raw HTML helpers", () => {
     expect(["image/webp", "video/mp4", "audio/flac", "application/pdf", null].map((contentType) => mediaKindOf({ contentType }))).toEqual(["image", "video", "audio", "unknown", "unknown"]);
   });
 });
+
+it("keeps an explicit HTML mode editable when its stored HTML is not text", () => {
+  const state = readMediaContent({ widgetType: "media", config: { mode: "html", html: ["stale"], items: [{ slug: "cover" }] } });
+  expect(state).toMatchObject({ mode: "html", html: "", media: { items: [{ slug: "cover" }] } });
+  expect(toMediaConfig({ state })).toStrictEqual({ mode: "html", html: "" });
+});

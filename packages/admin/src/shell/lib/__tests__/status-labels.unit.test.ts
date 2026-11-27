@@ -25,3 +25,9 @@ describe("serverLabel", () => {
     expect(pluginMetadataLabel({ values: ["built-in", "tier-3", "valid"], locale: "es" })).toBe("integrado · nivel 3 · válido");
   });
 });
+
+it("gives known English statuses human-readable fallback copy for an unsupported locale", () => {
+  expect(serverLabel({ value: "auto_slug_change", locale: "zz-unknown" })).toBe("URL change");
+  expect(serverLabel({ value: "dead", locale: "zz-unknown" })).toBe("Failed permanently");
+  expect(serverLabel({ value: "future_vendor_status", locale: "zz-unknown" })).toBe("future_vendor_status");
+});

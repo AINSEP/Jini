@@ -76,3 +76,18 @@ describe('useExportPassword', () => {
     await waitFor(() => expect(result.current.revealedPassword).toBeNull());
   });
 });
+
+it("does not show a copy error for an old share after a new password is revealed", async () => {
+  let complete!: (copied: boolean) => void;
+  const copyText = vi.fn(() => new Promise<boolean>(resolve => { complete = resolve; }));
+  const { result } = setup({ copyText });
+  await act(() => result.current.revealPassword({ shareId: "older-share" }));
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.copyPassword(); });
+  expect(copyText).toHaveBeenCalledExactlyOnceWith({ text: "pw-1" });
+  await act(() => result.current.revealPassword({ shareId: "new-share" }));
+  await act(async () => { complete(false); await pending; });
+  expect(result.current.revealedPassword).toEqual({ shareId: "new-share", password: "pw-1" });
+  expect(result.current.passwordCopied).toBe(false);
+  expect(result.current.passwordError).toBeNull();
+});

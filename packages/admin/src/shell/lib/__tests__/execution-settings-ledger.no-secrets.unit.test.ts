@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { ExecutionConfig } from "@jini-ai/core/contracts/execution";
-import { createExecutionSettingsLedger, reconcileExecutionConfigRefresh } from "../execution-settings-ledger.js";
+import { createExecutionSettingsLedger, hasTypedAdminKey, hasUsableAdminKey, reconcileExecutionConfigRefresh } from "../execution-settings-ledger.js";
 
 test("reads, refreshes and diff writes keep both current and previous keys out of the ledger", async () => {
   const defaults: ExecutionConfig = { mode: "byok", byok: { protocol: "openai", providerId: null, apiKey: "", baseUrl: "https://example.test", model: "old" }, localCli: { agentId: null } };
@@ -36,4 +36,40 @@ test("selected Local CLI values write at user scope and the other fields at work
     [{ namespace: "core.execution", key: "localCli.model", scope: "user", valueJson: "model" }, {}],
     [{ namespace: "core.execution", key: "localCli.reasoning", scope: "user", valueJson: "high" }, {}],
   ]);
+});
+
+test("distinguishes a typed key from a stored key, treating whitespace as empty", () => {
+  expect(hasUsableAdminKey({ apiKey: " fixture ", stored: null })).toBe(true);
+  expect(hasUsableAdminKey({ apiKey: " \t ", stored: { isSet: true } })).toBe(true);
+  expect(hasUsableAdminKey({ apiKey: " \t ", stored: { isSet: false } })).toBe(false);
+  expect(hasUsableAdminKey({ apiKey: "", stored: null })).toBe(false);
+  expect(hasTypedAdminKey({ apiKey: " fixture " })).toBe(true);
+  expect(hasTypedAdminKey({ apiKey: " \t " })).toBe(false);
+});
+
+test("hydrates a concrete token cap without reading key bytes and omits the unset cap", async () => {
+  const defaults: ExecutionConfig = { mode: "local-cli", byok: { protocol: "openai", providerId: null, apiKey: "", baseUrl: "", model: "" }, localCli: { agentId: null } };
+  const getSettingsEffective = vi.fn()
+    .mockResolvedValueOnce([{ key: "byok.maxTokens", value: 4096 }, { key: "byok.apiKey", value: "fixture" }])
+    .mockResolvedValueOnce([{ key: "byok.maxTokens", value: 0 }])
+    .mockResolvedValueOnce([{ key: "byok.maxTokens", value: "4096" }]);
+  const ledger = createExecutionSettingsLedger({ defaults, port: { getSettingsEffective, setSetting: vi.fn() },
+    isUnregisteredNamespace: () => false, reportRestoreFailure: vi.fn() });
+  expect((await ledger.loadExecutionConfig({})).byok).toEqual({ ...defaults.byok, maxTokens: 4096 });
+  expect((await ledger.loadExecutionConfig({})).byok).toStrictEqual(defaults.byok);
+  expect((await ledger.loadExecutionConfig({})).byok).toStrictEqual(defaults.byok);
+  expect(getSettingsEffective.mock.calls).toEqual(Array.from({ length: 3 }, () => [{ namespace: "core.execution" }, {}]));
+});
+
+test("returns defaults only for an unregistered namespace, preserving any other read failure", async () => {
+  const defaults: ExecutionConfig = { mode: "local-cli", byok: { protocol: "openai", providerId: null, apiKey: "", baseUrl: "", model: "default-model" }, localCli: { agentId: null } };
+  const cold = new Error("No execution definitions");
+  const offline = new Error("Ledger offline");
+  const getSettingsEffective = vi.fn().mockRejectedValueOnce(cold).mockRejectedValueOnce(offline);
+  const isUnregisteredNamespace = vi.fn(({ error }: { error: unknown }) => error === cold);
+  const ledger = createExecutionSettingsLedger({ defaults, port: { getSettingsEffective, setSetting: vi.fn() },
+    isUnregisteredNamespace, reportRestoreFailure: vi.fn() });
+  await expect(ledger.loadExecutionConfig({})).resolves.toBe(defaults);
+  await expect(ledger.loadExecutionConfig({})).rejects.toBe(offline);
+  expect(isUnregisteredNamespace.mock.calls).toEqual([[{ error: cold }, {}], [{ error: offline }, {}]]);
 });

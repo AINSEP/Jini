@@ -58,3 +58,37 @@ describe('useJiniMediaPicker', () => {
     expect(JSON.stringify(result.current.error)).not.toContain('PICKER_CANARY_SECRET');
   });
 });
+
+it('cancels a dismissed picker without reading media and discards a late pick after unmount', async () => {
+  const listMedia = vi.fn(async () => ({ media: [row('a')] }));
+  const onCancel = vi.fn();
+  const a = deferredPicker();
+  const first = renderHook(() => useJiniMediaPicker(args({ picker: a.picker, port: { listMedia }, onCancel })), { wrapper });
+  expect(a.pick).toHaveBeenCalledExactlyOnceWith({ accept: [] }, { signal: expect.any(AbortSignal) });
+  await act(async () => { a.resolvers[0]!(null); });
+  expect(onCancel.mock.calls).toEqual([[]]);
+  expect(listMedia).not.toHaveBeenCalled();
+  first.unmount();
+
+  const b = deferredPicker();
+  const onSelect = vi.fn();
+  const second = renderHook(() => useJiniMediaPicker(args({ picker: b.picker, port: { listMedia }, onSelect })), { wrapper });
+  const signal = (b.pick.mock.calls as unknown as [unknown, { signal: AbortSignal }][])[0]?.[1].signal;
+  expect(signal?.aborted).toBe(false);
+  second.unmount();
+  expect(signal?.aborted).toBe(true);
+  await act(async () => { b.resolvers[0]!({ id: 'a' }); });
+  expect(listMedia).not.toHaveBeenCalled();
+  expect(onSelect).not.toHaveBeenCalled();
+});
+
+it('reports a no-longer-active asset without inventing an incident id', async () => {
+  const { picker, resolvers } = deferredPicker();
+  const onSelect = vi.fn();
+  const port = { listMedia: async () => ({ media: [row('a', 'trashed'), row('b')] }) };
+  const { result } = renderHook(() => useJiniMediaPicker(args({ picker, port, onSelect })), { wrapper });
+  await act(async () => { resolvers[0]!({ id: 'a' }); });
+  await waitFor(() => expect(result.current.error).toMatchObject({ message: 'The media could not be chosen.', cause: expect.stringContaining('Selected media is unavailable') }));
+  expect(result.current.error?.errorId).toBeUndefined();
+  expect(onSelect).not.toHaveBeenCalled();
+});

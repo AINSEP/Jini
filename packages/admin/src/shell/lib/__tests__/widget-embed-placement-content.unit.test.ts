@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { initialPlacementDraft, placementContentAttr } from "../widget-embed-placement-content.js";
+import { initialPlacementDraft, placementContentAttr, supportsPlacementContent } from "../widget-embed-placement-content.js";
 
 /**
  * @file The per-placement content override draft: an existing override is edited as-is, otherwise
@@ -32,3 +32,9 @@ it("writes the override on Save only when the draft is custom", () => {
   expect(placementContentAttr({ draft: { custom: true, content: { items: ["a"] } } })).toEqual({ items: ["a"] });
   expect(placementContentAttr({ draft: { custom: false, content: { items: ["a"] } } })).toBeNull();
 });
+
+it.each([["media", true], ["gallery", true], ["navigation", false], [null, false], [undefined, false]] as const)(
+  "allows per-placement content only for media-backed widget types (%s)", (widgetType, expected) => {
+    expect(supportsPlacementContent({ widgetType })).toBe(expected);
+  },
+);

@@ -424,3 +424,29 @@ describe("browser stream — L13 disposal and grace bookkeeping", () => {
     stop();
   });
 });
+
+it("delivers a tab-local stream before hiding and again after page resume without sharing the connection", () => {
+  const { ports, page } = fakeBrowserOrigin().tab();
+  const requestLock = vi.fn(ports.requestLock!);
+  const openChannel = vi.fn(ports.openChannel!);
+  const seen: string[] = [];
+  const close = vi.fn();
+  let emit!: (required: { frame: string }) => void;
+  const connect = vi.fn((input: { emit: (required: { frame: string }) => void }) => {
+    emit = input.emit;
+    return close;
+  });
+  const stop = startBrowserStream<string>({ key: "tab-counter", connect, receive: ({ frame }) => { seen.push(frame); } }, { ports: { ...ports, requestLock, openChannel }, scope: "tab" });
+  try {
+    expect(requestLock).not.toHaveBeenCalled();
+    expect(openChannel).not.toHaveBeenCalled();
+    emit({ frame: "live" });
+    page("pagehide");
+    emit({ frame: "ignored while away" });
+    page("pageshow");
+    emit({ frame: "resumed" });
+    expect(seen).toEqual(["live", "resumed"]);
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledOnce();
+  } finally { stop(); }
+});

@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { isAbortError } from "@jini-ai/core/text";
 import type { AgentEvent, ChatMessage, ChatTransport, RunHandlers } from "../../../../react/kit.js";
 import fixture from "./fixtures/gemini-position-9.js";
-import { AGENT_FAILURE_EVENT, GENERIC_AGENT_FAILURE, withAgentFailureSurface } from "../agent-failure.js";
+import { AGENT_FAILURE_EVENT, GENERIC_AGENT_FAILURE, extractAgentFailure, matchAgentFailureHint, suggestedFailureAgent, withAgentFailureSurface } from "../agent-failure.js";
 
 function harness() {
   let handlers: RunHandlers | undefined;
@@ -149,4 +149,32 @@ it("projects a failed checkpoint without an agent id when neither the run nor th
     { kind: "raw", line: "Error: denied" },
     { kind: "ext", name: AGENT_FAILURE_EVENT, data: { reason: "Error: denied", details: "Error: denied" } },
   ] });
+});
+
+it("uses structured error text, ignoring malformed extension payloads, other extensions and generic statuses", () => {
+  const events: AgentEvent[] = [
+    { kind: "ext", name: "error", data: null },
+    { kind: "ext", name: "error", data: { code: "NOT_TEXT" } },
+    { kind: "ext", name: "error", data: { message: 42 } },
+    { kind: "ext", name: "error", data: { message: "Authentication required" } },
+    { kind: "ext", name: "progress", data: { message: "Error: not a failure source" } },
+    { kind: "status", label: "Stopped." },
+  ];
+  expect(extractAgentFailure({ events, agentId: "cli" })).toEqual({
+    reason: "Authentication required", details: "Authentication required", agentId: "cli",
+  });
+});
+
+it("uses literal case-insensitive hint alternatives, ignores empty patterns and suggests only the named available agent", () => {
+  const empty = { category: "auth", patterns: [""], hint: "Wrong" } as const;
+  const wanted = { category: "unsupported-client", patterns: ["absent", "CLIENT [OLD]"], hint: "Switch", suggestedAgentId: "cli-new" } as const;
+  const failure = { reason: "Request refused", details: "Unsupported client [old]." };
+  expect(matchAgentFailureHint({ failure, hints: [empty, wanted] })).toBe(wanted);
+  expect(matchAgentFailureHint({ failure: { ...failure, details: "Unsupported client o." }, hints: [empty, wanted] })).toBeUndefined();
+  const unavailable = { id: "cli-new", name: "New" };
+  const unrelated = { id: "other", name: "Other", available: true };
+  expect(suggestedFailureAgent({ hint: wanted, agents: [unrelated, unavailable] })).toBeUndefined();
+  const available = { ...unavailable, available: true };
+  expect(suggestedFailureAgent({ hint: wanted, agents: [unrelated, available] })).toBe(available);
+  expect(suggestedFailureAgent({ hint: empty, agents: [available] })).toBeUndefined();
 });

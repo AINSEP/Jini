@@ -168,3 +168,32 @@ describe("isEmptySidebarClick", () => {
     expect(isEmptySidebarClick({ target: nav, button: 0, defaultPrevented: false }, { nav, selectingText: false, dragged: false })).toBe(true);
   });
 });
+
+it("uses the live default desktop media query and stops toggling below the rail breakpoint", () => {
+  const query = "(min-width: 901px)";
+  let desktop = false;
+  const previous = Object.getOwnPropertyDescriptor(window, "matchMedia");
+  const matchMedia = vi.fn((media: string) => ({ media, matches: media === query && desktop }));
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
+  function DefaultWiring({ toggleRail }: { toggleRail: () => void }) {
+    useSidebarEmptyClickToggle({ toggleRail });
+    return <nav id="admin-sidebar" aria-label="Rail" />;
+  }
+  try {
+    const toggleRail = vi.fn();
+    const { getByRole, unmount } = render(<DefaultWiring toggleRail={toggleRail} />);
+    const nav = getByRole("navigation", { name: "Rail" });
+    click(nav);
+    expect(toggleRail).not.toHaveBeenCalled();
+    desktop = true;
+    click(nav);
+    expect(toggleRail).toHaveBeenCalledOnce();
+    expect(matchMedia.mock.calls).toEqual([[query], [query]]);
+    unmount();
+    click(nav);
+    expect(toggleRail).toHaveBeenCalledOnce();
+  } finally {
+    if (previous) Object.defineProperty(window, "matchMedia", previous);
+    else Reflect.deleteProperty(window, "matchMedia");
+  }
+});

@@ -45,3 +45,12 @@ describe("ChatFab", () => {
     expect(button.getAttribute("aria-expanded")).toBe("true");
   });
 });
+
+it("publishes the optional assistant element handle without changing the localized accessible name", () => {
+  const props = { open: true, positionStorageKey: KEY, onToggle: vi.fn(), avoidBottomPx: 0, avoidRightPx: 0, useFab: () => fakeFab(), label: "Aide", locale: "fr" };
+  const { rerender } = render(<ChatFab {...props} agentHandle="assistant-toggle" />);
+  const button = screen.getByRole("button", { name: "Fermer Aide" });
+  expect(button.getAttribute("data-agent-element")).toBe("assistant-toggle");
+  rerender(<ChatFab {...props} />);
+  expect(button.getAttribute("data-agent-element")).toBeNull();
+});

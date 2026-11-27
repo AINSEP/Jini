@@ -212,3 +212,58 @@ describe("useRecentEntriesConfig — changing the collection drops a stale sort"
     }
   });
 });
+
+it("updates and removes the selected social link without changing its neighbors or widget config", () => {
+  const links = [{ platform: "first", url: "https://first.example" }, { platform: "second", url: "https://second.example" }, { platform: "third", url: "https://third.example" }];
+  const onChange = vi.fn();
+  const config = { links, heading: "Connect" };
+  const { result, rerender } = renderHook((props: { config: Record<string, unknown> }) => useSocialLinksConfig({ config: props.config, onChange }), { initialProps: { config } });
+  act(() => result.current.updateLink({ index: 1, patch: { url: "https://updated.example" } }));
+  const edited = { heading: "Connect", links: [links[0], { platform: "second", url: "https://updated.example" }, links[2]] };
+  expect(onChange).toHaveBeenLastCalledWith(edited);
+  expect(config.links[1]?.url).toBe("https://second.example");
+  rerender({ config: edited });
+  act(() => result.current.removeLink({ index: 1 }));
+  expect(onChange).toHaveBeenLastCalledWith({ heading: "Connect", links: [links[0], links[2]] });
+  rerender({ config: { links: "unreadable" } });
+  expect(result.current.links).toEqual([]);
+});
+
+it("drops the collection, fields and filter when the collection is cleared", () => {
+  const { view, latest } = renderRecentEntries({ collection: "docs", fields: ["title"], where: { featured: true }, sort: "newest" });
+  act(() => view.result.current.setCollection({ value: "" }));
+  expect(latest()).toEqual({ sort: "newest" });
+});
+
+it("omits filter clauses with blank values or with no field selected", () => {
+  const { view, latest, sync } = renderRecentEntries({ collection: "docs", where: { featured: true } });
+  act(() => view.result.current.setFilterValue({ raw: "", kind: "boolean" }));
+  expect(latest()).toEqual({ collection: "docs" });
+  sync();
+  act(() => view.result.current.setFilterValue({ raw: "true", kind: "boolean" }));
+  expect(latest()).toEqual({ collection: "docs" });
+});
+
+it("updates sort, column count and field toggles, removing unset options from persisted config", () => {
+  const { view, latest, sync } = renderRecentEntries({ collection: "docs", layout: "cards" });
+  act(() => view.result.current.setSort({ value: "-rating" }));
+  expect(latest()).toEqual({ collection: "docs", layout: "cards", sort: "-rating" });
+  sync();
+  act(() => view.result.current.setColumns({ value: "3" }));
+  expect(latest()).toEqual({ collection: "docs", layout: "cards", sort: "-rating", columns: 3 });
+  sync();
+  act(() => view.result.current.toggleField({ name: "summary", checked: true }));
+  sync();
+  act(() => view.result.current.toggleField({ name: "rating", checked: true }));
+  sync();
+  expect(latest().fields).toEqual(["summary", "rating"]);
+  act(() => view.result.current.toggleField({ name: "summary", checked: false }));
+  expect(latest().fields).toEqual(["rating"]);
+  sync();
+  act(() => view.result.current.toggleField({ name: "rating", checked: false }));
+  sync();
+  act(() => view.result.current.setColumns({ value: "" }));
+  sync();
+  act(() => view.result.current.setSort({ value: "" }));
+  expect(latest()).toEqual({ collection: "docs", layout: "cards" });
+});

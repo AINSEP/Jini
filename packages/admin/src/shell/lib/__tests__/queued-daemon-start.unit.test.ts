@@ -127,3 +127,23 @@ test("the default schedule uses a real 1 s timeout that can be cleared", async (
     expect(vi.getTimerCount()).toBe(0);
   } finally { vi.useRealTimers(); }
 });
+
+test("the default browser request decodes a busy refusal without consuming its response and retries the same payload", async () => {
+  const busy = json(409, { code: "CHAT_RUN_BUSY", owner: "running" });
+  const accepted = json(201, { id: "run-7" });
+  const request = vi.fn<typeof fetch>().mockResolvedValueOnce(busy).mockResolvedValueOnce(accepted);
+  vi.stubGlobal("fetch", request);
+  const schedule = vi.fn(({ work }: { work: () => void; delayMs: number }) => {
+    queueMicrotask(work);
+    return () => {};
+  });
+  try {
+    const ports = browserQueuedStartPorts({ orFallback }, { schedule });
+    await expect(startQueuedDaemonRun({ ports, body: { messageId: "same-turn" } })).resolves.toBe(accepted);
+    expect(request.mock.calls).toEqual(Array.from({ length: 2 }, () => ["/api/runs", {
+      method: "POST", body: '{"messageId":"same-turn"}', credentials: "same-origin", headers: { "Content-Type": "application/json" },
+    }]));
+    expect(schedule).toHaveBeenCalledExactlyOnceWith({ work: expect.any(Function), delayMs: 1_000 });
+    await expect(busy.json()).resolves.toEqual({ code: "CHAT_RUN_BUSY", owner: "running" });
+  } finally { vi.unstubAllGlobals(); }
+});

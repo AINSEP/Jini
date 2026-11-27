@@ -124,3 +124,40 @@ describe('widgets rules and messages', () => {
     expect(widgets.widgetsAgentPageIds.region).toBe('widget-regions');
   });
 });
+
+it("keeps the latest regions after an old lookup fails and aborts pending loads on disposal", async () => {
+  const memory = createMemoryWidgetsApi({ regions: [{ workspaceId: "w", regionKey: "footer", areaEntryId: "area-2", updatedAt: "now", placementCount: 3 }] });
+  let rejectOld!: (error: Error) => void;
+  const old = new Promise<never>((_resolve, reject) => { rejectOld = reject; });
+  let done!: (value: { regions: [] }) => void;
+  const pending = new Promise<{ regions: [] }>(resolve => { done = resolve; });
+  const listWidgetRegions = vi.fn<typeof memory.listWidgetRegions>().mockReturnValueOnce(old)
+    .mockImplementationOnce(memory.listWidgetRegions).mockReturnValueOnce(pending);
+  const controller = widgets.createWidgetRegionsController({ api: { ...memory, listWidgetRegions } });
+  const first = controller.load();
+  await controller.load();
+  expect(controller.getSnapshot().regions?.map(({ regionKey }) => regionKey)).toEqual(["footer"]);
+  rejectOld(new Error("Old connection failed"));
+  await first;
+  expect(controller.getSnapshot().error).toBeNull();
+  const last = controller.load();
+  const signal = listWidgetRegions.mock.calls[2]?.[1]?.signal;
+  expect(signal?.aborted).toBe(false);
+  controller.dispose();
+  expect(signal?.aborted).toBe(true);
+  done({ regions: [] });
+  await last;
+  expect(controller.getSnapshot().regions?.map(({ regionKey }) => regionKey)).toEqual(["footer"]);
+});
+
+it("writes a trimmed region key to the in-memory service, clears it and navigates to the bound region", async () => {
+  const api = createMemoryWidgetsApi({});
+  const navigate = vi.fn();
+  const controller = widgets.createWidgetRegionsController({ api }, { navigate });
+  controller.setNewRegionKey({ value: "  footer-widgets  " });
+  await controller.bind();
+  const { regions } = await api.listWidgetRegions({});
+  expect(regions.map(({ regionKey, placementCount }) => ({ regionKey, placementCount }))).toEqual([{ regionKey: "footer-widgets", placementCount: 0 }]);
+  expect(controller.getSnapshot()).toMatchObject({ error: null, newRegionKey: "", binding: false });
+  expect(navigate).toHaveBeenCalledExactlyOnceWith("/widgets/regions/footer-widgets");
+});

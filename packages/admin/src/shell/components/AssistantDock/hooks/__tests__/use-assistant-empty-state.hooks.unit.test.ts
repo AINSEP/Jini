@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { ChatMessage } from "../../../../../react/kit.js";
 import { useAssistantEmptyState } from "../use-assistant-empty-state.hooks.js";
 
@@ -28,4 +28,22 @@ test("D-34: greet an empty chat, hide on send, and greet a new empty chat", () =
 test("D-34: no saved history yet (undefined initialMessages) greets like an empty chat", () => {
   const { result } = renderHook(() => useAssistantEmptyState({ paneKey: "fresh", initialMessages: undefined, onMessagesChange: () => {} }));
   expect(result.current.empty).toBe(true);
+});
+
+test("forwards equal-count transcript edits through the latest callback without restoring the greeting", () => {
+  const before = vi.fn();
+  const after = vi.fn();
+  const { result, rerender } = renderHook(({ notify }) => useAssistantEmptyState({
+    paneKey: "current", initialMessages: [], onMessagesChange: notify,
+  }), { initialProps: { notify: before } });
+  const send = result.current.handleMessagesChange;
+  act(() => send([message]));
+  expect(result.current.empty).toBe(false);
+  rerender({ notify: after });
+  expect(result.current.handleMessagesChange).toBe(send);
+  const revised = [{ ...message, content: "Help me edit my menu" }];
+  act(() => send(revised));
+  expect(before.mock.calls).toEqual([[[message]]]);
+  expect(after.mock.calls).toEqual([[revised]]);
+  expect(result.current.empty).toBe(false);
 });

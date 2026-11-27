@@ -51,3 +51,22 @@ describe("prepareAssistantPageBinding", () => {
     expect(onActivationSettled).toHaveBeenCalledOnce();
   });
 });
+
+it("distinguishes an unreadable refusal body from a non-JSON body", async () => {
+  const response = new Response("unavailable", { status: 503 });
+  await response.text(); // The body is now consumed, so json() rejects with TypeError rather than SyntaxError.
+  const request: typeof fetch = async () => response;
+  await expect(activateAssistantDaemon({}, { request })).rejects.toMatchObject({
+    message: "The assistant could not read its page service response (HTTP 503). Reload this admin page, then retry your message.",
+    cause: expect.any(TypeError),
+  });
+});
+
+it("keeps the attachment error and recommends reloading after an unsuccessful rebind", async () => {
+  const cause = new Error("page bridge disconnected");
+  const b: PageBindingBridge = { rebind: async () => { throw cause; }, bindToken: () => "stale-token" };
+  await expect(prepareAssistantPageBinding({ bridge: b }, { activate: async () => {} })).rejects.toMatchObject({
+    message: "The assistant could not attach to this page. Reload this admin page, then retry your message. Details: page attachment did not finish after service activation.",
+    cause,
+  });
+});

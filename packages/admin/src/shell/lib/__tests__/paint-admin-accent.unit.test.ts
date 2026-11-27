@@ -19,3 +19,12 @@ it("paints the fill and both ink variables, then clears the same overrides", () 
   expect(root.style.getPropertyValue("--jini-theme-dark-primary-ink")).toBe("");
   expect(root.hasAttribute("data-admin-accent")).toBe(false);
 });
+
+it("keeps a dark custom accent active without marking it as a light accent", () => {
+  const root = document.createElement("div");
+  const readableTextColor = ({ hex }: { hex: string }) => hex === "#111827" ? "#ffffff" : "#000000";
+  paintAdminAccent({ accent: "#111827", root, deps: { readableTextColor } });
+  expect(root.getAttribute("data-admin-accent")).toBe("");
+  expect(root.style.getPropertyValue("--jini-theme-dark-primary")).toBe("#111827");
+  expect(root.style.getPropertyValue("--jini-theme-dark-primary-ink")).toBe("#ffffff");
+});

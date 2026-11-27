@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UserFacingError } from "@jini-ai/core";
 import { describeRequestFailure, formatUserFacingError } from "@jini-ai/core";
 import { createAdminFailureReporter, isClipboardRefusal, type AdminDecodedError } from "../admin-failure-reporter.js";
@@ -100,4 +100,21 @@ describe("createAdminFailureReporter", () => {
 it("treats only a NotAllowedError DOMException as a clipboard refusal", () => {
   expect(isClipboardRefusal({ error: new DOMException("no", "NotAllowedError") })).toBe(true);
   expect(isClipboardRefusal({ error: new Error("no") })).toBe(false);
+});
+
+it("uses the default host clock and UUID to publish local failures when no generators are injected", () => {
+  vi.useFakeTimers({ now: new Date("2026-07-20T01:02:03.000Z") });
+  vi.stubGlobal("crypto", { randomUUID: () => "12345678-1234-4123-8123-123456789abc" });
+  try {
+    const channel = fakeChannel();
+    const reporter = createAdminFailureReporter({
+      channel, vocabulary: { nouns: {} }, redaction: {}, appVersion: "host", jiniVersion: "engine", decodeError,
+      notRunningCodes: new Set(), formatUserFacingError, describeRequestFailure,
+    });
+    reporter.publishLocalAdminFailure({ message: "Copy failed.", action: "Try again.", step: "Copy", cause: "Clipboard offline" }, { generation: 2 });
+    expect(channel.published).toHaveLength(1);
+    expect(channel.published[0]).toMatchObject({ generation: 2, failure: {
+      message: "Copy failed.", errorId: "12345678-1234-4123-8123-123456789abc", time: "2026-07-20T01:02:03.000Z",
+    } });
+  } finally { vi.unstubAllGlobals(); vi.useRealTimers(); }
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 import {
@@ -158,4 +158,12 @@ describe("createBrowserWorkingDirectoryAccess — host-injected storage key", ()
     expect(window.localStorage.getItem("other.host.key")).toBe(JSON.stringify(["from-another-key"]));
     expect(window.localStorage.length).toBe(2);
   });
+});
+
+it("reports no filesystem picker without a browser global", () => {
+  vi.stubGlobal("window", undefined);
+  try {
+    expect(isDirectoryPickerSupported()).toBe(false);
+    expect(createAccess()).toBeUndefined();
+  } finally { vi.unstubAllGlobals(); }
 });

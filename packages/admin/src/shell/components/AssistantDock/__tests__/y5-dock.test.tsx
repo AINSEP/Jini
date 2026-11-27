@@ -17,7 +17,7 @@ import { DockLeadingAccessory } from "../DockLeadingAccessory.js";
 import { FolderPathButton } from "../FolderPathButton.js";
 import { dockSettingsMenuSections } from "../dock-header-rules.js";
 import { CHAT_TOOL_CALL_OPTIONS, chatPaneDisplayProps } from "../chat-display-preferences.js";
-import { composerFooterLeading } from "../assistant-dock-props.js";
+import { composerFooterLeading, folderWindowOpenElsewhere, optionalChatPaneProps, voiceFooterAccessory } from "../assistant-dock-props.js";
 
 test("stored-key refresh ignores unrelated namespaces and retains global refresh", () => {
   let notify!: (scope: readonly string[] | null) => void;
@@ -277,4 +277,35 @@ test("execution binding forwards persisted mode changes with host failure copy a
   act(() => result.current.handleExecutionModeChange("local"));
   expect(useLedgerHook.mock.calls[0]?.[0].io.current).toBe(overridePort);
   expect(persistWrite).toHaveBeenCalledWith({ write, failureLog: "mode save failed" });
+});
+
+test("only passes known optional pane state and only warns web users about an open host folder dialog", () => {
+  expect(optionalChatPaneProps({ agents: undefined, conversationId: null, refreshSignal: undefined, composerHistoryScope: undefined })).toStrictEqual({});
+  const agents = [{ id: "cli", name: "CLI" }];
+  const refreshSignal = { loadMessages: async () => [], visibility: Object.assign(new EventTarget(), { visibilityState: "visible" }), focus: new EventTarget() };
+  expect(optionalChatPaneProps({ agents, conversationId: "chat-7", refreshSignal, composerHistoryScope: "principal-7" })).toStrictEqual({
+    agents, conversationId: "chat-7", refreshSignal, composerHistoryScope: "principal-7",
+  });
+  expect(voiceFooterAccessory({ enabled: false, onTranscript: vi.fn(), kit: paneInput.kit })).toBeUndefined();
+  const isDesktopAdmin = vi.fn(() => false);
+  const deps = { isDesktopAdmin };
+  expect(folderWindowOpenElsewhere({ picking: true, deps })).toBe(true);
+  expect(folderWindowOpenElsewhere({ picking: false, deps })).toBe(false);
+  isDesktopAdmin.mockClear();
+  expect(folderWindowOpenElsewhere({ picking: true, deps }, { desktop: true })).toBe(false);
+  expect(isDesktopAdmin).not.toHaveBeenCalled();
+});
+
+test("shows translated startup feedback only while starting and projects a stored credential into BYOK availability", () => {
+  const { result } = renderHook(() => useAssistantDockState(input));
+  const dock = result.current;
+  const View = bindDockChatPane({ ...paneInput, deps: { ...paneInput.deps, hasUsableAdminKey: ({ stored }) => stored?.isSet === true } });
+  function ChatPaneView({ sendingLabel, executionMode, apiModeAvailable }: ComponentProps<typeof dock.ChatPaneView>) {
+    return <output aria-label="Runtime status">{executionMode}/{apiModeAvailable ? "configured" : "missing"}/{sendingLabel ?? "ready"}</output>;
+  }
+  const starting = { ...dock, ChatPaneView, daemonStarting: true, t: ({ key }: { key: string }) => `host:${key}`, hasStoredAdminKey: true };
+  const { rerender } = render(<View dock={starting} />);
+  expect(screen.getByLabelText("Runtime status").textContent).toBe("api/configured/host:Starting assistant…");
+  rerender(<View dock={{ ...starting, daemonStarting: false, hasStoredAdminKey: null, executionConfig: { ...dock.executionConfig, mode: "local-cli" } }} />);
+  expect(screen.getByLabelText("Runtime status").textContent).toBe("local/missing/ready");
 });

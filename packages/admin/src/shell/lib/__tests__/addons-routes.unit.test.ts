@@ -52,3 +52,10 @@ it("sends only the policy's moved tabs of its old section to the new page", () =
     expect(resolveImportExportRoute({ routePath, policy: moved }), routePath).toBeUndefined();
   }
 });
+
+it("preserves a legacy detail path when the moved panel has no configured destination", () => {
+  const withoutDestination: AddonsRoutePolicy = { ...policy, panelPaths: { alpha: "/extras/alpha" } };
+  const routePath = "/links/legacy-id?tab=items";
+  expect(resolveAddonsRoute({ routePath, policy: withoutDestination })).toStrictEqual({ matchPath: routePath });
+  expect(resolveAddonsRoute({ routePath: "/extras/hub/legacy-id", policy: withoutDestination })).toStrictEqual({ matchPath: "/extras/hub/legacy-id" });
+});

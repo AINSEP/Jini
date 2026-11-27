@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { enabledComposerButton, useComposerSendStopGuard } from "../hooks/use-composer-send-stop-guard.hooks.js";
 
 afterEach(cleanup);
@@ -108,4 +108,23 @@ it("returns the enabled button together with the composer that owns it", () => {
   mount();
   const send = button("first send");
   expect(enabledComposerButton(send)).toEqual({ button: send, composer: send.parentElement });
+});
+
+it("uses the monotonic browser clock when none is provided", () => {
+  const clock = vi.spyOn(performance, "now");
+  function DefaultGuard() {
+    const guard = useComposerSendStopGuard();
+    return <div onClickCapture={guard}><div className="jini-composer"><button className="jini-composer-send">Send</button></div></div>;
+  }
+  try {
+    clock.mockReturnValue(250);
+    render(<DefaultGuard />);
+    const send = screen.getByRole("button", { name: "Send" });
+    clickAllowed(send, 1);
+    toStop(send);
+    clock.mockReturnValue(749);
+    expect(clickAllowed(send, 1)).toBe(false);
+    clock.mockReturnValue(750);
+    expect(clickAllowed(send, 1)).toBe(true);
+  } finally { clock.mockRestore(); }
 });
