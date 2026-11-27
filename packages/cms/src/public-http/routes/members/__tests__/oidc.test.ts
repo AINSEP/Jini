@@ -1,3 +1,4 @@
+import { routeReply } from "@jini-ai/core/contracts/server";
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
 import { memberOidcLimitResponse, runMemberOidcPreflight } from "../oidc-shared.js";
@@ -238,7 +239,7 @@ it("OIDC preflight commits headers and observation before checking and returns t
 
 it("OIDC limiter replies with JSON and the decided cookies even without custom limit headers", async () => {
   const cookies = ["callback=; Path=/callback", "proof=; Path=/proof"];
-  const response = memberOidcLimitResponse({ limited: { status: 429, body: { code: "LIMIT" } }, cookies });
+  const response = memberOidcLimitResponse({ limited: routeReply({ status: 429, body: { code: "LIMIT" } }), cookies });
   expect(response.status).toBe(429);
   expect(response.headers.getSetCookie()).toEqual(cookies);
   expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");

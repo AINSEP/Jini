@@ -56,7 +56,8 @@ const DATE_ERROR = "Choose a past date (YYYY-MM-DD) to thin revisions recorded b
 /** The cutoff as epoch ms at UTC midnight of a `YYYY-MM-DD` day no later than today. */
 function readCutoff({ before, now }: { before: unknown; now: number }): number {
   const day = typeof before === "string" && /^\d{4}-\d{2}-\d{2}$/.test(before) ? Date.parse(`${before}T00:00:00.000Z`) : Number.NaN;
-  if (!Number.isFinite(day) || day > now) throw new Error(DATE_ERROR);
+  // Date.parse rolls a nonexistent day over (2026-02-30 -> 03-02); only a round-trip proves the day exists.
+  if (!Number.isFinite(day) || day > now || new Date(day).toISOString().slice(0, 10) !== before) throw new Error(DATE_ERROR);
   return day;
 }
 

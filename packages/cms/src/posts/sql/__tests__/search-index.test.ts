@@ -39,19 +39,22 @@ async function schema(kernel: PostSearchKernel) {
 
 async function verifyDialect(kernel: PostSearchKernel) {
   const execute = await schema(kernel);
-  for (const [id, workspace, kind, status, deleted] of [
-    ["cafe", "site", "post", "published", null],
-    ["pear", "site", "page", "draft", null],
-    ["other", "elsewhere", "post", "published", null],
-    ["trash", "site", "post", "published", time],
-    ["template", "site", "email-template", "published", null],
+  // Both query terms occur in the same number of indexed documents (the excluded rows carry both,
+  // the filler rows neither), so SQLite's bm25 IDF is equal for them and the title > body column
+  // weighting alone decides that the title hit outranks the body hit — as Postgres' ts_rank does.
+  const both = { title: "Café", bodyText: "Harvest the pear fruit." };
+  const filler = { title: "Notebook", bodyText: "Plain filler text." };
+  for (const [id, workspace, kind, status, deleted, text] of [
+    ["cafe", "site", "post", "published", null, { title: "Café", bodyText: "Serve the coffee warm." }],
+    ["pear", "site", "page", "draft", null, { title: "Orchard", bodyText: "Harvest the pear fruit." }],
+    ["other", "elsewhere", "post", "published", null, both],
+    ["trash", "site", "post", "published", time, both],
+    ["template", "site", "email-template", "published", null, both],
+    ...[1, 2, 3, 4, 5, 6].map(n => [`filler-${n}`, "site", "post", "draft", null, filler] as const),
   ] as const) {
     await execute(sql`INSERT INTO posts VALUES (${id},${workspace},${kind},${status},${deleted},${time},
       ${id}, ${id + "-slug"}, 'doc', NULL, NULL)`);
-    await postSearchFor(kernel, config).upsert({ kernel, document: {
-      postId: id, title: id === "pear" ? "Orchard" : "Café",
-      slug: id + "-slug", bodyText: id === "pear" ? "Harvest the pear fruit." : "Serve the coffee warm.",
-    } });
+    await postSearchFor(kernel, config).upsert({ kernel, document: { postId: id, slug: id + "-slug", ...text } });
   }
 
   const index = postSearchIndexFor({ kernel, config });
@@ -93,7 +96,7 @@ test("Postgres vectors rank, filter live rows, and reflect projection upsert and
     await verifyDialect(kernel);
     const doc = JSON.stringify({ type: "text", text: "Legacy plain text" });
     await kernel.execute(sql`UPDATE posts SET body_json = ${doc}::jsonb WHERE id = 'cafe'`);
-    expect(await preparePostSearchIndex({ kernel, config }, { batchSize: 2 })).toEqual({ reindexed: 5, backfilled: 0 });
+    expect(await preparePostSearchIndex({ kernel, config }, { batchSize: 2 })).toEqual({ reindexed: 11, backfilled: 0 }); // every posts row: 5 named + 6 filler
     expect((await postSearchIndexFor({ kernel, config }).search({ ...query, terms: ["legacy"] })).map(({ id }) => id)).toEqual(["cafe"]);
   } finally { await kernel.close(); }
 });

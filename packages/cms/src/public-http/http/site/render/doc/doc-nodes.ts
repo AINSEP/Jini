@@ -322,7 +322,8 @@ function docNodeContent(node: JsonObject): JsonValue[] | undefined {
 /** {@link renderDocNode}'s own handler lookup, pulled out for the same reason as
  *  {@link docNodeContent} just above. */
 function resolveDocNodeHandler(node: JsonObject): DocNodeHandler | undefined {
-  return typeof node.type === "string" ? DOC_NODE_HANDLERS[node.type] : undefined;
+  // Own handlers only (as content-html.ts does): a node named "constructor" must fall through to its children.
+  return typeof node.type === "string" && Object.hasOwn(DOC_NODE_HANDLERS, node.type) ? DOC_NODE_HANDLERS[node.type] : undefined;
 }
 
 /** One handler per doc-node `type` — a lookup instead of the large `switch` this file used to

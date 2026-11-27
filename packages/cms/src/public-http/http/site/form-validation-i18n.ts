@@ -37,5 +37,7 @@ export function formValidationCopy({ locale }: { locale: string }, _optional = {
     if (normalized.startsWith("zh")) key = /(tw|hk|hant)/.test(normalized) ? "zh-TW" : "zh-CN";
     else key = normalized.split("-")[0] ?? normalized;
   }
-  return FORM_VALIDATION_COPY[key] ?? (key === "pt" ? FORM_VALIDATION_COPY["pt-BR"] : undefined) ?? ENGLISH_COPY;
+  // Own rows only: a locale named like an Object.prototype key ("constructor") must not resolve to it.
+  const row = (name: string) => (Object.hasOwn(FORM_VALIDATION_COPY, name) ? FORM_VALIDATION_COPY[name] : undefined);
+  return row(key) ?? (key === "pt" ? row("pt-BR") : undefined) ?? ENGLISH_COPY;
 }

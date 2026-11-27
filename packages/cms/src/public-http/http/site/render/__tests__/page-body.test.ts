@@ -59,9 +59,11 @@ it("keeps forwarded media attributes and controls local to each occurrence of th
     renderWidgetIr, postAuthorForHeader: () => "" })).toBe(
     '<div class="tile"><video></video></div><div class="preview"><video controls></video></div>',
   );
-  expect(renderWidgetIr.mock.calls).toEqual([
+  // Each occurrence gets its own IR; replacement order (last marker first) is not part of the contract.
+  expect(renderWidgetIr).toHaveBeenCalledTimes(2);
+  expect(renderWidgetIr.mock.calls).toEqual(expect.arrayContaining([
     [{ ir: { componentId: "media-image", props: { assetId: "asset", controls: false, markerAttributes: [{ name: "preload", value: "none" }] } } }],
     [{ ir: { componentId: "media-image", props: { assetId: "asset", controls: true, markerAttributes: [{ name: "preload", value: "metadata" }] } } }],
-  ]);
+  ]));
   expect(ir.props).toEqual({ assetId: "asset", controls: true });
 });

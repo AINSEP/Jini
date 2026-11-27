@@ -19,7 +19,7 @@ const source: PostRecord = { id: "story", workspaceId: "source", title: "Story",
   createdByPrincipalId: "source-writer", createdByKind: "agent", createdAt: created,
   ext: { foreign: { value: "do not publish" } } };
 const policy = { applyRunActor, createRepoPublishHandler, gatewayDeps, collectBodyReferences, contentHash,
-  prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, withTermIds };
+  prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, withTermIds } as const;
 const key = { workspaceId: "destination", id: "story" };
 
 function fixture(rows: PostRecord[] = []) {

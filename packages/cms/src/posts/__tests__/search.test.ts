@@ -35,9 +35,9 @@ test("normalizes Unicode and sends exact admin filters and a floored bounded lim
     updatedAt: "2026-04-02", snippet: "Café open at 42 West.", score: 0.8 };
   const search = vi.fn<PostSearchPort["search"]>().mockResolvedValue([hit]);
   const base = { workspaceId: "site", query: "CAFE\u0301…42" };
-  expect(await searchAdminPosts({ deps: { search }, input: { ...base, kind: "page", status: "published", limit: 3.9 } })).toEqual({ hits: [hit] });
+  expect(await searchAdminPosts({ deps: { search: { search } }, input: { ...base, kind: "page", status: "published", limit: 3.9 } })).toEqual({ hits: [hit] });
   for (const limit of [-4, 51, undefined]) {
-    await searchAdminPosts({ deps: { search }, input: { ...base, ...(limit === undefined ? {} : { limit }) } });
+    await searchAdminPosts({ deps: { search: { search } }, input: { ...base, ...(limit === undefined ? {} : { limit }) } });
   }
   expect(search.mock.calls).toEqual([
     [{ workspaceId: "site", terms: ["café", "42"], kind: "page", status: "published", limit: 3 }],
@@ -49,7 +49,7 @@ test("normalizes Unicode and sends exact admin filters and a floored bounded lim
 
 test("distinguishes punctuation-only queries and nonfinite limits before calling the ranker", async () => {
   const search = vi.fn<PostSearchPort["search"]>();
-  const deps = { search };
+  const deps = { search: { search } };
   await expect(searchAdminPosts({ deps, input: { workspaceId: "site", query: "—!?" } }))
     .rejects.toThrow(new PostValidationError("query must contain at least one letter or digit — punctuation-only queries match nothing"));
   await expect(searchAdminPosts({ deps, input: { workspaceId: "site", query: "valid", limit: Infinity } }))
