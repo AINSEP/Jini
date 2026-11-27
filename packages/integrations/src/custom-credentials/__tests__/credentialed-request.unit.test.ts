@@ -76,3 +76,10 @@ it("probes through the client passed per call", async () => {
   expect(other).toHaveLength(1);
   expect(sent).toHaveLength(0);
 });
+
+it("a 401 through the host binding keeps the auth facts but drops the inferred Basic-auth hint", async () => {
+  const { ops, deps } = setup(async () => ({ status: 401, headers: {}, bodyText: "{}" }));
+  const result = await ops.makeCredentialedRequest(deps, { workspaceId: "w", label: "stripe", method: "GET", url: "https://api.example.test/v1/x" });
+  expect(result.status).toBe(401);
+  expect("authDiagnostic" in result ? result.authDiagnostic : null).toEqual({ schemeSent: "Bearer", usernameStored: false });
+});
