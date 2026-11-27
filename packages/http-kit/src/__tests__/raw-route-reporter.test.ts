@@ -82,7 +82,7 @@ describe('mountRawRoute reporter mode', () => {
     ) }, { bufferedReply: true });
     const response = await fetch(`${await mounted(spec, ports)}/broken`);
     expect(response.status).toBe(500);
-    expect((await response.json()).error).toMatchObject({
+    expect(((await response.json()) as { error: unknown }).error).toMatchObject({
       code: 'INTERNAL_ERROR', requestId: 'ERR-0000-0000-0000-0000',
     });
     expect(record.mock.calls).toEqual([[{ error: bodyError, step: 'Write response', operation: 'http.route' },

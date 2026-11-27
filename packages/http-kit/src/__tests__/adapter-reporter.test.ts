@@ -93,7 +93,7 @@ describe('mountJsonRoute reporter mode', () => {
     const post = await h.mount({ handle });
     const response = await post();
     expect(response.status).toBe(500);
-    expect((await response.json()).error).toMatchObject({
+    expect(((await response.json()) as { error: unknown }).error).toMatchObject({
       code: 'INTERNAL_ERROR', requestId: 'ERR-0000-0000-0000-0000',
       message: expect.stringContaining('ERR-0000-0000-0000-0000'),
     });

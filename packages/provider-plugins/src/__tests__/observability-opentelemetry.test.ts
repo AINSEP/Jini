@@ -68,7 +68,7 @@ test('provider startup gives fixed operator guidance and retains a private initi
     ...OBSERVABILITY_CONTEXT,
     resolveObservabilityConfig: (): ObservabilityConfigEnabled => ({
       ...TEST_CONFIG,
-      get endpoint() { throw failure; },
+      get endpoint(): string { throw failure; },
     }),
   };
   assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.test' }, { context }),

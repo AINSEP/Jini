@@ -69,7 +69,7 @@ describe('createFileLogger', () => {
     const lines = text.trim().split('\n').map((line) => JSON.parse(line));
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatchObject({
-      level: 'error', message: expect.stringMatching(/\S/), meta: { serializationError: 'TypeError' },
+      level: 'error', message: 'Log message could not be serialized', meta: { serializationError: 'TypeError' },
     });
     expect(lines[1]).toMatchObject({ level: 'info', message: 'follow-up' });
     expect(text).not.toContain('do not log this field');

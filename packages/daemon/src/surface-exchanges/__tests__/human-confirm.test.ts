@@ -111,7 +111,7 @@ it("uses an explicit offered alternative from the real exchange and reports its 
   }, { exchangeLifetime: { signal: ctx.signal, runId: "r", toolId: "delete", principalId: "person", retry: async () => {} } });
   const outcome = await requireHumanConfirm({
     ctx, spec,
-    surfaces: { ...surfaces, assertAccessApprover, approvalReceiptsFor: () => ({ restorable: true, onApprovalReceipt: receipt }) },
+    surfaces: { ...surfaces, assertAccessApprover, approvalReceiptsFor: () => ({ onApprovalReceipt: receipt }) },
     requireDeleteGrant: async () => {},
     render: ({ exchange, alternatives }) => {
       openId = exchange.id;

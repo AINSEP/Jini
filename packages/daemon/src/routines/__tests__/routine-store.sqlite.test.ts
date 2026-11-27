@@ -247,7 +247,7 @@ it('releases only the matching lease and lists in-flight runs across holder hand
   persistence.releaseLease({ holderId: 'a' });
   expect(persistence.acquireLease(successor)).toBe(true);
   expect(persistence.insertRun({ run: { ...run(second.id, 'new-holder'), status: 'queued' } }, { holderId: 'b' })).toBe(true);
-  expect(persistence.listInFlight().map(({ id, holderId }) => [id, holderId]).sort()).toEqual([
+  expect(persistence.listInFlight({}).map(({ id, holderId }) => [id, holderId]).sort()).toEqual([
     ['new-holder', 'b'], ['old-holder', 'a'],
   ]);
   expect(persistence.listInFlight({ excludeHolderId: 'b' }).map(({ id }) => id)).toEqual(['old-holder']);

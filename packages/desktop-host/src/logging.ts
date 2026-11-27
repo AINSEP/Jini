@@ -32,7 +32,8 @@ function projectForLog({ meta, error }: { meta?: Record<string, unknown>; error?
 }
 
 // `safeMeta` is already projected (plain JSON values only), so the stringify below cannot throw on
-// it; the catch stays for a host that hands a non-string message.
+// it; the catch stays for a host that hands a non-string message. That message is what failed to
+// serialize, so the fallback line replaces it with fixed text instead of retrying it.
 function serializeMessage({ level, message }: { level: LogLevel; message: string }, { safeMeta }: { safeMeta?: Record<string, unknown> } = {}): string {
   const timestamp = new Date().toISOString();
   try {
@@ -41,7 +42,7 @@ function serializeMessage({ level, message }: { level: LogLevel; message: string
     // The serializer's own error is described like any other: its text can name meta content.
     return `${JSON.stringify({
       level,
-      message,
+      message: 'Log message could not be serialized',
       timestamp,
       meta: { serializationError: describeErrorForLog({ err: error }) },
     })}\n`;

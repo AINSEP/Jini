@@ -5,8 +5,8 @@ import type { Request } from 'express';
 
 describe('rawInput', () => {
   it('folds repeated opted-in headers and omits unrequested or missing values', () => {
-    const req = { headers: { 'x-region': ['west', 'east'], 'x-trace': 'abc', authorization: 'private' } } as Request;
-    expect(rawInput({ req }, { headers: ['X-REGION', 'X-TRACE', 'X-Missing'] })).toEqual({
+    const req: Partial<Request> = { headers: { 'x-region': ['west', 'east'], 'x-trace': 'abc', authorization: 'private' } };
+    expect(rawInput({ req: req as Request }, { headers: ['X-REGION', 'X-TRACE', 'X-Missing'] })).toEqual({
       body: undefined, query: {}, params: {}, headers: { 'x-region': 'west, east', 'x-trace': 'abc' },
     });
   });

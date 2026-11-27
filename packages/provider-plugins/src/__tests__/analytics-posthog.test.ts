@@ -225,7 +225,7 @@ test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private
 test('enabled AI-content capture distinguishes omitted input from an empty assistant response', async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({
-    apiKey: 'phc_fixture', host: 'https://posthog.invalid', includePromptsAndResponses: true,
+    apiKey: 'phc_fixture', host: 'https://posthog.invalid', includePromptsAndResponses: 'true',
   }, withHost({ fetch, flushAt: 1 }));
   try {
     resource.port.captureAiGeneration!({ userId: 'site:1', properties: { model: 'fixture-model' }, output: '' });

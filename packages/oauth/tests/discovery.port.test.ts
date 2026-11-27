@@ -33,7 +33,7 @@ test.each([false, true])("discovery falls back after a 404 even if disposing its
     const discovered = await fetchAuthorizationServerMetadata({
         ...fixturePorts, issuer,
         fetchFn: async ({ url }) => {
-            visited.push(url);
+            visited.push(String(url));
             if (url === `${issuer}/.well-known/oauth-authorization-server`) {
                 const body = withBody ? new ReadableStream<Uint8Array>({
                     cancel() { released++; throw new Error("remote body is gone"); },
