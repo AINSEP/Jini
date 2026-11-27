@@ -233,3 +233,14 @@ describe("isProtectedEmbedElement", () => {
     expect(isProtectedEmbedElement(el)).toBe(false);
   });
 });
+
+it("uses the marker's plugin identity when the host row names a different component", () => {
+  const config = { type: "plugin", plugin: "example/share", component: "share-link", version: 1, props: {} };
+  const describe_ = createEmbedPlaceholderDescriber({ t, ...markerReaders }, {
+    pluginEmbeds: () => [{ plugin: "example/share", component: "share-dialog", displayName: "Different component", availability: "ready" }],
+  });
+  expect(describe_(markerElement(config))).toEqual({
+    kindLabel: "example/share", identityLabel: "share-link — check Preview for availability",
+    guidanceLabel: "Preview shows the current button or your fallback. Static exports always use your fallback.",
+  });
+});

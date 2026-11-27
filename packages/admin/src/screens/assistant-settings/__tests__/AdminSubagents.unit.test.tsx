@@ -65,3 +65,10 @@ describe("AdminSubagents", () => {
     expect(master()).not.toBeChecked(); expect(master()).toBeDisabled();
   });
 });
+
+it("defaults the personal MCP setting off when neither the agent nor server supplied a grant", () => {
+  mount(controller({ settings: { enabled: false, canEdit: true, agents: [{ id: "claude", name: "Claude Code" }] } }));
+  expect(master()).not.toBeChecked();
+  expect(master()).toBeEnabled();
+  expect(screen.getByRole("checkbox", { name: "Also use Claude Code's personal MCP servers." })).not.toBeChecked();
+});

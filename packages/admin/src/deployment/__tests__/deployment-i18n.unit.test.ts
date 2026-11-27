@@ -4,6 +4,7 @@ import { auditTranslationEntries } from "../deployment-i18n/deployment-audit.js"
 import { candidateGapTranslationEntries } from "../deployment-i18n/deployment-candidate-gap.js";
 import {
   createDeploymentTranslator,
+  dockerfileLineCountLabel,
   deploymentOverviewLoadErrorMessage,
   dockerfileLoadErrorMessage,
   dockerfileSaveErrorMessage,
@@ -174,4 +175,10 @@ describe("index-aligned translation rows", () => {
     const table = build({ entries: Array.from({ length: size }, (_, index) => `t${index}`) });
     expect(Object.values(table)).toEqual(Array.from({ length: size }, (_, index) => `t${index}`));
   });
+});
+
+it("substitutes the number of lines after the host's translator chooses the word order", () => {
+  const translate = (key: string) => key === "{count} lines" ? "Zeilen: {count}" : key;
+  expect(dockerfileLineCountLabel({ translate, count: 27 })).toBe("Zeilen: 27");
+  expect(dockerfileLineCountLabel({ translate: (key) => key, count: 0 })).toBe("0 lines");
 });

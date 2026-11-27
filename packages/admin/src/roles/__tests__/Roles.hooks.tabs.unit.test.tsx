@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ROLES_TAB_IDS, resolveRolesTabId, resolveRolesTabs } from "../Roles.hooks.js";
 
@@ -26,4 +27,14 @@ describe("roles tab descriptors", () => {
     expect(tabs.every((tab) => tab.icon !== undefined && typeof tab.handleLabel === "string")).toBe(true);
     expect(tabs.some((tab) => tab.count !== undefined)).toBe(false);
   });
+});
+
+it("keeps the person and shield glyphs decorative on their labeled tabs", () => {
+  const tabs = resolveRolesTabs({ t: (key) => key });
+  const view = render(<div role="tablist">{tabs.map(tab => <button key={tab.id} role="tab">{tab.icon}{tab.label}</button>)}</div>);
+  const role = view.getByRole("tab", { name: "Roles" });
+  const policy = view.getByRole("tab", { name: "Policies" });
+  expect(role.querySelector("svg[aria-hidden=true] circle")).toHaveAttribute("r", "3.5");
+  expect(policy.querySelector("svg[aria-hidden=true]")).toHaveAttribute("width", "16");
+  expect(policy.querySelector("svg path")).toHaveAttribute("d", "M12 3l7 2.5v6c0 4-3 7.4-7 8.5-4-1.1-7-4.5-7-8.5v-6z");
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AGENT_ELEMENT_ATTRIBUTE } from "@jini-ai/core/agent-handles";
@@ -54,4 +54,14 @@ describe("VisitorAssistantTabs", () => {
     await userEvent.keyboard("{ArrowRight}");
     expect(onKeyDown).toHaveBeenCalled();
   });
+});
+
+it("returns to the provider tab for an unknown selection without changing another panel", () => {
+  const first = renderHook(() => useVisitorAssistantTabs({}));
+  const second = renderHook(() => useVisitorAssistantTabs({}));
+  act(() => first.result.current.select("tools"));
+  expect(first.result.current.active).toBe("tools");
+  expect(second.result.current.active).toBe("provider");
+  act(() => first.result.current.select("stale-tab"));
+  expect(first.result.current.active).toBe("provider");
 });

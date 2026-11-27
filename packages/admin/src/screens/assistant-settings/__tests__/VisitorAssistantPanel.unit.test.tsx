@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { InfoTipProps } from "../../../react/kit.js";
-import { VisitorAssistantPanel } from "../VisitorAssistantPanel.js";
+import { createVisitorMoreInfo, VisitorAssistantPanel } from "../VisitorAssistantPanel.js";
 import { useVisitorAssistantPanel } from "../use-visitor-assistant-panel.hooks.js";
 import type { VisitorCredentialFormController } from "../visitor-credential-form-port.js";
 
@@ -42,4 +43,43 @@ describe("VisitorAssistantPanel", () => {
     rerender(<VisitorAssistantPanel {...props} useVisitorCredentialFormHook={() => credential({ loadState: { status: "error", message: "boom" } })} />);
     expect(screen.getByRole("alert").textContent).toBe("boom");
   });
+});
+
+it("keeps the enabled assistant switch usable for turning off without a key and sends widget choices separately", async () => {
+  const user = userEvent.setup();
+  const setPublicEnabled = vi.fn(async () => {});
+  const setWidget = vi.fn(async () => {});
+  const props = {
+    controller: { ...controller(true), settings: { publicEnabled: true, widget: "react" as const }, setPublicEnabled, setWidget, saveError: "Previous update timed out" },
+    CredentialForm: () => null, t: (key: string) => key, InfoTip, useVisitorAssistantPanelHook: useVisitorAssistantPanel,
+    useVisitorCredentialFormHook: () => credential(),
+  };
+  const { rerender } = render(<VisitorAssistantPanel {...props} />);
+  expect(screen.getByRole("status")).toHaveTextContent("Needs a key");
+  expect(screen.getByText("Previous update timed out")).toBeVisible();
+  const enable = screen.getByRole("switch", { name: "Enable the AI assistant on the public site" });
+  expect(enable).toBeChecked();
+  await user.click(enable);
+  expect(setPublicEnabled.mock.calls).toEqual([[{ publicEnabled: false }]]);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Widget" }), "vanilla");
+  expect(setWidget.mock.calls).toEqual([[{ widget: "vanilla" }]]);
+
+  rerender(<VisitorAssistantPanel {...props}
+    controller={{ ...props.controller, settings: { publicEnabled: false, widget: "vanilla" }, saving: true }}
+    useVisitorCredentialFormHook={() => credential({ hasStoredKey: true })} />);
+  expect(screen.getByRole("status")).toHaveTextContent("Visitors see no assistant.");
+  expect(enable).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Widget" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Widget" })).toHaveValue("vanilla");
+});
+
+it("interpolates the translated more-info label with literal widget names", () => {
+  const moreInfo = createVisitorMoreInfo({ t: (key) => key === "More info: {name}" ? "{name} — mehr Informationen" : key });
+  expect(moreInfo("Widget $&")).toBe("Widget $& — mehr Informationen");
+  const setWidget = vi.fn(async () => {});
+  const { result } = renderHook(() => useVisitorAssistantPanel({ settings: { publicEnabled: true }, hasStoredKey: true, setWidget }));
+  const panel = result.current;
+  expect(panel.status).toBe("on");
+  panel.chooseWidget({ value: "unknown" });
+  expect(setWidget.mock.calls).toEqual([[{ widget: "react" }]]);
 });

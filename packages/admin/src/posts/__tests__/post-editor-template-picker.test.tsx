@@ -61,3 +61,14 @@ describe('PostEditorTemplatePicker', () => {
     expect(container.querySelector('[data-fake-view]')).toBeNull();
   });
 });
+
+it('keeps an unset template unselected until the operator explicitly opts out', () => {
+  const { props, rerender } = renderPicker({ templateChoice: null });
+  const select = screen.getByRole('combobox', { name: '~Template' });
+  expect(select).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'view' })).toBeDisabled();
+  expect(props.setTemplateChoice).not.toHaveBeenCalled();
+  rerender(<PostEditorTemplatePicker {...props} templateChoice="wide" />);
+  fireEvent.change(select, { target: { value: '' } });
+  expect(props.setTemplateChoice).toHaveBeenCalledExactlyOnceWith('');
+});

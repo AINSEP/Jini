@@ -147,3 +147,12 @@ describe('EntityField agent handles', () => {
     expect(control()).not.toHaveAttribute('data-agent-element');
   });
 });
+
+it('keeps a relation readable when the target list was unavailable', () => {
+  const renderField = (value: unknown) => <EntityField inputId="missing-target" field={{ name: "authorId", kind: "relation", target: "authors" }}
+    value={value} text="" relations={{}} translate={translate} disabled={false} invalid={false} onChange={vi.fn()} onTextChange={vi.fn()} />;
+  const view = render(renderField("old-author"));
+  expect(screen.getByRole("combobox", { name: "tr:authorId" })).toHaveTextContent("old-author (tr:Unresolved)");
+  view.rerender(renderField(undefined));
+  expect(screen.getByRole("combobox", { name: "tr:authorId" })).toHaveTextContent("tr:No value");
+});

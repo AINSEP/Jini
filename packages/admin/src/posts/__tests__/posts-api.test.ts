@@ -58,3 +58,11 @@ describe('createPostsApi', () => {
     ]);
   });
 });
+
+it('creates a post with its title and explicit publishing date in the injected workspace', async () => {
+  const { request, api } = bind();
+  await api.createPost({ title: 'Spring dispatch', status: 'published', publishAt: '2026-05-04T15:00:00Z' });
+  expect(request.mock.calls).toEqual([[{ path: '/workspaces/ws-1/posts' }, {
+    init: { method: 'POST', body: '{"title":"Spring dispatch","status":"published","publishAt":"2026-05-04T15:00:00Z"}' },
+  }]]);
+});

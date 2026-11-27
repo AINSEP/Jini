@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor, within } from "../../../__tests__/fetch-query-support.js";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "../../../__tests__/fetch-query-support.js";
 import userEvent from "@testing-library/user-event";
 import { InfoTip } from "@jini-ai/ui/admin-widgets";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { publishSettingsRefresh } from "../../../shell/lib/settings-refresh-bus.js";
 import type { VisitorToolConfigureInput, VisitorToolsPort, VisitorToolsView, VisitorToolView } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
@@ -264,4 +264,18 @@ describe("parseLimitsDraft", () => {
       expect(parseLimitsDraft({ draft: { perIpPerHour: bad, perSitePerDay: "1" }, current })).toEqual({ error: true });
     }
   });
+});
+
+it("resets a quota draft to server truth without sending a write", async () => {
+  const configure = vi.fn(async () => true);
+  const selected = tool("list_posts");
+  const { result } = renderHook(() => useVisitorToolLimitsDraft({ tool: selected, configure }));
+  act(() => result.current.edit({ key: "perIpPerHour", value: "51" }));
+  expect(result.current.draft.perIpPerHour).toBe("51");
+  expect(result.current.dirty).toBe(true);
+  act(() => result.current.reset());
+  await act(() => result.current.save());
+  expect(result.current.draft).toEqual({ perIpPerHour: "30", perSitePerDay: "1000" });
+  expect(result.current.dirty).toBe(false);
+  expect(configure.mock.calls).toEqual([]);
 });

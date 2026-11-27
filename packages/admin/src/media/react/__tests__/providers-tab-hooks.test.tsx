@@ -268,3 +268,17 @@ describe('media useProvidersTab', () => {
     expect(view.result.current.reloadLabel).toBe('Reload');
   });
 });
+
+it('reveals only the selected provider credential and does not change or save the other key', async () => {
+  const port = service([{ id: 'a', label: 'A', configured: false }, { id: 'b', label: 'B', configured: false }]);
+  const view = mount(port);
+  await loaded(view);
+  act(() => row(view, 'a').onCredential(change('test-a')));
+  act(() => row(view, 'b').onCredential(change('test-b')));
+  act(() => row(view, 'a').toggle());
+  act(() => row(view, 'b').toggle());
+  act(() => row(view, 'a').toggle());
+  expect(row(view, 'a')).toMatchObject({ credentialType: 'password', credential: 'test-a' });
+  expect(row(view, 'b')).toMatchObject({ credentialType: 'text', credential: 'test-b' });
+  expect(port.saveCredential.mock.calls).toEqual([]);
+});

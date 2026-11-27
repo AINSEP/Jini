@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { formatUserFacingError } from "@jini-ai/core";
@@ -51,4 +52,37 @@ describe("Login (injected host collaborators)", () => {
     fireEvent.click(screen.getByText("Use a passkey"));
     await vi.waitFor(() => expect(onLogin).toHaveBeenCalledWith({ id: "u-fixture", username: "fixture" }));
   });
+});
+
+it("routes typed username and password through the controller and submits the form", async () => {
+  const user = userEvent.setup();
+  const setUsername = vi.fn();
+  const setPassword = vi.fn();
+  const submit = vi.fn(async (event: { preventDefault(): void }) => { event.preventDefault(); });
+  render(<Login {...props({}, { username: "", setUsername, setPassword, submit, error: "Try again" })} />);
+  expect(screen.getByText("Try again")).toBeVisible();
+  await user.type(screen.getByLabelText("Username"), "b");
+  await user.type(screen.getByLabelText("Password"), "q");
+  expect(setUsername.mock.calls).toEqual([["b"]]);
+  expect(setPassword.mock.calls).toEqual([["q"]]);
+  expect(screen.queryByRole("button", { name: "Use a passkey" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(submit).toHaveBeenCalledTimes(1);
+});
+
+it("routes authenticator input and cancel without showing password, locking controls during submission", async () => {
+  const user = userEvent.setup();
+  const mfa = { pendingToken: "pending-4", code: "", setCode: vi.fn(), cancel: vi.fn() };
+  const view = render(<Login {...props({}, { mfa })} />);
+  expect(screen.queryByLabelText("Password")).toBeNull();
+  const code = screen.getByLabelText("Authenticator code");
+  expect(code).toHaveAttribute("data-agent-private");
+  await user.type(code, "7");
+  expect(mfa.setCode.mock.calls).toEqual([["7"]]);
+  expect(screen.getByRole("button", { name: "Verify code" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(mfa.cancel).toHaveBeenCalledTimes(1);
+  view.rerender(<Login {...props({}, { mfa, busy: true })} />);
+  expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
 });

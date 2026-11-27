@@ -67,3 +67,13 @@ describe('ADMIN_COMMON_I18N', () => {
     }
   });
 });
+
+it('keeps every assembled translation non-empty and preserves its named placeholders', () => {
+  const tokens = (value: string) => [...new Set(value.match(/\{\w+\}/g) ?? [])].sort();
+  for (const [locale, dict] of Object.entries(ADMIN_COMMON_I18N)) {
+    for (const [key, value] of Object.entries(dict)) {
+      expect(value.trim(), `${locale} / ${key}`).not.toBe('');
+      expect(tokens(value), `${locale} / ${key}`).toEqual(tokens(key));
+    }
+  }
+});

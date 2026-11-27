@@ -135,3 +135,8 @@ describe("prettifyHtml", () => {
     expect(prettifyHtml({ html: input })).toBe(input);
   });
 });
+
+it("leaves literal comparisons in text but formats adjacent real block elements", () => {
+  expect(prettifyHtml({ html: "<div>3 < 4 and 9 > 8</div><section>Next</section>" }))
+    .toBe("<div>3 < 4 and 9 > 8</div>\n<section>Next</section>");
+});

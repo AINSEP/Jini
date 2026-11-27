@@ -175,3 +175,36 @@ describe("useFormEditor — version-aware refresh", () => {
     expect(result.current.editor.name).toBe("Legacy edit");
   });
 });
+
+it("reloads immediately after the operator has reverted to a clean draft", async () => {
+  const api = createMemoryFormsApi({}, { forms: [definition({ version: 1 })] });
+  const { events, fire } = fakeEvents();
+  const { result } = mount({ port: api, events });
+  await waitFor(() => expect(result.current.editor.name).toBe("Contact"));
+  act(() => result.current.editor.setName("Local draft"));
+  await api.updateFormDefinition({ id: "f1" }, { name: "Outside edit", expectedVersion: 1 });
+  await fire();
+  await waitFor(() => expect(result.current.editor.reload.available).toBe(true));
+  act(() => result.current.editor.setName("Contact"));
+  act(() => result.current.editor.reload.request());
+  expect(result.current.editor.reload.confirmOpen).toBe(false);
+  await waitFor(() => expect(result.current.editor.name).toBe("Outside edit"));
+  expect(result.current.editor.form?.version).toBe(2);
+  expect(result.current.editor.reload).toMatchObject({ available: false, pending: false, confirmOpen: false });
+});
+
+it("keeps an unversioned form's status-only change without creating a reload prompt", async () => {
+  const initial = definition({ status: "active" });
+  let current = initial;
+  const api = createMemoryFormsApi({}, { forms: [initial] });
+  const port: AdminFormsPort = { ...api, getFormDefinition: async () => current };
+  const { events, fire } = fakeEvents();
+  const { result } = mount({ port, events });
+  await waitFor(() => expect(result.current.editor.form?.status).toBe("active"));
+  current = { ...initial, status: "disabled" };
+  await fire();
+  await waitFor(() => expect(result.current.editor.form?.status).toBe("disabled"));
+  expect(result.current.editor.form?.version).toBeUndefined();
+  expect(result.current.editor.name).toBe("Contact");
+  expect(result.current.editor.reload.available).toBe(false);
+});

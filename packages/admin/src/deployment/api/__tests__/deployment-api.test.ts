@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDeploymentApi } from "../deployment-api.js";
+import { createDeploymentApi, type DeploymentApiDeps } from "../deployment-api.js";
 
 function setup(etag = "e1") {
   const request = vi.fn(async (_r?: unknown) => ({ targets: [{ id: "t" }] }));
@@ -40,4 +40,18 @@ describe("createDeploymentApi request shapes", () => {
     expect(JSON.parse(String(calls[3]![1]!.init!.body))).toEqual({ repo: "r", target: "vercel", projectName: "p", credentialId: "c" });
     expect(JSON.parse(String(calls[4]![1]!.init!.body))).toEqual({ target: "vercel", projectName: "p" });
   });
+});
+
+it("does not substitute the request match value when the server omits the Dockerfile revision", async () => {
+  const authenticatedRequest = vi.fn(async (_req: unknown, options?: { onOk?: (required: { response: Response }) => void }) => {
+    options?.onOk?.({ response: new Response("{}") });
+    return { exists: false, contents: null };
+  });
+  const api = createDeploymentApi({
+    request: vi.fn() as DeploymentApiDeps["request"],
+    authenticatedRequest: authenticatedRequest as unknown as DeploymentApiDeps["authenticatedRequest"],
+    workspaceId: "revisionless",
+  });
+  await expect(api.getDockerfileSource()).resolves.toEqual({ exists: false, contents: null, etag: "" });
+  await expect(api.setDockerfileSource({ contents: "FROM scratch", ifMatch: "old" })).resolves.toEqual({ exists: false, contents: null, etag: "" });
 });

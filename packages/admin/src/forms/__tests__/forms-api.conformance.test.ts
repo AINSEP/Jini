@@ -160,3 +160,30 @@ it('the HTTP adapter forwards expectedVersion on the ordinary PUT and reads the 
   expect(requests).toEqual([{ path: '/forms/f1', method: 'PUT', body: { name: 'Renamed', expectedVersion: 4 } }]);
   expect(updated.version).toBe(5);
 });
+
+it('routes a body-only change to authoring and serializes an optional pagination cursor separately from limit', async () => {
+  const { createHttpFormsApi } = await import('../adapters/http.js');
+  const requests: Array<{ path: string; method: string; body?: unknown }> = [];
+  const sample = { id: 'submission/b', data: { answer: 'preserve' } };
+  const api = createHttpFormsApi({ basePath: '/forms/', transport: {
+    async request<T>(request: { path: string; method: string; body?: unknown }): Promise<T> {
+      requests.push(request);
+      switch (request.path) {
+        case '/forms/form%2Fa/authoring': return { data: { id: 'form/a', version: 6 } } as T;
+        case '/forms/form%2Fa/submissions?cursor=page+%2B%2F2': return { data: [sample], nextCursor: 'page 3' } as T;
+        case '/forms/form%2Fa/submissions?limit=4': return { data: [], nextCursor: null } as T;
+        default: throw new Error('Unexpected forms request ' + request.path);
+      }
+    },
+    url: ({ path }) => path,
+  } });
+  expect((await api.updateFormDefinition({ id: 'form/a' }, { html: '', expectedVersion: 5 })).version).toBe(6);
+  await expect(api.listFormSubmissions({ formId: 'form/a' }, { cursor: 'page +/2' }))
+    .resolves.toEqual({ items: [sample], nextCursor: 'page 3' });
+  await expect(api.listFormSubmissions({ formId: 'form/a' }, { limit: 4 })).resolves.toEqual({ items: [], nextCursor: null });
+  expect(requests).toEqual([
+    { path: '/forms/form%2Fa/authoring', method: 'PUT', body: { html: '', expectedVersion: 5 } },
+    { path: '/forms/form%2Fa/submissions?cursor=page+%2B%2F2', method: 'GET' },
+    { path: '/forms/form%2Fa/submissions?limit=4', method: 'GET' },
+  ]);
+});

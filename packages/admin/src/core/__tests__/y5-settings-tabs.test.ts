@@ -142,3 +142,60 @@ test("appearance normalizes unknown themes and preserves per-theme drafts on sca
   await tabs.saveAppearance({ theme: "dark", accentColor: "#222222" }, loaded);
   expect((await tabs.loadAppearance()).accentColors).toEqual(loaded.accentColors);
 });
+
+test("clearing instructions stores the ledger default instead of an undefined value", async () => {
+  const { tabs, events } = fixture();
+  await tabs.saveInstructions({ next: "Summarize before saving.", previous: "" });
+  await expect(tabs.saveInstructions({ next: undefined, previous: "Summarize before saving." })).resolves.toEqual(["custom"]);
+  expect(await tabs.loadInstructions()).toBe("");
+  expect(events).toEqual(["write:custom", "write:custom"]);
+});
+
+test.each([{ stored: null }, { stored: ["#008800"] }, { stored: { classic: "#112233", broken: true } }])(
+  "does not surface corrupt or empty per-theme override data ($stored)", async ({ stored }) => {
+    const { tabs, values } = fixture();
+    values.set("core.appearance", new Map<string, unknown>([["theme", "system"], ["accentColor", "#2563EB"], ["adminThemeAccents", stored]]));
+    const appearance = await tabs.loadAppearance();
+    expect(appearance).toEqual({ theme: "system", accentColor: "#2563EB" });
+    expect(tabs.adminThemeAccent({ appearance, themeId: "classic" })).toBeUndefined();
+    expect(tabs.adminThemeAccent({ appearance, themeId: "broken" })).toBeUndefined();
+  },
+);
+
+test("defaults omitted telemetry to off and emits withdrawal before persisting", async () => {
+  const { tabs, values, events } = fixture();
+  const before = { telemetry: { metrics: true, content: true }, installationId: "install-3", privacyDecisionAt: 72 };
+  await tabs.savePrivacy(before, await tabs.loadPrivacy());
+  events.length = 0;
+  await expect(tabs.savePrivacy({ telemetry: {}, installationId: "install-3", privacyDecisionAt: 72 }, before))
+    .resolves.toEqual(["telemetry.metrics", "telemetry.content"]);
+  expect(values.get("core.privacy")).toEqual(new Map<string, unknown>([
+    ["telemetry.metrics", false], ["telemetry.content", false], ["installationId", "install-3"], ["decisionAt", 72],
+  ]));
+  expect(await tabs.loadPrivacy()).toEqual({ ...before, telemetry: { metrics: false, content: false } });
+  expect(events).toEqual(["deny", "write:telemetry.metrics", "saved:false", "write:telemetry.content"]);
+});
+
+test("consent notifications do nothing without a browser and still publish when marker removal fails", () => {
+  const clearError = new Error("storage restricted");
+  const observe = vi.fn();
+  const createEvent = vi.fn((type: string, { detail }: { detail: boolean }) => Object.assign(new Event(type), { detail }));
+  const dispatchEvent = vi.fn((_event: Event) => true);
+  const removeItem = vi.fn(() => { throw clearError; });
+  const browser = { localStorage: { setItem: vi.fn(), removeItem }, dispatchEvent };
+  const getBrowser = vi.fn<() => typeof browser | undefined>().mockReturnValue(browser)
+    .mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+  const callbacks = createPrivacyConsentBrowserAdapter({ deps: {
+    getBrowser, createEvent, observe, withdrawalKey: "metrics-off",
+    consentEvent: "metrics-consent", saveMarkerStep: "Store denial", clearMarkerStep: "Clear denial",
+  } });
+  callbacks.onMetricsWithdrawal();
+  callbacks.onMetricsSaved({ metrics: true });
+  expect(createEvent.mock.calls).toEqual([]);
+  expect(dispatchEvent.mock.calls).toEqual([]);
+  callbacks.onMetricsSaved({ metrics: false });
+  expect(removeItem.mock.calls).toEqual([["metrics-off"]]);
+  expect(observe.mock.calls).toEqual([[{ error: clearError, step: "Clear denial" }]]);
+  expect(createEvent.mock.calls).toEqual([["metrics-consent", { detail: false }]]);
+  expect(dispatchEvent.mock.calls.map(([event]) => [event.type, (event as Event & { detail: boolean }).detail])).toEqual([["metrics-consent", false]]);
+});

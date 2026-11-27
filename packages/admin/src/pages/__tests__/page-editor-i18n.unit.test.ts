@@ -42,3 +42,10 @@ describe("createPageEditorTranslator", () => {
     expect(t({ locale: "de", key: "Back" })).toBe("Back");
   });
 });
+
+it("falls back to the English template for untranslated locales without losing named fields", () => {
+  const translate = createPageEditorTranslator({ commonDictionary: {} });
+  expect(translate({ locale: "unlisted", key: "No changes found · nothing new saved (version {version})" }))
+    .toBe("No changes found · nothing new saved (version {version})");
+  expect(translate({ locale: "unlisted", key: "Exit full screen (Esc)" })).toBe("Exit full screen (Esc)");
+});

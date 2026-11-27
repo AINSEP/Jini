@@ -135,3 +135,17 @@ describe('runCommentsApiConformance', () => {
       .rejects.toThrow(new Error('Comments API conformance: purge removes the row'));
   });
 });
+
+it('fails the stale-version check when a refusal is not a version conflict', async () => {
+  const real = memoryApi();
+  const api: AdminCommentsPort = { ...real, async moderateComment(required, optional) {
+    try {
+      return await real.moderateComment(required, optional);
+    } catch (error) {
+      // Preserve the version that would otherwise satisfy the check. The status is the only defect.
+      throw Object.assign(new Error('not a conflict'), { status: 412, body: { currentVersion: 5 } }, { cause: error });
+    }
+  } };
+  await expect(runCommentsApiConformance({ api }))
+    .rejects.toThrow(new Error('Comments API conformance: stale version rejects with status and currentVersion'));
+});

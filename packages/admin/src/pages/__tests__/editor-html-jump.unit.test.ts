@@ -170,3 +170,11 @@ describe("locked block Edit HTML navigation", () => {
     expect(missing.onError).toHaveBeenCalledWith();
   });
 });
+
+it("reports a non-Error flush rejection without forwarding it as an Error", async () => {
+  const failed = harness(async () => { throw "source unavailable"; });
+  await act(() => failed.result.current.requestEditHtml({ occurrenceIndex: 0, tagName: "div" }, {}));
+  expect(failed.onError).toHaveBeenCalledExactlyOnceWith(undefined);
+  expect(failed.setDraftHtml).not.toHaveBeenCalled();
+  expect(failed.setView).not.toHaveBeenCalled();
+});

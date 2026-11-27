@@ -263,3 +263,12 @@ describe('createMemoryFormsApi — version compare-and-set', () => {
     expect(api.forms[0]).toEqual(before);
   });
 });
+
+it('does not increment a versioned row when no patch fields are supplied', async () => {
+  const form = definition('f-7', 'payroll', { version: 23 });
+  const api = createMemoryFormsApi({}, { forms: [form] });
+  const returned = await api.updateFormDefinition({ id: 'f-7' });
+  expect(returned.version).toBe(23);
+  const read = await api.getFormDefinition({ id: 'payroll' });
+  expect([read.name, read.fields, read.version]).toEqual([form.name, form.fields, 23]);
+});

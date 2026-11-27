@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from '../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { PostSettingsDialog, type PostSettingsDialogProps } from '../PostSettingsDialog.js';
@@ -55,4 +56,26 @@ describe('PostSettingsDialog', () => {
     expect(classes.length).toBeGreaterThan(0);
     expect(classes.filter((name) => !name.startsWith('jini-'))).toEqual([]);
   });
+});
+
+it("forwards the keyboard hook's selected tab and renders its publishing controls", async () => {
+  const user = userEvent.setup();
+  const setTab = vi.fn();
+  const dialog: PostSettingsDialogProps["dialog"] = {
+    open: true, tab: "author", setTab, openDialog: vi.fn(), closeDialog: vi.fn(),
+  };
+  const { props, rerender } = renderDialog({
+    dialog, scheduled: true, publishAtInput: "2026-05-19T17:30",
+    hooks: { useTabBarKeyboard: ({ onChange }) => ({
+      onKeyDown: (event) => { if (event.key === "ArrowRight") onChange("publish"); },
+    }) },
+  });
+  await user.tab();
+  // Start with the author tab focused before driving the tablist's keyboard event.
+  screen.getByRole("tab", { name: "~Author" }).focus();
+  await user.keyboard("{ArrowRight}");
+  expect(setTab.mock.calls).toEqual([["publish"]]);
+  rerender(<PostSettingsDialog {...props} dialog={{ ...dialog, tab: "publish" }} />);
+  expect(screen.getByLabelText(/^~Publish at/)).toHaveValue("2026-05-19T17:30");
+  expect(screen.getByText("~Scheduled")).toBeVisible();
 });

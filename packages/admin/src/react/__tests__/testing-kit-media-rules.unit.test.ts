@@ -14,3 +14,19 @@ it('treats an entry as marker-only exactly when it is configured and holds no ty
   expect(rules.isMarkerOnlyEntry({ entry: {} })).toBe(false);
   expect(rules.isMarkerOnlyEntry({ entry: undefined })).toBe(false);
 });
+
+it('masks only the last four characters and returns no label when no key marker exists', () => {
+  expect(rules.maskedKeyLabel({ entry: { apiKey: 'typed-7719', apiKeyTail: '  old-8823  ' } })).toBe('••••8823');
+  expect(rules.maskedKeyLabel({ entry: { apiKey: ' typed-7719 ' } })).toBe('••••7719');
+  expect(rules.maskedKeyLabel({ entry: { apiKeyConfigured: true } })).toBe('••••');
+  expect(rules.maskedKeyLabel({ entry: { model: 'not-a-key' } })).toBeNull();
+});
+
+it('reports only invalid nonblank provider endpoints in the view', () => {
+  const providers = {
+    blank: { baseUrl: '  ' }, malformed: { baseUrl: 'provider.test' },
+    wrongScheme: { baseUrl: 'ftp://provider.test' }, https: { baseUrl: ' https://provider.test/v1 ' },
+  };
+  expect(rules.invalidBaseUrlProviderIds({ providers: null })).toEqual([]);
+  expect(rules.invalidBaseUrlProviderIds({ providers })).toEqual(['malformed', 'wrongScheme']);
+});

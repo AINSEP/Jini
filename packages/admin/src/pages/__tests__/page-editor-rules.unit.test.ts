@@ -320,3 +320,13 @@ describe("PAGE_PREVIEW_IFRAME_SANDBOX", () => {
     expect(PAGE_PREVIEW_IFRAME_SANDBOX.split(" ")).not.toContain("allow-same-origin");
   });
 });
+
+it("states known versions independently rather than treating a partially populated conflict as entirely unknown", () => {
+  const t = (key: string) => key;
+  const unknownNewer = pageVersionConflictMessage({ t, expectedVersion: 8, currentVersion: null });
+  const unknownBasis = pageVersionConflictMessage({ t, expectedVersion: null, currentVersion: 13 });
+  expect(unknownNewer).toContain("version 8");
+  expect(unknownNewer).toContain("a newer version");
+  expect(unknownBasis).toContain("the version you loaded");
+  expect(unknownBasis).toContain("version 13");
+});

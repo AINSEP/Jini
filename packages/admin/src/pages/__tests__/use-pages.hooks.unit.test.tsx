@@ -82,3 +82,61 @@ describe("usePages — injected pageAdminPath", () => {
     expect(navigate).toHaveBeenCalledWith("/pages/by-host/pg-new");
   });
 });
+
+it("flips publication using the selected row's basis, then moves only that row to trash", async () => {
+  const unrelated = { ...PAGE, id: "stay", title: "Stay", slug: "stay" };
+  const changed = { ...PAGE, status: "draft" as const, version: 2 };
+  let rows = [PAGE, unrelated];
+  const updatePost = vi.fn<PagesPort["updatePost"]>(async () => { rows = [changed, unrelated]; return { post: changed }; });
+  const deletePage = vi.fn<PagesPort["deletePage"]>(async () => { rows = [unrelated]; return { post: changed }; });
+  const port: PagesPort = { ...fakePort([]), listPages: async () => ({ posts: rows.map(post => ({ post })) }), updatePost, deletePage };
+  const deps = { port, navigate: vi.fn(), t: (k: string) => k, locale: "en", events: fakeEvents(), pageAdminPath: (page: Pick<PageListRow, "id" | "slug">) => `/pages/${page.slug}` };
+  const { result } = renderHook(() => usePages(deps), { wrapper });
+  await waitFor(() => expect(result.current.pages).toEqual([PAGE, unrelated]));
+  await act(() => result.current.removePage());
+  expect(deletePage.mock.calls).toEqual([]);
+
+  await act(() => result.current.togglePagePublish(PAGE));
+  expect(updatePost.mock.calls).toEqual([[{
+    target: { id: "pg1" }, patch: { title: "About", slug: "about", bodyJson: {}, status: "draft", expectedVersion: 1 },
+  }]]);
+  expect(result.current.pages).toEqual([changed, unrelated]);
+  expect(result.current.rowSavingId).toBeNull();
+
+  act(() => result.current.setPendingDelete(changed));
+  await act(() => result.current.removePage());
+  expect(deletePage.mock.calls).toEqual([[{ id: "pg1" }]]);
+  expect(result.current).toMatchObject({ pages: [unrelated], pendingDelete: null, rowSavingId: null, error: null });
+});
+
+it("keeps rows intact and clears busy state on publish, trash, and create errors", async () => {
+  const draft = { ...PAGE, status: "draft" as const };
+  const port = fakePort([PAGE, { ...draft, id: "draft", title: "Draft" }]);
+  const navigate = vi.fn();
+  vi.mocked(port.listPages).mockRejectedValueOnce("offline");
+  vi.mocked(port.createPage).mockRejectedValueOnce(new Error("duplicate title")).mockRejectedValueOnce("offline");
+  vi.mocked(port.updatePost).mockRejectedValueOnce("offline").mockRejectedValueOnce("offline").mockRejectedValueOnce(new Error("version conflict"));
+  vi.mocked(port.deletePage).mockRejectedValueOnce(new Error("trash refused")).mockRejectedValueOnce("offline");
+  const events = fakeEvents();
+  const deps = { port, navigate, events, t: (k: string) => k, locale: "en", pageAdminPath: ({ slug }: { slug: string }) => `/pages/${slug}` };
+  const { result } = renderHook(() => usePages(deps), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe("failed to load pages"));
+  act(() => events.fire());
+  await waitFor(() => expect(result.current.pages?.map(p => p.id)).toEqual(["pg1", "draft"]));
+  const draftRow = result.current.pages!.find(p => p.id === "draft")!;
+  for (const [row, error] of [[PAGE, "failed to unpublish page"], [draftRow, "failed to publish page"], [PAGE, "version conflict"]] as const) {
+    await act(() => result.current.togglePagePublish(row));
+    expect(result.current).toMatchObject({ error, rowSavingId: null });
+  }
+  for (const error of ["trash refused", "failed to delete page"]) {
+    act(() => result.current.setPendingDelete(PAGE));
+    await act(() => result.current.removePage());
+    expect(result.current).toMatchObject({ error, pendingDelete: null, rowSavingId: null });
+  }
+  for (const error of ["duplicate title", "failed to create page"]) {
+    await act(() => result.current.createPage());
+    expect(result.current).toMatchObject({ error, creating: false });
+  }
+  expect(result.current.pages?.map(p => [p.id, p.status])).toEqual([["pg1", "published"], ["draft", "draft"]]);
+  expect(navigate.mock.calls).toEqual([]);
+});

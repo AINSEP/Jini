@@ -1,6 +1,6 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { SettingsPageLayout, type SettingsPageLayoutProps } from "../SettingsPageLayout.js";
+import { SettingsAboutPanel, SettingsPageLayout, type SettingsPageLayoutProps } from "../SettingsPageLayout.js";
 import type { I18nProviderProps, SettingsDialogShellProps } from "../../kit.js";
 
 const previousLanguage = document.documentElement.lang;
@@ -42,4 +42,13 @@ test("loading gates the entire tab tree and the nested provider leaves document 
   view.rerender(<SettingsPageLayout {...props} loading={false} locale="es" tabId="privacy" />);
   expect(useSettingsLocaleSyncHook).toHaveBeenLastCalledWith({ locale: "es" });
   expect(SettingsDialogShell.mock.lastCall?.[0].activeTabId).toBe("privacy");
+});
+
+test("shows version and host hint without exposing any update controls", () => {
+  const view = render(<SettingsAboutPanel versionLabel="Host 9.17.2 · Engine 3.4.1" hint="Managed by the site operator." t={key => key === "Version" ? "Versión" : key} />);
+  expect(view.getByText("Versión")).toBeVisible();
+  expect(view.getByText("Host 9.17.2 · Engine 3.4.1")).toBeVisible();
+  expect(view.getByText("Managed by the site operator.")).toBeVisible();
+  expect(view.queryByRole("button")).toBeNull();
+  expect(view.queryByRole("link")).toBeNull();
 });

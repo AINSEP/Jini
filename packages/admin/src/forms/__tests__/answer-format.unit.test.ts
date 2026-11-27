@@ -215,3 +215,8 @@ describe('captured historical evidence',()=>{
     expect(formSubmissionRows({data:{choice:'a'},answerColumns,evidence})).toEqual([{key:'choice',label:'Original question',value:'Original answer',file:null}]);
   });
 });
+
+it("does not interpret a bare datetime separator as an epoch date", () => {
+  expect(formatFormAnswer({ value: "T", type: "datetime" }, { locale: "en-US" })).toBe("T");
+  expect(formatFormAnswer({ value: "2026-01-19T00:30", type: "datetime" }, { locale: "en-US" })).toBe("Jan 19, 2026, 12:30 AM");
+});

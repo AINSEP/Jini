@@ -192,3 +192,15 @@ it('shows provider loading until discovery settles without exposing a stored ide
   expect(screen.getByRole('option', { name: 'Google Forms' })).not.toBeNull();
   expect((screen.getByLabelText('Where answers go') as HTMLSelectElement).value).toBe('google_forms');
 });
+
+it('prefers the discovered refusal reason over generic guidance for a configured but unavailable provider', () => {
+  const offline = { ...providers[1]!, available: false, message: 'Connect the workspace account before using this endpoint.' };
+  const p = props({ provider: { id: 'formspree', config: { endpoint: 'https://example.test/forms/3' } }, providers: [providers[0]!, offline] });
+  const { rerender } = render(<FormEditorFieldsBody {...p} />);
+  expect(screen.getByRole('combobox', { name: 'Where answers go' })).toHaveValue('formspree');
+  expect(screen.getByRole('option', { name: 'Formspree' })).toBeDisabled();
+  expect(screen.getByText('Connect the workspace account before using this endpoint.')).toBeVisible();
+  expect(screen.queryByLabelText('Public form endpoint')).toBeNull();
+  rerender(<FormEditorFieldsBody {...p} providers={[providers[0]!, { ...providers[1]!, available: false }]} />);
+  expect(screen.getByText(STORED_PROVIDER_OFF)).toBeVisible();
+});

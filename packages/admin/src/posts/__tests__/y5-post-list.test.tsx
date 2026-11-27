@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import userEvent from "@testing-library/user-event";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { FetchQueryProvider, useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate } from "@jini-ai/ui/fetch-query";
-import { usePosts } from "../hooks/use-posts.hooks.js";
+import { bindPostsHooks, usePosts } from "../hooks/use-posts.hooks.js";
 import type { AdminPost } from "../api/posts-api.types.js";
 import * as sorting from "../../shell/lib/admin-post-list-sort.js";
 
@@ -122,4 +123,79 @@ test("the bound list uses the injected default, comparators, and sort labels", a
   expect(injected.columnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), columnName: "Slug", direction: "asc" });
   expect(injected.columnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), columnName: "Status", direction: "asc" });
   expect(injected.updatedColumnSortLabel).toHaveBeenCalledWith({ t: expect.any(Function), direction: "desc" });
+});
+
+test("the bound controller localizes trash failures and drops only the confirmed post on retry", async () => {
+  const keep = { ...post, id: "keep", title: "Keep" };
+  let rows = [post, keep];
+  const deletePost = vi.fn(async ({ id }: { id: string }) => {
+    if (id !== "one") throw new Error("Unexpected deletion target");
+    rows = rows.filter(row => row.id !== id);
+    return { post };
+  }).mockRejectedValueOnce(new Error("trash refused")).mockRejectedValueOnce("offline");
+  const useBoundPosts = bindPostsHooks({
+    deps: {
+      port: { listPosts: async () => ({ posts: rows.map(post => ({ post })) }), updatePost: async () => ({ post }), deletePost },
+      navigate: vi.fn(), createRoutePath: "/posts?create=1", resource: "posts",
+      translate: ({ locale, key }) => locale + ": " + key, buildPostRowMenuHandleMap: () => new Map(),
+    },
+    hooks: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useContentRefreshSubscription: vi.fn(), useLocaleHook: () => "es" },
+  });
+  const { result } = renderHook(() => useBoundPosts({}), { wrapper: FetchQueryProvider });
+  await waitFor(() => expect(result.current.posts).toEqual([post, keep]));
+  expect(result.current.locale).toBe("es");
+  await act(() => result.current.removePost());
+  expect(deletePost.mock.calls).toEqual([]);
+  for (const error of ["trash refused", "es: failed to delete post"]) {
+    act(() => result.current.setPendingDelete(post));
+    await act(() => result.current.removePost());
+    expect(result.current).toMatchObject({ error, posts: [post, keep], pendingDelete: null, rowSavingId: null });
+  }
+  act(() => result.current.setPendingDelete(post));
+  await act(() => result.current.removePost());
+  expect(result.current).toMatchObject({ error: null, posts: [keep], pendingDelete: null, rowSavingId: null });
+  expect(deletePost.mock.calls).toEqual([[{ id: "one" }], [{ id: "one" }], [{ id: "one" }]]);
+});
+
+test("renders the host-localized list, handles a loaded error inline, and opens the selected row's editor", async () => {
+  const user = userEvent.setup();
+  const { bindPosts } = await import("../Posts.js");
+  const { render, screen, within } = await import("../../__tests__/fetch-query-support.js");
+  const navigate = vi.fn();
+  const createPost = vi.fn();
+  let posts: AdminPost[] | null = null;
+  let error: string | null = null;
+  let creating = false;
+  const BoundPosts = bindPosts({
+    hooks: { useLocaleHook: () => "en", usePostsHook: () => ({
+      posts, error, creating, rowSavingId: null, pendingDelete: null, setPendingDelete: vi.fn(),
+      createPost, togglePostPublish: vi.fn(), removePost: vi.fn(), rowMenuHandleById: new Map([["one", "post-one"]]),
+    }) },
+    kit: { ServerLabel: ({ value }) => <>{value}</>, PublishSectionButton: () => null },
+    deps: {
+      sorting, translate: ({ locale, key }) => locale + "/" + key,
+      siteUrl: ({ path }) => path, postAdminPath: ({ slug }) => `/backoffice/posts/${slug}`,
+      postEditorRoute: ({ slug }) => `/posts/${slug}?edit=1`, navigate, viewerTimeZone: "UTC",
+      postRowMenuItems: ({ post, handlers }) => [{ key: "edit", label: "Edit selected post", onSelect: () => handlers.onEdit({ post }) }],
+    },
+  });
+  const locale = { useWiredAdminLocale: () => "es" };
+  const view = render(<BoundPosts hooks={locale} />);
+  expect(screen.getByText("es/Loading posts…")).toBeVisible();
+  expect(screen.queryByRole("table")).toBeNull();
+  posts = [post];
+  creating = true;
+  error = "Could not remove another post";
+  view.rerender(<BoundPosts hooks={locale} />);
+  expect(screen.getByText(error)).toBeVisible();
+  expect(screen.getByRole("link", { name: "One" })).toHaveAttribute("href", "/backoffice/posts/one");
+  expect(screen.getByRole("button", { name: "es/Creating…" })).toBeDisabled();
+  const action = screen.getByRole("button", { name: 'es/Actions for "One"' });
+  await user.click(action);
+  await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Edit selected post" }));
+  expect(navigate.mock.calls).toEqual([[{ routePath: "/posts/one?edit=1" }]]);
+  creating = false;
+  view.rerender(<BoundPosts hooks={locale} />);
+  await user.click(screen.getByRole("button", { name: "es/New Post" }));
+  expect(createPost).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
 });

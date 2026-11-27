@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { writePage, PageBodyWriteError } from "@jini-ai/cms/react/pages/hooks/page-editor-save";
 import type { ReactNode, ComponentProps } from "react";
+import userEvent from "@testing-library/user-event";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { PagePreview } from "../PageEditorPreview.js";
-import { PageAutosaveStaleBanner, PageVersionConflictBanner } from "../PageEditorNotices.js";
+import { PageAutosaveStaleBanner, PageEditorNotices, PageVersionConflictBanner } from "../PageEditorNotices.js";
 import {
   PAGE_PREVIEW_IFRAME_SANDBOX, THEME_DEFAULT_SENTINEL,
   pageAutosaveStaleBasisMessage, pageVersionConflictMessage, pageDirtyGuardBaseline,
@@ -214,14 +215,16 @@ test("pending canvas edits flush before save and external updates leave a dirty 
 
 test("HTML pane edits preserve exact source in both the displayed draft and the working copy", async () => {
   const binding = editorBinding();
+  const user = userEvent.setup();
   const current: { value: PageEditorController | null } = { value: null };
   let editorView: PageEditorController["view"] = "html";
+  let canvasStyling: PageEditorController["canvasStyling"] = { status: "ready", styling: {} };
   const view: Omit<PageEditorProps, "slug"> = {
     hooks: {
       usePageEditorHook: required => {
         const editor = binding.useWiredPageEditor(required);
         current.value = editor;
-        return { ...editor, view: editorView, availableTemplates: ["page.html"] };
+        return { ...editor, view: editorView, canvasStyling, availableTemplates: ["page.html"] };
       },
       useTabBarKeyboardHook: () => ({ onKeyDown: () => {} }),
       useThemePreviewFrameHook: required => ({ ...required, revision: 0 }),
@@ -229,9 +232,9 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
     },
     kit: {
       Icon: () => null, ConfirmDialog: () => null, InteractiveHtmlEditor: () => null,
-      DevicePreviewFrame: ({ children }) => <div>{children}</div>, DevicePreviewToggle: () => null,
-      ViewTemplateButton: () => null, WiredThemePreviewReloadButton: () => null, TermPicker: () => null,
-      SuggestInput: () => null, TemplateSourceModal: () => null, PageExternalChangeBanner: () => null,
+      DevicePreviewFrame: ({ children }) => <div>{children}</div>, DevicePreviewToggle: ({ device, setDevice, handlePrefix }) => <button data-handle={handlePrefix} onClick={() => setDevice("mobile")}>Width: {device}</button>,
+      ViewTemplateButton: ({ disabled, onClick }) => <button disabled={disabled} onClick={onClick}>Inspect template</button>, WiredThemePreviewReloadButton: () => null, TermPicker: () => null,
+      SuggestInput: () => null, TemplateSourceModal: ({ themeId, templateFilename, onClose }) => <div role="dialog" aria-label="Template source"><p>{themeId}/{templateFilename}</p><button onClick={onClose}>Close source</button></div>, PageExternalChangeBanner: () => null,
     },
     deps: {
       siteUrl: ({ path }) => path, pagePublicPath: ({ slug }) => `/${slug}`,
@@ -249,6 +252,10 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
   const Editor = bindPageEditor(view);
   const mounted = render(<Editor slug="page" />);
   await screen.findByLabelText("Page HTML");
+  expect(screen.queryByRole("button", { name: "Width: desktop" })).toBeNull();
+  const textarea = screen.getByLabelText<HTMLTextAreaElement>("Page HTML");
+  textarea.scrollTop = 143;
+  fireEvent.scroll(textarea);
   const source = "<section> authored\n<strong>text</strong> </section>";
   fireEvent.change(screen.getByLabelText("Page HTML"), { target: { value: source } });
   expect(current.value?.draftHtml).toBe(source);
@@ -258,6 +265,10 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
   fireEvent.change(screen.getByLabelText("Template"), { target: { value: "page.html" } });
   expect(view.deps.pickerValueToChoice).toHaveBeenCalledWith({ value: "page.html" });
   await waitFor(() => expect(current.value?.templateChoice).toBe("page.html"));
+  await user.click(screen.getByRole("button", { name: "Inspect template" }));
+  expect(screen.getByRole("dialog", { name: "Template source" })).toHaveTextContent("theme/page.html");
+  await user.click(screen.getByRole("button", { name: "Close source" }));
+  expect(screen.queryByRole("dialog", { name: "Template source" })).toBeNull();
   // The sentinel option is offered only while it is the current choice (see PageEditorTemplateOptions),
   // so after picking a real template the way back is a real value: "No template" stores "".
   expect(screen.queryByRole("option", { name: "Theme default" })).toBeNull();
@@ -275,9 +286,24 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
   expect(frame.mock.calls[0]![0].width).toBe(1111);
   expect(videos).toHaveBeenCalledWith({ html: source, bodyJson: undefined });
   expect(screen.getByTitle("Page preview").getAttribute("sandbox")).toBe("allow-scripts");
+  expect(screen.getByRole("button", { name: "Width: desktop" })).toHaveAttribute("data-handle", "page-preview-width");
+  const expand = screen.getByRole("button", { name: "Show full screen" });
+  await user.click(expand);
+  const exit = screen.getByRole("button", { name: "Exit full screen" });
+  expect(exit.getAttribute("data-agent-label")).toMatch(/^Exit full screen: exit fullscreen to collapse/);
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("button", { name: "Show full screen" })).toBeVisible();
+  editorView = "html";
+  mounted.rerender(<Editor slug="page" />);
+  expect(screen.getByLabelText<HTMLTextAreaElement>("Page HTML").scrollTop).toBe(143);
   const interactive = vi.fn((_props: ComponentProps<PageEditorProps["kit"]["InteractiveHtmlEditor"]>) => null);
   view.kit.InteractiveHtmlEditor = interactive;
   editorView = "interactive";
+  canvasStyling = { status: "pending" };
+  mounted.rerender(<Editor slug="page" />);
+  expect(screen.getByText("Loading the theme's styles…")).toBeVisible();
+  expect(interactive).not.toHaveBeenCalled();
+  canvasStyling = { status: "ready", styling: {} };
   mounted.rerender(<Editor slug="page" />);
   expect(interactive.mock.calls[0]![0].isProtectedElement).toBe(view.deps.isProtectedEmbedElement);
 });
@@ -366,4 +392,257 @@ test("page change notices use the host message functions", () => {
     onSaveAnyway={() => {}} onLoadLatest={() => {}} onDismiss={() => {}} t={t} deps={{ pageVersionConflictMessage: conflict }} />);
   expect(conflict).toHaveBeenCalledWith({ t, expectedVersion: 3, currentVersion: 4, attemptedStatus: undefined });
   expect(screen.getByText("HOST CONFLICT V4").textContent).toBe("HOST CONFLICT V4");
+});
+
+test("draft recovery and version-conflict notices act only on the control selected by the operator", async () => {
+  const user = userEvent.setup();
+  const t = (key: string) => key;
+  const draft = {
+    bodyFormat: "html" as const, bodyHtml: "<p>Recovered text</p>", title: "Recovered title", slug: "recovered",
+    baseVersion: 3, savedAt: "2026-11-26T01:00:00Z", savedByPrincipalId: "operator-7",
+  };
+  const standingDraftRecoveryMessage = vi.fn<Parameters<typeof PageEditorNotices>[0]["deps"]["standingDraftRecoveryMessage"]>(() => "Check the previous draft before replacing this editor.");
+  const kit = { PageExternalChangeBanner: ({ onKeepEdits }: ComponentProps<PageEditorProps["kit"]["PageExternalChangeBanner"]>) =>
+    <button onClick={() => onKeepEdits()}>Keep edits from external change</button>,
+  } as PageEditorProps["kit"];
+  const deps = {
+    standingDraftRecoveryMessage, pageVersionConflictMessage, pageAutosaveStaleBasisMessage,
+    pageExternalChangeBindings: { agentHandle, copy: { messageKey: "outside", regionAgentLabel: "outside", loadLatestAgentLabel: "load", keepEditsAgentLabel: "keep" } },
+  } as PageEditorProps["deps"];
+  const props = {
+    t, kit, deps, recoverableDraft: draft, serverUpdatedAt: editorPage.updatedAt,
+    onRestore: vi.fn(), onDiscard: vi.fn(), autosaveStaleBasis: { baseVersion: 3, draft },
+    saveConflict: { expectedVersion: 3, currentVersion: 9, attemptedStatus: "published" as const },
+    onSaveAnyway: vi.fn(), onDismissConflict: vi.fn(), pendingExternalVersion: 9,
+    onLoadExternalChange: vi.fn(), onDismissExternalChange: vi.fn(),
+  };
+  const view = render(<PageEditorNotices {...props} />);
+  expect(screen.getByText("Check the previous draft before replacing this editor.")).toBeVisible();
+  expect(standingDraftRecoveryMessage.mock.calls).toEqual([[{ draft, t, serverUpdatedAt: editorPage.updatedAt }]]);
+  expect(screen.queryByRole("button", { name: "Keep edits from external change" })).toBeNull();
+  expect(props.onRestore.mock.calls).toEqual([]);
+  await user.click(screen.getByRole("button", { name: "Restore" }));
+  await user.click(screen.getByRole("button", { name: "Discard" }));
+  await user.click(screen.getByRole("button", { name: "Replace their version" }));
+  await user.click(screen.getByRole("button", { name: "Load latest" }));
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(props.onRestore).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
+  expect(props.onDiscard).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
+  expect(props.onSaveAnyway).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
+  expect(props.onLoadExternalChange).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
+  expect(props.onDismissConflict.mock.calls).toEqual([[]]);
+  expect(props.onDismissExternalChange.mock.calls).toEqual([[]]);
+
+  view.rerender(<PageEditorNotices {...props} saveConflict={null} recoverableDraft={null} />);
+  expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Replace their version" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Keep edits from external change" }));
+  expect(props.onDismissExternalChange.mock.calls).toEqual([[], []]);
+});
+
+test("preserves the rejected publish intent and local draft when rereading for an explicit overwrite", async () => {
+  const binding = editorBinding();
+  const conflict = new Error("another operator saved first");
+  binding.deps.readVersionConflict = ({ error, attemptedStatus }: Parameters<PageEditorDependencies["readVersionConflict"]>[0]) =>
+    error === conflict ? { expectedVersion: 3, currentVersion: 8, attemptedStatus } : null;
+  vi.mocked(binding.port.updatePost).mockRejectedValueOnce(conflict);
+  const editor = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(editor.result.current.page).toEqual(editorPage));
+  act(() => { editor.result.current.setTitle("Local headline"); editor.result.current.setHtml("<p>local copy</p>"); });
+  await act(() => editor.result.current.save("published"));
+  expect(editor.result.current.saveConflict).toEqual({ expectedVersion: 3, currentVersion: 8, attemptedStatus: "published" });
+  expect(binding.port.updatePageHtml).not.toHaveBeenCalled();
+
+  vi.mocked(binding.port.getPage).mockRejectedValueOnce(new Error("read refused"));
+  await act(() => editor.result.current.saveOverwritingConflict());
+  expect(editor.result.current.error).toBe("could not re-read the current version — your changes are still here, try again");
+  expect(editor.result.current.html).toBe("<p>local copy</p>");
+  expect(binding.port.updatePost).toHaveBeenCalledTimes(1);
+
+  binding.external({ ...editorPage, version: 8, title: "Remote headline", bodyHtml: "<p>remote copy</p>" });
+  await act(() => editor.result.current.saveOverwritingConflict());
+  expect(vi.mocked(binding.port.getPage).mock.lastCall).toEqual([{ routeSlug: "page-id" }]);
+  expect(vi.mocked(binding.port.updatePost).mock.lastCall?.[0]).toMatchObject({
+    target: { id: "page-id" }, patch: { title: "Local headline", expectedVersion: 8, status: "published" },
+  });
+  expect(binding.port.updatePageHtml).toHaveBeenCalledWith({ id: "page-id", expectedVersion: 9, html: "<p>local copy</p>" });
+  expect(editor.result.current.status).toBe("published");
+  expect(editor.result.current.saveConflict).toBeNull();
+});
+
+test("exposes a localized load error through the override binding, without hydrating stale route data", async () => {
+  const binding = editorBinding();
+  vi.mocked(binding.port.getPage).mockRejectedValueOnce(new Error("not available"));
+  const translate = vi.fn(({ locale, key }: { locale: string; key: string }) => `${locale} / ${key}`);
+  const navigate = vi.fn();
+  const { result } = renderHook(() => binding.usePageEditor({
+    routeSlug: "home", deps: { port: binding.port, themeCanvasPort: binding.deps.themeCanvasPort, locale: "de", navigate, t: translate },
+  }));
+  await waitFor(() => expect(result.current.error).toBe("de / failed to load page"));
+  expect(result.current.page).toBeNull();
+  expect(binding.port.getPage).toHaveBeenCalledWith({ routeSlug: "/" });
+  expect(navigate.mock.calls).toEqual([]);
+});
+
+test("a failed page trash closes the confirmation and reports the refusal, but a retry returns to Pages", async () => {
+  const binding = editorBinding();
+  const deletePage = vi.fn<PageEditorDependencies["port"]["deletePage"]>(async () => ({ post: editorPage }))
+    .mockRejectedValueOnce(new Error("Cannot trash the public home page")).mockRejectedValueOnce("offline");
+  binding.port.deletePage = deletePage;
+  const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(result.current.page).toEqual(editorPage));
+  for (const error of ["Cannot trash the public home page", "failed to delete page"]) {
+    act(() => result.current.setConfirmingDelete(true));
+    await act(() => result.current.remove());
+    expect(result.current).toMatchObject({ error, confirmingDelete: false, deleting: false, page: editorPage });
+    expect(binding.deps.navigate.mock.calls).toEqual([]);
+  }
+  await act(() => result.current.remove());
+  expect(deletePage.mock.calls).toEqual([[{ id: "page-id" }], [{ id: "page-id" }], [{ id: "page-id" }]]);
+  expect(binding.deps.navigate.mock.calls).toEqual([["/pages"]]);
+});
+
+test("debounces draft preview submissions and cancels them on a view change", async () => {
+  const binding = editorBinding();
+  binding.deps.setTimeout = (...args) => setTimeout(...args);
+  binding.deps.clearTimeout = (...args) => clearTimeout(...args);
+  const editor = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(editor.result.current.page).toEqual(editorPage));
+  vi.useFakeTimers();
+  try {
+    const form = document.createElement("form");
+    const submit = vi.fn();
+    form.submit = submit;
+    act(() => editor.result.current.previewFormRef(form));
+    act(() => { vi.advanceTimersByTime(499); });
+    expect(submit.mock.calls).toEqual([]);
+    act(() => editor.result.current.setHtml("<p>latest keystroke</p>"));
+    act(() => { vi.advanceTimersByTime(499); });
+    expect(submit.mock.calls).toEqual([]);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(submit.mock.calls).toEqual([[]]);
+    act(() => editor.result.current.setHtml("<p>another edit</p>"));
+    act(() => editor.result.current.setView("html"));
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(submit.mock.calls).toEqual([[]]);
+  } finally {
+    editor.unmount();
+    vi.useRealTimers();
+  }
+});
+
+test("restores the last readable preview scroll position after a frame reload", async () => {
+  const binding = editorBinding();
+  const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(result.current.page).toEqual(editorPage));
+  const frame = document.createElement("iframe");
+  result.current.onPreviewFrameLoad(frame); // Detached frames have no contentWindow.
+  document.body.append(frame);
+  try {
+    const win = frame.contentWindow!;
+    const scroll = vi.spyOn(win, "scrollTo").mockImplementation(() => {});
+    result.current.onPreviewFrameLoad(frame);
+    expect(scroll.mock.calls).toEqual([[0, 0]]);
+    Object.defineProperty(win, "scrollY", { value: 214, configurable: true });
+    win.dispatchEvent(new Event("scroll"));
+    result.current.onPreviewFrameLoad(frame);
+    expect(scroll.mock.calls).toEqual([[0, 0], [0, 214]]);
+    scroll.mockImplementationOnce(() => { throw new DOMException("Not readable", "SecurityError"); });
+    result.current.onPreviewFrameLoad(frame);
+    expect(scroll.mock.calls).toEqual([[0, 0], [0, 214], [0, 214]]);
+  } finally {
+    frame.remove();
+  }
+});
+
+test("does not navigate away on declined confirmation, redirects after flushing an accepted canvas edit", async () => {
+  const binding = editorBinding();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+  try {
+    const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+    await waitFor(() => expect(result.current.page).toEqual(editorPage));
+    act(() => result.current.setTitle("Unsaved title"));
+    const preventDefault = vi.fn();
+    await act(() => result.current.onBackLinkClick({ preventDefault }));
+    expect(preventDefault.mock.calls).toEqual([[]]);
+    expect(binding.deps.navigate.mock.calls).toEqual([]);
+    act(() => result.current.setTitle(editorPage.title));
+    result.current.interactiveEditorRef.current = { flush: async () => "<p>unreported edit</p>" };
+    await act(() => result.current.onBackLinkClick({ preventDefault }));
+    expect(preventDefault.mock.calls).toEqual([[], []]);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(result.current.html).toBe("<p>unreported edit</p>");
+    expect(binding.deps.navigate.mock.calls).toEqual([["/pages"]]);
+  } finally {
+    confirm.mockRestore();
+  }
+});
+
+test("rejects unsafe canvas transitions without losing the last intact HTML", async () => {
+  const binding = editorBinding();
+  const failure = new Error("canvas could not serialize");
+  binding.hooks.useWiredInteractiveEditorFlush = ({ setHtml }) => useInteractiveEditorFlush({
+    setHtml, isEditorSourceError: ({ error }) => error === failure,
+    normalizeEmbedMarkerQuoting: ({ html }) => html, logger: { warn: () => {} },
+  });
+  const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(result.current.page).toEqual(editorPage));
+  act(() => result.current.setView("interactive"));
+  result.current.interactiveEditorRef.current = { flush: async () => { throw failure; } };
+
+  await act(async () => {
+    result.current.setView("preview");
+    result.current.setTemplateChoice("new-template.html");
+    result.current.onSave();
+  });
+  expect(result.current).toMatchObject({
+    view: "interactive", html: "<p>saved</p>", templateChoice: null, confirmingUnchangedSave: false,
+    error: "Can't edit this source visually. Use HTML.",
+  });
+  expect(binding.port.updatePost).not.toHaveBeenCalled();
+
+  await act(async () => { result.current.setView("html"); });
+  expect(result.current.view).toBe("html");
+  expect(result.current.html).toBe("<p>saved</p>");
+  result.current.interactiveEditorRef.current = { flush: async () => undefined };
+  await act(async () => { result.current.onSave(); });
+  expect(result.current.confirmingUnchangedSave).toBe(true);
+  expect(binding.port.updatePost).not.toHaveBeenCalled();
+});
+
+test("leaves an unconfirmed discarded recovery draft available for retry", async () => {
+  const binding = editorBinding();
+  const baseline = binding.hooks.useStandingDraftAutosave({ port: binding.port, entryId: null, enabled: false });
+  const draft = {
+    bodyFormat: "html" as const, bodyHtml: "<p>Prior edits</p>", title: "Prior draft", slug: "prior-draft",
+    baseVersion: 3, savedAt: editorPage.updatedAt, savedByPrincipalId: "previous-editor",
+  };
+  const clearStandingDraft = vi.fn<typeof baseline.clearStandingDraft>(async () => ({ discarded: false }));
+  binding.hooks.useStandingDraftAutosave = () => ({ ...baseline, recoverableDraft: draft, clearStandingDraft });
+  const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(result.current.page).toEqual(editorPage));
+  await act(() => result.current.discardRecoveredDraft());
+  expect(clearStandingDraft.mock.calls).toEqual([[{}, { keepOnFailure: true }]]);
+  expect(result.current.recoverableDraft).toEqual(draft);
+  expect(result.current.error).toBe("Could not discard the recovered draft. It is still saved and the banner is still here, so you can try Discard again or Restore it.");
+  expect(result.current.html).toBe("<p>saved</p>");
+});
+
+test("a first Save after an unreported canvas edit persists it even when the next flush has nothing new", async () => {
+  const binding = editorBinding();
+  const { result } = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
+  await waitFor(() => expect(result.current.page).toEqual(editorPage));
+  act(() => result.current.setView("interactive"));
+  expect(result.current.dirty).toBe(false);
+  const flush = vi.fn<() => Promise<string | undefined>>(async () => undefined)
+    .mockResolvedValueOnce("<p>Last editor keystroke</p>");
+  result.current.interactiveEditorRef.current = { flush };
+
+  await act(async () => { result.current.onSave(); });
+  await waitFor(() => expect(result.current.saving).toBe(false));
+  expect(result.current.confirmingUnchangedSave).toBe(false);
+  expect(binding.port.updatePageHtml).toHaveBeenCalledExactlyOnceWith({
+    id: "page-id", html: "<p>Last editor keystroke</p>", expectedVersion: 4,
+  });
+  expect(result.current.dirty).toBe(false);
 });

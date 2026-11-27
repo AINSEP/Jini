@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { act, cleanup, render, renderHook, screen, waitFor } from "./harness.js";
@@ -58,6 +59,24 @@ describe("FormSubmissionDetail rendering", () => {
     expect(screen.getByText('Exact consent — Original help')).toBeVisible();
     expect(screen.getByText('a'.repeat(64))).toBeVisible();
     expect(screen.queryByText('original schema/consent unavailable')).toBeNull();
+  });
+
+  it("keeps delete disabled while the selected submission is being moved to trash", async () => {
+    const user = userEvent.setup();
+    const requestDelete = vi.fn();
+    const onBack = vi.fn();
+    const view = render(<FormSubmissionDetail {...props} onBack={onBack}
+      useFormSubmissionDetailHook={hook({ submission, deleting: true, requestDelete })} />);
+    const remove = screen.getByRole("button", { name: "Delete submission" });
+    expect(remove).toBeDisabled();
+    await user.click(remove);
+    expect(requestDelete.mock.calls).toEqual([]);
+    view.rerender(<FormSubmissionDetail {...props} onBack={onBack}
+      useFormSubmissionDetailHook={hook({ submission, deleting: false, requestDelete })} />);
+    await user.click(remove);
+    expect(requestDelete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "click" }));
+    await user.click(screen.getByRole("button", { name: "Back to submissions" }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it("shows only the load error while there is no submission", () => {

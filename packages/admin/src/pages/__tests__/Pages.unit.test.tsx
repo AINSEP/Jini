@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -63,12 +64,12 @@ function controller(): PagesController<PageListRow> {
   };
 }
 
-function renderPages() {
+function renderPages(usePagesHook = controller) {
   const kit = fakeAdminKit();
   const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
   return render(
     <Pages
-      usePagesHook={controller}
+      usePagesHook={usePagesHook}
       useThemePagesHook={() => ({ pageCount: 7 })}
       ThemePagesTab={({ controller: theme }) => <p>theme-tab:{theme.pageCount}</p>}
       PublishSectionButton={({ section }) => <span data-testid="publish-section">{section}</span>}
@@ -105,4 +106,16 @@ describe("Pages — injected host seams", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Theme Pages" }));
     expect(screen.getByText("theme-tab:7")).toBeInTheDocument();
   });
+});
+
+it("names the exact page in its trash confirmation and clears selection on cancel", async () => {
+  const t = (key: string) => key;
+  const user = userEvent.setup();
+  const props = { ...controller(), t, pendingDelete: { ...PAGE, title: "Contact & support" }, setPendingDelete: vi.fn() };
+  renderPages(() => props);
+  const dialog = within(screen.getByRole("dialog", { name: "Move to trash?" }));
+  expect(dialog.getByText('Move "Contact & support" to trash? It will disappear from the site and from this list.')).toBeVisible();
+  await user.click(dialog.getByRole("button", { name: "Cancel" }));
+  expect(props.setPendingDelete.mock.calls).toEqual([[null]]);
+  expect(props.removePage).not.toHaveBeenCalled();
 });

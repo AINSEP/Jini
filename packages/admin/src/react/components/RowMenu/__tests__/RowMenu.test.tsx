@@ -451,3 +451,14 @@ describe('RowMenu agent handles', () => {
     ]);
   });
 });
+
+it('does not dismiss on Escape already prevented by another control', () => {
+  const { trigger, list } = renderMenu();
+  fireEvent.click(trigger());
+  const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true, bubbles: true });
+  escape.preventDefault();
+  fireEvent(document, escape);
+  expect(screen.getByRole('menu')).toBeVisible();
+  expect(trigger()).toHaveAttribute('aria-expanded', 'true');
+  for (const item of list) expect(item.onSelect).not.toHaveBeenCalled();
+});

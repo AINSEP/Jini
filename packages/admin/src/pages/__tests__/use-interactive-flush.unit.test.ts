@@ -162,3 +162,15 @@ describe("scriptblocks source integrity flush", () => {
     expect(setHtml).toHaveBeenCalledWith(`<section data-kui><div data-embed-config='{"type":"widget","slug":"contact"}'></div></section>`);
   });
 });
+
+it("leaves the working copy and log untouched when a mounted canvas reports no edits", async () => {
+  const setHtml = vi.fn();
+  const localLogger = { warn: vi.fn() };
+  const { result } = renderHook(() => useHookUnderTest({ setHtml, isEditorSourceError, normalizeEmbedMarkerQuoting, logger: localLogger }));
+  const flush = vi.fn(async () => undefined);
+  result.current.interactiveEditorRef.current = { flush };
+  await expect(result.current.flushInteractiveEdits()).resolves.toBeUndefined();
+  expect(flush.mock.calls).toEqual([[]]);
+  expect(setHtml.mock.calls).toEqual([]);
+  expect(localLogger.warn.mock.calls).toEqual([]);
+});

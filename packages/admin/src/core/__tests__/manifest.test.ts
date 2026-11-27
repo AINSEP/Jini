@@ -249,3 +249,29 @@ it('published screens require a typed purpose, tolerate legacy panels and derive
   expect(buildAgentScreens({ panels: [p('pages', { description: 'Edit pages.', routes: [{ pattern: '/:slug', view: 'editor' }], agentEntities: [{ type: 'page', pattern: '/:slug' }] })] }, { defaultReachable: true }))
     .toEqual([{ id: 'pages', label: 'Pages', description: 'Edit pages.', path: '/pages', routeTemplates: ['/pages', '/pages/:slug'], allowedQueryParams: {}, entityTargets: [{ type: 'page', routeTemplate: '/pages/:slug' }] }]);
 });
+
+it('uses the host mount path for inherited route templates and withholds parent entity targets from secondary destinations', () => {
+  const record = p('library', {
+    description: '  Curate library entries.  ',
+    nav: { label: 'Media Library' },
+    routes: [
+      { pattern: '/drafts', view: 'drafts', agentPageId: 'library-drafts' },
+      { pattern: '/:item', view: 'detail' },
+    ],
+    agentEntities: [{ type: 'entry', pattern: '/:item' }],
+  });
+  const screens = buildAgentScreens({ panels: [record] }, {
+    defaultReachable: true, paths: { library: '/studio/media?tab=all', 'library-drafts': '/studio/drafts?state=open' },
+  });
+  expect(screens).toEqual([
+    {
+      id: 'library', label: 'Media Library', description: 'Curate library entries.', path: '/studio/media?tab=all',
+      routeTemplates: ['/studio/media', '/studio/media/drafts', '/studio/media/:item'], allowedQueryParams: {},
+      entityTargets: [{ type: 'entry', routeTemplate: '/studio/media/:item' }],
+    },
+    {
+      id: 'library-drafts', label: 'Library Drafts', description: 'Curate library entries.', path: '/studio/drafts?state=open',
+      routeTemplates: ['/studio/drafts', '/studio/media/drafts', '/studio/media/:item'], allowedQueryParams: {}, entityTargets: [],
+    },
+  ]);
+});

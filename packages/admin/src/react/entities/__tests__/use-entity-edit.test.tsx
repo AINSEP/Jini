@@ -152,3 +152,22 @@ describe('useEntityEdit', () => {
     expect(f.routes.navigate).toHaveBeenCalledWith({ entity: 'items', id: 'created' });
   });
 });
+
+it('suppresses pending status, errors and navigation when a rejected save belongs to the previous row', async () => {
+  const f = fixture();
+  let reject!: (error: unknown) => void;
+  const slow = new Promise<AdminEntityRowData>((_resolve, fail) => { reject = fail; });
+  vi.mocked(f.port.update).mockReturnValueOnce(slow);
+  const { result, rerender } = f.mount('a');
+  await waitFor(() => expect(result.current.form?.draft.title).toBe('Alpha'));
+  let saving!: Promise<void>;
+  act(() => { saving = result.current.save(); });
+  expect(result.current.pending).toBe('save');
+  rerender({ id: 'b' });
+  await waitFor(() => expect(result.current.form?.draft.title).toBe('Bravo'));
+  await act(async () => { reject(new Error('Alpha could not be saved')); await saving; });
+  expect(result.current.pending).toBeNull();
+  expect(result.current.failure).toBeNull();
+  expect(result.current.form?.draft.title).toBe('Bravo');
+  expect(f.routes.navigate.mock.calls).toEqual([]);
+});

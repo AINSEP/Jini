@@ -127,3 +127,47 @@ describe("useVisitorCredentialForm (engine seam)", () => {
     expect(writes).toHaveLength(2);
   });
 });
+
+it("keeps independent save failures visible and never commits either failed write", async () => {
+  const { port, writes } = fakePort();
+  const setAssistantSiteCredential = vi.fn<VisitorCredentialFormPort["setAssistantSiteCredential"]>(async () => { throw new Error("store offline"); });
+  const { result } = await mount(deps({ ...port, setAssistantSiteCredential }));
+  act(() => result.current.editConfig({ ...result.current.config, apiKey: "  ", model: "mine" }));
+  await act(() => result.current.saveKey());
+  expect(setAssistantSiteCredential.mock.calls).toEqual([]);
+  act(() => result.current.editConfig({ ...result.current.config, apiKey: "  test-key  " }));
+  await act(() => result.current.saveKey());
+  expect(result.current.saveState).toEqual({ status: "error", message: "api:store offline" });
+  expect(result.current.settingsSaveState).toEqual({ status: "idle" });
+  expect(result.current.config.apiKey).toBe("  test-key  ");
+  await act(() => result.current.saveSettings());
+  expect(result.current.settingsSaveState).toEqual({ status: "error", message: "api:store offline" });
+  expect(result.current.dirty).toBe(true);
+  expect(result.current.hasStoredKey).toBe(false);
+  expect(setAssistantSiteCredential.mock.calls).toEqual([
+    [{ apiKey: "test-key" }],
+    [{ provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "mine" }],
+  ]);
+  expect(writes).toEqual([]);
+});
+
+it("keeps a successful connection result when refreshing model discovery fails", async () => {
+  const { port } = fakePort();
+  const listModels = vi.fn<NonNullable<ExecutionPort["listModels"]>>(async () => { throw new Error("models not available"); });
+  const testConnection = vi.fn<ExecutionPort["testConnection"]>(async () => ({ ok: true, message: "Connected" }));
+  const { result } = await mount(deps(port, { createExecutionPort: () => ({ testConnection, listModels }) }));
+  const custom = { ...result.current.config, apiKey: "test-key", baseUrl: "https://manual-provider.test/v1", model: "mine" };
+  act(() => result.current.editConfig(custom));
+  await act(() => result.current.runKeyTest());
+  expect(result.current.discovery).toEqual({ status: "error", message: "models not available" });
+  listModels.mockClear();
+  await act(() => result.current.runTestConnection());
+  expect(result.current.connectionTest).toEqual({ status: "ok", message: "Connected" });
+  expect(result.current.discovery).toEqual({ status: "error", message: "models not available" });
+  expect(testConnection.mock.calls).toEqual([[custom]]);
+  expect(listModels.mock.calls).toEqual([[custom]]);
+  testConnection.mockRejectedValueOnce(new Error("connection refused"));
+  await act(() => result.current.runTestConnection());
+  expect(result.current.connectionTest).toEqual({ status: "error", message: "connection refused" });
+  expect(listModels.mock.calls).toEqual([[custom]]);
+});

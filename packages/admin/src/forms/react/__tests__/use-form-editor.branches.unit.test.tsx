@@ -159,3 +159,30 @@ describe("useWiredFormEditor", () => {
     expect(writeText).toHaveBeenCalledTimes(1);
   });
 });
+
+it("surfaces a create refusal without navigating or losing the form draft", async () => {
+  const api = createMemoryFormsApi({});
+  const refusal = new AdminApiError({ message: "This slug is already in use", status: 409 });
+  const createFormDefinition = vi.fn<AdminFormsPort["createFormDefinition"]>(async () => { throw refusal; });
+  const { result, navigate } = mount({ ...api, createFormDefinition }, "new");
+  act(() => { result.current.editor.setName("Reservations"); result.current.editor.setSlug("reservations"); });
+  await act(() => result.current.editor.handleSave());
+  expect(result.current.editor).toMatchObject({ name: "Reservations", slug: "reservations", saving: false, error: "This slug is already in use" });
+  expect(createFormDefinition.mock.calls).toEqual([[
+    { name: "Reservations", slug: "reservations", fields: [{ id: "", label: "", type: "text", required: false }] },
+    { notify: { enabled: false, recipients: [] } },
+  ]]);
+  expect(navigate.mock.calls).toEqual([]);
+});
+
+it("keeps an existing form editable when its host cannot discover collection providers", async () => {
+  const { listFormProviders: _notSupported, ...api } = createMemoryFormsApi({}, { forms: [stored()] });
+  const { result } = mount(api);
+  await waitFor(() => expect(result.current.editor.providersError).toBe(
+    "Could not load form providers: The settings service did not respond. Try opening this editor again.",
+  ));
+  await waitFor(() => expect(result.current.editor.form?.id).toBe("f1"));
+  expect(result.current.editor.error).toBeNull();
+  expect(result.current.editor.providers).toBeUndefined();
+  expect(result.current.editor.name).toBe("Contact");
+});

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminPolicy, AdminRole } from "@jini-ai/core/contracts/site/user-management-react";
-import { roleMenuItems, policyMenuItems } from "../rules.js";
+import { describeApiError, roleMenuItems, policyMenuItems } from "../rules.js";
 import { t } from "../roles-i18n.js";
 
 /**
@@ -318,4 +318,16 @@ describe("policyMenuItems", () => {
     });
     expect(openItems[1]!.label).toBe("Cerrar");
   });
+});
+
+it("sends a typed error with no code and an unfamiliar code to the host's default describer", () => {
+  const describeDefault = vi.fn(() => "Host diagnostic");
+  const isApiError = (e: unknown): e is Error & { code?: string } => e instanceof Error;
+  const errors = { isApiError, describeDefault };
+  const missing = new Error("Missing code");
+  const unfamiliar = Object.assign(new Error("Unfamiliar code"), { code: "NEW_FAILURE" });
+  for (const e of [missing, unfamiliar]) {
+    expect(describeApiError({ e, locale: "es", fallback: "No se guardó", errors })).toBe("Host diagnostic");
+  }
+  expect(describeDefault.mock.calls).toEqual([[{ e: missing, fallback: "No se guardó" }], [{ e: unfamiliar, fallback: "No se guardó" }]]);
 });
