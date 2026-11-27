@@ -586,6 +586,9 @@ test("readiness retries a failed discovery read and reuses the ready child", asy
   try {
     const work = h.supervisor.ensureReady({});
     assert.deepEqual(reads, [100]);
+    // The rejected read settles through the async readiness wrapper over several microtask
+    // turns; let it schedule its retry at t=0 before the fake clock moves.
+    await new Promise<void>(resolve => { setImmediate(resolve); });
     await h.tick(249);
     assert.equal(h.supervisor.isReady(), false);
     assert.deepEqual(reads, [100]);
