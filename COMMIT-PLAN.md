@@ -1,0 +1,63 @@
+# Y5 content round 2 — Jini working-tree handoff
+
+Base: `74c7cabb9`, merging round-one `7aaabde33` with final merge-25 Jini `948f772f1`. Coordinator's G0 is satisfied. Tovu reference: `e2655d7e04` (same code as `48f6802924`).
+
+Jini only. No subagents, git mutations, Tovu writes, installs, builds, tests, typechecks or linters. All new changes are uncommitted. Characterization tests were edited before their production changes. Every mutation below remains UNEXECUTED for Opus; no red/green claim is made.
+
+## Ordered design commits / sheet status
+
+Rows marked inherited were already in HEAD; do not recommit them. New coordinator commits, in sheet order, are Taxonomy, Source control, and Recovery.
+
+1. **Desktop — Jini implementation/tests inherited.** `packages/desktop-host/src/electron/__tests__/memory-sampler.test.ts` has five cases for partial/failed/zero native reads, Windows committed bytes, and mixed grouping. Existing source and desktop export unchanged; patch changeset omitted as allowed. Mutation `drop-partial-fallback`: omit a PID missing from native readings; partial-read row assertion must fail. Tovu still must repoint both desktop-resources imports and delete the duplicate.
+
+2. **Taxonomy — round-2 correction built.** Changed `packages/cms/src/taxonomy/agent-tools.ts`, `__tests__/agent-tools.test.ts`, `__tests__/tool-registrations.test.ts`; created `.changeset/y5-taxonomy-read-catalog.md`. Factory now has the exact required `{ termListToolId }` signature and uses `CONTENT_TYPE_SCHEMA` directly. Base catalog and descriptor order retained; removed the superseded introspection guard. Tests compare both exact descriptions, injected guidance, base/full catalog, handler coverage, and assignment/read schemas. Test declarations: 6 → 8 and 9 → 10. Mutation `widen-assigned-content-type-schema`: remove read-schema `minLength` while preserving assignment schema; equality assertions must fail. Existing `@jini-ai/cms/taxonomy` export was already wired in round one.
+
+3. **Vendor credentials — inherited.** `packages/integrations/src/vendor-credentials/vault-adapter.ts`, `__tests__/vault-adapter.bindings.test.ts`, `.changeset/y5-credential-vault-bindings.md`. Existing entry adds `bindCredentialVaultAdapters`; five tests. Mutation `drop-owner-scope-check`: bypass owner authorization/projection check; foreign-owner read/open test must fail. No additional round-2 edits.
+
+4. **Trash — inherited.** `packages/user-management/src/identity/sql/{kernel-user-trash-store,user-trash-adapter}.ts`, `sql/__tests__/kernel-user-trash-store.test.ts`, `src/__tests__/{package-entries.test,user-management-rename.contract.test}.ts`; `packages/cms/src/trash/{index,visibility,trash-item-tool}.ts`, `__tests__/y5-trash-bindings.test.ts`; `.changeset/y5-trash-bindings.md`. Four SQL-store and five CMS cases. Existing entries expose `bindKernelUserTrashAdapter`, `bindTrashVisibility`, and `bindTrashItemTool`. Mutations `remove-user-status-cas` (drop SQL expected-status predicate) and `purge-active-user` (drop active-user purge refusal) must fail stale-marker and active-purge assertions respectively. Round-one report's unrelated user-management rename-contract inventory drift remains outside this sheet; no broad expectation changes made.
+
+5. **Site export — inherited minimal move.** `packages/devops/src/static-export/site/site-exporter.ts`, `__tests__/site-exporter.bindings.test.ts`, `.changeset/y5-site-export-bindings.md`. Existing entry exposes `selectDeclaredThemeScripts`; three cases. Mutation `allow-protocol-relative-script`: drop `!src.startsWith('//')`; selected-script assertion must fail. No second export binder added.
+
+6. **Source control — round-2 binder built.** Changed `packages/devops/src/source-control/site/tool-registrations.ts` and `__tests__/tool-bindings.test.ts`. `bindSourceControlTools` injects one required policy/credential/provider bag into the existing internal credential adapter, direct registrations and contributor path. Existing call shapes remain. It adds only the named factory, with no helper or restructuring; target is exactly 500 physical lines. The four existing characterization cases now use the binder; contributor/direct catalog parity is also asserted. Mutation `commit-on-dry-run`: bypass dry-run return; zero-commit assertion must fail. Round one's `agent-tools.ts`, devops manifest entry and `.changeset/y5-source-control-tools.md` are retained. Existing registrations entry now exports `bindSourceControlTools`.
+
+7. **Entries — inherited.** `packages/cms/src/entries/site/publish-content.ts`, `__tests__/publish-content.test.ts`, CMS manifest, `.changeset/y5-collection-entry-publish.md`; four cases. Mutation `validate-terms-after-import`: move term preparation after entry import; no-entry-write assertions must fail. New contributor has required excluded types and the narrow collection-entry bag.
+
+8. **Media — inherited.** `packages/cms/src/media/site/publish-content.ts`, `__tests__/publish-content.test.ts`, `.changeset/y5-media-publish-binding.md`. Existing entry exposes `bindMediaPublishContributor`; three added cases plus existing baseline case. Mutation `admit-library-document`: bypass Library refusal; error/no-write assertions must fail. Error identities and absent-version behavior retained.
+
+9. **Media generation — inherited.** `packages/cms/src/media/site-generation/tool-registrations.ts`, `__tests__/tool-bindings.test.ts`, `.changeset/y5-media-generation-bindings.md`; three cases. Existing entry exposes `bindMediaGenerationTools`. Mutation `env-before-saved`: choose env credentials before saved credentials; saved-key/zero-env assertions must fail. No package edge added.
+
+10. **Media import — inherited.** `packages/cms/src/media/site-import/bindings.ts`, `__tests__/bindings.test.ts`, CMS manifest, `.changeset/y5-media-import-bindings.md`; five cases. Exposes `bindMediaImportTools`, including legacy shape/refusal/path operations and shared persistence. Mutation `emit-full-egress-refusal`: propagate the operator error rather than the caller-safe typed error; synthetic redaction assertion must fail. No theme changes.
+
+11. **Recovery — round-2 binder built.** Changed `packages/db/src/recovery/tool-registrations.ts`, `__tests__/tool-bindings.test.ts`, `__tests__/tool-registrations.test.ts`; created `.changeset/y5-recovery-tool-bindings.md`. Existing entry exposes `bindRecoveryTools`. Required inputs include raw gateway plan/confirm/execute, host-bound `buildRestoreHooks`, `toRecoveryResult`, human-confirm operation, dialog copy, permissions/catalog/metadata, authorization, strict-keys guard and shared operation lock. `refuseUnexpectedKeys` moved from every deps bag to the host. The existing restore run builds hooks once before confirm and passes the same object to confirm and execute; no cache, default surface store, extra connection or orchestration path. Direct legacy host fixtures supply the new required seams. Five binding cases now run through the factory; eight existing registration cases retained. Assertions cover exact dialog formatting, authorization, missing/malformed inputs, cancellation, reviewed plan/hash, hook identity/count, human confirmation and agent execution under the shared lock. Mutation `confirm-as-agent`: pass agent kind to gateway confirmation; actor ordering/kind assertions must fail.
+
+12. **Post — implementation inherited; standalone Postgres test step STOPPED.** Existing code: `packages/cms/src/posts/{repo.memory,post-tool-policy,preview-tool}.ts`, `sql/{repo.rows,repo,revision-thinning,revision-refs}.ts`; tests `__tests__/y5-post-bindings.test.ts`, `sql/__tests__/y5-post-repo.test.ts`; CMS manifest and `.changeset/y5-post-content.md`. Twelve characterization cases inherited. `revision-thinning.ts` and `revision-refs.ts` already use `StorageKernel<Kysely<unknown>, unknown>` and local table views; conditional type repair is unnecessary, so no second kernel-type change. Mutation `skip-post-revision-fence`: remove `appendRevision`'s lock; the existing two-connection Tovu test must fail, in addition to the Jini SQLite lock assertion. The real Tovu test is retained at `features/post/__tests__/repo.postgres.test.ts`, test “two connections: a concurrent appendRevision waits for the open one and chains after it”. Its host factory/kernel call sites still need the sheet's Tovu-side repointing. A new standalone Jini copy cannot be added within current prerequisites: `@jini-ai/db/kernel/postgres` requires an injected `pg` module, CMS declares no `pg`, and `@jini-ai/db/testing/pg-fixture` exports only subprocess SQL/database operations, not an injectable driver. No dependency intake or replacement test fixture is authorized; no substitute concurrency proof was fabricated.
+
+## Export paths / Tovu handoff
+
+The six new leaves from round one are present with matching types/import/default exports and runtime rows:
+
+- `@jini-ai/cms/entries/site/publish-content` — universal
+- `@jini-ai/cms/media/site-import/bindings` — universal
+- `@jini-ai/cms/posts/repo.memory` — universal
+- `@jini-ai/cms/posts/sql/repo.rows` — node
+- `@jini-ai/cms/posts/sql/repo` — node
+- `@jini-ai/devops/source-control/site/agent-tools` — universal
+
+New round-2 symbols on existing paths:
+
+- `@jini-ai/devops/source-control/site/tool-registrations`: `bindSourceControlTools`
+- `@jini-ai/db/recovery/tool-registrations`: `bindRecoveryTools`
+- `@jini-ai/cms/taxonomy`: corrected `createTaxonomyAgentToolCatalog({ termListToolId })`
+
+All other round-one binder/policy/preview/thinning symbols remain. Tovu must complete the sheet's deletions, bindings and importer updates, including supplying explicit Recovery surfaces, using the same migration/recovery lock instance, and retaining/repointing its real Postgres append test. No Tovu MOVE is counted DONE here; `plans/count-1125/y5-content-keeps.md` stays empty until final Tovu files are reread. No recount run.
+
+## Final review and remaining evidence
+
+- New changes: eight existing files plus two changesets; root COMMIT-PLAN is handoff-only and must not be committed.
+- New test declarations this round: three. Existing affected files' counts: Taxonomy 6→8 and 9→10, Source control 4→4, Recovery binding 5→5 and registrations 8→8. No tests deleted or weakened. No test, mutation, runtime or compile result is claimed.
+- Deletions during review: removed the superseded Taxonomy schema-introspection guard; removed obsolete direct plan/confirm/execute/describe fakes from the Recovery binding fixture after routing it through the real binder; removed redundant newly introduced blank lines. No production behavior was dropped, no pre-existing tests removed, no thresholds/suppressions changed.
+- Static architecture audit: WARNING (execution evidence pending). Round-2 production changes add only core type imports / own-package type imports, no dependency or peer edge, no host/vendor/node runtime import, no theme/route/tool activation, no catch/fallback/retry/cache. New production units are Taxonomy factory (17 lines), Source control binder (3 lines) and Recovery binder (41 lines), within the owner's cap; file lengths are 250, 500 and 368 respectively. Moved actor-attribution why-comment retained verbatim. Required actor/lock and deferred read order were compared against the pinned Tovu source.
+- Existing test-contract risk for Opus: `packages/db/src/recovery/__tests__/tool-registrations.test.ts`'s malformed-confirm-result case expects rejection before execute, while the inherited run casts the gateway value and the fixture execute accepts an absent token. No runtime result is asserted; no unrequested defensive validation was added and that assertion was not weakened.
+- Function review: catalog construction is a fixed-size pure mapping; Source control binding only composes existing functions; Recovery binding adds a constant-size per-registration host object and reuses the existing ceremony. All new behavior has direct schema/registration/gateway output assertions. No new recurring work, retention or unbounded query was introduced. Runtime/compile correctness remains UNVERIFIED.
+- Pre-completion evidence: reread active overrides, named source/fixtures and final diffs; inspected export/runtime rows, source line counts and test declaration deltas with read-only commands. Tests/builds/typechecks/linters/self-validation deliberately NOT RUN by dispatch.
+- NEEDS-OPUS: execute all sheet tests and named mutations with revert; complete existing Tovu two-connection wiring and run it against real Postgres, or explicitly authorize a declared driver fixture for a standalone Jini copy. No REJECT sheets and no G0 wait remain.
