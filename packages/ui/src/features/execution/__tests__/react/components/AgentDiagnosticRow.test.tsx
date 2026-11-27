@@ -37,7 +37,7 @@ describe('AgentDiagnosticRow', () => {
 
   it('renders no action strip when nothing resolves, and with no handlers at all', () => {
     const { container } = render(
-      <AgentDiagnosticRow diagnostic={{ ...base, fixActions: [{ kind: 'setEnv', envKey: 'CODEX_BIN' }, { kind: 'openDocs' }] }} useTHook={useKeyT} />,
+      <AgentDiagnosticRow diagnostic={{ ...base, fixActions: [{ kind: 'setEnv', envKey: 'CODEX_BIN' }, { kind: 'openDocs' }, { kind: 'rescan' }, { kind: 'openInstall' }] }} useTHook={useKeyT} />,
     );
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(container.querySelector('.jini-agent-diagnostic-actions')).toBeNull();

@@ -90,6 +90,12 @@ describe('createFakeMediaProviderRowsPort', () => {
       .resolves.toEqual({ a: { baseUrl: 'https://a.test' } });
   });
 
+  it('with no options manages nothing yet, but is reachable', async () => {
+    const port = createFakeMediaProviderRowsPort();
+    await expect(port.fetchMediaProviders()).resolves.toEqual({});
+    await expect(port.patchProvider({ providerId: 'a', fields: { model: 'm' } })).resolves.toEqual({ a: { model: 'm' } });
+  });
+
   it('a rejected batch persists none of its changes', async () => {
     const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true } }, saveError: 'store is down' });
     await expect(port.applyProviderChanges({ removes: ['a'], patches: [{ providerId: 'b', fields: { model: 'm' } }] })).rejects.toThrow('store is down');

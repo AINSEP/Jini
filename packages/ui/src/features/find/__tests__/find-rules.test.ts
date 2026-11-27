@@ -380,3 +380,9 @@ test('shouldKeepReclaimingFindFocus: every frame from issuing a find until it re
     'a find that never reports cannot pin focus forever',
   );
 });
+
+test('findBarReducer: an action type outside the union (an untyped caller) yields undefined, as falling off the switch did', () => {
+  const unknownAction: Parameters<typeof findBarReducer>[1] = JSON.parse('{"type":"reopen"}');
+  assert.equal(findBarReducer(initialFindBarState, unknownAction), undefined);
+  assert.deepEqual(findBarReducer(initialFindBarState, { type: 'toggle' }), { ...initialFindBarState, open: true, focusNonce: 1 });
+});
