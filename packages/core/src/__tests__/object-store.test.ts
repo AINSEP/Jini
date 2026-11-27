@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
   createObjectStoreRegistry, DEFAULT_OBJECT_STORE_PROVIDER_ID, OBJECT_STORE_CONTRACT, objectStoreProviderFault,
-  type ObjectStore, type ObjectStoreProvider,
+  type ObjectStore, type ObjectStoreProvider, type StagedObjectWriter,
 } from '../object-store.js';
 import { providerOk, ProviderRegistryError } from '../provider-registry.js';
 
@@ -60,4 +60,23 @@ test('deferObjectStore loads once on first use, forwards every call, and retries
   assert.equal(loads, 2, 'the failed load was retried once, then kept');
   assert.deepEqual(calls, ['put:a:true', 'get:a', 'head:a', 'delete:a']);
   assert.equal(deferred.publicAccess, undefined);
+});
+
+test('deferObjectStore forwards staged writes when supported and otherwise reports no writer', async () => {
+  const { deferObjectStore } = await import('../object-store.js');
+  const { signal } = new AbortController();
+  const options = { signal };
+  const writer: StagedObjectWriter = async () => {};
+  const resolveCalls: unknown[][] = [];
+  const withStaging = deferObjectStore({ load: async () => ({
+    ...store,
+    resolveStagedWriter: async (input, callOptions) => {
+      resolveCalls.push([input, callOptions]);
+      return writer;
+    },
+  }) });
+  const withoutStaging = deferObjectStore({ load: async () => store });
+  assert.equal(await withStaging.resolveStagedWriter?.({}, options), writer);
+  assert.deepEqual(resolveCalls, [[{}, options]]);
+  assert.equal(await withoutStaging.resolveStagedWriter?.({}, options), undefined);
 });

@@ -36,3 +36,15 @@ it('forwards status-store rejection before either reply', async () => {
   expect(readStatus).toHaveBeenCalledTimes(1); expect(failure).toHaveBeenCalledWith(error);
   expect(serve).not.toHaveBeenCalled(); expect(blocked).not.toHaveBeenCalled();
 });
+
+it('serves public traffic while a migration is only pending', async () => {
+  const readStatus = vi.fn(async () => 'PENDING_MIGRATION' as const);
+  const serve = vi.fn();
+  const blocked = vi.fn();
+  const failure = vi.fn();
+  await dispatchSiteServingGate({ path: '/news', exactPaths: new Set(), prefixes: [], readStatus, serve, blocked, failure });
+  expect(readStatus.mock.calls).toEqual([[]]);
+  expect(serve.mock.calls).toEqual([[]]);
+  expect(blocked.mock.calls).toEqual([]);
+  expect(failure.mock.calls).toEqual([]);
+});

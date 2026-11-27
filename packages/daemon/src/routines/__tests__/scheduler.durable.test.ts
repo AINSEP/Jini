@@ -186,3 +186,139 @@ describe('durable routine slots', () => {
     expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(boot + hour); f.service.stop({});
   });
 });
+
+it('refuses a manual run before owning the lease and permits it after acquiring the lease', async () => {
+  const f = fixture();
+  try {
+    await expect(f.service.runNow({ routineId: 'r' })).rejects.toMatchObject({ apiError: {
+      code: 'SERVICE_UNAVAILABLE', message: 'Routine lease lost', details: { reason: 'ROUTINES_UNAVAILABLE' },
+    } });
+    expect(f.handler).not.toHaveBeenCalled();
+    f.service.start({});
+    await f.service.whenReady();
+    expect(await f.service.runNow({ routineId: 'r' })).toMatchObject({ conversationId: 'c' });
+    expect(f.runs).toMatchObject([{ routineId: 'r', trigger: 'manual', status: 'running' }]);
+  } finally { f.service.stop({}); }
+});
+
+it('stop completes a waiting drain without leaving it blocked until the timeout', async () => {
+  const f = fixture();
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    await f.service.runNow({ routineId: 'r' });
+    const pendingRunIds = f.runs.map(({ id }) => id);
+    expect(pendingRunIds).toEqual(['1']);
+    const drained = vi.fn();
+    const drain = f.service.drainActive({}, { timeoutMs: 2000 });
+    void drain.then(drained);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(drained).not.toHaveBeenCalled();
+    f.service.stop({});
+    await Promise.resolve();
+    expect(drained.mock.calls).toEqual([[{ drained: false, pendingRunIds }]]);
+    expect(f.service.leaseState()).toBe('stopped');
+  } finally { f.service.stop({}); }
+});
+
+it('leaves an exhausted slot unclaimed and rearms from storage after the retry backoff', async () => {
+  const f = fixture();
+  f.routine.nextRunAt = boot;
+  const claim = vi.mocked(f.persistence.claimDueSlot);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    claim.mockImplementationOnce(() => { throw new Error('temporary write failure'); });
+  }
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(claim).toHaveBeenCalledTimes(1);
+    for (const [index, delay] of [1000, 2000, 4000, 8000, 16000].entries()) {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(claim).toHaveBeenCalledTimes(index + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(claim).toHaveBeenCalledTimes(index + 2);
+    }
+    expect(f.log.mock.calls).toEqual([['ROUTINE_SLOT_PERSIST_FAILED', 'Error']]);
+    expect(f.runs).toEqual([]);
+    expect(f.routine.nextRunAt).toBe(boot);
+    await vi.advanceTimersByTimeAsync(299_999);
+    expect(claim).toHaveBeenCalledTimes(6);
+    await vi.advanceTimersByTimeAsync(1001);
+    expect(claim).toHaveBeenCalledTimes(7);
+    expect(f.runs).toMatchObject([{ routineId: 'r', trigger: 'scheduled', slotAt: boot }]);
+    expect(f.start).toHaveBeenCalledOnce();
+  } finally { f.service.stop({}); }
+});
+
+it('restarts slot reconciliation after quiescing without claiming the still-owned lease again', async () => {
+  const f = fixture();
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(boot + hour);
+    f.service.quiesce();
+    expect(f.service.nextRunAt({ routineId: 'r' })).toBeNull();
+    expect(f.service.leaseState()).toBe('owner');
+    f.service.start({}, { reason: 'enable' });
+    expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(boot + hour);
+    expect(f.persistence.acquireLease).toHaveBeenCalledExactlyOnceWith({ holderId: 'a', now: boot, ttlMs: 90_000 }, {});
+  } finally { f.service.stop({}); }
+});
+
+it('fences an expired owner on wake if another holder has already acquired its lease', async () => {
+  const f = fixture();
+  f.routine.nextRunAt = boot + 10_000;
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    vi.setSystemTime(boot + 90_001);
+    expect(f.persistence.acquireLease({ holderId: 'peer', now: Date.now(), ttlMs: 90_000 }, {})).toBe(true);
+    await f.service.reconcile({ reason: 'wake' });
+    expect(f.service.leaseState()).toBe('passive');
+    expect(f.service.nextRunAt({ routineId: 'r' })).toBeNull();
+    expect(f.log.mock.calls).toEqual([['ROUTINES_LEASE_LOST', { holderId: 'a' }]]);
+    expect(f.routine.nextRunAt).toBe(boot + 10_000);
+    expect(f.handler).not.toHaveBeenCalled();
+    expect(f.runs).toEqual([]);
+  } finally { f.service.stop({}); }
+});
+
+it('uses the persisted winner’s slot when seeding loses a compare-and-set race', async () => {
+  const f = fixture();
+  f.routine.nextRunAt = null;
+  const winner = boot + 2 * hour;
+  const setNextRunAt = vi.spyOn(f.persistence, 'setNextRunAt').mockImplementationOnce(() => {
+    f.routine.nextRunAt = winner;
+    return false;
+  });
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    expect(setNextRunAt.mock.calls).toEqual([[{
+      routineId: 'r', expected: null, nextRunAt: boot + hour, holderId: 'a', now: boot,
+    }, {}]]);
+    expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(winner);
+    expect(f.handler).not.toHaveBeenCalled();
+  } finally { f.service.stop({}); }
+});
+
+it('reports an ordinary run-handler failure without treating it as a persistence retry', async () => {
+  const f = fixture();
+  f.routine.nextRunAt = boot;
+  f.handler.mockRejectedValueOnce(new TypeError('preparation failed'));
+  f.service.start({});
+  try {
+    await f.service.whenReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.log.mock.calls).toEqual([['ROUTINE_RUN_FAILED', 'TypeError']]);
+    expect(f.persistence.claimDueSlot).not.toHaveBeenCalled();
+    expect(f.runs).toEqual([]);
+    // A subsequent edit, rather than a persistence retry, may replace this slot.
+    f.routine.nextRunAt = boot + hour;
+    f.service.rescheduleOne({ routineId: 'r' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(f.handler).toHaveBeenCalledOnce();
+    expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(boot + hour);
+  } finally { f.service.stop({}); }
+});

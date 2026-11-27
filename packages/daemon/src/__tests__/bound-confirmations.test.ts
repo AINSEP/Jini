@@ -269,3 +269,29 @@ test('gate: every digest goes through the injected crypto port, never the global
     assert.equal(globalDigest.mock.calls.length, 0);
   } finally { globalDigest.mockRestore(); }
 });
+
+test('gate: a snapshot read fault after approval consumes the grant and reports the original failure', async () => {
+  const failure = new Error('snapshot storage unavailable');
+  let failReads = false;
+  const f = gateFixture({ readSnapshot: async () => {
+    if (failReads) throw failure;
+    return { revision: 1 };
+  } });
+  await f.approve('a');
+  assert.deepEqual(f.resumed, ['confirm']);
+  failReads = true;
+  assert.equal(await f.gate.isApproved({ executionId: 'a', input: { q: 'x' } }), false);
+  assert.deepEqual(f.errors, [failure]);
+  failReads = false;
+  assert.equal(await f.gate.isApproved({ executionId: 'a', input: { q: 'x' } }), false);
+});
+
+test('gate: forgetting one approval does not consume another execution’s approval', async () => {
+  const f = gateFixture();
+  await f.approve('a');
+  await f.approve('b');
+  assert.deepEqual(f.resumed, ['confirm', 'confirm']);
+  f.gate.forget({ executionId: 'a' });
+  assert.equal(await f.gate.isApproved({ executionId: 'a', input: { q: 'x' } }), false);
+  assert.equal(await f.gate.isApproved({ executionId: 'b', input: { q: 'x' } }), true);
+});

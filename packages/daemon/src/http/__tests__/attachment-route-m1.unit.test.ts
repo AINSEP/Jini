@@ -27,3 +27,15 @@ it('reports an unexpected lookup failure once, with the run ID, and answers plai
   expect(onInternalError.mock.calls[0]?.[0].error).toBe(failure);
   expect(JSON.stringify(body)).not.toContain('SECRETSECRET');
 });
+
+it('refuses a JSON array as an attachment lookup without calling either store port', async () => {
+  const store = { resolveForRun: vi.fn(async () => undefined), listPendingForOwner: vi.fn(async () => []) };
+  const fetch = serveRoutes({ routes: attachmentLookupRoutes({ store, host: fakeDaemonRouteHost() }) });
+  const response = await lookup(fetch, [{ op: 'listPendingForOwner', ownerId: 'owner' }]);
+  expect([response.status, await response.json()]).toEqual([400, { error: {
+    code: 'BAD_REQUEST',
+    message: 'body must be { op: "resolveForRun", ref, runId } or { op: "listPendingForOwner", ownerId, runId? }',
+  } }]);
+  expect(store.resolveForRun).not.toHaveBeenCalled();
+  expect(store.listPendingForOwner).not.toHaveBeenCalled();
+});

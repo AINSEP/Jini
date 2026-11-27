@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ClientFacingError } from '@jini-ai/core/contracts/server';
+import { RoutineActiveError } from '../../routines/routine-errors.js';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
@@ -14,6 +16,11 @@ import {
   routineRoutes,
   createRoutineCreateRoute,
   createRoutineListRoute,
+  createRoutineGetRoute,
+  createRoutineRunsRoute,
+  createRoutineRunNowRoute,
+  createRoutineUpdateRoute,
+  createRoutineDeleteRoute,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,
@@ -952,4 +959,118 @@ describe('host-bound routine factories', () => {
       const spec = createRoutineListRoute({ path: '/admin/routines', copy: { [reason]: 'Unavailable' } });
       expect(await spec.handle({ input: undefined, deps })).toEqual({ ok: false, error: { code: expected, message: 'Unavailable', details: { reason } } });
     });
+});
+
+describe('host-bound routine route behavior', () => {
+  const copy = { ROUTINE_NOT_FOUND: 'No saved routine here.', ROUTINE_RUN_ACTIVE: 'Wait for the current run.',
+    ROUTINES_UNAVAILABLE: 'Wait for the scheduler.' };
+  const path = '/admin/routines/:id';
+  const params = { id: 'missing' };
+  const missing = { ok: false, error: { code: 'NOT_FOUND', message: 'No saved routine here.', details: { reason: 'ROUTINE_NOT_FOUND' } } };
+
+  it('relocalizes missing routine responses for detail, run history, and run now', async () => {
+    const deps = makeDeps();
+    expect(await createRoutineGetRoute({ path, copy }).handle({ input: 'missing', deps })).toEqual(missing);
+    expect(await createRoutineRunsRoute({ path: path + '/runs', copy }).handle({ input: { id: 'missing', limit: 5, cursor: null }, deps })).toEqual(missing);
+    expect(await createRoutineRunNowRoute({ path: path + '/run', copy }).handle({ input: 'missing', deps })).toEqual(missing);
+    expect(deps.scheduler.runNow).not.toHaveBeenCalled();
+  });
+
+  it('translates an active run and a caller-safe lease refusal without conflating them', async () => {
+    const deps = makeDeps();
+    const routine = await deps.store.create({ name: 'Brief', prompt: 'Write brief', schedule: { kind: 'hourly', minute: 5 }, target: { mode: 'create_each_run' } });
+    vi.mocked(deps.scheduler.runNow).mockRejectedValueOnce(new RoutineActiveError()).mockRejectedValueOnce(new ClientFacingError({ apiError: {
+      code: 'SERVICE_UNAVAILABLE', message: 'Routine lease lost', details: { reason: 'ROUTINES_UNAVAILABLE' },
+    } }));
+    const run = createRoutineRunNowRoute({ path: path + '/run', copy });
+    expect(await run.handle({ input: routine.id, deps })).toEqual({ ok: false, error: { code: 'CONFLICT', message: 'Wait for the current run.', details: { reason: 'ROUTINE_RUN_ACTIVE' } } });
+    expect(await run.handle({ input: routine.id, deps })).toEqual({ ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'Wait for the scheduler.', details: { reason: 'ROUTINES_UNAVAILABLE' } } });
+  });
+
+  it('uses a host default target only if the request omits one, and requires a target when both are absent', async () => {
+    const deps = makeDeps();
+    const spec = createRoutineCreateRoute({ path: '/admin/routines', copy });
+    const parsed = spec.parse({ body: validCreateBody({ target: undefined }), params: {}, query: {} });
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.error));
+    const trusted = { ...deps, resolveCreator: async () => 'ana' };
+    expect(await spec.handle({ input: parsed.value, deps: trusted })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'target is required' } });
+    expect(await deps.store.list()).toEqual([]);
+    const target = { mode: 'reuse', projectId: 'project-available' } as const;
+    expect(await spec.handle({ input: parsed.value, deps: { ...trusted, defaults: { target } } })).toMatchObject({ ok: true, value: { routine: { target, creatorId: 'ana' } } });
+    expect(await deps.store.list()).toMatchObject([{ target, creatorId: 'ana' }]);
+    const explicit = spec.parse({ body: validCreateBody({ name: 'Explicit project choice' }), params: {}, query: {} });
+    if (!explicit.ok) throw new Error(JSON.stringify(explicit.error));
+    expect(await spec.handle({ input: explicit.value, deps: { ...trusted, defaults: { target } } })).toMatchObject({
+      ok: true, value: { routine: { name: 'Explicit project choice', target: { mode: 'create_each_run' } } },
+    });
+    expect((await deps.store.list()).find(routine => routine.name === 'Explicit project choice')?.target)
+      .toEqual({ mode: 'create_each_run' });
+
+  });
+
+  it('rejects invalid update and delete revisions before handing anything to the routine store', () => {
+    const patch = createRoutineUpdateRoute({ path, copy });
+    const remove = createRoutineDeleteRoute({ path, copy });
+    for (const expectedRevision of [null, '3', 0, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(patch.parse({ params, query: {}, body: { name: 'New brief', expectedRevision } }))
+        .toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'expectedRevision must be a positive safe integer' } });
+    }
+    expect(patch.parse({ params, query: {}, body: { schedule: { kind: 'unknown' } } }))
+      .toMatchObject({ ok: false, error: { code: 'BAD_REQUEST', details: { reason: 'INVALID_SCHEDULE' } } });
+    for (const revision of ['0', '1.5', ' 3', '9007199254740992', ['3', '4']]) {
+      expect(remove.parse({ params, query: { revision }, body: undefined }))
+        .toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'revision must be a positive safe integer' } });
+    }
+    expect(remove.parse({ params: {}, query: {}, body: undefined })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'id must be a non-empty path parameter' } });
+  });
+
+  it('forwards revisions to commits, reschedules only changed routines, and unschedules only a deletion', async () => {
+    const fireAt = new Date(Date.UTC(2026, 10, 27, 13));
+    const deps = makeDeps({ scheduler: makeScheduler({ nextRunAt: () => fireAt }) });
+    const original = await deps.store.create({ name: 'Brief', prompt: 'Write brief', schedule: { kind: 'hourly', minute: 5 }, target: { mode: 'create_each_run' } });
+    const update = vi.spyOn(deps.store, 'update');
+    const removeFromStore = vi.spyOn(deps.store, 'delete');
+    const params = { id: original.id };
+    const patch = createRoutineUpdateRoute({ path, copy });
+    const remove = createRoutineDeleteRoute({ path, copy });
+    const patchInput = patch.parse({ params, query: {}, body: { name: 'Renamed brief', expectedRevision: 4 } });
+    if (!patchInput.ok) throw new Error(JSON.stringify(patchInput.error));
+    expect(await patch.handle({ input: patchInput.value, deps })).toMatchObject({ ok: true, value: { routine: { id: original.id, name: 'Renamed brief', nextRunAt: fireAt.getTime() } } });
+    expect(update.mock.calls).toEqual([[{ id: original.id, patch: { name: 'Renamed brief' } }, { expectedRevision: 4 }]]);
+    expect((await deps.store.get({ id: original.id }))?.name).toBe('Renamed brief');
+    expect(deps.scheduler.rescheduleOne).toHaveBeenCalledExactlyOnceWith({ routineId: original.id });
+
+    const deleteInput = remove.parse({ params, query: { revision: '5' }, body: undefined });
+    if (!deleteInput.ok) throw new Error(JSON.stringify(deleteInput.error));
+    expect(await remove.handle({ input: deleteInput.value, deps })).toEqual({ ok: true, value: { ok: true } });
+    expect(await deps.store.get({ id: original.id })).toBeNull();
+    const legacyDelete = remove.parse({ params: { id: 'missing' }, query: {}, body: undefined });
+    if (!legacyDelete.ok) throw new Error(JSON.stringify(legacyDelete.error));
+    expect(await remove.handle({ input: legacyDelete.value, deps })).toEqual(missing);
+    expect(removeFromStore.mock.calls).toEqual([[{ id: original.id }, { expectedRevision: 5 }], [{ id: 'missing' }, {}]]);
+    expect(deps.scheduler.unschedule).toHaveBeenCalledExactlyOnceWith({ routineId: original.id });
+    expect(await patch.handle({ input: { id: 'missing', patch: { name: 'Never saved' } }, deps })).toEqual(missing);
+    expect(deps.scheduler.rescheduleOne).toHaveBeenCalledExactlyOnceWith({ routineId: original.id });
+  });
+
+  it('maps unavailable storage on each write and rethrows an unexpected storage error unchanged', async () => {
+    const deps = makeDeps();
+    const busy = Object.assign(new Error('private database path'), { code: 'SQLITE_BUSY' });
+    vi.spyOn(deps.store, 'create').mockRejectedValueOnce(busy);
+    vi.spyOn(deps.store, 'update').mockRejectedValueOnce(busy);
+    const unexpected = new Error('unexpected store failure');
+    vi.spyOn(deps.store, 'delete').mockRejectedValueOnce(busy).mockRejectedValueOnce(unexpected);
+    const create = createRoutineCreateRoute({ path, copy });
+    const patch = createRoutineUpdateRoute({ path, copy });
+    const remove = createRoutineDeleteRoute({ path, copy });
+    const parsed = create.parse({ params, query: {}, body: validCreateBody() });
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.error));
+    const unavailable = { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'Routine storage is unavailable', details: { reason: 'ROUTINES_BUSY' } } };
+    expect(await create.handle({ input: parsed.value, deps: { ...deps, resolveCreator: async () => 'ana' } })).toEqual(unavailable);
+    expect(await patch.handle({ input: { id: 'r', patch: { enabled: false } }, deps })).toEqual(unavailable);
+    expect(await remove.handle({ input: { id: 'r' }, deps })).toEqual(unavailable);
+    await expect(remove.handle({ input: { id: 'r' }, deps })).rejects.toBe(unexpected);
+    expect(deps.scheduler.rescheduleOne).not.toHaveBeenCalled();
+    expect(deps.scheduler.unschedule).not.toHaveBeenCalled();
+  });
 });

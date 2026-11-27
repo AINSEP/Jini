@@ -4,7 +4,7 @@ import { SURFACE_EXCHANGE_ID_PARAM, SURFACE_TYPED_ANSWER_PARAM } from '@jini-ai/
 
 import {
   executeSurfaceRedemption, isTypedSurfaceAnswer, parseSurfaceCallbackRequest, surfaceCallbackExchangeId,
-  surfaceCallbackRefusalBody, surfaceNotPendingBody, surfaceRedemptionReply, SURFACE_TYPED_ANSWER_REFUSAL,
+  surfaceCallbackRefusalBody, surfaceNotPendingBody, SurfaceReplyRefusal, surfaceReplyOnError, surfaceRedemptionReply, SURFACE_TYPED_ANSWER_REFUSAL,
 } from '../surface-callback-request.js';
 import type { ToolExecutionResult } from '../../tool-executor-types.js';
 
@@ -81,4 +81,16 @@ test('executeSurfaceRedemption runs under a fresh synthetic run and turns a thro
   const thrown = await executeSurfaceRedemption({ idGenerator, toolName: 't', params: {}, principalId: 'p',
     toolExecutor: { execute: async () => { throw new Error('unregistered'); } } });
   assert.deepEqual(thrown, { status: 500, body: { error: 'unregistered', code: 'INTERNAL_ERROR' } });
+});
+
+test('re-emits a carried flat surface reply and propagates an unrelated incident unchanged', async () => {
+  const body = { error: 'Not a permitted callback', code: 'TOOL_NOT_ALLOWLISTED' };
+  const refusal = new SurfaceReplyRefusal({ reply: { status: 403, body } });
+  assert.equal(refusal.name, 'SurfaceReplyRefusal');
+  assert.equal(refusal.message, 'surface reply refusal (403)');
+  const response = surfaceReplyOnError({ error: refusal });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), body);
+  const failure = new Error('internal incident');
+  assert.throws(() => surfaceReplyOnError({ error: failure }), error => error === failure);
 });

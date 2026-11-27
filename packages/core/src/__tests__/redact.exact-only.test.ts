@@ -57,3 +57,10 @@ describe('exact-only redaction', () => {
       .toBe('[REDACTED:exact_secret] [REDACTED:email] [REDACTED:opaque_token]');
   });
 });
+
+it('finds a secret after an overlapping partial match fails and preserves the nonmatching byte between hits', () => {
+  const result = redactSecretsWithCounts({ input: 'prefix aaabaaaab suffix' }, {
+    policy: 'exact-only', exactSecrets: ['aaab'], marker: '#',
+  });
+  expect(result).toEqual({ redacted: 'prefix #a# suffix', counts: { exact_secret: 2 } });
+});

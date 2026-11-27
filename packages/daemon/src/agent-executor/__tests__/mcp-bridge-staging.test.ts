@@ -10,6 +10,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { runAcpDispatch } from '../acp-events.js';
 import {
+  bridgeUnavailableMessage,
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,
 } from '../mcp-bridge.js';
@@ -154,4 +155,11 @@ it('runAcpDispatch omits permissionMode from the ACP attach when its caller supp
   (attached[0]!.send as (args: { event: string; payload: unknown }) => void)({ event: 'agent', payload: { type: 'text_delta', delta: 'done' } });
   child.emit('close', 0, null);
   expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
+});
+
+it('explains a failed bridge probe using the last diagnostic when there is no error headline', () => {
+  const message = bridgeUnavailableMessage({ status: 'failed' }, { probe: {
+    ok: false, exitCode: 29, signal: null, stderrTail: 'starting bridge\r\nconfiguration missing\r\n', elapsedMs: 12,
+  } });
+  expect(message).toBe('The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them. Bridge exited with code 29: configuration missing');
 });

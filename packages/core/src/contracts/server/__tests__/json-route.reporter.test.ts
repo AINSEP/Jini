@@ -227,3 +227,15 @@ describe('jsonRoute reporter mode', () => {
     expect(h.ends).toEqual([verdict('failed', true, 500)]);
   });
 });
+
+it('returns the host error response and marks its 503 status as a failed operation', async () => {
+  const h = harness();
+  const cause = new Error('database paused');
+  const onError = vi.fn(() => Response.json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Try again after maintenance.' } }, { status: 503 }));
+  const request = post({});
+  const response = await h.mount({ handle: () => { throw cause; }, ports: { onError } }).fetch(request);
+  expect([response.status, await errorOf(response)]).toEqual([503, { code: 'SERVICE_UNAVAILABLE', message: 'Try again after maintenance.' }]);
+  expect(onError.mock.calls).toEqual([[{ error: cause, request }]]);
+  expect(h.ends).toEqual([verdict('failed', true, 503)]);
+  expect(h.recording.reports).toEqual([]);
+});

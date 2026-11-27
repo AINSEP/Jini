@@ -130,3 +130,8 @@ describe('listPageForModel', () => {
     expect(listPageForModel({ page: { items: [1], nextCursor: null }, toolId: 'members_list' })).toEqual({ items: [1], nextCursor: null });
   });
 });
+
+it('refuses a syntactically valid cursor whose numeric position overflows to infinity', () => {
+  const cursor = btoa('[1e999,"id"]').replace(/=+$/, '');
+  expect(() => decodeListCursor({ cursor, shape: ['number', 'string'] })).toThrow(ToolInputError);
+});

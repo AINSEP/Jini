@@ -74,3 +74,17 @@ describe('agent plugin preflight route', () => {
     expect(commit).not.toHaveBeenCalled();
   });
 });
+
+it('forwards host refusals without inventing an offer or acknowledging a declined commit', async () => {
+  const { prepare, commit, deps } = makeDeps();
+  prepare.mockResolvedValueOnce({ ok: false, error: { code: 'FORBIDDEN', message: 'No live run for this principal.' } });
+  commit.mockResolvedValueOnce({ ok: false, error: { code: 'CONFLICT', message: 'The offer was replaced.' } });
+  expect(await post(deps, { op: 'offer', runId: 'run-1' })).toEqual({
+    status: 403, json: { error: { code: 'FORBIDDEN', message: 'No live run for this principal.' } },
+  });
+  expect(await post(deps, { op: 'commit', runId: 'run-1', offerId: 'offer-old', deliveredIds: [] })).toEqual({
+    status: 409, json: { error: { code: 'CONFLICT', message: 'The offer was replaced.' } },
+  });
+  expect(prepare.mock.calls).toEqual([[{ runId: 'run-1', mode: 'offer' }, { signal: expect.any(AbortSignal) }]]);
+  expect(commit.mock.calls).toEqual([[{ runId: 'run-1', offerId: 'offer-old', deliveredIds: [] }, { signal: expect.any(AbortSignal) }]]);
+});

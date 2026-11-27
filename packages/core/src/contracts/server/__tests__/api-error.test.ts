@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { statusForError, validationError, type ServerValidationIssue } from '../api-error.js';
+import { apiErrorBody, statusForError, validationError, type ServerValidationIssue } from '../api-error.js';
 
 describe('validationError', () => {
   it('builds a bare BAD_REQUEST with no details key when there are no issues', () => {
@@ -25,4 +25,11 @@ describe('statusForError', () => {
 
 it('maps INSUFFICIENT_STORAGE to 507', () => {
   expect(statusForError({ error: { code: 'INSUFFICIENT_STORAGE', message: 'full' } })).toBe(507);
+});
+
+it('wraps the original structured failure in the single wire error key', () => {
+  const error = { code: 'CONFLICT', message: 'Revision changed.', retryable: true, requestId: 'req-17', details: { revision: 9 } };
+  expect(apiErrorBody({ error })).toStrictEqual({
+    error: { code: 'CONFLICT', message: 'Revision changed.', retryable: true, requestId: 'req-17', details: { revision: 9 } },
+  });
 });

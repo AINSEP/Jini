@@ -60,3 +60,9 @@ describe('assertRepairKeywords: obtainFrom', () => {
     expect(() => assertRepairKeywords({ inputSchema })).toThrow("obtainFrom on 'page.themeId' must be the id of a tool");
   });
 });
+
+it('provides the repair hint without a visibility callback and ignores malformed required entries', () => {
+  const inputSchema = { type: 'object', required: [42, 'themeId'], properties: { themeId: THEME_ID } };
+  expect(missingArgumentGuidance({ inputSchema, input: {} }))
+    .toEqual([{ property: 'themeId', toolId: 'theme_list', sentence: 'List valid values for `themeId` with theme_list.' }]);
+});

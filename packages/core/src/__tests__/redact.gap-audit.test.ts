@@ -135,3 +135,25 @@ it.each(['&', ';', '"', "'"])('an earlier provider span cannot hide the unmasked
   expect(redacted).not.toContain('TAIL_CANARY');
   expect(redacted).not.toContain(prefix);
 });
+
+it('applies an extra non-global pattern to every occurrence without sharing the caller’s cursor', () => {
+  const pattern = /X\d+/i;
+  pattern.lastIndex = 30;
+  expect(redactSecretsWithCounts({ input: 'x24 X9 keep' }, { redactPii: false, extraPatterns: [{ name: 'fixture', regex: pattern }] }))
+    .toEqual({ redacted: '[REDACTED:fixture] [REDACTED:fixture] keep', counts: { fixture: 2 } });
+  expect(pattern.lastIndex).toBe(30);
+});
+
+it('does not re-label already masked URL credentials, and still masks a new value in the same diagnostic', () => {
+  const first = 'https://[REDACTED:url_credentials]@example.test/path';
+  const second = 'https://viewer:scratch@example.test/path';
+  expect(redactSecretsWithCounts({ input: `${first} ${second}` }, { redactPii: false }))
+    .toEqual({ redacted: `${first} ${first}`, counts: { url_credentials: 1 } });
+});
+
+it('treats an even backslash run as literal content before the closing quote', () => {
+  const input = String.raw`password="two slashes\\", next=kept`;
+  expect(redactSecretsWithCounts({ input }, { redactPii: false })).toEqual({
+    redacted: 'password="[REDACTED:labeled_secret]", next=kept', counts: { labeled_secret: 1 },
+  });
+});

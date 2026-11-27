@@ -327,7 +327,12 @@ describe('frontendSessionRoutes', () => {
       let invocations = 0; let tokens = 0; let sessions = 0;
       let current: FrontendSessionOwnerFixture = OWNER;
       const registry = createFrontendSessionRegistry({}, { newInvocationId: () => `inv-${++invocations}`, newBindToken: () => `bind-${++tokens}` });
-      const ctx = setup({ registry, resolveOwner: async () => current, newSessionId: () => `session-${++sessions}` });
+      let beginReads = 0;
+      let failSecondBeginRead = false;
+      const ctx = setup({ registry, resolveOwner: async ({ request }) => {
+        if (failSecondBeginRead && request.method === 'POST' && ++beginReads === 2) throw new Error('owner read interrupted');
+        return current;
+      }, newSessionId: () => `session-${++sessions}` });
       const first = readFrames({ response: await ctx.fetch(new Request(`${STREAM}?capability=page.click`)) });
       await first.next();
       const second = readFrames({ response: await ctx.fetch(new Request(`${STREAM}?capability=page.click`)) });
@@ -351,6 +356,14 @@ describe('frontendSessionRoutes', () => {
       await refused(claim, { session: 'session-2', token: 'bind-2' });
       await refused({ runId: 'other-run', invocationId: 'inv-1' }, { token: 'bind-1' });
       await refused({ runId: 'run', invocationId: 'model-call' }, { token: 'bind-1' });
+      for (const body of [{ ...claim, runId: ' '.repeat(4) }, { ...claim, invocationId: 'i'.repeat(201) }]) {
+        const invalid = await begin(body, { token: 'bind-1' });
+        expect(invalid.status).toBe(400);
+        expect(await invalid.json()).toEqual({ error: { code: 'BAD_REQUEST', message: 'sessionId, runId and invocationId must be short non-empty strings' } });
+      }
+      failSecondBeginRead = true;
+      await refused(claim, { token: 'bind-1' });
+      failSecondBeginRead = false;
       const won = await begin(claim, { token: 'bind-1' });
       expect(await won.json()).toEqual({ begun: true });
       await refused(claim, { token: 'bind-1' });

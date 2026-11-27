@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerHandler } from '../../server.js';
-import { createRouteTable } from '../route-table.js';
+import { createRouteTable, matchServerPath } from '../route-table.js';
 
 
 const text = (body: string): ServerHandler => () => new Response(body);
@@ -95,3 +95,33 @@ describe('createRouteTable', () => {
   });
 });
 
+
+it('decodes an exact path and refuses both a malformed capture and a literal mismatch', () => {
+  const pattern = '/files/:name/details';
+  expect(matchServerPath({ pattern, pathname: '/files/R%26D/details' })).toEqual({ name: 'R&D' });
+  expect(matchServerPath({ pattern, pathname: '/files/%ZZ/details' })).toBeNull();
+  expect(matchServerPath({ pattern, pathname: '/files/R%26D/Details' })).toBeNull();
+});
+
+it('prefers an explicit HEAD handler and advertises only registered methods plus implicit HEAD', () => {
+  const table = createRouteTable();
+  const head = text('head');
+  table.route({ method: 'GET', path: '/jobs/active', handler: text('get') });
+  table.route({ method: 'HEAD', path: '/jobs/:name', handler: head });
+  table.route({ method: 'POST', path: '/queue', handler: text('post') });
+  expect(table.match({ method: 'HEAD', pathname: '/jobs/active' })).toEqual({
+    kind: 'route', route: { method: 'HEAD', path: '/jobs/:name', handler: head }, params: { name: 'active' },
+  });
+  expect(table.match({ method: 'GET', pathname: '/queue' })).toEqual({ kind: 'method-not-allowed', allow: ['POST'] });
+});
+
+it('does not report bad encoding if a later literal rules the route out', () => {
+  const table = createRouteTable({}, { lenientPaths: true });
+  table.route({ method: 'GET', path: '/files/:name/details', handler: text('details') });
+  const literal = text('literal');
+  table.route({ method: 'GET', path: '/files/%ZZ/details', handler: literal });
+  expect(table.match({ method: 'GET', pathname: '/files/%ZZ/preview' })).toEqual({ kind: 'not-found' });
+  expect(table.match({ method: 'GET', pathname: '/files/%ZZ/details' })).toEqual({
+    kind: 'route', route: { method: 'GET', path: '/files/%ZZ/details', handler: literal }, params: {},
+  });
+});

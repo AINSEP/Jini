@@ -36,3 +36,23 @@ describe('fakeTimingSafeEqual', () => {
     expect(() => fakeTimingSafeEqual()({ left: bytes(1), right: bytes(1, 2) })).toThrow(RangeError);
   });
 });
+
+it('forwards request-scoped context without carrying it into a later request', async () => {
+  const app = createInMemoryServer();
+  app.server.route({
+    method: 'GET', path: '/record/:id',
+    handler: ({ client, locals, params }) => Response.json({ address: client?.address, tag: locals?.tag, params }),
+  });
+  const url = 'http://local/record/9';
+  const annotated = await app.fetch(new Request(url), { client: { address: '192.0.2.20' }, locals: { tag: 'first' } });
+  expect([annotated.status, await annotated.json()]).toEqual([200, { address: '192.0.2.20', tag: 'first', params: { id: '9' } }]);
+  const clean = await app.fetch(new Request(url));
+  expect([clean.status, await clean.json()]).toEqual([200, { params: { id: '9' } }]);
+});
+
+it('preserves status and headers when HEAD drops an already bodyless GET response', async () => {
+  const app = createInMemoryServer();
+  app.server.route({ method: 'GET', path: '/empty', handler: () => new Response(null, { status: 204, headers: { etag: '"v2"' } }) });
+  const response = await app.fetch(new Request('http://local/empty', { method: 'HEAD' }));
+  expect([response.status, response.headers.get('etag'), response.body]).toEqual([204, '"v2"', null]);
+});

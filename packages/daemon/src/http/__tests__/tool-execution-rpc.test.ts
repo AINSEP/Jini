@@ -501,3 +501,19 @@ describe('remote tool catalog', () => {
     expect(JSON.stringify(fixture.entries)).not.toContain('SECRETSECRET');
   });
 });
+
+it('refuses encoded tool execution bodies before dispatch with instructions to send plain JSON', async () => {
+  const execute = vi.fn<ToolExecutor['execute']>();
+  const { baseUrl } = await serve({ executor: { ...executorWith(), execute } });
+  const response = await rawRequest(baseUrl, {
+    method: 'POST', path: '/internal/tool-executions', token: TOKEN,
+    body: JSON.stringify({ executionId: 'exec', principal, run, toolId: 'read', input: {} }),
+    headers: { 'content-encoding': 'br' },
+  });
+  expect(response.status).toBe(415);
+  expect(JSON.parse(response.text)).toEqual({ error: {
+    code: 'UNSUPPORTED_MEDIA_TYPE',
+    message: 'This address does not accept compressed request bodies. Send the body uncompressed (no Content-Encoding).',
+  } });
+  expect(execute).not.toHaveBeenCalled();
+});

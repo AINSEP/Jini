@@ -775,3 +775,16 @@ it('retains the injected reporter and envelope when run startup fails', async ()
   expect(host.reports[0]).toMatchObject({ report: { source: 'run-start', runId: runs[0]?.id, error: failure } });
   expect(JSON.stringify(result)).not.toContain(failure.message);
 });
+
+it('returns the created run if its host lookup has no newer view', async () => {
+  const lifecycle = makeLifecycle();
+  const deps = makeDeps({ lifecycle });
+  const get = vi.spyOn(lifecycle, 'get').mockResolvedValueOnce(undefined);
+  const result = await runStartRoute.handle({ input: { contextRef: 'brief-1' }, deps });
+  if (!result.ok) throw new Error(JSON.stringify(result.error));
+  const { run, started } = result.value;
+  expect(started).toBe(true);
+  expect(run.contextRef).toBe('brief-1');
+  expect(get.mock.calls).toEqual([[{ runId: run.id }]]);
+  expect(await lifecycle.get({ runId: run.id })).toEqual(run);
+});

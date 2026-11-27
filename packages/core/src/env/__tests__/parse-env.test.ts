@@ -1,6 +1,7 @@
 import { inspect } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { EnvSchema, EnvVarSpec } from '../../contracts/env.js';
+import { describeExpected } from '../coercers.js';
 import { formatEnvIssue } from '../format-env-issue.js';
 import { parseEnv } from '../parse-env.js';
 
@@ -183,4 +184,31 @@ describe('formatEnvIssue: exact text', () => {
   it('every issue is returned, in schema order and then unknown names by name', () => {
     expect(parse({ HOST_ZZZ: '1', HOST_MODE: 'cloud', HOST_RATE_LIMIT: 'abc', HOST_AAA: '1' }).issues.map(issue => issue.name)).toEqual(['HOST_RATE_LIMIT', 'HOST_MODE', 'HOST_AAA', 'HOST_ZZZ']);
   });
+});
+
+it('explains the expected type or maximum for settings with no minimum', () => {
+  expect([
+    describeExpected({ spec: { ...SPECS[11]!, type: 'string' } }),
+    describeExpected({ spec: SPECS[6]! }),
+    describeExpected({ spec: SPECS[4]! }),
+    describeExpected({ spec: SPECS[7]! }),
+    describeExpected({ spec: { ...SPECS[0]!, accepts: { max: 42 } } }),
+    describeExpected({ spec: SPECS[9]! }),
+  ]).toEqual([
+    'text', 'a file or folder path', 'a full web address such as https://example.com/path',
+    'a comma-separated list', 'a whole number of 42 or less', 'a whole number of milliseconds',
+  ]);
+});
+
+it('reports missing environment values without calling them hidden or naming a substitute', () => {
+  expect(formatEnvIssue({ product: 'Host', issue: {
+    name: 'HOST_BIND', problem: 'missing', received: { kind: 'unset' }, expected: 'an address', fix: 'set HOST_BIND.',
+  } })).toBe('HOST_BIND is not set. Host expected an address.\nHost is not using this value.\nTo fix: set HOST_BIND.');
+});
+
+it('returns no value or source if a mismatched schema default cannot be coerced', () => {
+  const schema: EnvSchema<{ rateLimit: number | undefined }> = {
+    specs: [{ ...SPECS[0]!, field: 'rateLimit', default: 'unlimited' }], ownedPrefixes: ['HOST_'],
+  };
+  expect(parseEnv({ schema, env: {} })).toEqual({ config: { rateLimit: undefined }, sources: {}, issues: [] });
 });

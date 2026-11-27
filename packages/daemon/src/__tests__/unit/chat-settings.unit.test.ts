@@ -73,3 +73,23 @@ describe('run-bound chat settings', () => {
     expect(tool.descriptor.readOnly).toBe(true);
   });
 });
+
+it('authorizes the read only if the actor has a live snapshot for that run', async () => {
+  const snapshot = createChatSettingsSnapshot(input);
+  const queries: unknown[] = [];
+  const tool = createChatSettingsGetRegistration({ readSnapshot: (query) => {
+    queries.push(query);
+    return query.runId === 'run-a' && query.principalId === 'ana' ? snapshot : undefined;
+  } });
+  const authorize = tool.policy?.authorize;
+  if (!authorize) throw new Error('chat settings must register an authorization policy');
+  const ask = (runId: string, principalId: string) => authorize({
+    run: { id: runId }, principal: { id: principalId }, input: {}, tool: tool.descriptor,
+  });
+  expect(await ask('run-a', 'ana')).toBe('allow');
+  expect(await ask('run-a', 'bea')).toBe('deny');
+  expect(await ask('run-b', 'ana')).toBe('deny');
+  expect(queries).toEqual([
+    { runId: 'run-a', principalId: 'ana' }, { runId: 'run-a', principalId: 'bea' }, { runId: 'run-b', principalId: 'ana' },
+  ]);
+});

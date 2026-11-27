@@ -107,3 +107,15 @@ it('required HTTP launches with its endpoint and retains terminal cleanup', asyn
   await f.prepared?.cleanup();
   expect(close).toHaveBeenCalledOnce();
 });
+
+it('a failed terminal endpoint close is reported once without publishing the listener error', async () => {
+  const failure = new Error('bad listener close with private URL');
+  const close = vi.fn(async (_input: Record<string, never>) => { throw failure; });
+  const f = await fixture(async () => ({ url: 'http://127.0.0.1:1234/mcp', token: 'listener', close }));
+  if (!f.prepared) throw new Error('fixture must open an HTTP listener');
+  await f.lifecycle.cancel({ runId: f.runId, reason: 'user' });
+  await expect(f.prepared.cleanup()).rejects.toBe(failure);
+  expect(close.mock.calls).toEqual([[{}]]);
+  expect(warn.mock.calls).toEqual([['[agent-executor] MCP HTTP cleanup failed']]);
+  await f.lifecycle.finish({ runId: f.runId, status: 'cancelled', code: null, signal: null, resumable: false });
+});

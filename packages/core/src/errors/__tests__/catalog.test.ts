@@ -266,3 +266,7 @@ describe('definitions', () => {
     expect(scope({ error: DeliveryError, codes: ['rate-limited'], text: ownMessage, codeOf: () => undefined })).toThrow('the code "rate-limited" must be a constant token');
   });
 });
+
+test('an unregistered scope does not receive caller-safe rules from a registered scope', () => {
+  expect(catalog.callerSafeRules({ scope: 'other-host' })).toEqual([]);
+});

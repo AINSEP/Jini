@@ -91,3 +91,19 @@ describe('renameInputSelector(s)', () => {
     expect(() => renameInputSelectors({ input: { items: [{ memberId: 'a', id: 'a' }] }, from: 'memberId', to: 'id' })).toThrow(/Conflicting inputs/);
   });
 });
+
+it('adds list guidance even when the underlying get selector has no description', () => {
+  const merged = unionInputSchema({
+    idProperty: 'menuId', getSchema: { properties: { menuId: { type: 'string' } }, required: ['menuId'] }, listSchema: {},
+  });
+  expect(merged).toEqual({
+    type: 'object', additionalProperties: false, required: [],
+    properties: { menuId: { type: 'string', description: 'Omit to list instead of fetching a single item.' } },
+  });
+});
+
+it('renames an ordinary selector without treating a non-array items filter as a batch', () => {
+  expect(renameInputSelectors({ input: { memberId: 'a', items: { limit: 2 } }, from: 'memberId', to: 'id' })).toEqual({
+    input: { id: 'a', items: { limit: 2 } }, notes: ['memberId→id'],
+  });
+});

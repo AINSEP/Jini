@@ -61,3 +61,28 @@ it('hands the host\'s own answer for "is this HTTPS" to the cookie, and never le
   }
   expect(seen).toHaveLength(2);
 });
+
+it('rejects incomplete or oversized tab credentials and does not issue credentials for a refused request', async () => {
+  let now = 50;
+  const scope = createFrontendGuestScope({
+    workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public',
+    allowsRequest: async ({ request }) => request.headers.get('origin') === 'same',
+    isSecureRequest: () => true,
+  }, { now: () => now, lifetimeMs: 1000 });
+  const issued = await scope.issue(input());
+  if (!issued) throw new Error('same-origin guest must be issued a credential');
+  const cookie = cookieOf(issued.setCookie);
+  const owner = await scope.resolveOwner(input({ cookie, tab: issued.tabCredential }));
+  if (!owner) throw new Error('valid guest and tab must resolve an owner');
+  expect(await scope.resolveGuest(input({ cookie }))).toBe(owner.principalId);
+  expect(await scope.resolveGuest(input({ cookie, origin: 'cross' }))).toBeUndefined();
+  expect(await scope.issue(input({ cookie, origin: 'cross' }))).toBeNull();
+
+  const [payload, signature] = issued.tabCredential.split('.');
+  for (const tab of [`.${signature}`, `${payload}.`, 'x'.repeat(1025)]) {
+    expect(await scope.resolveOwner(input({ cookie, tab }))).toBeNull();
+  }
+  now += 1000;
+  expect(await scope.resolveGuest(input({ cookie }))).toBeUndefined();
+  expect(await scope.resolveOwner(input({ cookie, tab: issued.tabCredential }))).toBeNull();
+});

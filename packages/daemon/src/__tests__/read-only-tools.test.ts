@@ -377,3 +377,16 @@ test('a read-only namespace overview honors the caller’s narrower visible-tool
   const careless: ToolCatalogQuery = { search: () => [], describe: () => ({ id: 'family', source: 'test', description: 'verify', targetToolIds: ['verify'] }) };
   assert.equal(filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog: careless }).describe({ id: 'family' }, { visibleToolIds }), null);
 });
+
+test('read-only discovery does not invent a card for a registered tool omitted by the host catalog', () => {
+  const { registry } = harness();
+  const calls: unknown[][] = [];
+  const catalog: ToolCatalogQuery = {
+    search: () => [],
+    describe: (input, options) => { calls.push([input, options]); return null; },
+  };
+  const scoped = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog });
+  const options = { visibleToolIds: new Set(['pick']) };
+  assert.equal(scoped.describe({ id: 'pick' }, options), null);
+  assert.deepEqual(calls, [[{ id: 'pick' }, options]]);
+});

@@ -628,3 +628,29 @@ it('records only one modal outcome from the bound pending session', async () => 
   registry.settle({ sessionId: 'tab', invocationId, outcome: { ok: true, output: { executed: false } } });
   await expect(pending).resolves.toEqual({ executed: false });
 });
+
+it('a failed cancellation delivery still rejects the caller and retires the pending invocation', async () => {
+  const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-9' });
+  const delivered = recordingSurface();
+  const cancel = vi.fn(() => { throw new Error('surface closed'); });
+  const progress = vi.fn();
+  const handle = registry.attach({ descriptor: { sessionId: 'tab', capabilities: ['page.click'] }, deliver: delivered.deliver, cancel });
+  const release = registry.bindRunByToken({ runId: 'run', bindToken: handle.bindToken });
+  const controller = new AbortController();
+  try {
+    const result = registry.invoke({ runId: 'run', capabilityId: 'page.click', input: { handle: 'open' } }, {
+      signal: controller.signal, onApprovalStateChange: progress,
+    });
+    const rejection = expect(result).rejects.toThrow('"page.click" was cancelled before the frontend answered');
+    expect(delivered.delivered).toEqual([{ invocationId: 'inv-9', capabilityId: 'page.click', input: { handle: 'open' } }]);
+    controller.abort();
+    await rejection;
+    expect(cancel.mock.calls).toEqual([[{ invocationId: 'inv-9' }]]);
+    expect(progress.mock.calls).toEqual([[{ pending: false }]]);
+    expect(registry.settle({ sessionId: 'tab', invocationId: 'inv-9', outcome: { ok: true, output: 'late' } })).toBe(false);
+  } finally {
+    controller.abort();
+    release();
+    handle.detach({});
+  }
+});

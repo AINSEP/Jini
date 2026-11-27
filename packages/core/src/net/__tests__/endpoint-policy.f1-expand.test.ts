@@ -47,3 +47,9 @@ describe('classifyAddressLiteral — embedded IPv4 cannot be smuggled past the c
     expect(classifyAddressLiteral({ address })).toBe(expected);
   });
 });
+
+it('reads a 6to4 address from its tunnel prefix rather than its unrelated final groups', () => {
+  // 2002:0808:0808 encodes a public IPv4 address, while 2002:c0a8:0101 encodes a private one.
+  expect(classifyAddressLiteral({ address: '2002:0808:0808::1' })).toBe('public');
+  expect(classifyAddressLiteral({ address: '2002:c0a8:0101::1' })).toBe('private');
+});

@@ -166,3 +166,19 @@ test("list_definitions checks permission before searching definitions", async ()
   await assert.rejects(() => f.call("settings_list_definitions", { search: "time" }), { constructor: ForbiddenError });
   assert.equal(read.mock.calls.length, 0);
 });
+
+test("list_definitions distinguishes a protected setting from an ordinary writable setting when no confirmation host is wired", async () => {
+  const f = fixture([
+    definition(),
+    definition({ settingId: "protected-1", namespace: "core.instructions", key: "custom" }),
+  ]);
+  const { data } = await f.call("settings_list_definitions", {}) as {
+    data: Array<{ namespace: string; key: string; agentWritable: boolean; confirmationRequired: boolean }>;
+  };
+  const policies = Object.fromEntries(data.map(({ namespace, key, agentWritable, confirmationRequired }) =>
+    [`${namespace}.${key}`, { agentWritable, confirmationRequired }]));
+  assert.deepEqual(policies, {
+    "core.presentation.timezone": { agentWritable: true, confirmationRequired: false },
+    "core.instructions.custom": { agentWritable: false, confirmationRequired: true },
+  });
+});

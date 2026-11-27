@@ -3873,6 +3873,51 @@ describe('AgentExecutor — plain-format argv prompt-budget guard (aider/deepsee
       expect(onSelected).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'full' }));
     });
 
+    it('skips absent richer candidates and reports the available pointer before spawning', async () => {
+      const def = createArgvBoundDef({ argvPromptPosition: 'last' });
+      const { lifecycle, executor, spawnCalls, child } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const spawnCountsAtSelection: number[] = [];
+      const onSelected = vi.fn(async () => { spawnCountsAtSelection.push(spawnCalls.length); });
+      await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: BASE, cwd: '/work' }, {
+        argvPromptVariants: { candidates: [{ id: 'pointer', prompt: POINTER }], onSelected },
+      });
+      expect(spawnCalls.map(call => call.args)).toEqual([['--message', POINTER]]);
+      expect(onSelected.mock.calls).toEqual([[{ runId: run.id, id: 'pointer' }]]);
+      expect(spawnCountsAtSelection).toEqual([0]);
+      child.emit('close', 0, null);
+      await lifecycle.waitForTerminal({ runId: run.id });
+    });
+
+    it('if no argv fits, releases staging before rejecting with the base budget error', async () => {
+      const { fitArgvPromptVariant } = await import('../argv-prompt-variants.js');
+      const def = createArgvBoundDef({ argvPromptPosition: 'last' });
+      const order: string[] = [];
+      const failure = new Error('run marked failed');
+      const failBeforeSpawn = vi.fn<Parameters<typeof fitArgvPromptVariant>[0]['failBeforeSpawn']>(async () => {
+        order.push('fail'); throw failure;
+      });
+      const promptArgvBudget = vi.fn<Parameters<typeof fitArgvPromptVariant>[0]['budget']['promptArgvBudget']>(({ composed }) => {
+        if (composed === BASE) return { code: 'AGENT_PROMPT_TOO_LARGE', message: 'Base prompt exceeds the argv limit.', limit: 3 };
+        if (composed === 'optional context') return { code: 'AGENT_PROMPT_TOO_LARGE', message: 'Optional context exceeds the argv limit.', limit: 3 };
+        throw new Error('unexpected budget input');
+      });
+      const onSelected = vi.fn(async () => {});
+      await expect(fitArgvPromptVariant({
+        runId: 'run-too-large', def, resolvedBin: 'aider', baseArgs: ['--message', BASE], baseComposedPrompt: BASE,
+        variants: { candidates: [{ id: 'full', prompt: 'optional context' }], onSelected },
+        compose: prompt => prompt,
+        budget: { promptArgvBudget, windowsCmdShimBudget: () => null, windowsDirectExeBudget: () => null },
+        releaseStagedResources: async () => { order.push('release'); }, failBeforeSpawn,
+      })).rejects.toBe(failure);
+      expect(promptArgvBudget.mock.calls).toEqual([[{ def, composed: 'optional context' }], [{ def, composed: BASE }]]);
+      expect(failBeforeSpawn.mock.calls).toEqual([[{
+        runId: 'run-too-large', code: 'AGENT_PROMPT_TOO_LARGE', message: 'Base prompt exceeds the argv limit.',
+      }]]);
+      expect(order).toEqual(['release', 'fail']);
+      expect(onSelected).not.toHaveBeenCalled();
+    });
+
     it('a refused selection callback releases staging and never spawns', async () => {
       const lockEvents: string[] = [];
       const runtimeLock: RuntimeLock = { acquire: async () => { lockEvents.push('acquire'); return { release: () => lockEvents.push('release') }; } };

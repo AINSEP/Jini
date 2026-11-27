@@ -93,3 +93,13 @@ describe('background task outcomes', () => {
     expect(h.events.at(-1)).toEqual({ type: 'background_task', id: 'other', status: 'stopped' });
   });
 });
+
+it('a first task update with no status does not invent an outcome', () => {
+  const h = fixture();
+  h.observe({ type: 'system', subtype: 'task_updated', task_id: 'observed', patch: { description: 'Run audit' } });
+  h.observe({ type: 'system', subtype: 'task_notification', task_id: 'observed', status: 'failed', summary: 'Audit failed' });
+  expect(h.events).toEqual([
+    { type: 'background_task', id: 'observed', status: 'unknown', description: 'Run audit' },
+    { type: 'background_task', id: 'observed', status: 'failed', description: 'Run audit', detail: 'Audit failed' },
+  ]);
+});

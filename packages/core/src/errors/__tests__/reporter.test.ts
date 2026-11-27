@@ -3,11 +3,12 @@
  * token shapes, because the rule under test is "redaction is not permission": no redactor recognises
  * a draft line or a customer note, so they must stay out of every caller-visible field by policy.
  */
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { ClientFacingError } from '../../contracts/server/client-facing-error.js';
 import { approveCause, type ApprovedCause } from '../approved-cause.js';
 import { defineErrorScope } from '../bindings.js';
 import { createErrorCatalog } from '../catalog.js';
+import { describeThrownValue } from '../incident-text.js';
 import { INCIDENT_CAUSE_SENTENCE, type ErrorAudience } from '../disclosure.js';
 import { createErrorReporter, UNAVAILABLE_ERROR_ID, type ErrorReporterPorts } from '../reporter.js';
 import { defineErrorSentences } from '../sentences.js';
@@ -457,4 +458,37 @@ describe('diagnostics ports failing together', () => {
     expect(described.error.requestId).toBe(ID);
     expect(unhandled).toEqual([]);
   });
+});
+
+test('a proxy property withdrawn after enumeration is reported as unavailable without reading the property', () => {
+  const read = vi.fn(() => { throw new Error('property value must not be read'); });
+  const target = { reason: 'withdrawn' };
+  const error = new Proxy(target, {
+    get: read,
+    getOwnPropertyDescriptor(_target, key) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(target, key);
+      if (key === 'reason') Reflect.deleteProperty(target, key);
+      return descriptor;
+    },
+  });
+  expect(describeThrownValue({ value: error })).toBe('{ reason: undefined }');
+  expect(read).not.toHaveBeenCalled();
+});
+
+test('sequence IDs throw a diagnostic at the exhausted position rather than reusing an ID', () => {
+  const ids = createSequenceIds({ ids: ['first-id', 'second-id'] });
+  expect([ids.newId(), ids.newId()]).toEqual(['first-id', 'second-id']);
+  expect(() => ids.newId()).toThrow(new RangeError('createSequenceIds: the test asked for ID 3 but listed 2.'));
+});
+
+test('the recording tracker provides its trace and preserves the result and failure identity of work', async () => {
+  const { observability, reports } = createRecordingObservability();
+  const tracker = observability.trackOperation({ name: 'site.export' });
+  const value = { output: 'complete' };
+  const failure = new Error('write failed');
+  expect(tracker.traceIds?.()).toEqual({ traceId: 'test-trace', spanId: 'test-span' });
+  expect(await tracker.run(async () => value)).toBe(value);
+  await expect(tracker.run(async () => { throw failure; })).rejects.toBe(failure);
+  tracker.end({ outcome: 'failed', failed: true });
+  expect(reports).toEqual([]);
 });

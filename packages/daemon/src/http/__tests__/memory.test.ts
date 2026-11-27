@@ -689,3 +689,14 @@ describe('memoryRoutes — every route end to end on a route table', () => {
     expect(notes.upsertEntry).not.toHaveBeenCalled();
   });
 });
+
+it('treats a non-string tree patch field as invalid instead of silently clearing it', async () => {
+  const updateTreeNode = vi.fn<MemoryNoteStore['updateTreeNode']>();
+  const deps = makeDeps({ notes: makeNoteStore({ updateTreeNode }) });
+  const response = await serve(deps).fetch(jsonRequest({ path: '/api/memory/tree/note-1', method: 'PATCH' }, {
+    body: { name: 'Preserve this valid name', description: null },
+  }));
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: { code: 'BAD_REQUEST', message: 'description must be a string when provided' } });
+  expect(updateTreeNode).not.toHaveBeenCalled();
+});

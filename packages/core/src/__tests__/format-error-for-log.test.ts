@@ -87,3 +87,10 @@ it('keeps exact-only diagnostics literal without rescanning a supplied marker', 
   });
   expect(diagnostic).toBe('{"details":"password=visible [known-secret hidden]"}');
 });
+
+it('uses the error name and message when there is no stack and prints BigInt fields as decimals', () => {
+  const error = new TypeError('invalid byte count');
+  Object.defineProperty(error, 'stack', { value: undefined });
+  Object.defineProperty(error, 'bytes', { value: 9007199254740993n });
+  expect(formatErrorForLog({ error })).toBe('TypeError: invalid byte count\n{"bytes":"9007199254740993"}');
+});

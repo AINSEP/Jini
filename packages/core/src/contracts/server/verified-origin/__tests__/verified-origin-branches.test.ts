@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   InMemoryOriginSettingRepo, OriginRegistry, isSameOrigin, normalizeOriginCandidate, resolveConfiguredOrigin,
 } from "../index.js";
+import { isLoopbackHost } from "../loopback-host.js";
 import type { OriginSettingRepoPort } from "../ports.js";
 import type { VerifiedOrigin } from "../types.js";
 
@@ -73,5 +74,14 @@ describe("resolveConfiguredOrigin", () => {
     expect(warnings).toEqual([
       "APP_PUBLIC_URL is set but was refused as this deployment's public origin (its host is empty); no origin was registered from it. Set APP_PUBLIC_URL to this site's public https address, with no user name, password, query string or fragment.",
     ]);
+  });
+});
+
+it("recognizes normalized loopback listeners without classifying malformed or ordinary hosts as loopback", () => {
+  expect(Object.fromEntries(["LOCALHOST.", "dev.localhost", "127.1", "::1", "[::ffff:127.0.0.2]", "0.0.0.0", "localhost.example", "192.168.0.5", "[invalid"].map(
+    host => [host, isLoopbackHost({ host })],
+  ))).toEqual({
+    "LOCALHOST.": true, "dev.localhost": true, "127.1": true, "::1": true, "[::ffff:127.0.0.2]": true,
+    "0.0.0.0": true, "localhost.example": false, "192.168.0.5": false, "[invalid": false,
   });
 });

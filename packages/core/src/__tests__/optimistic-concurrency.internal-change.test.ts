@@ -63,3 +63,15 @@ describe("applyInternalChange", () => {
     await expect(applyInternalChange(required(s, async (current) => current))).rejects.toBeInstanceOf(RecordVersionConflictError);
   });
 });
+
+test('reports a deleted record when both conditional writes miss and the final read finds no row', async () => {
+  const s = store({ version: 4, label: 'old' }, { losses: 2 });
+  let reads = 0;
+  await expect(applyInternalChange({
+    ...required(s, async (current) => ({ ...current, label: 'new' })),
+    read: async () => ++reads === 3 ? null : s.read(),
+  })).rejects.toMatchObject({
+    name: 'RecordVersionConflictError', recordKind: 'thing', recordId: 't1', expectedVersion: 5, currentVersion: null,
+  });
+  expect(s.writes).toEqual([]);
+});

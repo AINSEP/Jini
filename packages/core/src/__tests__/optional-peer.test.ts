@@ -72,3 +72,13 @@ it('does not claim the selected package is absent when its internal binary is mi
   expect(() => loadOptionalPeer({ feature: 'Interactive terminals', dependency: 'node-pty', load: () => { throw cause; } }))
     .toThrow('Interactive terminals could not load node-pty. Check its installed dependencies and native binaries.');
 });
+
+it('wraps a non-Error asynchronous loader rejection without printing its private details', async () => {
+  const cause = 'opaque private loader note';
+  await expect(loadOptionalPeer({
+    feature: 'Interactive terminals', dependency: 'node-pty', load: async () => { throw cause; },
+  })).rejects.toMatchObject({
+    message: 'Interactive terminals could not load node-pty. Check its installed dependencies and native binaries.',
+    cause,
+  });
+});

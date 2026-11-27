@@ -14,3 +14,10 @@ describe('collectProcessTreePids', () => {
     expect(collectProcessTreePids({ processes: [snap(2, 1)], rootPids: [77, null, undefined] })).toEqual([77]);
   });
 });
+
+it('returns each descendant once across overlapping roots and duplicate snapshot entries', () => {
+  expect(collectProcessTreePids({
+    processes: [snap(5, 2), snap(5, 2), snap(2, 20), snap(8, 5), snap(7, 2), snap(99, 90)],
+    rootPids: [20, 2, 20],
+  })).toEqual([20, 8, 7, 5, 2]);
+});

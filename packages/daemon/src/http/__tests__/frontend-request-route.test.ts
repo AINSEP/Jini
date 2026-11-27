@@ -128,3 +128,13 @@ describe('authenticated runless frontend request', () => {
     expect(f.host.scheduler.pending).toBe(0);
   });
 });
+
+it('refuses a JSON array envelope without resolving or binding a frontend owner', async () => {
+  const f = fixture();
+  const response = await f.post([ENVELOPE]);
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: 'Expected an allowed capabilityId, object input and frontend bindToken.' });
+  expect(f.resolveOwner).not.toHaveBeenCalled();
+  expect(f.bindRequest).not.toHaveBeenCalled();
+  expect(f.execute).not.toHaveBeenCalled();
+});

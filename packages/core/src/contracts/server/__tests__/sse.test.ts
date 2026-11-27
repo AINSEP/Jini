@@ -145,3 +145,36 @@ describe('lastEventCursor', () => {
     expect(lastEventCursor({ request: new Request('http://l/s') })).toBe(null);
   });
 });
+
+it('resumes from the sole query cursor when the reconnect header is absent or empty', () => {
+  const url = 'http://local/events?afterCursor=evt%3A42%2B7';
+  expect(lastEventCursor({ request: new Request(url) })).toBe('evt:42+7');
+  expect(lastEventCursor({ request: new Request(url, { headers: { 'last-event-id': '' } }) })).toBe('evt:42+7');
+  expect(lastEventCursor({ request: new Request('http://local/events') })).toBeNull();
+});
+
+it('wakes a reader waiting on an idle stream for each later event and finally for EOF', async () => {
+  const { scheduler } = fakeScheduler();
+  const stream = createSseStream<SseEvent>({ scheduler }, { keepAliveMs: false });
+  const reader = stream.response.body!.getReader();
+  const decoder = new TextDecoder();
+  const read = async (cursor: number) => {
+    const pending = reader.read();
+    await Promise.resolve();
+    stream.send({ event: event(cursor) });
+    const { value, done } = await pending;
+    expect(done).toBe(false);
+    expect(decoder.decode(value)).toBe(`id: ${cursor}\nevent: tick\ndata: {"opaqueCursor":"${cursor}","kind":"tick"}\n\n`);
+  };
+  try {
+    await read(1);
+    await read(2);
+    const pending = reader.read();
+    await Promise.resolve();
+    stream.end();
+    expect(await pending).toEqual({ done: true, value: undefined });
+    expect(stream.closed).toBe(true);
+  } finally {
+    await reader.cancel();
+  }
+});

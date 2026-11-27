@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
+import { isInVaultQueryScope } from "../invariants.js";
 import { assertVaultReplacement, vaultGroupKey, VaultError, type VaultRecord } from "../../vault.js";
 
 function row(patch: Partial<VaultRecord> = {}): VaultRecord {
@@ -115,5 +116,25 @@ describe("assertVaultReplacement vendor subtype", () => {
   test("non-vendor kinds may change subtype metadata", () => {
     const existing = row({ meta: { credentialType: "vendor" } });
     assert.equal(assertVaultReplacement({ record: row({ revision: 2, meta: { credentialType: "custom" } }), existing, expectedRevision: 1 }), undefined);
+  });
+});
+
+describe("isInVaultQueryScope", () => {
+  test("omitting provider spans providers but still isolates workspace, kind, owner and principal", () => {
+    const query = { workspaceId: "ws", kind: "site-assistant", ownerKey: "owner", principalId: "p" } as const;
+    const inScope = (patch: Partial<VaultRecord>) => isInVaultQueryScope({ record: row(patch), query });
+    assert.equal(inScope({ provider: "another" }), true);
+    assert.equal(inScope({ workspaceId: "other" }), false);
+    assert.equal(inScope({ kind: "personal-execution" }), false);
+    assert.equal(inScope({ ownerKey: "other" }), false);
+    assert.equal(inScope({ principalId: null }), false);
+  });
+
+  test("a named provider and null provider each restrict the query to that exact provider", () => {
+    const scope = { workspaceId: "ws", kind: "site-assistant", ownerKey: "owner", principalId: "p" } as const;
+    assert.equal(isInVaultQueryScope({ record: row(), query: { ...scope, provider: "host" } }), true);
+    assert.equal(isInVaultQueryScope({ record: row(), query: { ...scope, provider: "other" } }), false);
+    assert.equal(isInVaultQueryScope({ record: row(), query: { ...scope, provider: null } }), false);
+    assert.equal(isInVaultQueryScope({ record: row({ provider: null }), query: { ...scope, provider: null } }), true);
   });
 });

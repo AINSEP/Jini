@@ -10,3 +10,16 @@ describe('extensionForMimeType', () => {
     expect(extensionForMimeType({ mimeType: 'IMAGE/PNG' })).toBe('');
   });
 });
+
+it.each([
+  ['image/png', '.png'],
+  ['image/jpeg', '.jpg'],
+  ['image/gif', '.gif'],
+  ['image/webp', '.webp'],
+  ['image/svg+xml', '.svg'],
+  ['text/html', '.html'],
+  ['text/plain', '.txt'],
+  ['application/octet-stream', ''],
+])('uses the paste filename suffix for %s', (mimeType, extension) => {
+  expect(extensionForMimeType({ mimeType })).toBe(extension);
+});

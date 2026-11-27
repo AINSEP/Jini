@@ -300,3 +300,17 @@ describe('createFrontendControl', () => {
     });
   });
 });
+
+it('refuses per-run delivery without the owner gate and rejects an already-aborted binding first', () => {
+  const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined });
+  const owner = { workspaceId: 'ws', principalId: 'reader', tabId: 'tab-1' };
+  const request = { runId: 'run-1', bindToken: 'fixture', owner };
+  const deliverInvocation = vi.fn();
+  const controller = new AbortController();
+  expect(() => control.bindRequest({ ...request, signal: controller.signal }, { deliverInvocation }))
+    .toThrow('Run-specific frontend delivery needs an owner hook');
+  controller.abort();
+  expect(() => control.bindRequest({ ...request, signal: controller.signal }, { deliverInvocation }))
+    .toThrow('Frontend request cancelled');
+  expect(deliverInvocation).not.toHaveBeenCalled();
+});

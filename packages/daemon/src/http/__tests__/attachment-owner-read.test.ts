@@ -79,3 +79,34 @@ it("a changed pre-open observation refuses before opening", async () => {
   expect(await readChatAttachmentForOwner({ uploadDirectory: "/upload", ref, ownerId: "owner", io })).toEqual({ ok: false, refusal: "integrity" });
   expect(io.openNoFollow).not.toHaveBeenCalled();
 });
+
+it("treats a missing upload root or unreadable sidecar as an unissued reference without opening data", async () => {
+  const missingRoot = ports();
+  const readSidecarText = vi.fn<AttachmentReadPorts["readSidecarText"]>().mockRejectedValue(new Error("sidecar unavailable"));
+  missingRoot.io.readSidecarText = readSidecarText;
+  missingRoot.io.realpath = async () => { throw new Error("upload root absent"); };
+  const input = { uploadDirectory: "/upload", ref, ownerId: "owner" };
+  expect(await readChatAttachmentForOwner({ ...input, io: missingRoot.io })).toEqual({ ok: false, refusal: "no-record" });
+  expect(readSidecarText).not.toHaveBeenCalled();
+  expect(missingRoot.io.openNoFollow).not.toHaveBeenCalled();
+
+  const corruptSidecar = ports();
+  corruptSidecar.io.readSidecarText = async () => '{"id":';
+  expect(await readChatAttachmentForOwner({ ...input, io: corruptSidecar.io })).toEqual({ ok: false, refusal: "no-record" });
+  expect(corruptSidecar.io.openNoFollow).not.toHaveBeenCalled();
+});
+
+it("refuses bytes when the observed file disappears or cannot be opened", async () => {
+  const input = { uploadDirectory: "/upload", ref, ownerId: "owner" };
+  const disappeared = ports();
+  disappeared.io.lstat = vi.fn<AttachmentReadPorts["lstat"]>().mockRejectedValue(new Error("file missing"));
+  expect(await readChatAttachmentForOwner({ ...input, io: disappeared.io })).toEqual({ ok: false, refusal: "integrity" });
+  expect(disappeared.io.lstat).toHaveBeenCalledExactlyOnceWith({ path: record.filePath });
+  expect(disappeared.io.openNoFollow).not.toHaveBeenCalled();
+
+  const refusedOpen = ports();
+  refusedOpen.io.openNoFollow = vi.fn<AttachmentReadPorts["openNoFollow"]>().mockRejectedValue(new Error("file no longer openable"));
+  expect(await readChatAttachmentForOwner({ ...input, io: refusedOpen.io })).toEqual({ ok: false, refusal: "integrity" });
+  expect(refusedOpen.io.openNoFollow).toHaveBeenCalledExactlyOnceWith({ path: record.filePath });
+  expect(refusedOpen.handle.readFile).not.toHaveBeenCalled();
+});

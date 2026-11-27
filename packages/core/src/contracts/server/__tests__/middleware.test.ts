@@ -90,3 +90,17 @@ describe('withRouteMiddleware', () => {
     expect([gateSaw, await res.text()]).toEqual(['10.1.2.3', '10.1.2.3']);
   });
 });
+
+it('treats an empty prefix as global and a trailing slash as part of the mount spelling, not the route', async () => {
+  const gate: ServerMiddleware = () => new Response('maintenance', { status: 503 });
+  for (const pathPrefix of ['', '/api/']) {
+    const table = createRouteTable();
+    const server = withServerMiddleware({ server: table, middleware: [gate] }, { pathPrefix });
+    server.route({ method: 'GET', path: '/api', handler: () => new Response('unwrapped') });
+    const request = new Request('http://local/api');
+    const match = table.match({ method: request.method, pathname: '/api' });
+    if (match.kind !== 'route') throw new Error('GET /api was not registered');
+    const response = await match.route.handler({ request, params: match.params });
+    expect([response.status, await response.text()]).toEqual([503, 'maintenance']);
+  }
+});

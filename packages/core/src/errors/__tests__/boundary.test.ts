@@ -173,3 +173,19 @@ describe('startOperation and endOnce', () => {
     expect(NOOP_OPERATION_TRACKER.run(() => 3)).toBe(3);
   });
 });
+
+test('keeps the successful result when its classifier throws and records the classifier failure', async () => {
+  const { reporter, reports, entries } = createRecordingReporter({ ids: [ID], iso: '2026-11-21T12:00:00.000Z' });
+  const end = vi.fn();
+  const work = vi.fn(async () => 'exported');
+  const error = new Error('classifier failed');
+  const result = await runOperation({ deps: { observability: trackerWith(end), reporter }, ...base, work,
+    classify: () => { throw error; },
+  });
+  expect(result).toEqual({ ok: true, value: 'exported', verdict: { outcome: 'completed', failed: false } });
+  expect(work.mock.calls).toEqual([[]]);
+  expect(end.mock.calls).toEqual([[{ outcome: 'completed', failed: false }]]);
+  expect(entries).toMatchObject([{ meta: { errorId: ID, step: 'Export site (judge the result)' } }]);
+  expect(reports).toMatchObject([{ context: { operation: 'site.export', incidentId: ID } }]);
+  expect(reports[0]?.error).toBe(error);
+});

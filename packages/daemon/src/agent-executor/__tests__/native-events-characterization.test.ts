@@ -164,3 +164,28 @@ it.each(['acp', 'pi'] as const)('%s: attach failure awaits teardown and release 
   rig.child.emit('close', 0, null);
   await rig.lifecycle.waitForTerminal({ runId: rig.runId });
 });
+
+it('ACP reports failure to stop recorded descendants without rewriting the completed run outcome', async () => {
+  const rig = await fixture();
+  const failure = new Error('process group could not be stopped');
+  const processes = [{ pid: 7301, ppid: 7300, command: 'worker' }, { pid: 7302, ppid: 7301, command: 'child' }];
+  type AcpDeps = Parameters<typeof runAcpDispatch>[0]['deps'];
+  const stop = vi.fn<AcpDeps['stopProcesses']>(async () => { throw failure; });
+  const collect = vi.fn<AcpDeps['collectProcessTreePids']>(() => [7301, 7302]);
+  let beforeRelease: (() => Promise<void>) | undefined;
+  await runAcpDispatch({ input: rig.input, deps: { ...rig.deps,
+    listProcessSnapshots: async () => processes, collectProcessTreePids: collect, stopProcesses: stop,
+    attachAcpSession: ({ send }, options) => {
+      beforeRelease = options?.beforeRelease;
+      send({ event: 'agent', payload: { type: 'text_delta', delta: 'completed document' } });
+      return sessions().acp;
+    },
+  } });
+  if (!beforeRelease) throw new Error('ACP session did not receive a beforeRelease hook');
+  await beforeRelease();
+  rig.child.emit('close', 0, null);
+  expect((await rig.lifecycle.waitForTerminal({ runId: rig.runId })).state).toBe('succeeded');
+  expect(collect.mock.calls).toEqual([[{ processes, rootPids: [7300] }]]);
+  expect(stop.mock.calls).toEqual([[{ pids: [7301, 7302] }]]);
+  expect(rig.deps.onCleanupFailure.mock.calls).toEqual([[{ runId: rig.runId, phase: 'acp-release', pid: 7300, error: failure }]]);
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { optionalBoolean, optionalNumber, optionalOneOf, optionalString, readToolLimit, requireInputRecord, requireNoInput, requireNumber, requireObject, requireString } from '../registration-kit.js';
+import { optionalBoolean, optionalNumber, optionalOneOf, optionalString, readToolLimit, refuseUnexpectedKeysPort, requireInputRecord, requireNoInput, requireNumber, requireObject, requireString } from '../registration-kit.js';
 import { ToolInputError } from '../tool-registry.js';
 
 /** AP3 HOSTILE table through every tool-input reader: each wrong type yields ToolInputError with
@@ -75,4 +75,12 @@ describe('readToolLimit', () => {
     expect(readToolLimit({ input: { top: 3 }, max: 50, fallback: 10 }, { key: 'top' })).toBe(3);
     for (const limit of [0, -1, 1.5, '5', null, Number.NaN]) expect(() => readToolLimit({ input: { limit }, max: 50, fallback: 10 })).toThrow("'limit' must be an integer between 1 and 50");
   });
+});
+
+it('refuses an unexpected confirmation flag through the registration port', () => {
+  const allowed = ['postId'];
+  expect(err(() => refuseUnexpectedKeysPort({ postId: 'post-1' }, allowed))).toBeUndefined();
+  const refused = err(() => refuseUnexpectedKeysPort({ postId: 'post-1', confirmationToken: 'fixture' }, allowed));
+  expect(refused).toBeInstanceOf(ToolInputError);
+  expect((refused as Error).message).toBe("'confirmationToken' is not an input of this tool. Only a click in the confirm dialog confirms it — nothing in the tool input can.");
 });

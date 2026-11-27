@@ -5,7 +5,7 @@ import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
 import { a2uiActionsRoutes, answerA2uiAction } from '../a2ui-actions.js';
 import { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackRouteDeps } from '../surface-callback-route.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createManualScheduler, fakeDaemonRouteHost } from './fakes/route-host.js';
 
 /**
  * Wire pins for the two surface endpoints as daemon routes: exact status and body of every refusal
@@ -162,10 +162,52 @@ describe('surface callback route', () => {
     expect(await answered(await send(fetch, '/cb', body, 'alice'))).toEqual({ status: 202, body: { delivered: true } });
   });
 
+  it('delivers an unaddressed typed answer to the outstanding exchange of the authenticated principal', async () => {
+    let nextId = 0;
+    const store = createSurfaceExchangeStore({
+      scheduler: createTimeoutScheduler({}), clock: { nowMs: () => 0 },
+      idGenerator: { newId: () => `exchange-${++nextId}` }, defaultChannel: 'mcp-ui',
+    });
+    const { fetch, executed } = setup({ surfaceExchanges: store, admit: ({ toolName, typedAnswer }) => toolName === 'allowed' && typedAnswer });
+    const open = (principalId: string) => store.open({ binding: { toolId: 'allowed', principalId }, emit: async () => {} });
+    const alice = open('alice');
+    const bob = open('bob');
+    const answer = alice.receive({});
+    const params = { __typedAnswer: 'blue' };
+    try {
+      expect(await answered(await send(fetch, '/cb', { toolName: 'allowed', params }, 'alice')))
+        .toEqual({ status: 202, body: { delivered: true } });
+      expect(await answer).toEqual({ status: 'received', params });
+      expect(store.findTypedAnswerTarget({ principalId: 'bob', toolId: 'allowed' })).toBe(bob.id);
+      expect(executed).toEqual([]);
+    } finally {
+      alice.close({});
+      bob.close({});
+    }
+  });
+
   it('answers 409 for a typed answer when nothing is outstanding instead of executing the tool', async () => {
     const { fetch, executed } = setup({ admit: () => true });
     const res = await answered(await send(fetch, '/cb', { toolName: 'allowed', params: { __typedAnswer: 'hi' } }, 'alice'));
     expect(res).toEqual({ status: 409, body: { error: 'that dialog is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING', reason: 'unknown-or-closed' } });
     expect(executed).toEqual([]);
   });
+});
+
+it('an authenticated malformed surface POST receives the shared JSON refusal without entering the endpoint', async () => {
+  const { server, fetch } = createInMemoryServer();
+  const calls: string[] = [];
+  const deps: SurfaceCallbackRouteDeps = {
+    principalHeader: HEADER, surfaceExchanges: makeStore(), scheduler: createManualScheduler(),
+    admit: ({ toolName }) => { calls.push(toolName); return false; },
+    toolExecutor: { execute: async () => { throw new Error('malformed body must not be executed'); } },
+    idGenerator: { newId: () => 'unused-id' },
+  };
+  for (const route of surfaceCallbackRoutes({ path: '/cb', host: fakeDaemonRouteHost({}), deps })) server.route(route);
+  const res = await fetch(new Request('http://local/cb', {
+    method: 'POST', headers: { [HEADER]: 'alice', 'content-type': 'application/json' }, body: '{"toolName":',
+  }));
+  expect(res.status).toBe(400);
+  expect(await res.json()).toEqual({ error: { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' } });
+  expect(calls).toEqual([]);
 });

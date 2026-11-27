@@ -64,3 +64,8 @@ describe('content-encoding and exact limits', () => {
     expect(over.ok ? undefined : over.error.code).toBe('PAYLOAD_TOO_LARGE');
   });
 });
+
+it('parses JSON media types irrespective of case and parameters', async () => {
+  expect(await readJsonBody({ request: jsonRequest('{"note":"reçu"}', { 'content-type': 'Application/Problem+JSON; charset=UTF-8' }) }))
+    .toEqual({ ok: true, value: { note: 'reçu' } });
+});

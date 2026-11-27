@@ -138,3 +138,8 @@ test("getEffective: a supplied coercer overrides nothing built-in, identity stay
   assert.equal((await getEffective({ deps: { repo: mk() }, ...coordinate, scopeContext: {} }))?.value, "g");
   assert.equal((await getEffective({ deps: { repo: mk() }, ...coordinate, scopeContext: {} }, { coercers: new Map() }))?.value, "g");
 });
+
+test('validateValueAgainstSchema refuses an unrecognized type loaded from a stored row', () => {
+  const schema = JSON.parse('{"type":"retired-type"}') as Parameters<typeof validateValueAgainstSchema>[0]['schema'];
+  assert.equal(validateValueAgainstSchema({ schema, value: 'stored text' }), false);
+});

@@ -79,3 +79,9 @@ test("formatRelativeMinutesAgo: several minutes is plural", () => {
 test("formatRelativeMinutesAgo: a timestamp at or after 'now' never goes negative", () => {
   expect(formatRelativeMinutesAgo({ iso: "2026-09-06T00:15:00.000Z", nowMs: NOW })).toBe("less than a minute ago");
 });
+
+test("preserves invalid ISO-shaped instants and non-ISO zone suffixes instead of reinterpreting them", () => {
+  for (const iso of ["2026-13-04T10:30Z", "2026-08-01T10:30 PST"]) {
+    expect(formatTimestamp({ iso }, LA)).toBe(iso);
+  }
+});

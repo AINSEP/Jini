@@ -32,3 +32,25 @@ describe('describeRequestFailure', () => {
     expect(describeRequestFailure({ vocabulary }).message).toBe('The request could not be completed.');
   });
 });
+
+it('uses a method-qualified override only for the applicable method, with safe fallbacks for unknown resources', () => {
+  const scoped: RequestFailureVocabulary = { nouns: {}, operations: { 'POST events/clear': {
+    message: 'The event clear could not be verified.', action: 'Check the event list.', step: 'Clear events',
+  } } };
+  const route = '/private/events/clear?token=QUERY_CANARY';
+  expect(describeRequestFailure({ method: 'post', route, vocabulary: scoped })).toEqual({
+    message: 'The event clear could not be verified.', action: 'Check the event list.', step: 'Clear events',
+  });
+  expect(describeRequestFailure({ method: 'GET', route, vocabulary: scoped })).toEqual({
+    message: 'The requested information could not be loaded.',
+    action: 'Try loading them again. If it still fails, copy details and report this problem.', step: 'Load information',
+  });
+  expect(describeRequestFailure({ method: 'PUT', route, vocabulary: scoped })).toEqual({
+    message: 'The requested save could not be completed.',
+    action: 'Check whether your changes were saved before repeating the save. Copy details and report this problem.', step: 'Save changes',
+  });
+  expect(describeRequestFailure({ method: 'DELETE', route, vocabulary: scoped })).toEqual({
+    message: 'The item removal could not be confirmed.',
+    action: 'Check the list before repeating the removal. Copy details and report this problem.', step: 'Remove item',
+  });
+});

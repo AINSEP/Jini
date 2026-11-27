@@ -172,3 +172,47 @@ it('resumes the watchdog after tool rejection and persists the error before inje
   rig.child.emit('close', 0, null);
   await rig.lifecycle.waitForTerminal({ runId: rig.runId });
 });
+
+it('parses the final complete Claude event even without a newline before process close', async () => {
+  const rig = await fixture({ def: createDef({
+    streamFormat: 'claude-stream-json', promptViaStdin: true, promptInputFormat: 'stream-json',
+  }) });
+  wireChildLifecycle(rig.ctx);
+  const text = 'whole final reply';
+  const packet = JSON.stringify({ type: 'assistant', message: { id: 'last', content: [{ type: 'text', text }] } });
+  rig.child.stdout.emit('data', packet.slice(0, 17));
+  rig.child.stdout.emit('data', packet.slice(17));
+  rig.child.emit('close', 0, null);
+  expect((await rig.lifecycle.waitForTerminal({ runId: rig.runId })).state).toBe('succeeded');
+  expect(rig.events.filter(event => event.kind === 'agent' && event.payload.type === 'text_delta').map(event => event.payload))
+    .toEqual([{ type: 'text_delta', delta: text }]);
+  expect(rig.events.at(-1)?.kind).toBe('end');
+});
+
+it('reports structured stdout truncation even if the sanitizer produces no parser output', async () => {
+  const rig = await fixture({ bufferedStdoutMaxBytes: 4, def: createDef({
+    streamFormat: 'claude-stream-json', stdoutPolicy: { buffering: 'until-close', sanitize: () => '' },
+  }) });
+  wireChildLifecycle(rig.ctx);
+  rig.child.stdout.emit('data', '1234');
+  rig.child.stdout.emit('data', 'discarded');
+  rig.child.emit('close', 0, null);
+  await rig.lifecycle.waitForTerminal({ runId: rig.runId });
+  expect(rig.events.filter(event => event.kind === 'error').map(event => event.payload)).toContainEqual({
+    message: '\n[jini] agent stdout truncated: 9 byte(s) dropped after the 4-byte buffer limit was reached.\n',
+  });
+  expect(rig.events.filter(event => event.kind === 'stdout')).toEqual([]);
+});
+
+it('reports a failed tool-event subscription without stranding the child lifecycle', async () => {
+  const rig = await fixture();
+  const failure = new Error('event replay failed');
+  const stream = vi.spyOn(rig.lifecycle, 'stream').mockRejectedValueOnce(failure);
+  wireChildLifecycle(rig.ctx);
+  rig.child.stdout.emit('data', JSON.stringify({ type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: 'done' }] } }) + '\n');
+  rig.child.emit('close', 0, null);
+  expect((await rig.lifecycle.waitForTerminal({ runId: rig.runId })).state).toBe('succeeded');
+  expect(stream.mock.calls[0]?.[0]).toEqual({ runId: rig.runId, onEvent: expect.any(Function) });
+  expect(rig.ctx.onCleanupFailure).toHaveBeenCalledExactlyOnceWith({ runId: rig.runId, phase: 'tool-cancellation', pid: 7100, error: failure });
+  expect(rig.events.at(-1)).toMatchObject({ kind: 'end', payload: { status: 'succeeded' } });
+});

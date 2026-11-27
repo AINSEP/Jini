@@ -77,3 +77,13 @@ it('a synchronous adapter refusal releases its abort listener even if the caller
   expect(() => (cancel as () => void)()).not.toThrow();
   expect(adapter).toHaveBeenCalledTimes(1);
 });
+
+it('settles an already-aborted remote call as cancelled without dispatching', async () => {
+  const t = transport({ reply: () => { throw new Error('an already-aborted call must not dispatch'); } });
+  const controller = new AbortController();
+  controller.abort();
+  expect(await t.executor.execute(input, { signal: controller.signal })).toEqual({
+    status: 'cancelled', executionId: expect.stringMatching(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i),
+  });
+  expect(t.adapter).not.toHaveBeenCalled();
+});

@@ -153,3 +153,13 @@ describe('primitive default adapters', () => {
     expect(JSON.stringify(lines)).not.toContain('SECRETSECRET');
   });
 });
+
+it('projects a symbol without exposing its private description or discarding adjacent metadata', () => {
+  const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+  try {
+    createConsoleLogger({ prefix: '[host]' }).info({ message: 'event' }, {
+      meta: { marker: Symbol('private description'), runId: 'run-1' },
+    });
+    expect(info.mock.calls).toEqual([['[host] event', { marker: '[symbol]', runId: 'run-1' }]]);
+  } finally { info.mockRestore(); }
+});
