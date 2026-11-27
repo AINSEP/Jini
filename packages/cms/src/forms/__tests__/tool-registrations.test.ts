@@ -290,3 +290,19 @@ test("definition tools preserve supplied field, notification and provider patche
   assert.deepEqual(stored?.notify, notify);
   assert.equal(stored?.version, 2);
 });
+
+test("submission listing without a limit pages 50 at a time, and a plain submission read carries no evidence or validation keys", async () => {
+  const fixture = makeFixture();
+  const formId = await seedForm(fixture);
+  const submittedAt = "2026-11-18T00:00:00.000Z";
+  for (let index = 0; index < 51; index++) {
+    await fixture.submissions.create({ id: `s-${String(index).padStart(2, "0")}`, workspaceId: WORKSPACE_ID, formDefinitionId: formId, data: { n: String(index) }, sourceIp: "198.51.100.7", submittedAt });
+  }
+  const call = build(fixture);
+  const page = await call("forms_list_submissions", { formId }) as { submissions: unknown[]; nextCursor: string | null };
+  assert.equal(page.submissions.length, 50);
+  assert.notEqual(page.nextCursor, null);
+  assert.deepEqual(await call("forms_get_submission", { formId, submissionId: "s-07" }), {
+    submission: { id: "s-07", formDefinitionId: formId, data: { n: "7" }, sourceIp: "198.51.100.7", submittedAt },
+  });
+});
