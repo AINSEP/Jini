@@ -28,11 +28,13 @@ const manifestOf = (id: string): PluginManifest => ({
   id, name: id, version: '1.0.0', sdkRange: '>=0.0.0', engine: 1, tier: 'tier-3', capabilities: ['content.read'], hooks: [], fields: [], integrity: {},
 });
 
-function host(ids: readonly string[], setupFor: (id: string) => () => unknown | Promise<unknown>) {
+const hookedManifest = (id: string): PluginManifest => ({ ...manifestOf(id), capabilities: ['content.read', 'hooks.attach'], hooks: [HOOK] });
+
+function host(ids: readonly string[], setupFor: (id: string) => (sdk: Record<string, unknown>) => unknown | Promise<unknown>, manifestFor: (id: string) => PluginManifest = manifestOf) {
   const repo = new InMemoryPluginActivationRepo({ initialRows: ids.map((pluginId) => (
     { pluginId, workspaceId: 'ws' as never, version: '1.0.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' })) });
   const sources: PluginRuntimeSource[] = ids.map((id) => ({
-    source: 'built-in' as const, manifest: manifestOf(id), entryPath: `acme:${id}`,
+    source: 'built-in' as const, manifest: manifestFor(id), entryPath: `acme:${id}`,
     importModule: async () => ({ default: { definition: { setup: setupFor(id) } } }),
   }));
   const required = {
@@ -97,6 +99,36 @@ describe('createPluginRuntimeCore lifecycle pin', () => {
     expect(late).toBeInstanceOf(PluginSnapshotLifecycleError);
     expect(late).toMatchObject({ code: 'SNAPSHOTS_CLOSED' });
     expect(runtime.pluginLoadedVersion({ id: 'b' })).toBeUndefined();
+  });
+
+  it('a plugin declaring the before-save hook but attaching no filter is refused and not published', async () => {
+    const runtime = host(['h'], () => () => {}, hookedManifest);
+    const refused = await runtime.onPluginEnabled('h').catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(PluginLoadError);
+    expect(refused).toMatchObject({ pluginId: 'h', reason: 'PLUGIN_HOOK_NOT_ATTACHED' });
+    expect(runtime.pluginLoadedVersion({ id: 'h' })).toBeUndefined();
+    await runtime.dispose({}, {});
+  });
+
+  it('a failed publish detaches the just-attached filter and surfaces the attach error with its cause', async () => {
+    const ran: string[] = [];
+    const runtime = host(['h'], (id) => (sdk) => {
+      (sdk.addFilter as (hook: string, filter: () => unknown) => void)(HOOK, () => { ran.push(id); return {}; });
+    }, hookedManifest);
+    const cause = new Error('subscriber failed');
+    const unsubscribe = runtime.pluginContributions.subscribe({ onChanged: () => { throw cause; } });
+    const failed = await runtime.onPluginEnabled('h').catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(PluginLoadError);
+    expect(failed).toMatchObject({ pluginId: 'h', reason: 'PLUGIN_HOOK_ATTACH_FAILED' });
+    expect((failed as Error).cause).toBe(cause);
+    expect(runtime.pluginLoadedVersion({ id: 'h' })).toBeUndefined();
+    await runtime.beforeSaveHook({ workspaceId: 'ws', ext: {} } as never);
+    expect(ran).toEqual([]); // the filter was detached, so a save no longer runs it
+    unsubscribe();
+    await runtime.onPluginEnabled('h');
+    await runtime.beforeSaveHook({ workspaceId: 'ws', ext: {} } as never);
+    expect(ran).toEqual(['h']);
+    await runtime.dispose({}, {});
   });
 });
 
