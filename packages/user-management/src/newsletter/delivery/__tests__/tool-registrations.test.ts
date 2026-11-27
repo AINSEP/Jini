@@ -1,12 +1,13 @@
-import { NewsletterLaunchGateBlockedError } from "../../errors.js";
-import { authorizeSend } from "../../send-pipeline.js";
+import { NewsletterLaunchGateBlockedError } from "@jini-ai/user-management/newsletter/errors";
+import { authorizeSend } from "@jini-ai/user-management/newsletter/send-pipeline";
 import { expect, it, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import { buildNewsletterDeliveryRegistrations, type NewsletterDeliveryToolDeps } from "../tool-registrations.js";
 
 const calls = vi.hoisted(() => [] as string[]);
-vi.mock("../../send-pipeline.js", () => ({
+// The unit imports the pipeline through its package specifier, so the mock must name that specifier.
+vi.mock("@jini-ai/user-management/newsletter/send-pipeline", () => ({
   authorizeSend: vi.fn(async () => { calls.push("authorize-send"); return { campaign: { id: "campaign", listId: "list", status: "sending" } }; }),
   freezeAudience: vi.fn(async () => { calls.push("freeze"); }), claimBatch: vi.fn(async () => { calls.push("claim"); }),
   completeIfDrained: vi.fn(async () => { calls.push("complete"); }), resumeCampaign: vi.fn(), sendTestCampaign: vi.fn(), pauseCampaign: vi.fn(),
