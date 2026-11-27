@@ -2,7 +2,7 @@ import { type UUID, type Clock as ClockPort, nowIso as clockNowIso } from "@jini
 import { type PostRepoPort, type PostRecord, PostNotFoundError, ROOT_SLUG, PostConflictError, PostVersionConflictError, SYSTEM_ACTOR_ID } from "@jini-ai/cms/posts/post";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { RemovePostFn } from "./post-trash.js";
-import { versionConflictMessage, appendPostRevision, emitPublicTransitionEvent } from "@jini-ai/cms/posts/post-write-effects";
+import { versionConflictMessage, appendPostRevision, emitPublicTransitionEvent, persistUpdatedPost } from "@jini-ai/cms/posts/post-write-effects";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 import { releaseTrashedSlug } from "@jini-ai/cms/posts/post-slugs";
 
@@ -124,7 +124,9 @@ function persistRetirement(
   _optional: Record<string, never> = {}
 ) {
   return deps.repo.transaction({ fn: async () => {
-    await deps.repo.save(renamed);
+    // Compare-and-set on the version the preflight read: a save landing during the slug search
+    // above must win, not be overwritten by this rename (same guard `updatePost` uses).
+    await persistUpdatedPost({ repo: deps.repo, post: renamed, expectedVersion: existing.version });
     await appendPostRevision({ repo: deps.repo, post: renamed, op: "update", attribution: input });
 
     // `expectedVersion` here is the CAS basis `remove` compares against the row's version RIGHT NOW

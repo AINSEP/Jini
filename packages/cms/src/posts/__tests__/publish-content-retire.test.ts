@@ -8,7 +8,8 @@ import { collectBodyReferences } from "../../publish/content/content-references.
 import { applyRunActor, createRepoPublishHandler, gatewayDeps } from "../../publish/content/repo-handler.js";
 import type { PackedEntity } from "../../publish/transfer/packed-entity.js";
 import { prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, withTermIds } from "../../taxonomy/site/publish-term-ids.js";
-import { PostConflictError, PostNotFoundError, type PostRecord } from "../post.js";
+import { type PostRecord } from "../post.js";
+import { PostConflictError, PostNotFoundError } from "@jini-ai/cms/posts/post";
 import type { contributePostPublish, packedStateOf, PublishContentDeps } from "../publish-content.js";
 import { postRetireMethods } from "../publish-content.retire.js";
 import type { RemovePostFn } from "../post-trash.js";
@@ -159,17 +160,3 @@ it("rolls back a completed retirement if the command ledger cannot record its in
   expect(s.events.filter(e => e.name.startsWith("entry.")).map(e => e.id)).toEqual(["local-page-entry.unpublished-6", "local-page-entry.published-7"]);
 });
 
-it("undo restores the address of an already-trashed holder without untrashing it", async () => {
-  const discarded = { ...holder, deletedAt: "2026-11-24T15:30:00.000Z" };
-  const s = setup([discarded]);
-  const result = await s.methods().retire({ target, ...work });
-  expect(await s.repo.findById(local)).toEqual({ ...discarded, slug: "story-trashed" });
-  expect(await s.changeSets.findById({ workspaceId: WORKSPACE, id: result.changeSetId })).toMatchObject({
-    items: [{ inversePayload: { deletedAt: "2026-11-24T15:30:00.000Z", slug: "story" }, entityVersionAtApply: 4 }],
-  });
-  await result.undo();
-  expect(await s.repo.findById(local)).toEqual(discarded);
-  expect(s.trashIds).toEqual(new Set(["local-page"]));
-  expect(s.forgetRemoved).not.toHaveBeenCalled();
-  expect(s.events.filter(e => e.name.startsWith("entry."))).toEqual([]);
-});

@@ -5,7 +5,8 @@ import { InMemoryChangeSetRepo } from "../../core/commands/repo.memory.js";
 import { deriveDuplicateName } from "../../content-duplication/derive-available-name.js";
 import { copyBodyJsonWithFreshEmbedPlacements } from "../../widgets/duplicate-embeds.js";
 import { InMemoryPagesHtmlDocumentStore } from "../../pages/html-document-store.memory.js";
-import { PostNotFoundError, PostValidationError, type PostRecord } from "../post.js";
+import { type PostRecord } from "../post.js";
+import { PostNotFoundError, PostValidationError } from "@jini-ai/cms/posts/post";
 import type { PostToolDeps } from "../post-tool-deps.js";
 import { contributePostDuplicateHandlers } from "../post-tool-duplicate.js";
 import { NOW, WORKSPACE, postClock, postRepo, postRow, recordingPostOutbox } from "./post-coverage.fixture.js";
@@ -41,7 +42,8 @@ function fixture(rows: PostRecord[] = [source]) {
   } satisfies Pick<PostToolDeps, "workspaceId" | "postRepo" | "reservedSegments" | "authorize" | "idGen" |
     "contentReadPermission" | "contentWritePermission" | "outbox" | "changeSets" | "clock" | "executeCommand" |
     "processOutbox" | "copyBodyJsonWithFreshEmbedPlacements" | "pluginBeforeSaveHook" | "bus" | "postToolViewDeps">;
-  const deps = sourceDeps as PostToolDeps;
+  // The `satisfies` above pins the slice the duplicate handlers read; the rest of the host bag is unused here.
+  const deps = sourceDeps as unknown as PostToolDeps;
   const naming = vi.fn<Parameters<typeof contributePostDuplicateHandlers>[0]["deriveDuplicateName"]>((required, options) =>
     deriveDuplicateName(required, { ...options, withSuffix: ({ base, suffix }) => `${base} ${suffix}`, exhaustionMessage: ({ base }) => `No free copy of ${base}` }));
   const select = (resource: "page" | "post") => {

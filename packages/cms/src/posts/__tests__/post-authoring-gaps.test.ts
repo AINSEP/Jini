@@ -3,7 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { expect, it, vi } from "vitest";
 import { createPost, type CreatePostInput, type PostAuthorAccountPort } from "../post-create.js";
 import { updatePost, type UpdatePostInput } from "../post-update.js";
-import { EMAIL_TEMPLATE_KIND, PostNotFoundError, PostValidationError, PostVersionConflictError, type PostRecord } from "../post.js";
+import { EMAIL_TEMPLATE_KIND, type PostRecord } from "../post.js";
+import { PostNotFoundError, PostValidationError, PostVersionConflictError } from "@jini-ai/cms/posts/post";
 import type { BeforeSaveHookPort } from "../post-before-save.js";
 import { NOW, WORKSPACE, postClock, postRepo, postRow, recordingPostOutbox } from "./post-coverage.fixture.js";
 

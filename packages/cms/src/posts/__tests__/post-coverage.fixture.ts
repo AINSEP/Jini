@@ -17,7 +17,9 @@ export function postRow(fields: Partial<PostRecord> = {}): PostRecord {
   };
 }
 
-export function postRepo(initialRows: PostRecord[] = []) {
+// Named return type: the bound class is module-private, so its inferred type cannot be emitted.
+export type CoveragePostRepo = InstanceType<ReturnType<typeof bindInMemoryPostRepo>>;
+export function postRepo(initialRows: PostRecord[] = []): CoveragePostRepo {
   let nextRevision = 0;
   const Repo = bindInMemoryPostRepo({
     nowIso: () => NOW, newId: () => `revision-${++nextRevision}`, createEvidence: createMediaAccessEvidence,

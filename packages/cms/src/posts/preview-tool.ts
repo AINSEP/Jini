@@ -4,7 +4,7 @@ import { adaptLegacyAuthorize, requireToolPermission, type AgentToolDefinition }
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type ToolRegistration, type ToolContributor } from "@jini-ai/core";
 import { type JsonObject } from "@jini-ai/core/primitives";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
-import { getAdminPostById } from "@jini-ai/cms/posts/post-read";
+import { getAdminPostByIdOrSlug } from "@jini-ai/cms/posts/post-read";
 import { PostNotFoundError, type PublicPostRecord as PostRecord, type PostRepoPort } from "@jini-ai/cms/posts/post";
 type PageBodyOptions = { maxBytes?: number | undefined; find?: string | undefined; textOnly?: boolean | undefined };
 type ShapedPageBody = { bodyBytes: number; truncated: boolean } & (
@@ -66,7 +66,7 @@ export function buildPostPreviewRegistrations({ deps, renderer }: { deps: PostPr
       const options = deps.readPageBodyOptions({ input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: deps.readPermission }, { entityType: "post" });
       let post: PostRecord;
-      try { ({ post } = await getAdminPostById({ deps: { repo: deps.postRepo }, input: { workspaceId: deps.workspaceId, id: postId } })); }
+      try { ({ post } = await getAdminPostByIdOrSlug({ deps: { repo: deps.postRepo }, input: { workspaceId: deps.workspaceId, idOrSlug: postId } })); }
       catch (error) {
         if (error instanceof PostNotFoundError) throw new ToolInputError({ message: deps.missingPostMessage(postId) });
         throw error;

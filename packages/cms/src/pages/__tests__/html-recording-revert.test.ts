@@ -1,9 +1,10 @@
 import { expect, it, vi } from "vitest";
 import type { ChangeSetItemRecord } from "@jini-ai/core/contracts/events";
 import type { PagesHtmlDocumentStoreFactory, PagesHtmlDocumentStorePort } from "@jini-ai/core/contracts/site/page-html-store";
-import { createRevertRegistry, RevertConflictError, RevertNotPossibleError } from "../../core/commands/index.js";
+import { createRevertRegistry } from "../../core/commands/index.js";
+import { RevertConflictError, RevertNotPossibleError } from "@jini-ai/cms/core/commands";
 import type { PostRecord } from "../../posts/post.js";
-import { PageConcurrentEditError, PageNotFoundError } from "../html-document-store.js";
+import { PageConcurrentEditError, PageNotFoundError } from "@jini-ai/cms/pages/html-document-store";
 import { recordAssistantPageHtmlWrite, type PageHtmlRecordingDeps } from "../html-change-recording.js";
 import { pageHtmlInverseOf, parsePageHtmlInverse, restoredEntryRefs } from "../html-inverse.js";
 import { createPageHtmlReverter, registerPageHtmlReverter } from "../html-reverter.js";

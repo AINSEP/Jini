@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { expect, it, vi } from "vitest";
-import { PostConflictError, PostNotFoundError, PostVersionConflictError, type PostRecord } from "../post.js";
+import { type PostRecord } from "../post.js";
+import { PostConflictError, PostNotFoundError, PostVersionConflictError } from "@jini-ai/cms/posts/post";
 import { retirePostForReplacement } from "../post-retire.js";
 import { deletePost, restorePostForward } from "../post-trash.js";
 import { NOW, WORKSPACE, postClock, postRepo, postRow, recordingPostOutbox, removeFromPostRepo } from "./post-coverage.fixture.js";

@@ -4,7 +4,11 @@ import { ToolInputError } from "@jini-ai/core";
 import { reclassifyToolError } from "@jini-ai/core/model-facing-tool-errors";
 import { expect, it, vi } from "vitest";
 import { ForbiddenError } from "../../core/index.js";
-import { EMAIL_TEMPLATE_KIND, PostConflictError, PostNotFoundError, PostValidationError, PostVersionConflictError } from "../post.js";
+import { EMAIL_TEMPLATE_KIND } from "../post.js";
+import { PostConflictError, PostNotFoundError, PostValidationError, PostVersionConflictError } from "@jini-ai/cms/posts/post";
+// post-tool-errors.ts classifies by `instanceof` against its relative `./post.js` import (src), while the
+// tool modules throw the self-named (built) classes; each test builds errors from the module its unit uses.
+import * as postSource from "../post.js";
 import { assertFreshVersion, loadDeletablePost } from "../post-tool-delete.js";
 import type { PostToolDeps } from "../post-tool-deps.js";
 import { isPostShapeRejection, POST_MODEL_FACING_ERRORS } from "../post-tool-errors.js";
@@ -32,7 +36,7 @@ function depsForTools() {
   // These boundary helpers consume only the supplied slice of their host bag.
   const slice = { postRepo: postRepo([post, page, internal, trash, postRow({ id: "foreign", workspaceId: "elsewhere" })]),
     workspaceId: WORKSPACE, readPostTemplateOptions, postToolViewDeps: () => viewDeps() };
-  return { routeDeps: slice as PostToolDeps, readPostTemplateOptions };
+  return { routeDeps: slice as unknown as PostToolDeps, readPostTemplateOptions };
 }
 
 it("loads the requested public target for deletion and refuses missing, wrong-kind, or trashed rows", async () => {
@@ -59,10 +63,10 @@ it("requires a fresh deletion confirmation only when a live row changed versions
 });
 
 it("only decorates shape rejections and sends model-facing error codes with the actionable reason", () => {
-  const shape = new PostValidationError("title is empty");
-  const version = new PostVersionConflictError({ message: "expected 4, found 6", expectedVersion: 4, currentVersion: 6 });
-  const conflict = new PostConflictError("slug 'notes' already exists");
-  const missing = new PostNotFoundError("post 'notes' was not found");
+  const shape = new postSource.PostValidationError("title is empty");
+  const version = new postSource.PostVersionConflictError({ message: "expected 4, found 6", expectedVersion: 4, currentVersion: 6 });
+  const conflict = new postSource.PostConflictError("slug 'notes' already exists");
+  const missing = new postSource.PostNotFoundError("post 'notes' was not found");
   const forbidden = new ForbiddenError({ message: "content.write denied", permission: "content.write", reason: "no_grant" });
   expect([shape, version, conflict, missing, forbidden, null].map(error => isPostShapeRejection({ error })))
     .toEqual([true, false, false, false, false, false]);

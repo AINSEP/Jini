@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { expect, test, vi } from "vitest";
+import { expect, it, test, vi } from "vitest";
 import { bindInMemoryPostRepo } from "../repo.memory.js";
 import { createMediaAccessEvidence } from "../../media/site/access-evidence.js";
 import { createPostFeaturedImageRefusals } from "../post-tool-policy.js";
