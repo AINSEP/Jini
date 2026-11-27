@@ -13,3 +13,15 @@ test("folder JSON and zip previews preserve replacement consent and digest", asy
   expect(input?.body).toBeInstanceOf(Blob);
   expect((input?.body as Blob).type).toBe("application/zip");
 });
+
+test("a folder install posts to the install endpoint, and a zip preview carries replace consent with no digest", async () => {
+  const request = vi.fn(async (_input: { path: string; method: string; body: unknown }): Promise<unknown> => ({ plugin: { digest: "accepted" } }));
+  const port = createPluginInstallPort<{ digest: string }>({ request: <T,>(input: { path: string; method: string; body: unknown }) => request(input) as Promise<T>, workspaceId: "ws-2" });
+  const folder = { source: { kind: "folder" as const, path: "/plugin" }, expectedDigest: "d1" };
+  expect(await port.install(folder)).toEqual({ plugin: { digest: "accepted" } });
+  expect(request).toHaveBeenLastCalledWith({ path: "/workspaces/ws-2/plugins/install", method: "POST", body: folder });
+  await port.preview({ source: { kind: "zip", file: new File(["zip-bytes"], "plugin.zip") }, replace: true });
+  const input = request.mock.calls[1]?.[0];
+  expect(input?.path).toBe("/workspaces/ws-2/plugins/install/zip/preview?replace=true");
+  expect(await (input?.body as Blob).text()).toBe("zip-bytes");
+});

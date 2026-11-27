@@ -15,4 +15,6 @@ it("setup attaches once to the injected hook and counts the whole draft body", a
     { type: "paragraph", content: [{ type: "text", text: "first two" }] }, { type: "paragraph", content: [{ type: "text", text: "last three words" }] },
   ] } };
   expect(await filter(draft, { workspaceId: "w", pluginId: "count" })).toEqual({ count: 5 });
+  // A draft with no body at all counts zero words instead of failing the save.
+  expect(await filter({ workspaceId: "w", ext: {} }, { workspaceId: "w", pluginId: "count" })).toEqual({ count: 0 });
 });
