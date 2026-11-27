@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { AdminContentType } from "../../api/collections-api.types.js";
 import type { CollectionsApi } from "../../api/collections-api.js";
 import { createCollectionEntriesPort } from "../collection-entries-dependencies.hooks.js";
-import { createCollectionEntryEditorPort } from "../collection-entry-editor-dependencies.hooks.js";
-import { createCollectionsPort } from "../collections-dependencies.hooks.js";
-import { createEditFieldsDialogPort } from "../edit-fields-dialog-dependencies.hooks.js";
-import { createNewContentTypeDialogPort } from "../new-content-type-dialog-dependencies.hooks.js";
+import { createCollectionEntryEditorPort, createFakeCollectionEntryEditorPort } from "../collection-entry-editor-dependencies.hooks.js";
+import { createCollectionsPort, createFakeCollectionsPort } from "../collections-dependencies.hooks.js";
+import { createEditFieldsDialogPort, createFakeEditFieldsDialogPort } from "../edit-fields-dialog-dependencies.hooks.js";
+import { createNewContentTypeDialogPort, createFakeNewContentTypeDialogPort } from "../new-content-type-dialog-dependencies.hooks.js";
 
 /**
  * @file Pins the LIVE collections `create*Port` bindings: each port method forwards to the
@@ -66,3 +67,41 @@ describe("collections live ports", () => {
     ]);
   });
 });
+
+describe("collections in-memory port contracts", () => {
+  it("reflects reactivation and tombstone on readback and rejects lifecycle changes to an absent type", async () => {
+    const port = createFakeCollectionsPort({ types: [{ ...seed, status: "deprecated" }] });
+    await expect(port.contentTypeLifecycle({ key: "kit", op: "reactivate", expectedVersion: 7 })).resolves.toEqual({
+      contentType: { ...seed, status: "active", version: 8 },
+    });
+    await port.contentTypeLifecycle({ key: "kit", op: "tombstone", expectedVersion: 8 });
+    await expect(port.contentTypeLifecycle({ key: "absent", op: "deprecate", expectedVersion: 1 })).rejects.toThrow("fake content type not found: absent");
+    await expect(port.listContentTypes()).resolves.toEqual({ items: [{ ...seed, status: "tombstone", version: 9 }] });
+  });
+
+  it("returns seeded create and edit responses and records distinct inputs on a subsequent call", async () => {
+    const updated = { ...seed, version: 8 };
+    const fields = createFakeEditFieldsDialogPort({ updatedContentType: updated });
+    const create = createFakeNewContentTypeDialogPort({ createdContentType: seed });
+    const update = { key: "kit", fields: [], expectedVersion: 7 };
+    expect(fields.lastUpdate).toBeNull();
+    expect(create.lastCreate).toBeNull();
+    await expect(fields.updateContentTypeFields(update)).resolves.toEqual({ contentType: updated });
+    await expect(create.createContentType({ key: "kit", label: "Toolkit", fields: [] })).resolves.toEqual({ contentType: seed });
+    await fields.updateContentTypeFields({ ...update, expectedVersion: 8 });
+    await create.createContentType({ key: "faq", label: "FAQ", fields: [] });
+    expect(fields.lastUpdate).toEqual({ ...update, expectedVersion: 8 });
+    expect(create.lastCreate).toEqual({ key: "faq", label: "FAQ", fields: [] });
+  });
+
+  it("rejects absent entries for both writes without creating a substitute", async () => {
+    const port = createFakeCollectionEntryEditorPort();
+    await expect(port.updateEntry({ target: { id: "missing", expectedVersion: 3 }, patch: { title: "Do not insert" } }))
+      .rejects.toThrow("fake entry not found: missing");
+    await expect(port.entryLifecycle({ id: "other", expectedVersion: 7, op: "publish" }))
+      .rejects.toThrow("fake entry not found: other");
+    await expect(port.listEntries({})).resolves.toEqual({ items: [] });
+  });
+});
+
+const seed: AdminContentType = { workspaceId: "w1", key: "kit", label: "Toolkit", fields: [], version: 7, status: "active" };

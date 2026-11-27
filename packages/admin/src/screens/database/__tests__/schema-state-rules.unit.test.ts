@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSchemaStateWarning } from "../rules.js";
+import { resolveSchemaStateWarning, viewInRecoveryAccessibleName } from "../rules.js";
 import type { AdminSchemaState } from "../../../core/index.js";
 
 /**
@@ -21,6 +21,12 @@ function state(overrides: Partial<AdminSchemaState> = {}): AdminSchemaState {
     runtime: overrides.runtime === undefined ? { version: 5, tag: "0005_a" } : overrides.runtime,
   };
 }
+
+it("starts a Recovery control's accessible name with the localized label and ends with the viewer-local event time", () => {
+  const row = { kind: "restore.executed", createdAt: "2026-07-01T03:40:23.000Z" };
+  expect(viewInRecoveryAccessibleName({ locale: "es", row, viewerTimeZone: "America/Los_Angeles" }))
+    .toBe("Ver en Recuperación → — restore.executed, 2026-06-30 20:40");
+});
 
 describe("resolveSchemaStateWarning", () => {
   it("stays silent for a confirmed in-sync database — the one and only clean case", () => {

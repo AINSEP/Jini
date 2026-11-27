@@ -102,3 +102,20 @@ describe("injected hook seam (useCollectionEntriesHook)", () => {
     expect(screen.getByRole("button", { name: "Publish collections" })).toBeInTheDocument();
   });
 });
+
+it("shows the loading notice when the registry lookup is unresolved, even with an empty entry list", () => {
+  render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
+    contentType: undefined, entries: [], error: null, t: ({ key }) => key,
+  })} />);
+  expect(screen.getByText("Loading entries…")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "New entry" })).not.toBeInTheDocument();
+});
+
+it("does not expose the create action while entry data is still pending for a known collection", () => {
+  const contentType = { workspaceId: "w1", key: "recipe", label: "Recipe", status: "active" as const, version: 2, fields: [] };
+  render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => ({
+    contentType, entries: null, error: null, t: ({ key }) => key,
+  })} />);
+  expect(screen.getByText("Loading entries…")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "New entry" })).not.toBeInTheDocument();
+});

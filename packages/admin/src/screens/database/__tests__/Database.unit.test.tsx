@@ -252,6 +252,18 @@ describe("TimelineSection — loading/error/loaded", () => {
     expect(screen.getAllByRole("button", { name: /^View in Recovery →/ })).toHaveLength(2);
   });
 
+  it("assigns each Recovery action the handle derived from its own ledger event", () => {
+    const restoreRow: AdminLedgerRow = {
+      ...ROW, id: "RESTORE / 23", kind: "restore.executed", restorePointId: "rp23",
+    };
+    renderDatabase({ timeline: { rows: [restoreRow, ROW] } });
+
+    expect(screen.getByRole("button", { name: "View in Recovery → — restore.executed, 2026-08-01 12:34" }))
+      .toHaveAttribute("data-agent-element", "database-timeline-restore-point-restore-23");
+    expect(screen.getByRole("button", { name: "View in Recovery → — core.migration, 2026-08-01 12:34" }))
+      .toHaveAttribute("data-agent-element", "database-timeline-restore-point-row1");
+  });
+
   it("renders '—' instead of a link when the row has no restorePointId", () => {
     renderDatabase({ timeline: { rows: [ROW_NO_RESTORE_POINT] } });
     expect(screen.queryByRole("button", { name: /^View in Recovery →/ })).not.toBeInTheDocument();
@@ -393,6 +405,18 @@ describe("MigrateForwardSection — idle/planned/confirmed/done", () => {
     const c = renderDatabase({ migrateForward: { step: "planned", plan: { planId: "plan1", planHash: "hash1" } } });
     await user.click(screen.getByRole("button", { name: "Confirm migration" }));
     expect(c.migrateForward.doConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables confirmation while pending and shows the pending label in the section locale", async () => {
+    const user = userEvent.setup();
+    const c = renderDatabase({
+      migrateForward: { step: "planned", plan: { planId: "plan1", planHash: "hash1" }, busy: true, locale: "es" },
+    });
+    const pending = screen.getByRole("button", { name: "Confirmando…" });
+    expect(pending).toBeDisabled();
+    await user.click(pending);
+    expect(c.migrateForward.doConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Confirmar migración" })).toBeNull();
   });
 
   it("confirmed: shows 'Execute migration' (btn-warning) once confirmationToken is set", () => {

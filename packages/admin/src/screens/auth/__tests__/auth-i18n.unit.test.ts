@@ -23,3 +23,18 @@ describe("signed-out operator translations", () => {
     expect(t({ locale: "es", key: "Unlisted login error" })).toBe("Unlisted login error");
   });
 });
+
+it("ships non-empty diagnostic controls in every supported non-English locale", () => {
+  const keys = ["Show details", "Copy details", "Copied", "Copy failed. Select the details and copy them manually.", "Report this error ID."];
+  const locales = ["ar", "bn", "de", "es", "fa", "fr", "hi", "hu", "id", "it", "ja", "ko", "pl", "pt-BR", "ru", "th", "tr", "uk", "ur", "zh-CN", "zh-TW"];
+  for (const locale of locales) {
+    for (const key of keys) {
+      const value = t({ locale, key });
+      expect(value.trim(), `${locale}: ${key}`).not.toBe("");
+      expect(value, `${locale}: ${key}`).not.toBe(key);
+    }
+  }
+  expect(t({ locale: "fr", key: "Show details" })).toBe("Afficher les détails");
+  expect(t({ locale: "fr", key: "Copy details" })).toBe("Copier les détails");
+  expect(t({ locale: "en", key: "Copy details" })).toBe("Copy details");
+});

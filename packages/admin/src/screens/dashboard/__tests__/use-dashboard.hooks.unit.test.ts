@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, renderHook, testAdminKit, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useDashboard, type DashboardDependencies } from "../hooks/use-dashboard.hooks.js";
 import { createFakeDashboardPort } from "../hooks/fake-dashboard-port.js";
 import type { DashboardPort } from "../hooks/dashboard-port.hooks.js";
 import type { DashboardActivityRow } from "../dashboard-view.types.js";
+import { AdminKitProvider } from "../../../react/kit.js";
 import { AdminBootScopeContext } from "../../../shell/lib/admin-boot-scope.js";
 import { createElement, type ReactNode } from "react";
 import { publishContentRefresh } from "../../../shell/lib/content-refresh-bus.js";
@@ -430,4 +431,20 @@ describe("useDashboard — injected host seams", () => {
     expect(localStorage.getItem(DISMISSED_KEY)).toBeNull();
     localStorage.removeItem("other.key");
   });
+});
+
+it("uses safe stat copy when the query layer itself fails before calling the port", async () => {
+  const port = createFakeDashboardPort({ pendingCommentsCount: 3 });
+  const underlying = testAdminKit.query.useFetchQuery;
+  const queryFailure = new Error("Private cache diagnostic");
+  const useQuery: typeof underlying = (required, optional) => {
+    const unavailable = required.key[0] === "media";
+    const query = underlying(required, unavailable ? { ...optional, enabled: false } : optional);
+    return unavailable ? { ...query, status: "error", error: queryFailure } : query;
+  };
+  const kit = { ...testAdminKit, query: { ...testAdminKit.query, useFetchQuery: useQuery } };
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(AdminKitProvider, { kit, children });
+  const { result } = renderHook(() => useDashboard({ ...HOST, port, locale: "en", t: key => key }), { wrapper });
+  await waitFor(() => expect(result.current.comments).toEqual({ value: 3, error: null }));
+  expect(result.current.media).toEqual({ value: null, error: "failed to load media" });
 });

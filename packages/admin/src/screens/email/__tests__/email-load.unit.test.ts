@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useLoad } from "../hooks/email-load.hooks.js";
+import { errorMessage, useLoad } from "../hooks/email-load.hooks.js";
 
 /** Stand-in for the host's transport error class (message + HTTP status), injected as `ApiError`. */
 class ApiError extends Error {
@@ -50,4 +50,9 @@ describe("useLoad", () => {
     expect(result.current.view).toEqual({ kind: "loaded", data: "new result" });
   });
 
+});
+
+it("uses the safe fallback for an API error with no caller-safe message", () => {
+  const error = new ApiError({ status: 503, message: "" });
+  expect(errorMessage({ error, ApiError }, { fallback: "Delivery status unavailable." })).toBe("Delivery status unavailable.");
 });

@@ -180,3 +180,17 @@ it("collapsed and error dashboard states match the shipped selectors", () => {
   }
   expect(css).not.toMatch(/\.jini-dash-[^{}]*\.is-(error|collapsed)\b/);
 });
+
+it("keeps recent activity in a loading state when only one of the two sources has failed", () => {
+  renderDashboard({ recent: null, posts: { value: null, error: "posts down" }, pages: { value: null, error: null } });
+  expect(screen.getByText("Loading…")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByText("Nothing published or drafted yet.")).not.toBeInTheDocument();
+});
+
+it("renders a pending theme name without dropping or inventing an Appearance link", () => {
+  const { container } = renderDashboard({ themeId: null, themeName: null, themeError: null });
+  const activeTheme = screen.getByText("Active theme").closest("p")!;
+  expect(within(activeTheme).getByText("…")).toBeInTheDocument();
+  expect(within(container).getByRole("link", { name: "Change" })).toHaveAttribute("href", "/x/themes");
+});

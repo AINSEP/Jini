@@ -143,3 +143,22 @@ describe('createConsentAutosave', () => {
     autosave.stop();
   });
 });
+
+it('drops an already-queued edit when the autosave is stopped during the preceding write', async () => {
+  const { timers, fire } = manualTimers();
+  const { calls, port } = heldSaves();
+  const { events, handlers } = recorder();
+  const autosave = createConsentAutosave({ port, draftId: 'd0', events: handlers, isConflict: consentErrors.isConflict }, { timers });
+  autosave.change({ config: { ...CONSENT_CONFIG, title: 'first' } });
+  fire();
+  autosave.change({ config: { ...CONSENT_CONFIG, title: 'must not save' } });
+  const pending = autosave.flush();
+  autosave.stop();
+  calls[0]!.settle.resolve(saved('d1'));
+  await tick();
+  // Check before awaiting pending: a regressed autosave would get stuck on a second held write.
+  expect(calls.map(call => [call.config.title, call.expectedDraftId])).toEqual([['first', 'd0']]);
+  await pending;
+  expect(events).toEqual(['saving', 'saved:d1:more']);
+  expect(autosave.draftId()).toBe('d1');
+});

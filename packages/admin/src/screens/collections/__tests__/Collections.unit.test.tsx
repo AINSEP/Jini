@@ -669,3 +669,33 @@ describe("LifecycleConfirmDialog", () => {
 
 
 });
+
+it.each(["create", "edit"] as const)("routes host dismissal through the %s dialog controller", async (mode) => {
+  const user = userEvent.setup();
+  const cancel = vi.fn();
+  if (mode === "create") newDialogRef.current = newDialogController({ cancel });
+  else editDialogRef.current = editDialogController({ cancel });
+  const c = renderCollections(mode === "create" ? { showNewDialog: true } : { editingFieldsFor: TYPE });
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close", exact: true }));
+  expect(cancel.mock.calls).toEqual([[]]);
+  expect(c.setShowNewDialog).not.toHaveBeenCalled();
+  expect(c.setEditingFieldsFor).not.toHaveBeenCalled();
+});
+
+it.each([
+  { op: "deprecate", confirm: "Deprecate", autoFocusCancel: false },
+  { op: "tombstone", confirm: "Delete", autoFocusCancel: true },
+] as const)("marks the intended initial focus target and cancels without a write on host close for $op", async ({ op, confirm, autoFocusCancel }) => {
+  const user = userEvent.setup();
+  lifecycleDialogRef.current = lifecycleDialogController({ autoFocusCancel });
+  const c = renderCollections({ pendingLifecycle: { op, contentType: TYPE } });
+  const dialog = within(screen.getByRole("dialog"));
+  const expectedFocus = dialog.getByRole("button", { name: autoFocusCancel ? "Cancel" : confirm, exact: true });
+  const other = dialog.getByRole("button", { name: autoFocusCancel ? confirm : "Cancel", exact: true });
+  // The injected Dialog reads this opt-in to choose the initial focus target.
+  expect(expectedFocus).toHaveAttribute("data-jini-autofocus", "");
+  expect(other).not.toHaveAttribute("data-jini-autofocus");
+  await user.click(dialog.getByRole("button", { name: "Close", exact: true }));
+  expect(c.setPendingLifecycle).toHaveBeenCalledExactlyOnceWith(null);
+  expect(c.runLifecycle).not.toHaveBeenCalled();
+});

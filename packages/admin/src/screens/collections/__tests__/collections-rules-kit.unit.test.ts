@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CollectionsHostKit } from "../collections-host-kit.js";
-import { addDraftField, bindCollectionsRules, collectionEmbedSnippet, createDraftRowIdCounter, describeEditFieldsError, draftFieldsFromContentType, emptyField, lifecycleCopy, validateKey } from "../rules.js";
+import { addDraftField, bindCollectionsRules, collectionEmbedSnippet, createDraftRowIdCounter, describeEditFieldsError, draftFieldsFromContentType, emptyField, firstDraftFieldError, KEYS, lifecycleCopy, validateEditFieldsDraft, validateFieldName, validateKey, validateNewContentTypeDraft, visibleEntryEditorError } from "../rules.js";
 
 /**
  * @file Pins the injected {@link CollectionsHostKit} seam of the collections rules: translated copy
@@ -94,5 +94,42 @@ describe("collections rules — draft row ids come from the kit's counter", () =
     const added = rules.addDraftField({ fields: editDraft });
     expect(newDraftFirst).toBe(1);
     expect(added.map((f) => f._rowId)).toEqual([2, 3]);
+  });
+});
+
+describe("collections validation and cache identity", () => {
+  it("keeps edit cache entries scoped by type and route identity, separate from the list", () => {
+    expect(KEYS.entry({ contentTypeKey: "recipe", entryId: "waffles" })).toEqual(["content-types", "recipe", "entry", "waffles"]);
+    expect(KEYS.entry({ contentTypeKey: "recipe", entryId: null })).toEqual(["content-types", "recipe", "entry", "new"]);
+    expect(KEYS.entry({ contentTypeKey: "faq", entryId: "waffles" })).toEqual(["content-types", "faq", "entry", "waffles"]);
+    expect(KEYS.entries({ contentTypeKey: "recipe" })).toEqual(["content-types", "recipe", "entries"]);
+  });
+
+  it.each(["page", "post"])("rejects reserved key %s and still accepts legal names at the length limit", (key) => {
+    expect(validateKey({ key, kit })).toBe(`"${key}" is a reserved key (built-in content already uses it).`);
+    expect(validateKey({ key: "a" + "9".repeat(63), kit })).toBeNull();
+    expect(validateFieldName({ name: "number_9", kit })).toBeNull();
+    expect(validateKey({ key: "a" + "9".repeat(64), kit })).toContain("max 64 chars");
+  });
+
+  it("reports an unnamed first field and accepts a wholly valid draft", () => {
+    const field = { _rowId: 1, name: "valid_9", kind: "text" as const, required: false, queryable: false };
+    const fields = [field, { ...field, _rowId: 2, name: "" }, { ...field, _rowId: 3, name: "Also-bad" }];
+    const error = 'Field "(unnamed)": de:Field name must start with a lowercase letter and contain only lowercase letters, digits, and underscores.';
+    expect(validateEditFieldsDraft({ fields, kit }, { localeOrTranslate: "de" })).toBe(error);
+    expect(validateNewContentTypeDraft({ draft: { key: "faq", label: "FAQ", fields }, kit }, { locale: "de" })).toBe(error);
+    expect(firstDraftFieldError({ fields: [field], kit })).toBeNull();
+  });
+
+  it("gives update errors precedence over create and lifecycle errors, and suppresses unassigned lifecycle errors", () => {
+    const base = {
+      updateError: null, createError: null, lifecycleError: new Error("Lifecycle rejected"),
+      saveFallback: "save failed", lifecycleFallback: "unpublish failed", versionConflictMessage: "reload", kit,
+    };
+    const createError = new Error("Create rejected");
+    expect(visibleEntryEditorError({ ...base, createError, updateError: new Error("Update rejected") })).toBe("described Update rejected");
+    expect(visibleEntryEditorError({ ...base, createError })).toBe("described Create rejected");
+    expect(visibleEntryEditorError(base)).toBe("described Lifecycle rejected");
+    expect(visibleEntryEditorError({ ...base, lifecycleFallback: null })).toBeNull();
   });
 });

@@ -4,7 +4,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EmailSenderTab } from "../EmailSenderTab.js";
 import type { EmailSenderController } from "../hooks/use-email-sender.hooks.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Chip, CopyButton, Loaded, Section, when } from "../EmailParts.js";
@@ -92,4 +93,35 @@ it("email form spacing and provider loading paint survive the selector cutover",
   expect(providerCss).not.toMatch(/\.provider-settings-/);
   expect(providerCss).toContain("animation: provider-settings-spin");
   expect(providerCss).toContain("prefers-reduced-motion");
+});
+
+it("keeps actions accessible with the section title hidden and omits an unsupported retry", async () => {
+  const action = vi.fn();
+  render(<Section id="dsn" title="Delivery" hideTitle actions={<button onClick={action}>Details</button>}>
+    <Loaded view={{ kind: "error", message: "Credentials were revoked" }} locale="en">{() => <p>Success</p>}</Loaded>
+  </Section>);
+  const region = within(screen.getByRole("region", { name: "Delivery" }));
+  expect(region.queryByRole("heading")).not.toBeInTheDocument();
+  expect(region.getByRole("alert")).toHaveTextContent("Credentials were revoked");
+  expect(region.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(region.queryByText("Success")).not.toBeInTheDocument();
+  await userEvent.click(region.getByRole("button", { name: "Details" }));
+  expect(action).toHaveBeenCalledTimes(1);
+});
+
+it("does not claim a copy succeeded when clipboard access is denied", async () => {
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const user = userEvent.setup();
+  const writeText = vi.fn(async (_text: string) => { throw new Error("denied"); });
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  try {
+    render(<CopyButton text="mx.example.test" label="MX" locale="en" handle="copy-mx" />);
+    const button = screen.getByRole("button", { name: "Copy: MX" });
+    await user.click(button);
+    expect(writeText.mock.calls).toEqual([["mx.example.test"]]);
+    expect(button.textContent).toBe("Copy");
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  }
 });

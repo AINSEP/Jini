@@ -321,3 +321,32 @@ describe('useConsentPreviewScale', () => {
     }
   });
 });
+
+it('discards an old readiness rejection after a newer refresh succeeds', async () => {
+  const first = deferred<ConsentReadiness>();
+  const next = await fakeConsentPort().readiness();
+  const readiness = vi.fn<ConsentRevisionsPort['readiness']>().mockReturnValueOnce(first.promise).mockResolvedValueOnce({ ...next, enabled: true });
+  const port = fakeConsentPort({ readiness });
+  const { result, rerender } = renderHook(({ refresh }) =>
+    useConsentReadiness({ port, refresh, t, errors: consentErrors }), { initialProps: { refresh: '1:d1' } });
+  await waitFor(() => expect(readiness).toHaveBeenCalledTimes(1));
+  rerender({ refresh: '2:d2' });
+  await waitFor(() => expect(result.current.readiness?.enabled).toBe(true));
+  await act(async () => { first.reject(new Error('Old check failed')); });
+  expect(result.current).toEqual({ readiness: { ...next, enabled: true }, error: null });
+});
+
+it('reports the published revision as live even when the draft changes while Publish is pending', async () => {
+  const held = deferred<{ published: true; revisionId: string }>();
+  const publish = vi.fn<ConsentRevisionsPort['publish']>().mockReturnValue(held.promise);
+  const page = await mountPage(fakeConsentPort({ get: async () => withDraft, publish }));
+  expect(page.result.current).toMatchObject({ value: { enabled: true }, liveEnabled: false, canPublish: true });
+  let completed!: Promise<void>;
+  act(() => { completed = page.result.current.publish(); });
+  expect(publish).toHaveBeenCalledExactlyOnceWith({ draftId: 'd1', expectedPublishedId: 'p1' });
+  expect(page.result.current.publishing).toBe(true);
+  act(() => page.result.current.onChange({ patch: { enabled: false } }));
+  expect(page.result.current.value?.enabled).toBe(false);
+  await act(async () => { held.resolve({ published: true, revisionId: 'd1' }); await completed; });
+  expect(page.result.current).toMatchObject({ value: { enabled: false }, liveEnabled: true, publishedCount: 1 });
+});
