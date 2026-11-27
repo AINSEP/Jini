@@ -99,11 +99,11 @@ describe("useTaxonomy delete term", () => {
 
   it("treats a 404 as already gone: clears the selection and re-reads the list", async () => {
     const hook = await loaded({ override: { trashTerm: vi.fn(async () => { throw new FakeApiError(404, "NOT_FOUND"); }) } });
-    const reads = hook.port.listTaxonomies.mock.calls.length;
+    const reads = vi.mocked(hook.port.listTaxonomies).mock.calls.length;
     act(() => { hook.result.current.setSelectedTermId("c1"); hook.result.current.requestDeleteTerm(pick(hook, "c1")); });
     await act(async () => { await hook.result.current.confirmDeleteTerm(); });
     expect(hook.result.current.selectedTermId).toBeNull();
-    await waitFor(() => expect(hook.port.listTaxonomies.mock.calls.length).toBeGreaterThan(reads));
+    await waitFor(() => expect(vi.mocked(hook.port.listTaxonomies).mock.calls.length).toBeGreaterThan(reads));
     expect(hook.result.current.error).toBeNull();
   });
 
