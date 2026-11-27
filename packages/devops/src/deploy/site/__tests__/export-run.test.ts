@@ -93,3 +93,15 @@ describe("createExportRunner", () => {
     expect(runner.getExportRunSnapshot()).toMatchObject({ status: "errored", error: "described: disk full" });
   });
 });
+
+it("a successful export emits completion telemetry without a settle subscriber", async () => {
+  const runner = createExportRunner(DESCRIBE);
+  const captured: unknown[] = [];
+  const tracker = { capture: async (...args: unknown[]) => { captured.push(args); } };
+  runner.startExportRun({ routeDeps: deps(), clean: false, runExportSite: async () => emptyReport() },
+    { productEvent: { tracker: tracker as never, userId: "builder", operationId: "nightly", source: "assistant" } });
+  await tick();
+  expect(runner.getExportRunSnapshot()).toMatchObject({ status: "completed", ok: true });
+  expect(captured).toEqual([[{ name: "site_exported", userId: "builder" },
+    { properties: { outcome: "completed", operationId: "nightly", eventId: "export:nightly", source: "assistant" } }]]);
+});

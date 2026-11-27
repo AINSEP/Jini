@@ -148,3 +148,18 @@ describe('imageTagForVersion', () => {
     }
   });
 });
+
+it('forwards a cancellation signal while checking a release', async () => {
+  const controller = new AbortController();
+  const reason = new Error('owner closed the update dialog');
+  controller.abort(reason);
+  const unused = async () => { throw new Error('checking must not touch the running container'); };
+  const site = createSelfHostedSiteUpdate({
+    feed: { latestRelease: async (_input, options) => {
+      options?.signal?.throwIfAborted();
+      return { version: '2.1.0', notes: 'Booking form.' };
+    } },
+    images: { currentTag: unused, setTag: unused, redeploy: unused }, health: { check: unused },
+  });
+  await expect(site.checkForUpdate({ runningVersion: '2.0.0' }, { signal: controller.signal })).rejects.toBe(reason);
+});

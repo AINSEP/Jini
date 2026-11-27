@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { LoadedDeployTarget } from '../types.js';
-import { loadDeployTargetRegistry, loadInstalledDeployTargets, loadBundledDeployTargetRegistry } from '../registry.js';
+import { loadDeployTargetRegistry, loadInstalledDeployTargets, loadBundledDeployTargetRegistry, loadDeployTargetRegistryFromSource } from '../registry.js';
 
 test('disabled metadata is discoverable without executable registry admission', async () => {
   const descriptor = { id: 'host', label: 'Host' } as LoadedDeployTarget['descriptor'];
@@ -37,4 +37,28 @@ test('bundled target loading passes the trusted contribution definition', async 
     },
   });
   assert.deepEqual(registry.list(), []);
+});
+
+test('source loading keeps valid targets and phrases an invalid module refusal with its owner', async () => {
+  const plugin = { pluginId: 'publisher', packageRoot: '/fixtures/publisher' };
+  const descriptor = { id: 'docs-host', label: 'Docs Host', module: 'deploy.mjs', configFields: [] };
+  const registry = await loadDeployTargetRegistryFromSource({
+    plugin,
+    loadPluginContributionsFromSource: async input => {
+      assert.deepEqual(input.plugin, plugin);
+      const { definition } = input;
+      assert.deepEqual(definition.parse({ raw: JSON.stringify({ schemaVersion: 1, targets: [descriptor] }) }),
+        { ok: true, descriptors: [descriptor] });
+      assert.equal(definition.modulePath({ descriptor }), 'deploy.mjs');
+      const rejected = { ...descriptor, id: 'broken-host', module: 'broken.mjs' };
+      const reason = definition.validate({ exported: {} });
+      if (typeof reason !== 'string') assert.fail('a module without create was admitted');
+      const module: LoadedDeployTarget['module'] = { create: () => { throw new Error('discovery must not deploy'); } };
+      assert.equal(definition.validate({ exported: module }), module);
+      return { items: [{ pluginId: plugin.pluginId, descriptor, module }], refusals: [definition.refusal({ plugin, descriptor: rejected, reason })] };
+    },
+  });
+  assert.deepEqual(registry.list().map(item => item.descriptor), [descriptor]);
+  assert.equal(registry.get('docs-host')?.pluginId, 'publisher');
+  assert.deepEqual(registry.refusals, ["deploy target 'broken-host' from 'publisher' was not loaded: its module has no create() function"]);
 });

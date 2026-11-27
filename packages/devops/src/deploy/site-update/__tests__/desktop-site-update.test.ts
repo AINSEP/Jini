@@ -116,3 +116,17 @@ describe('createDesktopSiteUpdate — through runSiteUpdate', () => {
     expect(rig.state).toEqual({ appVersion: '1.2.0', dataVersion: '1.2.0' });
   });
 });
+
+it('forwards the check signal and injected error id to the release read', async () => {
+  const signal = new AbortController().signal;
+  const calls: unknown[] = [];
+  const unused = async () => { throw new Error('checking must not touch the app or data'); };
+  const site = createDesktopSiteUpdate({
+    feed: { latestRelease: async (input, options) => { calls.push([input, options]); return { version: 'nightly', notes: '' }; } },
+    app: { currentVersion: unused, stage: unused, applyStaged: unused, rollbackTo: unused },
+    migrate: { migrate: unused, restore: unused },
+    health: { check: unused },
+  }, { ids: { newId: () => 'ERR-TEST-0000-0000-0002' } });
+  await expect(site.checkForUpdate({ runningVersion: '1.2.0' }, { signal })).rejects.toThrow(/ERR-TEST-0000-0000-0002:.*nightly/);
+  expect(calls).toEqual([[{}, { signal }]]);
+});
