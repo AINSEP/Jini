@@ -127,3 +127,105 @@ it("refuses a sheet without a row-major map, and refuses an empty frame result",
   await expect(tool!.handler(ctx({ attachmentRef: "attachment:12345678" }))).rejects.toThrow("frame output limit");
   expect(s.prepareImages.mock.calls).toEqual([]);
 });
+
+// --- Gap fill (cloud A2): library-owned bytes, frame naming, and the remaining refusals. ---
+
+const METADATA = { duration: 3, width: 4, height: 4, codec: "vp9", container: "webm" as const, sizeBytes: 8, hasAudio: false };
+const jpeg = (size: number) => ({ mimeType: "image/jpeg" as const, bytes: new Uint8Array(size) });
+
+/** Uploads `bytes` as `owner`'s library video and returns its id with deps that can read it. */
+async function ownedVideo(s: ReturnType<typeof setup>) {
+  let id = 0;
+  const uploadDeps = { ...s.deps, blobRepo: s.deps.assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}), createHash, clock: { nowMs: () => 0 }, idGen: { newId: () => `m-${++id}` } };
+  const { media } = await uploadMedia({ deps: uploadDeps, input: { workspaceId: "w", bytes, filename: "own.webm", contentType: "video/webm", createdByPrincipal: "owner" } });
+  return media.id;
+}
+
+/** A prepareImages port that reads every ref through the tool's reader, recording what it was handed. */
+function readingPrepare(reads: unknown[]): MediaViewVideoToolDeps["prepareImages"] {
+  return async ({ read, refs }) => ({ images: await Promise.all(refs.map(async ref => {
+    const image = await read({ ref }, {});
+    reads.push([ref, image.name, image.bytes.byteLength]);
+    return { mimeType: image.mimeType, data: "x" };
+  })) });
+}
+
+it("previews the caller's own library video and names each frame by its time", async () => {
+  const s = setup();
+  const mediaId = await ownedVideo(s);
+  const extract = vi.fn<MediaViewVideoToolDeps["extractor"]["extract"]>(async () => ({ ok: true, metadata: METADATA,
+    frames: [{ at: 0, ...jpeg(2) }, { at: 1.5, ...jpeg(3) }] }));
+  const reads: unknown[] = [];
+  const [tool] = buildMediaViewVideoRegistrations({ deps: { ...s.deps, extractor: { extract }, prepareImages: readingPrepare(reads) }, catalog: s.catalog });
+  const input = ctx({ mediaId, frames: 2, at: [0, 1.5] });
+  const result = await tool!.handler(input) as { content: unknown[] };
+  expect(result.content).toHaveLength(3);
+  expect(extract.mock.calls).toEqual([[{ bytes }, { frames: 2, at: [0, 1.5], signal: input.signal }]]);
+  expect(reads).toEqual([["0", "Video frame at 0s", 2], ["1", "Video frame at 1.5s", 3]]);
+});
+
+it("refuses library media with no stored blob, or whose stored size cannot be read", async () => {
+  const s = setup();
+  const mediaId = await ownedVideo(s);
+  const [unsized] = buildMediaViewVideoRegistrations({ catalog: s.catalog, deps: { ...s.deps,
+    blobStore: new Proxy(s.deps.blobStore, { get: (target, key, receiver) => (key === "sizeOf" ? undefined : Reflect.get(target, key, receiver)) }) } });
+  await expect(unsized!.handler(ctx({ mediaId }))).rejects.toThrow("media_view_video: video size is unknown or exceeds the preview size limit (64 MiB).");
+  const [unstored] = buildMediaViewVideoRegistrations({ catalog: s.catalog, deps: { ...s.deps, assetBlobRepo: new InMemoryAssetBlobRepo({}) } });
+  await expect(unstored!.handler(ctx({ mediaId }))).rejects.toThrow("media_view_video: media has no stored video.");
+  expect(s.deps.extractor.extract).not.toHaveBeenCalled();
+});
+
+it("refuses an unknown argument, an unknown layout and a negative frame count", async () => {
+  const s = setup();
+  const [tool] = buildMediaViewVideoRegistrations({ deps: s.deps, catalog: s.catalog });
+  const source = { attachmentRef: "attachment:12345678" };
+  await expect(tool!.handler(ctx({ ...source, path: "/tmp/x" }))).rejects.toThrow("only mediaId, attachmentRef, frames, at, every, start and layout are accepted");
+  await expect(tool!.handler(ctx({ ...source, layout: "grid" }))).rejects.toThrow("layout must be frames or sheet.");
+  await expect(tool!.handler(ctx({ ...source, frames: -1 }))).rejects.toThrow("frames must be nonnegative.");
+  expect(s.deps.extractor.extract).not.toHaveBeenCalled();
+});
+
+it("refuses an unreadable attachment, an oversized one and one that is not a video", async () => {
+  const s = setup();
+  const source = { attachmentRef: "attachment:12345678" };
+  const tool = (readAttachment: MediaViewVideoToolDeps["readAttachment"]) => buildMediaViewVideoRegistrations({ deps: { ...s.deps, readAttachment }, catalog: s.catalog })[0]!;
+  await expect(tool(async () => ({ ok: false, refusal: "no-record" })).handler(ctx(source))).rejects.toThrow("attachment is unavailable or not owned by the caller.");
+  const oversized = new Uint8Array(64 * 1024 * 1024 + 1);
+  oversized.set(bytes);
+  await expect(tool(async () => ({ ok: true, bytes: oversized })).handler(ctx(source))).rejects.toThrow("video exceeds the preview size limit (64 MiB).");
+  await expect(tool(async () => ({ ok: true, bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) })).handler(ctx(source)))
+    .rejects.toThrow("the stored file is not an MP4 or WebM video.");
+  expect(s.deps.extractor.extract).not.toHaveBeenCalled();
+});
+
+it("refuses sheet results with no sheets or stray frames, frame results over the total budget, and a reader asked for a missing image", async () => {
+  const s = setup();
+  const extract = vi.fn<MediaViewVideoToolDeps["extractor"]["extract"]>();
+  const sheet = { ...jpeg(2), columns: 1, rows: 1, tileEdgePx: 1, tiles: [{ index: 1, row: 1, column: 1, at: 0 }] };
+  const [tool] = buildMediaViewVideoRegistrations({ deps: { ...s.deps, extractor: { extract } }, catalog: s.catalog });
+  const source = { attachmentRef: "attachment:12345678" };
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: [], sheets: [] });
+  await expect(tool!.handler(ctx({ ...source, layout: "sheet" }))).rejects.toThrow("the video extractor exceeded the sheet output limit.");
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: [{ at: 0, ...jpeg(1) }], sheets: [sheet] });
+  await expect(tool!.handler(ctx({ ...source, layout: "sheet" }))).rejects.toThrow("the video extractor exceeded the sheet output limit.");
+  const seventeen = Array.from({ length: 17 }, (_, index) => ({ at: index, ...jpeg(512 * 1024) }));
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: seventeen });
+  await expect(tool!.handler(ctx(source))).rejects.toThrow("the video extractor exceeded the total output limit (8 MiB).");
+  expect(s.prepareImages).not.toHaveBeenCalled();
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: [{ at: 0, ...jpeg(1) }] });
+  const [probing] = buildMediaViewVideoRegistrations({ catalog: s.catalog, deps: { ...s.deps, extractor: { extract },
+    prepareImages: async ({ read }) => { await read({ ref: "5" }, {}); return { images: [] }; } } });
+  await expect(probing!.handler(ctx(source))).rejects.toThrow("Video preview has no image for its attachment");
+});
+
+it("refuses a frame result carrying sheets or a frame over the per-frame byte cap", async () => {
+  const s = setup();
+  const extract = vi.fn<MediaViewVideoToolDeps["extractor"]["extract"]>();
+  const [tool] = buildMediaViewVideoRegistrations({ deps: { ...s.deps, extractor: { extract } }, catalog: s.catalog });
+  const sheet = { ...jpeg(2), columns: 1, rows: 1, tileEdgePx: 1, tiles: [{ index: 1, row: 1, column: 1, at: 0 }] };
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: [{ at: 0, ...jpeg(1) }], sheets: [sheet] });
+  await expect(tool!.handler(ctx({ attachmentRef: "attachment:12345678" }))).rejects.toThrow("the video extractor exceeded the frame output limit.");
+  extract.mockResolvedValueOnce({ ok: true, metadata: METADATA, frames: [{ at: 0, ...jpeg(512 * 1024 + 1) }] });
+  await expect(tool!.handler(ctx({ attachmentRef: "attachment:12345678" }))).rejects.toThrow("the video extractor exceeded the frame output limit.");
+  expect(s.prepareImages).not.toHaveBeenCalled();
+});
