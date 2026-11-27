@@ -376,3 +376,8 @@ describe('antigravityAgentDef.discoverModels', () => {
     expect(calls).toEqual([{ args: ['models'], timeoutMs: 10_000 }]);
   });
 });
+
+it('sanitizes a complete JSON frame without adding a line break that was not received', () => {
+  const fullText = '{"event":"result","error":"Visit https://accounts.google.com/o/oauth2/auth?client_id=private"}';
+  expect(sanitizeAntigravityWireLine({ fullText })).toBe('{"event":"result","error":"Visit [redacted sign-in URL]"}');
+});

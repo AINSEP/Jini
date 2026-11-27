@@ -1,9 +1,12 @@
 /** The port binding closes over ONE runtime: its state, host env and definition policies. Real runtime owners, no mocks. */
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
 import { createAgentRuntimeBindings } from '../runtime-port-bindings.js';
 import { createNativeAgentRuntime } from '../native-runtime.js';
 import { createAgentRuntimeState } from '../runtime-state.js';
 import { getAgentDef } from '../registry.js';
+import { discoveryContext, offlineDiscoveryDeps } from '../defs/__tests__/discovery-fakes.js';
 
 const input = { prompt: 'question', imagePaths: [] };
 
@@ -78,4 +81,34 @@ it('words a startup failure with the given notice and redacts exact secrets', ()
   const message = port.failures.startupMessage({ stage: 'spawn', error: new Error('token sk-secret-1 rejected') }, { exactSecrets: ['sk-secret-1'], notice: 'Fix and resend.' });
   expect(message).toContain('Fix and resend.');
   expect(message).not.toContain('sk-secret-1');
+});
+
+it('binds the Claude executable grant and sandbox settings to the host input', () => {
+  const { port } = bound();
+  expect(port.filesystem.runtimePaths({ launchPath: process.execPath })).toEqual(
+    [...new Set([resolve(process.execPath), realpathSync(process.execPath)])],
+  );
+  const settings = JSON.parse(port.filesystem.settings({ options: {
+    filesystemRoot: '/workspace', settings: '{"variant":"fixture"}',
+  } }, { platform: 'win32', homeDir: '/operator', tempDir: '/shared-temp', realpath: path => path }));
+  expect(settings).toMatchObject({
+    variant: 'fixture',
+    autoMemoryEnabled: false,
+    permissions: { blockReadsOutsideWorkingDirectories: true },
+    sandbox: { enabled: false, allowUnsandboxedCommands: true },
+  });
+});
+
+it('resolves the launch model with the clock owned by the bound host', async () => {
+  const { port, state } = bound();
+  state.discoveryDeps = { ...offlineDiscoveryDeps(), clock: { now: () => 123_456 } };
+  const def = {
+    id: 'fixture', name: 'Fixture', bin: 'fixture', versionArgs: ['--version'],
+    streamFormat: 'text', buildArgs: () => [], fallbackModels: [{ id: 'vendor/concrete', label: 'Concrete model' }],
+  };
+  const result = await port.models.resolveForLaunch({ def, context: discoveryContext });
+  expect(result.model).toBe('vendor/concrete');
+  expect(result.resolution).toMatchObject({
+    status: 'resolved', id: 'vendor/concrete', source: 'offline-fallback', resolvedAt: '1970-01-01T00:02:03.456Z',
+  });
 });

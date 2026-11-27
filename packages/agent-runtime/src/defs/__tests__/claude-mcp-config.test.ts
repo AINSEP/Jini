@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { promises as fs } from 'node:fs';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
@@ -43,3 +44,21 @@ it('private HTTP config preserves only permitted project servers', async () => {
 });
 
 const readFileFromDisk = (path: string) => readFile(path, 'utf8');
+
+it('removes the allocated directory and preserves the write error if its private file already exists', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'http-stage-collision-'));
+  try {
+    await writeFile(join(dir, 'mcp.json'), 'unexpected preexisting file');
+    const allocate = vi.spyOn(fs, 'mkdtemp').mockResolvedValueOnce(dir);
+    try {
+      await expect(prepareClaudeHttpMcpConfig({
+        cwd: dir, serverName: 'jini', endpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'fixture' },
+      }, { inheritUserMcp: false })).rejects.toMatchObject({ code: 'EEXIST', path: join(dir, 'mcp.json') });
+      await expect(stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      allocate.mockRestore();
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

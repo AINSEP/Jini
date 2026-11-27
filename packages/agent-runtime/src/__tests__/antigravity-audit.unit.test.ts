@@ -83,3 +83,35 @@ describe('Antigravity native audit', () => {
     expect(events).toContainEqual({ type: 'error', message: 'quota exhausted' });
   });
 });
+
+it('reports the initialized model and maps all four terminal token counters', () => {
+  const events: Record<string, unknown>[] = [];
+  const parser = createJsonEventStreamHandler({ kind: 'antigravity', onEvent: event => events.push(event) });
+  for (const frame of [
+    { event: 'init', init: { model: 'gemini-fixture' } },
+    { event: 'result', result: { status: 'SUCCESS', response: 'Answer', usage: {
+      input_tokens: 29, output_tokens: 13, thinking_tokens: 8, cache_read_tokens: 4,
+    } } },
+  ]) parser.feed({ chunk: JSON.stringify(frame) + '\n' });
+  expect(events).toEqual([
+    { type: 'status', label: 'initializing', model: 'gemini-fixture' },
+    { type: 'text_delta', delta: 'Answer' },
+    { type: 'usage', usage: { input_tokens: 29, output_tokens: 13, thought_tokens: 8, cached_read_tokens: 4 } },
+  ]);
+});
+
+it('preserves an unaliased tool receipt and reports a failure without a diagnostic', () => {
+  const events: Record<string, unknown>[] = [];
+  const parser = createJsonEventStreamHandler({ kind: 'antigravity', onEvent: event => events.push(event) });
+  for (const frame of [
+    { event: 'step_update', step_update: { conversation_id: 'conversation', step_index: 6,
+      state: 'DONE', step_type: 'tool', tool_name: 'list_directory',
+      tool_info: { parameters: { DirectoryPath: '/site' }, output: ['page.html'], error: null } } },
+    { event: 'result', result: { status: 'ERROR', response: '' } },
+  ]) parser.feed({ chunk: JSON.stringify(frame) + '\n' });
+  expect(events).toEqual([
+    { type: 'tool_use', id: 'conversation:6', name: 'list_directory', input: { DirectoryPath: '/site' } },
+    { type: 'tool_result', toolUseId: 'conversation:6', content: '', isError: false },
+    { type: 'error', message: 'Antigravity did not complete the turn.' },
+  ]);
+});

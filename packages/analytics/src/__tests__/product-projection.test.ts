@@ -42,6 +42,15 @@ describe('projectDeclaredProductEvent', () => {
     expect(projectDeclaredProductEvent({ catalog, installationId: INSTALL, event: { name: 'media_uploaded', userId: 'u', properties: { sizeKb: Number.POSITIVE_INFINITY } } })).toBeUndefined();
   });
 
+  it('preserves explicitly supplied false and zero but does not coerce a numeric string', () => {
+    const upload = { name: 'upload_result', userId: 'ignored' };
+    const mixedCatalog = freezeProductEventCatalog({ catalog: { upload_result: { sizeKb: 'number', cached: 'boolean' } } });
+    expect(projectDeclaredProductEvent({ catalog: mixedCatalog, installationId: INSTALL, event: { ...upload, properties: { sizeKb: 0, cached: false } } }))
+      .toEqual({ name: 'upload_result', userId: INSTALL, properties: { sizeKb: 0, cached: false } });
+    expect(projectDeclaredProductEvent({ catalog: mixedCatalog, installationId: INSTALL, event: { ...upload, properties: { sizeKb: '0', cached: false } } }))
+      .toBeUndefined();
+  });
+
   it('returns empty properties for a declared event without caller properties', () => {
     expect(projectDeclaredProductEvent({ catalog, installationId: INSTALL, event: { name: 'empty_event', userId: 'u', properties: { anything: 'x' } } }))
       .toEqual({ name: 'empty_event', userId: INSTALL, properties: {} });

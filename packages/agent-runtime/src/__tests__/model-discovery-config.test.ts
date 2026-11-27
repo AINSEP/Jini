@@ -180,3 +180,12 @@ describe('readModelConfiguration', () => {
     expect(await readModelConfiguration({ agentId: 'cursor-agent', context, deps: fake.deps, signal })).toEqual({ fingerprintMaterial: JSON.stringify([[['/h/.cursor/cli-config.json', '{"other":1}']], '']) });
   });
 });
+
+it.each([
+  ['a quoted value before another YAML entry', 'model: "vendor/selected"\nweak-model: vendor/other', 'vendor/selected'],
+  ['a key with no value before a comment', 'model:\n# leave empty\nmodel: vendor/replacement', 'vendor/replacement'],
+  ['an empty quoted value before a second model key', 'model:""\nmodel: vendor/replacement', 'vendor/replacement'],
+  ['a value terminated by CR before a quoted setting', 'model: vendor/selected\rweak-model: "vendor/other" rest', 'vendor/selected'],
+])('reads the configured model with %s', (_case, raw, expected) => {
+  expect(parseConfiguredModel({ file: { path: '/aider.conf.yml', format: 'yaml' }, raw })).toBe(expected);
+});

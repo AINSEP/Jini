@@ -106,6 +106,42 @@ describe("analyticsIngestRoute", () => {
     expect(h.sink.all().map((hit) => [hit.kind, hit.eventName])).toEqual([["pageview", null]]);
   });
 
+  it("stores valid event properties and the referrer host without scheduling a pageview or requiring vendor forwarding", async () => {
+    const base = harness();
+    const { forwarders: _unused, ...deps } = base.deps;
+    const h = { ...base, deps };
+    await expectEmpty204(await post(h, {
+      path: "/signup?ignored=1", kind: "event", eventName: "signup",
+      referrer: "https://search.example/private?query=private", eventProps: { variant: "extended", fields: 2 },
+    }, { "user-agent": "Mozilla/5.0 Firefox/120", "accept-language": "en-GB" }));
+    expect(h.sink.all().map(({ path, kind, eventName, eventProps, referrerHost, browserFamily, occurredAt }) => ({
+      path, kind, eventName, eventProps, referrerHost, browserFamily, occurredAt,
+    }))).toEqual([{
+      path: "/signup", kind: "event", eventName: "signup", eventProps: { variant: "extended", fields: 2 },
+      referrerHost: "search.example", browserFamily: "firefox", occurredAt: "2026-11-01T10:00:00.000Z",
+    }]);
+    expect(h.log.captured).toEqual([]);
+    expect(h.log.hookHits).toBe(1);
+  });
+
+  it.each(["dnt", "gpc"])("honors a true body %s flag without treating a string as consent policy", async (flag) => {
+    const h = harness();
+    await expectEmpty204(await post(h, { path: "/privacy-opt-out", [flag]: true }));
+    expect(h.sink.all()).toEqual([]);
+    expect(h.log.configReads).toBe(1);
+    await expectEmpty204(await post(h, { path: "/privacy-control", [flag]: "1" }));
+    expect(h.sink.all().map(({ path }) => path)).toEqual(["/privacy-control"]);
+    expect(h.log.captured).toEqual([{ name: "site_pageview", properties: { routeTemplate: "/:path" } }]);
+  });
+
+  it("stores an event with a missing label and discards null properties and non-string referrers", async () => {
+    const h = harness();
+    await expectEmpty204(await post(h, { path: "/signup", kind: "event", eventName: 52, eventProps: null, referrer: 42 }));
+    expect(h.sink.all().map(({ path, kind, eventName, eventProps, referrerHost }) => [path, kind, eventName, eventProps, referrerHost]))
+      .toEqual([["/signup", "event", null, null, null]]);
+    expect(h.log.captured).toEqual([]);
+  });
+
   it("hands the client address to the ingest context (an excluded IP range records nothing)", async () => {
     const h = harness({ clientAddress: () => "203.0.113.5" }, { excludedIpRanges: ["203.0.113.5"] });
     await expectEmpty204(await post(h, { path: "/x" }));

@@ -993,3 +993,18 @@ describe('physical JSON-RPC line bounds', () => {
     expect(messages).toEqual([{ fresh: true }]);
   });
 });
+
+it('rejects an oversized opening line but delivers the next RPC frame', () => {
+  const onMessage = vi.fn();
+  const onError = vi.fn<(error: RangeError) => void>();
+  const stream = createJsonLineStream({ onMessage }, { onError });
+  const next = '{"jsonrpc":"2.0","id":9,"result":{"ready":true}}';
+  stream.feed({ chunk: '{"value":"' + 'x'.repeat(128_000) + '\n' + next + '\n' });
+
+  expect(onError.mock.calls.map(([error]) => [error.constructor, error.message])).toEqual([
+    [RangeError, 'Agent output multiline JSON exceeded 128000 characters or 256 lines.'],
+  ]);
+  expect(onMessage.mock.calls).toEqual([[{ rawLine: next, message: {
+    jsonrpc: '2.0', id: 9, result: { ready: true },
+  } }]]);
+});

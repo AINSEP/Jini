@@ -1,10 +1,11 @@
 /** Product analytics: the guard rules. The PostHog provider's SDK tests live with its plugin (`@jini-ai/provider-plugins`). */
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { createNoopProductAnalytics, fanOutProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards } from "../product/index.js";
 import {
   type BrowserAnalyticsContribution,
   type ProductEvent,
+  type ProductIdentity,
   type ProductAnalyticsPort,
 } from "@jini-ai/core/contracts/observability";
 
@@ -83,4 +84,37 @@ test("an async consent (a settings read) delays the event until it answers true;
   expect(events).toEqual([]);
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(events.map((e) => e.userId)).toEqual(["u1"]);
+});
+
+test("the noop accepts capture and identify without touching the event or evaluating consent", () => {
+  const consent = vi.fn(() => true);
+  const guarded = withProductAnalyticsGuards({ inner: createNoopProductAnalytics({}), consent });
+  expect(guarded.capture({ name: "dashboard_opened", userId: "reader" })).toBeUndefined();
+  expect(guarded.identify({ userId: "reader", traits: { plan: "monthly" } })).toBeUndefined();
+  expect(consent.mock.calls).toEqual([]);
+});
+
+test("identity traits undergo the same PII checks as event properties", () => {
+  const identities: ProductIdentity[] = [];
+  const consent = vi.fn((_required: { userId: string }) => true);
+  const guarded = withProductAnalyticsGuards({ inner: { capture: () => {}, identify: (identity) => { identities.push(identity); } }, consent });
+  guarded.identify({ userId: "reader", traits: { email: "not-an-email" } });
+  guarded.identify({ userId: "reader", traits: { plan: "monthly", seats: 2, trial: false } });
+  expect(identities).toEqual([{ userId: "reader", traits: { plan: "monthly", seats: 2, trial: false } }]);
+  expect(consent.mock.calls).toEqual([[{ userId: "reader" }]]);
+});
+
+test("a rejected vendor delivery settles and does not prevent a later capture", async () => {
+  const events: ProductEvent[] = [];
+  const inner: ProductAnalyticsPort = {
+    capture: async (event) => {
+      if (event.name === "vendor_offline") throw new Error("vendor offline");
+      events.push(event);
+    },
+    identify: () => {},
+  };
+  const guarded = withProductAnalyticsGuards({ inner, consent: () => true });
+  await expect(guarded.capture({ name: "vendor_offline", userId: "reader" })).resolves.toBeUndefined();
+  await guarded.capture({ name: "vendor_restored", userId: "reader", properties: { recovered: true } });
+  expect(events).toEqual([{ name: "vendor_restored", userId: "reader", properties: { recovered: true } }]);
 });
