@@ -263,14 +263,19 @@ function installedPluginRow({ plugin, controller, expandedIds, onToggleExpanded,
             {...(plugin.providerSettings ? { onSettings: () => controller.onOpenSettings(plugin.id) } : {})}
             focused={plugin.id === focusPluginId}
             action={
-              <button
-                type="button"
-                disabled={control.disabled}
-                onClick={() => onToggleEnabled(plugin)}
-                aria-label={pluginToggleAriaLabel({ plugin, locale })}
-              >
-                {control.label}
-              </button>
+              // AC-21: an invalid, switched-off row gets no enable-capable control — the muted dash.
+              control.visible ? (
+                <button
+                  type="button"
+                  disabled={control.disabled}
+                  onClick={() => onToggleEnabled(plugin)}
+                  aria-label={pluginToggleAriaLabel({ plugin, locale })}
+                >
+                  {control.label}
+                </button>
+              ) : (
+                <span className="field-hint" aria-hidden="true">—</span>
+              )
             }
           />
         );

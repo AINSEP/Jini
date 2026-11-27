@@ -246,6 +246,10 @@ it("keeps the disabled invalid package visible for inspection without offering a
   const row = within(screen.getByRole("listitem", { name: "Example" }));
   expect(row.getByRole("button", { name: "Inspect package files — Example" })).toBeEnabled();
   expect(row.queryByRole("button", { name: "Enable Example" })).toBeNull();
+  // Only the summary toggle and Inspect remain: no unlabeled, enable-capable control slips through.
+  expect(row.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([null, "Inspect package files — Example"]);
+  expect(row.getByText("—")).toHaveAttribute("aria-hidden", "true");
+  expect(controller.onToggleEnabled).not.toHaveBeenCalled();
 });
 
 it("focuses an Installed provider and sends disclosure, inspection and settings to that row", async () => {

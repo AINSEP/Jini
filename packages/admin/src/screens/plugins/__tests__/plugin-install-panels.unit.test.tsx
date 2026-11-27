@@ -93,11 +93,11 @@ it("opens a named update upload with no install-only controls and renders an upd
   await user.upload(screen.getByLabelText("Choose a plugin folder"), folderFile);
   expect(folderZip.zipFolderFiles).toHaveBeenCalledExactlyOnceWith({ files: [folderFile], maxBytes: 32 * 1024 * 1024 });
   expect(await screen.findByText("upgrade.zip")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Update", exact: true }));
+  await user.click(screen.getByRole("button", { name: "Update" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("This plugin changed since this page loaded. Reload the page and try again.");
   expect(onUpdated).not.toHaveBeenCalled();
   expect(installZip).toHaveBeenCalledExactlyOnceWith({ file, sha256: digest, replace: false, update: { pluginId: "packet-audit", expectedOldDigest: "original-revision" } });
-  await user.click(screen.getByRole("button", { name: "Update", exact: true }));
+  await user.click(screen.getByRole("button", { name: "Update" }));
   expect(await screen.findByText("Packet Audit is updated.")).toBeVisible();
   expect(onUpdated).toHaveBeenCalledExactlyOnceWith(updated);
   expect(screen.queryByRole("alert")).toBeNull();

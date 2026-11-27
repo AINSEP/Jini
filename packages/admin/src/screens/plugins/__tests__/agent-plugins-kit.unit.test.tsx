@@ -192,7 +192,7 @@ it("switches tabs, preserves disabled rows, and dispatches confirm-gated disable
     expect(screen.getByRole("tabpanel").closest("[data-theme]")).toHaveAttribute("data-theme", "midnight");
     expect(screen.getByRole("tab", { name: "Installed" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("switch", { name: "Enable Off Package" })).not.toBeChecked();
-    await user.click(screen.getByRole("button", { name: "Example", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Example" }));
     expect(screen.getByText("Alternate update digest")).toBeVisible();
     await user.click(screen.getByRole("switch", { name: "Disable Example" }));
     const dialog = within(screen.getByRole("dialog", { name: "Disable Example for this site?" }));
@@ -201,7 +201,7 @@ it("switches tabs, preserves disabled rows, and dispatches confirm-gated disable
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(toggle).not.toHaveBeenCalled();
     await user.click(screen.getByRole("switch", { name: "Disable Example" }));
-    await user.click(screen.getByRole("button", { name: "Disable", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Disable" }));
     expect(toggle).toHaveBeenCalledExactlyOnceWith(plugin);
     expect(await screen.findByRole("switch", { name: "Enable Example" })).not.toBeChecked();
 
@@ -212,7 +212,7 @@ it("switches tabs, preserves disabled rows, and dispatches confirm-gated disable
     await user.click(await screen.findByRole("button", { name: "Turn off Off Package" }));
     expect(screen.getByRole("dialog", { name: "Turn off Off Package?" })).toBeVisible();
     expect(toggle).toHaveBeenCalledTimes(2);
-    await user.click(screen.getByRole("button", { name: "Turn off", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Turn off" }));
     expect(toggle).toHaveBeenLastCalledWith({ ...off, enabled: true });
     expect(await screen.findByRole("button", { name: "Enable Off Package" })).toBeVisible();
 

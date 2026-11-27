@@ -213,7 +213,10 @@ it("displays a sandboxed frame with sizing and a single-use sign-in handoff, the
     return state;
   };
   const panel = () => <AgentPluginSurfaceFrame pluginId={pluginId} surface={surface} port={port} t={t} useAdminSurfaceFrame={frameHook} />;
-  const view = renderWithAdminKit(panel());
+  const kit = fakeAdminKit();
+  const view = renderWithAdminKit(panel(), { kit });
+  // Re-render inside the same provider so React updates the mounted frame instead of remounting it.
+  const rerender = () => view.rerender(<AdminKitProvider kit={kit}>{panel()}</AdminKitProvider>);
   const iframe = screen.getByTitle("Connect workspace");
   expect(iframe).toBe(frameRef.current);
   expect(iframe).toHaveAttribute("src", "about:blank");
@@ -223,7 +226,8 @@ it("displays a sandboxed frame with sizing and a single-use sign-in handoff, the
   expect(screen.queryByRole("link", { name: "Continue to sign-in" })).toBeNull();
 
   state = { ...state, height: 413, signIns: [signIn] };
-  view.rerender(panel());
+  rerender();
+  expect(screen.getByTitle("Connect workspace")).toBe(iframe);
   expect(iframe).toHaveStyle({ height: "413px" });
   const link = screen.getByRole("link", { name: "Continue to sign-in" });
   expect(link).toHaveAttribute("href", signIn.authorizationUrl);
@@ -232,11 +236,11 @@ it("displays a sandboxed frame with sizing and a single-use sign-in handoff, the
   await userEvent.setup().click(link);
   expect(onSignInOpened).toHaveBeenCalledExactlyOnceWith(signIn);
   state = { ...state, status: "navigated" };
-  view.rerender(panel());
+  rerender();
   expect(screen.getByRole("status")).toHaveTextContent("This view left its page and was closed.");
   expect(screen.queryByTitle("Connect workspace")).toBeNull();
   state = { ...state, status: "failed" };
-  view.rerender(panel());
+  rerender();
   expect(screen.getByRole("alert")).toHaveTextContent("Could not open this view.");
   expect(screen.queryByRole("link", { name: "Continue to sign-in" })).toBeNull();
 });

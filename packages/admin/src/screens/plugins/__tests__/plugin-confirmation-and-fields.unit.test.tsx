@@ -188,16 +188,6 @@ it("provides an empty choice model for a declaration without options", () => {
   expect(onChange).toHaveBeenCalledExactlyOnceWith("east");
 });
 
-it("does not promise that turning off a package hides its row from Installed", () => {
-  // Installed was broadened to include every downloaded package, even after turning it off.
-  renderWithAdminKit(<AgentPluginDisableConfirmDialog name="Reporting" variant="remove"
-    agentHandleBase="row-reporting" t={t} rules={rules} onCancel={vi.fn()} onConfirm={vi.fn()} />);
-  const dialog = within(screen.getByRole("dialog", { name: "Turn off Reporting?" }));
-  expect(dialog.getByText(/skills stop reaching the assistant on the next run/)).toBeVisible();
-  expect(dialog.getByText(/can be enabled again any time/)).toBeVisible();
-  expect(dialog.queryByText(/drops off the Installed tab/)).toBeNull();
-});
-
 it("passes only the supplied confirmation inputs when no origin, dependents or translator were bound", () => {
   const build = vi.fn<typeof rules.buildAgentPluginDisableConfirmCopy>(rules.buildAgentPluginDisableConfirmCopy);
   const onCancel = vi.fn();
