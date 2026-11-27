@@ -8,6 +8,8 @@ import { bindInMemoryPostRepo } from "../../posts/repo.memory.js";
 import { createMediaAccessEvidence } from "../../media/site/access-evidence.js";
 import { InMemoryEntryRefsRepo } from "../../widgets/entry-refs.memory.js";
 import { restoredEntryRefs } from "../html-inverse.js";
+import { EntityNotLiveError } from "../../core/entity-liveness.js";
+import type { WidgetSlugLookupPort } from "../../widgets/widget-slug-normalization.js";
 
 it("a store never crosses scope even with equal post IDs", async () => {
   const other: PostRecord = { id: "p", workspaceId: "other", kind: "page", title: "P", slug: "p", bodyJson: {}, bodyFormat: "html", bodyHtml: "secret", status: "draft", version: 1, updatedAt: "now" };
@@ -122,4 +124,44 @@ it("restore writes exact pre-edit bodies and references without running new auth
   expect(await entryRefsRepo.findBySource({ workspaceId: "site", sourceEntryId: "page" })).toEqual([]);
   expect((await repo.listRevisions(scope)).map(({ seq, stateJson }) => [seq, stateJson.bodyFormat])).toEqual([[8, "html"], [9, "doc"]]);
   expect(validatePluginEmbeds.mock.calls).toEqual([]);
+});
+
+it("a slug-only widget marker is stored with the id the injected lookup returns, scoped to this workspace", async () => {
+  const start = { ...post, bodyFormat: "html" as const, bodyHtml: "<p>before</p>" };
+  const { repo, entryRefsRepo } = setup(start);
+  expect(await entryRefsRepo.findBySource({ workspaceId: "site", sourceEntryId: "page" })).toEqual([]);
+  const findBySlug = vi.fn(async ({ slug }: { workspaceId: string; type: string; slug: string }) =>
+    slug === "contact-form" ? { id: "widget-9" } : null);
+  const store = new InMemoryPagesHtmlDocumentStore({ scope, deps: { repo, entryRefsRepo, clock: { nowMs: () => Date.parse(now) },
+    reportUnindexedRef: () => {}, restoredEntryRefs: () => [],
+    widgetSlugLookup: { findBySlug } as unknown as WidgetSlugLookupPort } });
+  await store.read();
+  await store.write({ html: `<div data-embed-config='{"type":"widget","slug":"contact-form"}'>x</div>` });
+  expect(findBySlug.mock.calls).toEqual([[{ workspaceId: "site", type: "widget", slug: "contact-form" }]]);
+  expect((await repo.findById(key))?.bodyHtml).toBe(`<div data-embed-config='{"type":"widget","slug":"contact-form","id":"widget-9"}'>x</div>`);
+});
+
+it("a page trashed after read is refused as trashed, not as a concurrent edit, and stays unchanged", async () => {
+  const start = { ...post, bodyFormat: "html" as const, bodyHtml: "<p>before</p>" };
+  const { store, repo } = setup(start);
+  await store.read();
+  const trashed = { ...(await repo.findById(key))!, deletedAt: now };
+  await repo.save(trashed);
+  const write = store.write({ html: "<p>after</p>" });
+  await expect(write).rejects.toBeInstanceOf(EntityNotLiveError);
+  await expect(write).rejects.not.toBeInstanceOf(PageConcurrentEditError);
+  expect((await repo.findById(key))?.bodyHtml).toBe("<p>before</p>");
+});
+
+it("a lost compare-and-set is a concurrent edit and records no revision or reference", async () => {
+  const start = { ...post, bodyFormat: "html" as const, bodyHtml: "<p>before</p>" };
+  const { store, repo, entryRefsRepo } = setup(start);
+  await store.read();
+  const saveIfVersion = vi.spyOn(repo, "saveIfVersion").mockResolvedValueOnce({ applied: false });
+  await expect(store.write({ html: htmlBody })).rejects.toThrow("page 'page' was edited elsewhere since this turn started — re-read and retry");
+  expect(saveIfVersion.mock.calls[0]?.[0]).toMatchObject({ ifVersion: 7, record: { version: 8, bodyHtml: htmlBody } });
+  expect((await repo.findById(key))?.bodyHtml).toBe("<p>before</p>");
+  expect(await repo.listRevisions(scope)).toEqual([]);
+  expect(await entryRefsRepo.findBySource({ workspaceId: "site", sourceEntryId: "page" })).toEqual([]);
+  expect(store.capturedVersion()).toBe(7);
 });

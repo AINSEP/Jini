@@ -83,3 +83,44 @@ it("precheck reports the invalid menu tree and an unwired apply leaves no menu o
   expect(await repo.list({ workspaceId: "w" })).toEqual([]);
   expect(await bindingRepo.listByWorkspace({ workspaceId: "w" })).toEqual([]);
 });
+
+function repointFixture({ bumpOnEvenReads = false, authorize = vi.fn(async () => ({ allowed: true, reason: "grant" })), wired = true }: {
+  bumpOnEvenReads?: boolean; authorize?: () => Promise<{ allowed: boolean; reason: string }>; wired?: boolean;
+} = {}) {
+  const menu: NavMenuEntry = { id: "nested", workspaceId: "w", slug: "nested", title: "Nested", status: "published", locations: [], updatedAt: "now", version: 1,
+    doc: { type: "menu", version: 1, items: [{ id: "child", label: "Child", target: { kind: "entryRef", entryId: "old" } }] } };
+  const repo = new InMemoryMenuRepo({}, { initialRows: [menu] });
+  const originalFind = repo.findById.bind(repo);
+  let reads = 0;
+  repo.findById = async input => {
+    const row = await originalFind(input);
+    if (row && bumpOnEvenReads && ++reads % 2 === 0) { const changed = { ...row, version: row.version + 1 }; await repo.save(changed); return changed; }
+    return row;
+  };
+  const outbox = { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort;
+  const handler = contributeMenusPublish({ createRepoPublishHandler, updateMenuTree, applyRunActor }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
+    ports: { menu: { repo, bindingRepo: {} as never } }, ...(wired ? { authorize, outbox, changeSets: new InMemoryChangeSetRepo() } : {}), mutationActor: { id: "owner", kind: "user" } });
+  const repoint = () => handler.repointReferences!({ replacements: [{ entityType: "post", oldId: "old", newId: "new" }], skipIds: new Set(), principalId: "owner", runId: "run" });
+  return { repoint, originalFind, menu };
+}
+
+it("a second repoint conflict reports the menu as not updated instead of failing the publish", async () => {
+  const { repoint, originalFind, menu } = repointFixture({ bumpOnEvenReads: true });
+  expect(await repoint()).toEqual({ changeSetIds: [], linksUpdated: 0, notUpdated: ["Menu 'Nested' was not updated: it changed during publish."] });
+  expect((await originalFind({ workspaceId: "w", id: "nested" }))?.doc.items).toEqual(menu.doc.items);
+});
+
+it("a grant that does not cover menus is reported, while any other authorization fault is rethrown", async () => {
+  const denied = repointFixture({ authorize: async () => ({ allowed: false, reason: "no menus" }) });
+  expect(await denied.repoint()).toEqual({ changeSetIds: [], linksUpdated: 0,
+    notUpdated: ["Menu links were not updated: this publishing grant doesn't cover menus."] });
+  expect((await denied.originalFind({ workspaceId: "w", id: "nested" }))?.doc.items).toEqual(denied.menu.doc.items);
+  const faulty = repointFixture({ authorize: async () => { throw new Error("grant store offline"); } });
+  await expect(faulty.repoint()).rejects.toThrow("grant store offline");
+});
+
+it("repointing without the change-set, authorization and outbox ports is a named wiring error", async () => {
+  const { repoint, originalFind, menu } = repointFixture({ wired: false });
+  await expect(repoint()).rejects.toThrow("publish-content: menu.repointReferences() requires PublishContentDeps.ports.menu.repo, .changeSets, .authorize and .outbox");
+  expect(await originalFind({ workspaceId: "w", id: "nested" })).toEqual(menu);
+});
