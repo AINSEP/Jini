@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_COMMON_I18N } from "../../../core/i18n-common.js";
 import { createPluginsDictionary, PLUGINS_DICT_TEMPLATE } from "../plugins-i18n.js";
+import { PLUGIN_MEMORY_DICT, t as memoryT } from "../plugins-memory-i18n.js";
 
 const SLOT = "{productName}";
 const NAMED = "Zorbex";
@@ -62,5 +63,28 @@ describe("createPluginsDictionary: the host's product name", () => {
   it("does not treat a name containing replacement patterns as one", () => {
     const { t: odd } = createPluginsDictionary({ commonDictionary: {}, productName: "A$&B$1" });
     expect(odd({ locale: "es", key: "Not for this A$&B$1 version" })).toBe("No es para esta versión de A$&B$1");
+  });
+});
+
+describe("plugin memory copy", () => {
+  it("has a complete nonblank memory dictionary in each supported admin locale", () => {
+    const sourceKeys = Object.keys(PLUGIN_MEMORY_DICT.es!).sort();
+    expect(sourceKeys).toEqual(expect.arrayContaining(["Memory", "Could not save note.", "Uninstall and delete memory"]));
+    expect(Object.keys(PLUGIN_MEMORY_DICT).sort()).toEqual(Object.keys(ADMIN_COMMON_I18N).sort());
+    const slots = (value: string) => value.match(/\{\w+\}/g)?.sort() ?? [];
+    for (const [locale, entries] of Object.entries(PLUGIN_MEMORY_DICT)) {
+      expect(Object.keys(entries).sort(), locale).toEqual(sourceKeys);
+      for (const key of sourceKeys) {
+        expect(entries[key]?.trim(), `${locale}: ${key}`).toMatch(/\S/);
+        expect(slots(entries[key]!), `${locale}: ${key}`).toEqual(slots(key));
+      }
+    }
+  });
+
+  it("uses the locale's save outcome and falls back to shared or English copy", () => {
+    expect(memoryT({ locale: "es", key: "Note saved." })).toBe("Nota guardada.");
+    expect(memoryT({ locale: "bn", key: "Memory" })).toBe("মেমরি");
+    expect(memoryT({ locale: "es", key: "Cancel" })).toBe("Cancelar");
+    expect(memoryT({ locale: "en", key: "Note saved." })).toBe("Note saved.");
   });
 });

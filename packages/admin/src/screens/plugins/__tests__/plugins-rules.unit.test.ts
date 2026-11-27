@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { AdminPluginProviderSettingField } from "../api/plugins-api.types.js";
+import { createPluginRules, type PluginRulesDeps } from "../rules.js";
 
 import type { AdminPluginDto } from "@jini-ai/core/contracts/site/cms-plugins";
 import { FakeApiError, makeRules } from "./plugin-rules-fixture.js";
@@ -162,4 +164,126 @@ describe("pluginRowFacts (PL-2, 2026-10-06): the detail panel's always-present f
     expect(facts[2]?.value).toBe("This plugin has no code; nothing in it runs on this computer. Turning it on only adds what it declares.");
     expect(facts[3]?.value).toBe("Invalid — see the errors below");
   });
+});
+
+describe("plugin row details and reviewed package trust", () => {
+  const rules = makeRules();
+  const translate = (key: string) => key;
+  const peer = { kind: "tool", key: "export $&", heldBy: "audit", heldByName: "Audit $&", heldKey: "export $&" };
+  const reserved = { kind: "route", key: "/api/report", heldBy: "core", heldByName: "Core", heldKey: "/api/*" };
+  const exact = { kind: "new-kind", key: "title", heldBy: "core", heldByName: "Core", heldKey: "title" };
+
+  it("explains exact and wildcard reservations and deduplicates peer conflicts", () => {
+    const errors = [{ code: "INVALID", file: "plugin.json", message: "Missing name" }];
+    expect(rules.pluginRowDetailView({ plugin: makePlugin({ conflicts: [peer, reserved, peer, exact], errors }), translate })).toEqual({
+      quarantine: null, errors,
+      conflicts: { heading: "Names already in use — turn the other plugin off first:", lines: [
+        'Tool "export $&" is already used by Audit $&.',
+        'Route "/api/report" is reserved by Acme ("/api/*").',
+        'new-kind "title" is reserved by Acme.',
+      ] },
+    });
+  });
+
+  it("keeps healthy details empty and distinguishes boot quarantine from repeated failures", () => {
+    expect(rules.pluginConflictLines({ plugin: {}, translate })).toEqual([]);
+    expect(rules.pluginRowDetailView({ plugin: makePlugin(), translate })).toBeNull();
+    const view = (consecutiveFailures: number) => rules.pluginRowDetailView({
+      plugin: makePlugin({ quarantine: { at: "2026-10-03", reason: "Conflicting claim", consecutiveFailures } }), translate,
+    });
+    expect(view(0)).toEqual({ quarantine: { headline: "Turned off automatically", reason: "Conflicting claim" }, conflicts: null, errors: [] });
+    expect(view(3)).toEqual({ quarantine: { headline: "Quarantined after 3 consecutive failures", reason: "Conflicting claim" }, conflicts: null, errors: [] });
+  });
+
+  it("shows the upgrade and full-access warning only for the reviewed coded package", () => {
+    const manifest = { id: "count", name: "Word Count", version: "2.5", tier: "tier-1", digest: "d2",
+      capabilities: [], hooks: [], contentTypes: [], conflicts: [], hasCode: false };
+    expect(rules.pluginInstallPreviewDisplay({ preview: manifest, translate })).toEqual({
+      title: "Word Count (count)", version: "2.5", tier: "tier-1", capabilities: "—", hooks: "—", contentTypes: "—",
+      codeNotice: "This plugin has no code; nothing in it runs on this computer. Turning it on only adds what it declares.", conflicts: null,
+    });
+    const coded = { ...manifest, tier: "tier-3", hasCode: true, upgradeFrom: "1.8", capabilities: ["files", "content"],
+      hooks: ["publish", "delete"], contentTypes: ["report", "section"], conflicts: [peer] };
+    expect(rules.pluginInstallPreviewDisplay({ preview: coded, translate })).toEqual({
+      title: "Word Count (count)", version: "1.8 → 2.5", tier: "tier-3", capabilities: "files, content", hooks: "publish, delete",
+      contentTypes: "report, section", codeNotice: "This plugin runs code with full access to this computer and every site on it.",
+      conflicts: { heading: "Already in use in this workspace (other workspaces are checked when you turn it on there):",
+        lines: ['Tool "export $&" is already used by Audit $&.'] },
+    });
+  });
+});
+
+describe("package file presentation", () => {
+  const rules = makeRules();
+  const translate = (key: string) => key;
+  const file = { relativePath: "file.md", sizeBytes: 12, content: null, omitted: null };
+
+  it("retains an omitted row with the reason instead of showing its bytes", () => {
+    const cases = [
+      ["binary", "Binary file — not shown."],
+      ["too-large", "Too large to show here."],
+      ["symlink", "Symbolic link — not followed."],
+      ["unreadable", "This file could not be read."],
+    ] as const;
+    for (const [omitted, unavailableReason] of cases) {
+      expect(rules.toPackageFileView({ file: { ...file, omitted, content: "Do not show" }, translate }))
+        .toEqual({ relativePath: "file.md", content: null, unavailableReason });
+    }
+    expect(rules.toPackageFileView({ file, translate })).toEqual({
+      relativePath: "file.md", content: null, unavailableReason: "This file could not be read.",
+    });
+  });
+
+  it("distinguishes loading, refusal, and a successfully read empty package", () => {
+    const view = (read: ReturnType<typeof rules.packageFilesRead>) => rules.packageFilesViewState({ read, selectedPath: "", translate });
+    expect(view(rules.packageFilesRead({}))).toEqual({
+      files: [], selectedFile: null, status: { role: "status", text: "Loading package files…" }, listNotice: null,
+    });
+    expect(view(rules.packageFilesRead({ error: new Error("Manifest access denied") }))).toEqual({
+      files: [], selectedFile: null, status: { role: "alert", text: "Manifest access denied" }, listNotice: null,
+    });
+    expect(view(rules.packageFilesRead({ data: { files: [], truncated: false }, error: new Error("Old error") }))).toEqual({
+      files: [], selectedFile: null, status: { role: "status", text: "No files to show for this plugin." }, listNotice: null,
+    });
+  });
+
+  it("selects the first displayed file rather than the first server entry", () => {
+    const read = rules.packageFilesRead({ data: { truncated: true, files: [
+      { ...file, relativePath: "docs/guide.md", content: "Guide" },
+      { ...file, relativePath: "file10.md", content: "Ten" },
+      { ...file, relativePath: "file2.md", content: "" },
+    ] } });
+    const preferred = rules.packageFilesViewState({ read, selectedPath: "docs/guide.md", translate });
+    expect(preferred.selectedFile).toEqual({ relativePath: "docs/guide.md", content: "Guide" });
+    const fallback = rules.packageFilesViewState({ read, selectedPath: "missing.md", translate });
+    expect(fallback.selectedFile).toEqual({ relativePath: "file2.md", content: "" });
+    expect(fallback.status).toBeNull();
+    expect(fallback.listNotice).toBe("Some files are not listed: this package is larger than the viewer's limits.");
+  });
+});
+
+it("keeps a saved secret write-only while honoring the host validation when an alternative is edited", () => {
+  const field: AdminPluginProviderSettingField = { name: "token", label: "Token", required: true, saved: false, secret: true,
+    requiredUnless: { field: "mode", equals: "none", orPresent: "headers", headerNames: ["Authorization"] } };
+  const headers: AdminPluginProviderSettingField = { name: "headers", label: "Headers", required: false, saved: true, secret: true };
+  const isProviderSettingRequired = vi.fn<PluginRulesDeps["isProviderSettingRequired"]>(({ values }) => values["mode"] === "authenticated");
+  const rules = createPluginRules({ productName: "Acme", translate: ({ key }) => key, isProviderSettingRequired,
+    isApiError: (e): e is FakeApiError => e instanceof FakeApiError, describeApiError: ({ fallback }) => fallback,
+  });
+  const values = { mode: "authenticated", headers: "saved" };
+  const input = { field, fields: [field, headers], entered: { headers: "  " }, values };
+  expect(rules.providerSettingRequiredHere(input)).toBe(false);
+  expect(isProviderSettingRequired).not.toHaveBeenCalled();
+  expect(rules.providerSettingRequiredHere({ ...input, entered: { headers: "X-Trace: changed" } })).toBe(true);
+  expect(isProviderSettingRequired).toHaveBeenCalledExactlyOnceWith({ field, values });
+  expect(rules.providerSettingRequiredHere({ ...input, fields: [field] })).toBe(true);
+  expect(rules.providerSettingRequiredHere({ ...input, fields: [field], values: { mode: "none" } })).toBe(false);
+  expect(rules.providerSettingRequiredHere({ ...input, fields: [field, { ...headers, saved: false }] })).toBe(true);
+  expect(rules.providerSettingRequiredHere({ ...input, fields: [field, { ...headers, secret: false }] })).toBe(true);
+});
+
+it("retains the first readable row when a malformed path cannot appear in the tree", () => {
+  const value = { relativePath: "/", content: "Recoverable content" };
+  const { selectPackageFile } = makeRules();
+  expect(selectPackageFile({ files: [value], selectedPath: "missing.md" })).toBe(value);
 });

@@ -123,3 +123,45 @@ describe("buildAgentPluginDisableConfirmCopy without a translator", () => {
     expect(copy.body).toContain("It stays right here on Downloaded and can be enabled again any time.");
   });
 });
+
+describe("Agent Plugin lifecycle actions", () => {
+  const rules = makeRules("Acme", ({ locale, key }) => `${locale}:${key}`);
+  const translations: Record<string, string> = {
+    "Needs {capabilities}": "Requires [{capabilities}]",
+    "{plugin} needs {capability}": "{capability} required by {plugin}",
+  };
+  const translate = (key: string) => translations[key] ?? key;
+
+  it("translates each known lifecycle warning without changing its identifiers", () => {
+    const warnings = ["Needs files:$&", "workspace needs files:read", "Unknown release version; cannot compare",
+      "Same version with different bytes; keep enabled", "Needs a capability with spaces", "A new server warning"];
+    expect(warnings.map(warning => rules.agentPluginWarningText({ warning, translate }))).toEqual([
+      "Requires [files:$&]", "files:read required by workspace", "This package has no release version to compare.",
+      "Same version number as the installed one, with different contents.", "Needs a capability with spaces", "A new server warning",
+    ]);
+  });
+
+  it("identifies affected dependents and does not call an uploaded package bundled", () => {
+    const copy = rules.buildAgentPluginDisableConfirmCopy({
+      name: "Notebook", variant: "disable", origin: "operator-installed", requiredBy: ["daily needs notes:read", "weekly needs notes:write"],
+    }, { translate });
+    expect(copy).toEqual({
+      title: "Disable Notebook for this site?",
+      body: "Its skills stop reaching the assistant on the next run. The package stays on disk and can be enabled again. You added this package. Turning it off keeps its files and memory.",
+      dependents: "Other enabled plugins rely on it: notes:read required by daily; notes:write required by weekly",
+    });
+  });
+
+  it("names the exact row and action in both states of its Downloaded control", () => {
+    const plugin = { pluginId: "coverage-notes", displayName: "Research Notebook", enabled: false };
+    expect(rules.agentPluginRemoveOrEnableAriaLabel({ plugin, locale: "fr" })).toBe("fr:Enable Research Notebook");
+    expect(rules.agentPluginRemoveOrEnableAriaLabel({ plugin: { ...plugin, enabled: true }, locale: "de" })).toBe("de:Turn off Research Notebook");
+  });
+
+  it("offers update only for an operator-installed row with an installed digest", () => {
+    expect(rules.updatableAgentPluginDigest({ plugin: { origin: "operator-installed", archiveDigest: "shown-digest" } })).toBe("shown-digest");
+    expect(rules.updatableAgentPluginDigest({ plugin: { origin: "bundled", archiveDigest: "shown-digest" } })).toBeUndefined();
+    expect(rules.updatableAgentPluginDigest({ plugin: { origin: "operator-installed", archiveDigest: "" } })).toBeUndefined();
+    expect(rules.updatableAgentPluginDigest({ plugin: { origin: "operator-installed" } })).toBeUndefined();
+  });
+});
