@@ -10,7 +10,7 @@ const hint = { purpose: 'mail', domain: hostname, providerId: 'dmarc-hint', reco
 }] };
 const providerDmarc = { type: 'TXT' as const, name: dmarcName, value: 'v=DMARC1; p=reject' };
 
-function fixture(records: Parameters<typeof dnsFixture>[0]['records'] = {}, ns?: Parameters<typeof dnsFixture>[0]['ns']) {
+function fixture(records: NonNullable<Parameters<typeof dnsFixture>[0]>['records'] = {}, ns?: NonNullable<Parameters<typeof dnsFixture>[0]>['ns']) {
   const f = dnsFixture({ records, ...(ns ? { ns } : {}) });
   const mailRequirements = vi.fn<MailRequirementsPort>().mockResolvedValue({ ...mailRequirement, domain: 'STUDIO.EXAMPLE.TEST.' });
   const ports = { provider: createManualDnsProvider({ resolver: f.resolver }), context: f.deps.context, mailRequirements };

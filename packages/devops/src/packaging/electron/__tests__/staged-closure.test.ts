@@ -8,8 +8,12 @@ import { fileURLToPath } from 'node:url';
 import type { StagedClosureAudit } from '../staged-closure.js';
 import ts from "typescript";
 import { auditStagedClosure } from "../staged-closure.js";
+import { createNodeRuntimeResolver } from "../staged-closure-node.js";
 import { createTypeScriptImportReader } from "../typescript.js";
 import { memoryFs } from "./memory-fs.js";
+
+/** Each audit spawns a tsx-loaded Node (15 s cap each); a test running several needs more than the 5 s default. */
+const SUBPROCESS_TEST_TIMEOUT_MS = 45_000;
 
 /** Native Node must own import.meta.resolve: Vite's SSR import.meta omits it. */
 function audit(input: { root: string; scan: string[]; packageRoots?: string[] }): StagedClosureAudit {
@@ -51,7 +55,7 @@ test('only an owning Jini optional peer classification exempts a miss', t => {
   f.write('stage/node_modules/@jini-ai/daemon/package.json', { name: '@jini-ai/daemon', exports: './dist/index.js', peerDependencies: { 'smol-toml': '*' }, peerDependenciesMeta: { 'smol-toml': { optional: true } }, jini: { optionalPeers: { 'smol-toml': 'opt-in: terminal — This feature needs smol-toml.' } } });
   assert.deepEqual(f.audit().problems, []);
   assert.equal(f.audit().optIns.length, 1);
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 test('uses import and require export conditions and detects missing relative targets', t => {
   const f = fixture(t);
   f.write('stage/node_modules/@jini-ai/daemon/dist/index.js', 'import "driver"; require("driver");');
@@ -62,7 +66,7 @@ test('uses import and require export conditions and detects missing relative tar
   assert.deepEqual(f.audit().problems, []);
   f.write('stage/node_modules/@jini-ai/daemon/dist/index.js', 'import "./gone.js";');
   assert.match(f.audit().problems.join('\n'), /gone.js/);
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 test('scans unreferenced Jini dist modules but does not audit third-party optional implementations', t => {
   const f = fixture(t);
   f.write('stage/node_modules/@jini-ai/daemon/dist/index.js', 'import "driver";');
@@ -71,7 +75,7 @@ test('scans unreferenced Jini dist modules but does not audit third-party option
   assert.deepEqual(f.audit().problems, []);
   f.write('stage/node_modules/@jini-ai/daemon/dist/deferred.js', 'export const run = () => require.resolve("missing-deferred");');
   assert.match(f.audit().problems.join('\n'), /missing-deferred/);
-});
+}, SUBPROCESS_TEST_TIMEOUT_MS);
 test('the asar resource layout checks Jini inside app and resolves sibling website files', t => {
   const f = fixture(t);
   f.write('resources/app/package.json', { name: 'shell', type: 'module' });
@@ -140,7 +144,9 @@ test('reports absent and directory import targets, but excludes declarations and
   assert.deepEqual(result.optIns, []);
   assert.equal(result.problems.length, 2);
   assert.match(result.problems[0]!, /server\.js:1 -> \.\/missing\.js: resolved target does not exist$/);
-  assert.match(result.problems[1]!, /server\.js:2 -> \.\/folder: .*Directory import/);
+  // A directory is never a loadable target. The tsx-loaded harness maps the bare directory specifier to a
+  // file inside it that does not exist; the native 'is not a file' branch is pinned with memoryFs below.
+  assert.match(result.problems[1]!, /server\.js:2 -> \.\/folder: resolved target does not exist$/);
 });
 
 test('checks resolved file containment and ignores only builtins and registered host modules', () => {
@@ -202,4 +208,20 @@ test('uses the nearest named Jini manifest for peer exemptions even in a nested 
     optIns: [`${runtimeFile}:1 -> optional-receiver/feature (opt-in: Forms — Install optional-receiver to receive forms.)`],
     problems: [`${runtimeFile}:2 -> ./missing.cjs: unavailable: ./missing.cjs`, `${runtimeFile}:3 -> #declared-alias: unavailable: #declared-alias`],
   });
+});
+
+test('in-process: the native resolver refuses to start without the flag, and resolves require edges from the importer', t => {
+  const flag = '--experimental-import-meta-resolve';
+  const original = [...process.execArgv];
+  assert.throws(() => createNodeRuntimeResolver({}), { message: 'staged closure needs node --experimental-import-meta-resolve to resolve from each staged importer' });
+  const f = fixture(t);
+  f.write('stage/node_modules/driver/package.json', { name: 'driver', main: 'main.cjs' });
+  f.write('stage/node_modules/driver/main.cjs', 'exports.ok = true;');
+  process.execArgv.push(flag);
+  try {
+    const resolver = createNodeRuntimeResolver({});
+    assert.equal(resolver.resolve({ fromFile: join(f.root, 'dist', 'server.js'), specifier: 'driver', kind: 'require' }), join(f.root, 'node_modules', 'driver', 'main.cjs'));
+  } finally {
+    process.execArgv.splice(0, process.execArgv.length, ...original);
+  }
 });

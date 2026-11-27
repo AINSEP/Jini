@@ -95,7 +95,7 @@ function domainFixture() {
     'gatewayPlan' | 'gatewayConfirm' | 'gatewayExecute' | 'resolveActorClassIdentity' | 'staticPublishPorts' | 'tracker' | 'hostKit' | 'idGen' |
     'loadDeployTargets' | 'requireToolPermission' | 'publishOutputRootDir' | 'exportSiteBound'>;
   function unexpected(): never { throw new Error('Unexpected surface exchange'); }
-  const required = { deps: deps as StaticPublishToolDeps,
+  const required = { deps: deps as unknown as StaticPublishToolDeps,
     surfaces: { surfaceExchanges: { open: unexpected, deliver: unexpected, findTypedAnswerTarget: unexpected, size: () => 0 } },
     credentialSource: f.deps.credentialSource, historyStore, config, projectName: 'Studio', credentialId: 'studio-row' };
   const ctx: ToolExecutionContext = { executionId: 'request-domain', principal: { id: 'agent' }, run: { id: 'run' }, input: {}, signal: new AbortController().signal };

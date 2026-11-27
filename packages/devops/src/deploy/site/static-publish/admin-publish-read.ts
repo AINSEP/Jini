@@ -64,9 +64,12 @@ export async function httpPublishPreview(required: {
 }, _options = {}) {
   const { deps, credentialSource, registry, config, query } = required;
   const plan = deps.planStaticPublish({ registry, config });
-  const credential = await credentialSource.isConfigured({ workspaceId: deps.workspaceId, target: config.target });
+  // Readiness is judged for the connection the operator chose (as the chat preview does), so a chosen
+  // saved row counts even when the target has no implicit default.
+  const choice = credentialChoice({ value: query.credentialId });
+  const credential = await credentialSource.isConfigured({ workspaceId: deps.workspaceId, target: config.target, ...choice });
   const inspected = plan.ok && credential.configured ? await deps.inspectStaticPublish({
-    input: { workspaceId: deps.workspaceId, config, projectName: typeof query.projectName === "string" ? query.projectName : "", ...credentialChoice({ value: query.credentialId }) },
+    input: { workspaceId: deps.workspaceId, config, projectName: typeof query.projectName === "string" ? query.projectName : "", ...choice },
   }) : {};
   return { target: config.target, valid: plan.ok, validationError: plan.ok ? null : plan.message,
     basePath: plan.ok ? (plan.basePath ?? null) : null, credentialsConfigured: credential.configured,

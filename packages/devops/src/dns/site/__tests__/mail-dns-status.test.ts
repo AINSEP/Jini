@@ -25,6 +25,10 @@ test('shows per-server mail DNS evidence separately from the provider verdict wi
           priority: 17, ttl: 120, note: 'Inbound verification',
           byNameserver: [{ nameserver: ns2, status: 'Missing', answers: [] }, { nameserver: ns1, status: 'Matches', answers: ['17 mx.mail.test.'] }],
         },
+        // The zone listing shows no DMARC of the site's own, so the monitoring hint is checked too.
+        { type: 'TXT', host: '_dmarc', name: `_dmarc.${hostname}`, expected: 'v=DMARC1; p=none', observed: ['v=DMARC1; p=none'], status: 'Pending', purpose: 'mail',
+          byNameserver: [{ nameserver: ns2, status: 'Missing', answers: [] }, { nameserver: ns1, status: 'Matches', answers: ['v=DMARC1; p=none'] }],
+        },
       ] },
   });
   expect(mail.mock.calls).toEqual([[{ workspaceId: 'ws' }]]);

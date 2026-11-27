@@ -88,8 +88,14 @@ test('no zone yields blocker guidance and no store prevents verification', async
 test('the domain contributor assembles all tools with independent read and write risk declarations', () => {
   const f = dnsFixture();
   const createChecks = vi.fn(() => { throw new Error('registration must not start checks'); });
-  const contributor = contributeDomainDnsAndChangeTools({ createDeps: () => ({ ...f.deps, publicNames, createChecks }), createDnsDeps: () => f.deps });
-  const regs = contributor.build({});
+  const routeDeps = { route: 'site-7' };
+  const createDeps = vi.fn((_route: typeof routeDeps) => ({ ...f.deps, publicNames, createChecks }));
+  const createDnsDeps = vi.fn((_route: typeof routeDeps) => f.deps);
+  const contributor = contributeDomainDnsAndChangeTools({ createDeps, createDnsDeps });
+  expect(createDeps).not.toHaveBeenCalled();
+  const regs = contributor.build(routeDeps, {});
+  expect(createDeps.mock.calls).toEqual([[routeDeps]]);
+  expect(createDnsDeps.mock.calls).toEqual([[routeDeps]]);
   const expected = [
     ['domain_lookup_dns', 'none'], ['domain_check_dns', 'none'], ['domain_tls_status', 'none'],
     ['dns_plan', 'none'], ['dns_instructions', 'none'], ['dns_verify', 'mutates-durable-state'],

@@ -24,11 +24,11 @@ test('mail status exposes the provider verdict while authorized verify starts tr
   ]));
 });
 
-test('mail tools reject malformed input and deny tracking without write permission', async () => {
+test('mail tools reject non-object input and deny tracking without write permission', async () => {
   const f = dnsFixture();
   const regs = buildMailDnsRegistrations(f.deps);
   for (const id of ['mail_dns_status', 'mail_dns_verify']) {
-    const result = runTool(regs, id, []);
+    const result = runTool(regs, id, null);
     await expect(result).rejects.toBeInstanceOf(ToolInputError);
     await expect(result).rejects.toHaveProperty('message', 'input must be an object');
   }
