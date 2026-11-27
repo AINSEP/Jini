@@ -40,13 +40,13 @@ it("a gated entry's placed widget gates the media its saved config shows; trashe
   const workspaceId = "west";
   const mediaRecord = (id: string): MediaRecord => ({ id, slug: `${id}-slug`, title: id, workspaceId, status: "active", source: { sha256: "a".repeat(64) },
     alt: "", caption: "", credit: "", createdAt: "2026-11-19", updatedAt: "2026-11-19", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null });
-  const widget = (id: string, mediaId: string, status: "active" | "inactive", deletedAt: string | null = null) => ({ id, slug: `${id}-slug`, deletedAt,
+  const widget = (id: string, mediaId: string, status: "active" | "trash", deletedAt: string | null = null) => ({ id, slug: `${id}-slug`, deletedAt,
     fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: "gallery", config: { items: [{ mediaId }] }, status } }) });
   const placed = ["live", "trashed", "inactive", "broken"].map(slug => ({ type: "widgetEmbed", attrs: { widgetEntryId: `${slug}-slug` } }));
   const entry: PostRecord = { id: "p", workspaceId, title: "", slug: "p", kind: "post", bodyFormat: "doc", bodyHtml: null,
     bodyJson: { type: "doc", content: placed }, status: "published", memberAccessJson: "members", updatedAt: "now", version: 1 };
   const readWidgetRows = vi.fn(async () => [widget("live", "shown", "active"), widget("trashed", "binned", "active", "2026-11-20"),
-    widget("inactive", "paused", "inactive"), { id: "broken", slug: "broken-slug", fieldsJson: "not a payload" }]);
+    widget("inactive", "paused", "trash"), { id: "broken", slug: "broken-slug", fieldsJson: "not a payload" }]);
   const readEntitlement = vi.fn(async () => () => false);
   const access = createRenditionAccess({ workspaceId, cache: new Map(), nowMs: () => 0, readEntries: async () => [entry], readWidgetRows,
     findMedia: async ({ idOrSlug }) => mediaRecord(idOrSlug), readRetiredSlugs: async () => [], isGated: ({ entry }) => entry.memberAccessJson === "members" });
