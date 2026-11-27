@@ -59,11 +59,19 @@ test('applies global and host scope caps atomically and releases removed or aban
 test('hands an interrupt to the live consumer before finish and resumes on the same thread with a fresh run', async () => {
   const observers: Parameters<ReturnType<AgUiClient['run']>['subscribe']>[0][] = [];
   const inputs: RunAgentInput[] = [];
+  const abortRuns: ReturnType<typeof vi.fn>[] = [];
   let id = 0;
   const order: string[] = [];
   const client = createAgUiRunClient({ ports: { endpoint: '/agent', runIdPrefix: 'ag-', customEventNames: { usage: 'usage', status: 'status', extensionPrefix: 'ext.' },
     mintId: () => String(++id), onLiveEvent: ({ event }) => { expect(EventSchemas.parse(event)).toMatchObject({ outcome: { type: 'interrupt' } }); order.push('interrupt'); return true; },
-    createAgent: () => ({ abortController: new AbortController(), abortRun: () => {}, run: input => { inputs.push(input); return { subscribe: observer => { observers.push(observer); } }; } }) } });
+    createAgent: () => {
+      const abortRun = vi.fn();
+      abortRuns.push(abortRun);
+      return {
+        abortController: new AbortController(), abortRun,
+        run: input => { inputs.push(input); return { subscribe: observer => { observers.push(observer); } }; },
+      };
+    } } });
   const handlers = { onEvent: vi.fn(), onError: vi.fn(), onDone: vi.fn(() => { order.push('done'); }) };
   const event = confirmationInterrupt({ threadId: 'thread', runId: 'ag-1', interrupt: { id: 'approval', reason: 'confirmation', toolCallId: 'tool', message: 'Allow action?' } });
   const started = client.startAgUiRun({ input: { history: [], conversationId: 'thread', signal: new AbortController().signal }, handlers });
@@ -79,5 +87,7 @@ test('hands an interrupt to the live consumer before finish and resumes on the s
     threadId: 'thread', parentRunId: 'ag-1', resume: [{ interruptId: 'approval', status: 'resolved', payload: 'allow' }] });
   expect(inputs[1]).toMatchObject({ threadId: 'thread', runId: 'ag-2', parentRunId: 'ag-1', resume: resume.resume });
   observers[1]!.complete();
-  await continued;
+  await expect(continued).rejects.toThrow(/^The assistant stopped before replying\. Send your message again\.$/);
+  await client.stopAgUiRun({ runId: 'ag-2' });
+  expect(abortRuns[1]).not.toHaveBeenCalled();
 });

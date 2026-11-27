@@ -91,26 +91,25 @@ describe("followDurableRun with a binding and checkpoints", () => {
     expect(h.onDone).toHaveBeenCalledWith([]);
   });
 
-  it("P26: settles an empty AG-UI start and a durable run that is gone", async () => {
+  it("P26: rejects and forgets an empty AG-UI start, then settles a durable run that is gone", async () => {
     const agUiHandlers = handlers();
     const controller = new AbortController();
+    const abortRun = vi.fn(() => controller.abort());
     const client = createAgUiRunClient({ ports: {
       endpoint: "/ag-ui", runIdPrefix: "ag:", mintId: () => "empty",
       customEventNames: { usage: "usage", status: "status", extensionPrefix: "ext:" },
-      createAgent: () => ({ abortController: controller, abortRun: () => controller.abort(),
+      createAgent: () => ({ abortController: controller, abortRun,
         run: () => ({ subscribe: observer => { observer.complete(); } }),
       }),
     } });
-    const settled = vi.fn();
-    void client.startAgUiRun({ input: {
+    const started = client.startAgUiRun({ input: {
       history: [{ id: "u", role: "user", content: "hi" }], conversationId: "c", signal: new AbortController().signal,
-    }, handlers: agUiHandlers }).then(settled, error => settled({ error }));
-    // The existing flush helper drains promise reactions without awaiting a hanging start.
-    await flush();
-    expect.soft(settled).toHaveBeenCalledWith({ runId: "ag:empty" });
-    expect.soft(agUiHandlers.onDone).toHaveBeenCalledTimes(1);
-    expect.soft(agUiHandlers.onDone).toHaveBeenCalledWith([]);
-    expect.soft(agUiHandlers.onError).not.toHaveBeenCalled();
+    }, handlers: agUiHandlers });
+    await expect(started).rejects.toThrow(/^The assistant stopped before replying\. Send your message again\.$/);
+    await client.stopAgUiRun({ runId: "ag:empty" });
+    expect(abortRun).not.toHaveBeenCalled();
+    expect(agUiHandlers.onDone).not.toHaveBeenCalled();
+    expect(agUiHandlers.onError).not.toHaveBeenCalled();
 
     const { ports, streams, timers } = fakePorts(["gone"]);
     const h = handlers();

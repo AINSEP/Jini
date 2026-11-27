@@ -374,7 +374,7 @@ function PageEditorTemplateOptions({ deps, availableTemplates, setTemplateChoice
                   "Which theme page template this page renders through on the public site. 'No template' serves only the page's own HTML.",
               })}
             >
-              {pickerValue === THEME_DEFAULT_SENTINEL ? <option value={THEME_DEFAULT_SENTINEL}>{t("Theme default")}</option> : null}
+              <option value={THEME_DEFAULT_SENTINEL}>{t("Theme default")}</option>
               {availableTemplates.map((template) => (
                 <option key={template} value={template}>
                   {template}
