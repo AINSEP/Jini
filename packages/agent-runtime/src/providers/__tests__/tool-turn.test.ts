@@ -781,3 +781,11 @@ describe('adapter port plumbing per protocol', () => {
     expect(wireName).toBe('second_name');
   });
 });
+
+test('a protocol outside the supported four (for example a stale stored setting) is refused before any adapter runs', async () => {
+  const adapters = { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn() };
+  const stale = 'cohere' as unknown as ByokProtocol;
+  await expect(runProviderToolTurn({ protocol: stale, adapters: { ...providerTurnAdapters, ...adapters }, apiKey: 'key', model: 'model', system: '', messages: [], tools: [], executeTool: async () => ({ content: 'ok' }), onEvent: () => {} }))
+    .rejects.toThrow(new TypeError('Unsupported provider tool-turn protocol: cohere'));
+  for (const adapter of Object.values(adapters)) expect(adapter).not.toHaveBeenCalled();
+});

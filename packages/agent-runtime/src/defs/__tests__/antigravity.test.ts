@@ -63,6 +63,11 @@ describe('antigravityAgentDef shape', () => {
 });
 
 describe('redactAntigravityAuthUrls', () => {
+  it('redacts a plain-text (non-JSON) wire line and keeps its line framing', () => {
+    const line = 'Visit https://accounts.google.com/o/oauth2/auth?client_id=private to sign in\n';
+    expect(sanitizeAntigravityWireLine({ fullText: line })).toBe('Visit [redacted sign-in URL] to sign in\n');
+  });
+
   it('sanitizes parsed string values without breaking escaped quotes or line framing', () => {
     const frame = { event: 'result', result: { status: 'FAILED', error: 'Open "https://accounts.google.com/o/oauth2/auth?client_id=private" then retry' } };
     const safe = sanitizeAntigravityWireLine({ fullText: JSON.stringify(frame) + '\n' });
