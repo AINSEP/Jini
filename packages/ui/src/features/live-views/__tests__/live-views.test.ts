@@ -104,3 +104,25 @@ test('a restored guest gets its scroll back on its first finished load only, and
   teardown?.();
   assert.ok(listeners.has('did-finish-load'), 'a stale teardown does not detach a newer listener');
 });
+
+test('a failed scroll restore is reported, except when the guest was closed mid-restore', async () => {
+  const parked = { url: 'http://127.0.0.1:4100/a', x: 0, y: 10, innerY: 0 };
+  const run = async (error: unknown) => {
+    let onLoad: (() => void) | undefined;
+    const guest = {
+      executeJavaScript: () => Promise.reject(error),
+      addEventListener: (_type: 'did-finish-load', listener: () => void) => { onLoad = listener; },
+      removeEventListener: () => { onLoad = undefined; },
+    };
+    const reported: unknown[] = [];
+    restoreParkedScroll({ guest, parked, innerScroller: 'main' }, { report: ({ error: e }) => reported.push(e) });
+    onLoad?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return reported;
+  };
+  const failure = new Error('script threw');
+  assert.deepEqual(await run(failure), [failure]);
+  assert.deepEqual(await run('plain string'), ['plain string']);
+  assert.deepEqual(await run(new Error('WebContents was destroyed')), []);
+  assert.deepEqual(await run(new Error('The WebView is Not Attached to the DOM')), []);
+});
