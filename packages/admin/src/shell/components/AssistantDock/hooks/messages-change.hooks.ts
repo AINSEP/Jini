@@ -62,7 +62,8 @@ export interface ToolProgressMark {
  * @param input.messages - The full transcript as of this `onMessagesChange` event.
  * @param input.publishedToolProgress - The mark already published for, or `null`.
  * @returns `publish` (whether to announce now) and `nextPublishedToolProgress` (what the caller's
- *   ref should hold next — unchanged when `publish` is `false`).
+ *   ref should hold next — unchanged when `publish` is `false`, except that a retry's reset to zero
+ *   results lowers the mark).
  */
 export function shouldPublishContentOnToolProgress(
   { messages, publishedToolProgress }: {
@@ -84,7 +85,10 @@ export function shouldPublishContentOnToolProgress(
   const mark = publishedToolProgress?.messageId === last.id ? publishedToolProgress : null;
   const alreadyPublished = mark && mark.toolResultCount <= toolResultCount ? mark.toolResultCount : 0;
   if (toolResultCount <= alreadyPublished) {
-    return { publish: false, nextPublishedToolProgress: publishedToolProgress };
+    // A retry's reset (`events: []`) must lower the mark now; otherwise its first result is
+    // compared against the failed run's count and reads as already announced.
+    const lowered = mark !== null && mark.toolResultCount > toolResultCount;
+    return { publish: false, nextPublishedToolProgress: lowered ? { messageId: last.id, toolResultCount } : publishedToolProgress };
   }
   return { publish: true, nextPublishedToolProgress: { messageId: last.id, toolResultCount } };
 }

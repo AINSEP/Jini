@@ -21,7 +21,8 @@ it("uses the card itself without a wrapper and refuses to pick between multiple 
   Object.assign(card, { scrollIntoView });
   expect(guideToPendingCredentialCard({ document, cardWrapperSelector: ".absent" })).toBe(true);
   expect(scrollIntoView.mock.calls).toEqual([[{ block: "center", behavior: "smooth" }]]);
-  const second = card.cloneNode();
+  const second = document.createElement("div");
+  second.setAttribute("data-agent-element", "mcp-ui-pending-first-secret-card");
   document.body.append(second);
   expect(guideToPendingCredentialCard({ document, cardWrapperSelector: ".absent" })).toBe(false);
   expect(scrollIntoView).toHaveBeenCalledOnce();
@@ -36,4 +37,7 @@ it("does not use the ambient page when the host explicitly has no document", () 
   Object.assign(document.querySelector("div")!, { scrollIntoView });
   onAdminSecretRedacted({ secretRedacted: true, count: 1 }, { document: null, cardWrapperSelector: ".absent" });
   expect(scrollIntoView).not.toHaveBeenCalled();
+  // Control: the same signal with the page's document does guide to that one pending card.
+  onAdminSecretRedacted({ secretRedacted: true, count: 1 }, { cardWrapperSelector: ".absent" });
+  expect(scrollIntoView.mock.calls).toEqual([[{ block: "center", behavior: "smooth" }]]);
 });

@@ -33,11 +33,15 @@ it("keeps a new picker choice while its save is pending even after an older save
     set(next);
     return { previous, next };
   };
-  const { result, rerender } = renderHook((executionConfig: ExecutionConfig) => useLocalCliSelection({
-    executionConfig, setExecutionConfig, configLoaded: true, initialSelection: { agentId: "initial" }, readAgentsSnapshot: () => undefined,
+  // Injected ports are stable across renders, as the dock's module-level functions are: a fresh
+  // `readSavedSelection` per render re-runs the sync effect every render and never settles.
+  const stable: Omit<Parameters<typeof useLocalCliSelection>[0], "executionConfig"> = {
+    setExecutionConfig, configLoaded: true, initialSelection: { agentId: "initial" }, readAgentsSnapshot: () => undefined,
     resolveChatPaneSelection: ({ requested }) => requested, readSavedSelection: ({ config }) => ({ agentId: config.localCli.agentId ?? "default" }),
     withSelection: ({ previous, selection }) => ({ ...previous, localCli: { agentId: selection.agentId } }), applyChange, persistWrite,
-  }), { initialProps: base });
+  };
+  const { result, rerender } = renderHook((executionConfig: ExecutionConfig) => useLocalCliSelection({ executionConfig, ...stable }),
+    { initialProps: base });
   expect(result.current.localCliSelection).toEqual({ agentId: "ledger" });
   act(() => result.current.handleLocalCliSelectionChange({ agentId: "first" }));
   act(() => result.current.handleLocalCliSelectionChange({ agentId: "second" }));

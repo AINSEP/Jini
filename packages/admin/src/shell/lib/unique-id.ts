@@ -20,8 +20,14 @@ function fallbackSuffix({ webCrypto }: { webCrypto: Partial<Crypto> | undefined 
     const words = webCrypto.getRandomValues(new Uint32Array(2));
     const [first, second] = words;
     if (first === undefined || second === undefined) throw new Error("unique id random source returned fewer than two values");
-    return first.toString(36) + second.toString(36);
+    // Fixed-width words: unpadded, (1, 36) and (37, 0) both concatenate to "110".
+    return toFixedBase36(first) + toFixedBase36(second);
   }
   fallbackSequence += 1;
   return fallbackSequence.toString(36);
+}
+
+/** A 32-bit word in base 36, zero-padded to the 7 digits `0xffffffff` needs ("1z141z3"). */
+function toFixedBase36(word: number): string {
+  return word.toString(36).padStart(7, "0");
 }

@@ -57,9 +57,10 @@ it("ignores empty links and a signed-out principal, and fences an older owner's 
   const lookupConversation = vi.fn<Parameters<typeof useApplyConversationDeepLink>[0]["lookupConversation"]>()
     .mockReturnValueOnce(first).mockResolvedValueOnce(true);
   type Link = { query: URLSearchParams | null; principalId: string };
+  const signedInWithoutLink: Link = { query: null, principalId: "first-owner" };
   const { rerender } = renderHook((link: Link) => useApplyConversationDeepLink({
     ...link, chats: { select }, openDock, notify, replaceQuery, lookupConversation,
-  }), { initialProps: { query: null, principalId: "first-owner" } });
+  }), { initialProps: signedInWithoutLink });
   rerender({ query: new URLSearchParams("conversation="), principalId: "first-owner" });
   rerender({ query: new URLSearchParams("conversation=first"), principalId: "" });
   expect(lookupConversation).not.toHaveBeenCalled();

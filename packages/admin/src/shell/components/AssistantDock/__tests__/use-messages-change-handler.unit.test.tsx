@@ -29,10 +29,12 @@ it("does not refresh hydrated history, then refreshes content once on a new term
   const onMessagesChange = vi.fn();
   const tool = { kind: "tool_result", toolUseId: "write", content: "saved", isError: false } as const;
   const initial: ChatMessage[] = [{ id: "saved", role: "assistant", content: "Saved", runStatus: "succeeded", events: [tool] }];
-  const { result, rerender } = renderHook(({ paneKey, initialMessages }: { paneKey: string; initialMessages?: ChatMessage[] }) => useMessagesChangeHandler({
+  type PaneProps = { paneKey: string; initialMessages?: ChatMessage[] };
+  const restoredPane: PaneProps = { paneKey: "saved", initialMessages: initial };
+  const { result, rerender } = renderHook(({ paneKey, initialMessages }: PaneProps) => useMessagesChangeHandler({
     chats: { onMessagesChange, paneKey, ...(initialMessages === undefined ? {} : { initialMessages }) },
     publishContentRefresh, publishSettingsRefresh, publishMessages, deps: { isTerminalRunStatus },
-  }), { initialProps: { paneKey: "saved", initialMessages: initial } });
+  }), { initialProps: restoredPane });
   result.current(initial);
   expect(publishContentRefresh).not.toHaveBeenCalled();
   expect(publishSettingsRefresh).not.toHaveBeenCalled();

@@ -214,17 +214,20 @@ describe("useRecentEntriesConfig — changing the collection drops a stale sort"
 });
 
 it("updates and removes the selected social link without changing its neighbors or widget config", () => {
-  const links = [{ platform: "first", url: "https://first.example" }, { platform: "second", url: "https://second.example" }, { platform: "third", url: "https://third.example" }];
+  const first = { platform: "first", url: "https://first.example" };
+  const third = { platform: "third", url: "https://third.example" };
+  const links = [first, { platform: "second", url: "https://second.example" }, third];
   const onChange = vi.fn();
   const config = { links, heading: "Connect" };
-  const { result, rerender } = renderHook((props: { config: Record<string, unknown> }) => useSocialLinksConfig({ config: props.config, onChange }), { initialProps: { config } });
+  const initialProps: { config: Record<string, unknown> } = { config };
+  const { result, rerender } = renderHook((props: { config: Record<string, unknown> }) => useSocialLinksConfig({ config: props.config, onChange }), { initialProps });
   act(() => result.current.updateLink({ index: 1, patch: { url: "https://updated.example" } }));
-  const edited = { heading: "Connect", links: [links[0], { platform: "second", url: "https://updated.example" }, links[2]] };
+  const edited = { heading: "Connect", links: [first, { platform: "second", url: "https://updated.example" }, third] };
   expect(onChange).toHaveBeenLastCalledWith(edited);
   expect(config.links[1]?.url).toBe("https://second.example");
   rerender({ config: edited });
   act(() => result.current.removeLink({ index: 1 }));
-  expect(onChange).toHaveBeenLastCalledWith({ heading: "Connect", links: [links[0], links[2]] });
+  expect(onChange).toHaveBeenLastCalledWith({ heading: "Connect", links: [first, third] });
   rerender({ config: { links: "unreadable" } });
   expect(result.current.links).toEqual([]);
 });

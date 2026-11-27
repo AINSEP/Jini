@@ -7,11 +7,13 @@ import { useAgentScreenEntry, useAgentScreenRoute } from "../use-agent-screen-co
 afterEach(resetAgentScreenContext);
 
 it("publishes the route and the resolved entry and removes the entry when the editor loses it", () => {
-  const route = renderHook(({ path, view }: { path: string; view: string | null }) =>
-    useAgentScreenRoute({ path, section: "pages", view }), { initialProps: { path: "/pages/7", view: "editor" } });
-  const editor = renderHook(({ entry }: { entry: AgentScreenEntry | null }) => useAgentScreenEntry({ entry }), {
-    initialProps: { entry: null },
-  });
+  type Route = { path: string; view: string | null };
+  type Editor = { entry: AgentScreenEntry | null };
+  const editorRoute: Route = { path: "/pages/7", view: "editor" };
+  const noEntry: Editor = { entry: null };
+  const route = renderHook(({ path, view }: Route) =>
+    useAgentScreenRoute({ path, section: "pages", view }), { initialProps: editorRoute });
+  const editor = renderHook(({ entry }: Editor) => useAgentScreenEntry({ entry }), { initialProps: noEntry });
   expect(readAgentScreenContext()).toEqual({ path: "/pages/7", section: "pages", view: "editor", drawingSurface: "chat" });
   editor.rerender({ entry: { kind: "page", id: "7", title: "Report", slug: "report", status: "draft" } });
   expect(readAgentScreenContext()?.entry).toStrictEqual({ kind: "page", id: "7", title: "Report", slug: "report", status: "draft" });
