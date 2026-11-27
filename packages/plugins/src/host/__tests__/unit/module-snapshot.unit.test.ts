@@ -7,7 +7,7 @@ import path from "node:path";
 import { test, type TestContext } from "../support/fixture-runner.js";
 
 import type { PluginManifest } from "../support/manifest.js";
-import { createPluginModuleImporter, PluginSnapshotIntegrityError, snapshotPluginModuleGraph, type PluginModuleSnapshotLifecycle } from "../../node/module-snapshot.js";
+import { createPluginModuleImporter, createPluginModuleSnapshotLifecycle, PluginSnapshotIntegrityError, snapshotPluginModuleGraph, type PluginModuleSnapshotLifecycle } from "../../node/module-snapshot.js";
 
 /**
  * @file `snapshotPluginModuleGraph` against a real installed package on disk: the verified copy, each
@@ -84,6 +84,20 @@ test("a snapshot owner for a different runtime root is refused before copying in
     { pluginRoot: p.pluginRoot, manifest: p.manifest({ "server/index.mjs": digest(ENTRY) }) }, { lifecycle },
   ), { code: "SNAPSHOT_ROOT_MISMATCH" });
   assert.equal(copied, false);
+});
+
+test("a site entry inside its package is imported from a verified copy held by the host snapshot owner", async t => {
+  const p = installed(t);
+  const snapshots = createPluginModuleSnapshotLifecycle({ runtimeRoot: p.runtimeRoot });
+  t.after(() => snapshots.dispose({}, {}));
+  const importer = createPluginModuleImporter({ manifest: p.manifest({ "server/index.mjs": digest(ENTRY) }), source: "site" }, { snapshots });
+  const modulePath = path.join(p.pluginRoot, "server", "index.mjs");
+  assert.deepEqual(await importer({ plugin: { pluginId: "acme", packageRoot: p.pluginRoot }, modulePath }), { exported: 1 });
+  // The import ran from the owner's copy, not the installed package: one owned snapshot now exists.
+  const copies = readdirSync(p.runtimeRoot);
+  assert.equal(copies.length, 1);
+  assert.match(copies[0]!, /^load-[0-9a-f]{16}-\d+-/);
+  assert.equal(readFileSync(path.join(p.runtimeRoot, copies[0]!, "server", "index.mjs"), "utf8"), ENTRY);
 });
 
 const manifest = { integrity: {} } as unknown as PluginManifest;
