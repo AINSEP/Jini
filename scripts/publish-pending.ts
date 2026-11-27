@@ -38,7 +38,7 @@ type NpmState = 'on-npm' | 'pending' | 'never-published';
 function npmState(name: string, version: string): NpmState {
   const result = spawnSync('npm', ['view', name, 'versions', '--json'], { encoding: 'utf8' });
   if (result.status !== 0) {
-    if (/E404/.test(result.stderr)) return 'never-published';
+    if (/E404/.test(result.stderr)) return 'pending';
     throw new Error(`npm view ${name} failed:\n${result.stderr}`);
   }
   const versions = [JSON.parse(result.stdout) as string | string[]].flat();
@@ -174,7 +174,7 @@ export async function main(): Promise<void> {
     const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
     for (const name of pending) {
       const tarball = tarballs.get(name)!;
-      execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
+      execFileSync('npm', ['publish', tarball, '--access', 'public', '--tag', 'next'], { stdio: 'inherit' });
       rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
     }
   } catch (error) {
