@@ -784,7 +784,7 @@ it('returns the created run if its host lookup has no newer view', async () => {
   if (!result.ok) throw new Error(JSON.stringify(result.error));
   const { run, started } = result.value;
   expect(started).toBe(true);
-  expect(run.contextRef).toBe('brief-1');
   expect(get.mock.calls).toEqual([[{ runId: run.id }]]);
+  expect(await lifecycle.list({}, { contextRef: 'brief-1' })).toEqual([run]);
   expect(await lifecycle.get({ runId: run.id })).toEqual(run);
 });

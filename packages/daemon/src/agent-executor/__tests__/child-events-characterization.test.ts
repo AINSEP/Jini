@@ -207,12 +207,17 @@ it('reports structured stdout truncation even if the sanitizer produces no parse
 it('reports a failed tool-event subscription without stranding the child lifecycle', async () => {
   const rig = await fixture();
   const failure = new Error('event replay failed');
-  const stream = vi.spyOn(rig.lifecycle, 'stream').mockRejectedValueOnce(failure);
+  const realStream = rig.lifecycle.stream.bind(rig.lifecycle);
+  // wireChildLifecycle subscribes twice, in order: the run-output observer, then the tool-event
+  // subscription. Only the second (the tool subscription) fails here.
+  const stream = vi.spyOn(rig.lifecycle, 'stream').mockImplementationOnce(realStream).mockRejectedValueOnce(failure);
   wireChildLifecycle(rig.ctx);
   rig.child.stdout.emit('data', JSON.stringify({ type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: 'done' }] } }) + '\n');
   rig.child.emit('close', 0, null);
   expect((await rig.lifecycle.waitForTerminal({ runId: rig.runId })).state).toBe('succeeded');
-  expect(stream.mock.calls[0]?.[0]).toEqual({ runId: rig.runId, onEvent: expect.any(Function) });
+  expect(stream.mock.calls.map(([args]) => args)).toEqual([
+    { runId: rig.runId, onEvent: expect.any(Function) }, { runId: rig.runId, onEvent: expect.any(Function) },
+  ]);
   expect(rig.ctx.onCleanupFailure).toHaveBeenCalledExactlyOnceWith({ runId: rig.runId, phase: 'tool-cancellation', pid: 7100, error: failure });
   expect(rig.events.at(-1)).toMatchObject({ kind: 'end', payload: { status: 'succeeded' } });
 });

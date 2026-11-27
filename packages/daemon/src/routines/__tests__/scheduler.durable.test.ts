@@ -208,7 +208,7 @@ it('stop completes a waiting drain without leaving it blocked until the timeout'
     await f.service.whenReady();
     await f.service.runNow({ routineId: 'r' });
     const pendingRunIds = f.runs.map(({ id }) => id);
-    expect(pendingRunIds).toEqual(['1']);
+    expect(pendingRunIds).toEqual(['routine-run-1']);
     const drained = vi.fn();
     const drain = f.service.drainActive({}, { timeoutMs: 2000 });
     void drain.then(drained);
