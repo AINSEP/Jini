@@ -45,7 +45,7 @@ export function standardImageAspectFor(
 }
 
 /** Truncates a string for inclusion in an error message, appending an ellipsis when truncated. */
-export function truncate(s: unknown, n: number): string {
+export function truncate({ s, n }: { s: unknown; n: number }): string {
   const v = String(s || '');
   if (v.length <= n) return v;
   return v.slice(0, n - 1) + '…';
@@ -122,9 +122,7 @@ export function detectAzureEndpoint(baseUrl: string): boolean {
 
 /** Rewrites a pathname to end in `/{endpoint}/generations` or (images only) `/images/edits`, preserving any other path prefix. */
 export function normalizeOpenAICompatiblePath(
-  pathname: string,
-  endpoint: 'images' | 'videos',
-  mode: 'generations' | 'edits',
+  { pathname, endpoint, mode }: { pathname: string; endpoint: 'images' | 'videos'; mode: 'generations' | 'edits' },
 ): string {
   const strippedPath = trimCharsEnd({ text: pathname, chars: '/' });
   const generationsSuffix = `/${endpoint}/generations`;
@@ -144,9 +142,9 @@ function buildOpenAICompatibleUrl(baseUrl: string, endpoint: 'images' | 'videos'
   try {
     parsed = new URL(baseUrl);
   } catch {
-    return normalizeOpenAICompatiblePath(baseUrl, endpoint, mode);
+    return normalizeOpenAICompatiblePath({ pathname: baseUrl, endpoint, mode });
   }
-  parsed.pathname = normalizeOpenAICompatiblePath(parsed.pathname, endpoint, mode);
+  parsed.pathname = normalizeOpenAICompatiblePath({ pathname: parsed.pathname, endpoint, mode });
   return parsed.toString();
 }
 
@@ -158,13 +156,13 @@ function applyDefaultAzureApiVersion(parsed: URL, isAzure: boolean): void {
 }
 
 /** Builds the full `/{endpoint}/generations` URL, preserving any user-supplied query string. */
-export function buildOpenAICompatibleGenerationUrl(baseUrl: string, endpoint: 'images' | 'videos'): string {
+export function buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint }: { baseUrl: string; endpoint: 'images' | 'videos' }): string {
   return buildOpenAICompatibleUrl(baseUrl, endpoint, 'generations');
 }
 
 /** Builds the `/images/generations` URL, appending the default Azure `api-version` when the caller didn't supply one. */
-export function buildOpenAIImageUrl(baseUrl: string, isAzure: boolean): string {
-  const url = buildOpenAICompatibleGenerationUrl(baseUrl, 'images');
+export function buildOpenAIImageUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }): string {
+  const url = buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint: 'images' });
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -184,7 +182,7 @@ export function buildOpenAIImageEditUrl(baseUrl: string): string {
 
 /** Builds the `/videos/generations` URL. */
 export function buildOpenAIVideoUrl(baseUrl: string): string {
-  return buildOpenAICompatibleGenerationUrl(baseUrl, 'videos');
+  return buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint: 'videos' });
 }
 
 // gpt-image-1.5 / gpt-image-2 accept arbitrary sizes up to 4096; concrete
@@ -210,12 +208,12 @@ function sizeTableFor(model: string): ReadonlyMap<string, string> {
 }
 
 /** Picks an image `size` string tuned to the model family + requested aspect ratio, defaulting to the `1024x1024` square. */
-export function openaiSizeFor(model: string, aspect?: string): string {
+export function openaiSizeFor({ model }: { model: string }, { aspect }: { aspect?: string | undefined } = {}): string {
   return sizeTableFor(model).get(aspect ?? '') ?? '1024x1024';
 }
 
 /** Builds the `/audio/speech` URL, appending the default Azure `api-version` when the caller didn't supply one. */
-export function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string {
+export function buildOpenAISpeechUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }): string {
   let parsed: URL;
   try {
     parsed = new URL(baseUrl);
@@ -229,15 +227,15 @@ export function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string 
 }
 
 /** Parses an OpenAI-compatible JSON response, throwing a clear, provider-tagged error on a non-OK status or non-JSON body. */
-export async function parseOpenAICompatibleJson(resp: Response, providerTag: string): Promise<unknown> {
+export async function parseOpenAICompatibleJson({ resp, providerTag }: { resp: Response; providerTag: string }): Promise<unknown> {
   const text = await resp.text();
   if (!resp.ok) {
-    throw new Error(`${providerTag} ${resp.status}: ${truncate(text, 240)}`);
+    throw new Error(`${providerTag} ${resp.status}: ${truncate({ s: text, n: 240 })}`);
   }
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`${providerTag} non-JSON response: ${truncate(text, 200)}`);
+    throw new Error(`${providerTag} non-JSON response: ${truncate({ s: text, n: 200 })}`);
   }
 }
 

@@ -117,33 +117,33 @@ describe('DNS, development and timeout policy', () => {
     const raw = wire('https://cdn.example/a');
     const init: RequestInit = {};
     Object.defineProperty(init, 'dispatcher', { value: {}, enumerable: true });
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { init, httpClient: createNodeMediaHttpClient({}) }))
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init }))
       .rejects.toThrow(/guarded HTTP client/);
     expect(raw).not.toHaveBeenCalled();
   });
   // REGRESSION: fails if fetchMediaOutbound accepts an unsupported body/method.
   it('refuses transport overrides and unsupported wire requests before I/O', async () => {
     const raw = wire('https://cdn.example/a');
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { init: { method: 'CONNECT' }, httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/method/);
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { init: { body: new Blob(['binary']), method: 'POST' }, httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/body/);
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { method: 'CONNECT' } })).rejects.toThrow(/method/);
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { body: new Blob(['binary']), method: 'POST' } })).rejects.toThrow(/body/);
     expect(raw).not.toHaveBeenCalled();
   });
   // REGRESSION: fails if fetchMediaOutbound returns a truncated guarded response as successful media bytes.
   it('refuses clipped bytes instead of returning a corrupt artifact', async () => {
     const client: HttpClientPort = { send: async () => ({ status: 200, headers: {},
       bodyText: 'partial', bodyBytes: new Uint8Array([0xff]), bodyBytesTruncated: true }) };
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { httpClient: client })).rejects.toThrow(/truncated/);
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: client })).rejects.toThrow(/truncated/);
   });
   // REGRESSION: fails if fetchMediaOutbound omits its default maxResponseBytes policy or totalDeadlineMs.
   it('bounds default media buffering and preserves caller cancellation', async () => {
     testPinnedRequests.length = 0;
     wire('https://cdn.example/a');
     const abort = new AbortController();
-    await fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { init: { signal: abort.signal }, httpClient: createNodeMediaHttpClient({}) });
+    await fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { signal: abort.signal } });
     expect(testPinnedRequests[0]?.maxResponseBytes).toBe(96 * 1024 * 1024);
     expect(testPinnedRequests[0]?.totalDeadlineMs).toBe(1000);
     abort.abort(new Error('caller stopped'));
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000 }, { init: { signal: abort.signal }, httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow('caller stopped');
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { signal: abort.signal } })).rejects.toThrow('caller stopped');
     expect(testPinnedRequests).toHaveLength(1);
   });
   // REGRESSION: fails if validateBaseUrlResolved skips loopback answers or returns ok:true on lookup failure.
@@ -168,10 +168,10 @@ describe('DNS, development and timeout policy', () => {
   it('requires explicit development opt-in and still refuses redirects', async () => {
     const url = 'http://127.0.0.1/asset';
     wire(url);
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000 }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/rejected/);
-    expect((await fetchMediaOutbound({ url, timeoutMs: 1000 }, { allowPrivateNetwork: true, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) })).status).toBe(200);
+    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/rejected/);
+    expect((await fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true })).status).toBe(200);
     wire(url, true);
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000 }, { allowPrivateNetwork: true, init: { redirect: 'follow' }, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) })).rejects.toThrow(/redirect/);
+    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true, init: { redirect: 'follow' } })).rejects.toThrow(/redirect/);
   });
   // REGRESSION: fails if the engine drops its required httpClient when constructing RenderContext.
   it('threads the host guard through engine generation and provider asset parsing', async () => {

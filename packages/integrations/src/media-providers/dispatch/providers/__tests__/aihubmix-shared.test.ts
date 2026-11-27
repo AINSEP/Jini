@@ -66,7 +66,7 @@ describe('aihubmixOriginFromBase', () => {
 
 describe('aihubmixGeminiImageUrl', () => {
   it('builds the Gemini-native generateContent endpoint with the model URI-encoded', () => {
-    expect(aihubmixGeminiImageUrl('https://aihubmix.com/v1', 'gemini-3-pro-image-preview')).toBe(
+    expect(aihubmixGeminiImageUrl({ baseUrl: 'https://aihubmix.com/v1', wireModel: 'gemini-3-pro-image-preview' })).toBe(
       'https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent',
     );
   });
@@ -106,14 +106,14 @@ describe('aihubmixGeminiImageBytes', () => {
         { status: 200 },
       );
     };
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('img-bytes');
   });
 
   it('decodes the snake_case inline_data field when that is what the response uses', async () => {
     const doFetch = async () =>
       new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inline_data: { data: Buffer.from('x').toString('base64') } }] } }] }), { status: 200 });
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('x');
   });
 
@@ -125,28 +125,28 @@ describe('aihubmixGeminiImageBytes', () => {
         }),
         { status: 200 },
       );
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('later');
   });
 
   it('throws a truncated, tagged error on a non-OK response', async () => {
     const doFetch = async () => new Response('bad request', { status: 400 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/^aihubmix image \(gemini\) 400: bad request$/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/^aihubmix image \(gemini\) 400: bad request$/);
   });
 
   it('falls back to an empty error body when reading the non-OK response text itself fails', async () => {
     const doFetch = async () =>
       ({ ok: false, status: 500, text: () => Promise.reject(new Error('stream closed')) }) as unknown as Response;
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/^aihubmix image \(gemini\) 500: $/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/^aihubmix image \(gemini\) 500: $/);
   });
 
   it('throws when the response has no inline image data anywhere', async () => {
     const doFetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'no image' }] } }] }), { status: 200 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/had no inline image data/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/had no inline image data/);
   });
 
   it('throws when candidates is entirely absent', async () => {
     const doFetch = async () => new Response(JSON.stringify({}), { status: 200 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/had no inline image data/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/had no inline image data/);
   });
 });

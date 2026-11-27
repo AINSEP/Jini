@@ -38,7 +38,7 @@ test.each([
   [500, "unavailable"], [503, "unavailable"],
 ] as const)("probe classifies HTTP %i as %s without exposing a reflected secret", async (status, expected) => {
   const client = clientFor({ status, headers: { "x-echo": TOKEN, location: "https://other.example" }, bodyText: TOKEN });
-  const result = await probeCredentialConnection(INPUT, client);
+  const result = await probeCredentialConnection({ httpClient: client.httpClient, ...INPUT });
   assert.equal(result, expected);
   assert.equal(JSON.stringify(result).includes(TOKEN), false);
   assert.equal(client.requests.length, 1);
@@ -46,7 +46,7 @@ test.each([
 
 test("probe sends only one bodyless GET, refuses redirects and bounds its whole operation", async () => {
   const client = clientFor();
-  await probeCredentialConnection({ ...INPUT, method: "GET" }, client);
+  await probeCredentialConnection({ ...INPUT, httpClient: client.httpClient }, { method: "GET" });
   assert.deepEqual(client.requests, [{
     method: "GET", url: URL, headers: { Authorization: `Bearer ${TOKEN}` },
     timeoutMs: 10_000, totalDeadlineMs: 10_000,
@@ -58,7 +58,7 @@ test.each(["POST", "PUT", "PATCH", "DELETE", "HEAD", "get", "", TOKEN])(
   "probe rejects an explicit non-GET method (%s) before sending", async method => {
     const client = clientFor();
     const input = { ...INPUT, method } as unknown as CredentialConnectionProbeInput;
-    await assert.rejects(probeCredentialConnection(input, client), error => {
+    await assert.rejects(probeCredentialConnection({ httpClient: client.httpClient, ...input }, { method: input.method }), error => {
       assert.ok(error instanceof CredentialedRequestValidationError);
       assert.equal(error.message, "credential probes only support GET");
       assert.equal(error.cause, undefined);
@@ -72,13 +72,13 @@ test.each(["POST", "PUT", "PATCH", "DELETE", "HEAD", "get", "", TOKEN])(
 test("probe never forwards a body smuggled through an untyped caller", async () => {
   const client = clientFor();
   const input = { ...INPUT, body: TOKEN };
-  await probeCredentialConnection(input, client);
+  await probeCredentialConnection({ httpClient: client.httpClient, ...input });
   assert.equal(Object.hasOwn(client.requests[0]!, "body"), false);
 });
 
 test.each([new Error(`network failure: Bearer ${TOKEN}`), new Error(`redirect refused: ${TOKEN}`)])(
   "probe returns unavailable without leaking transport errors", async error => {
-    const result = await probeCredentialConnection(INPUT, clientFor(error));
+    const result = await probeCredentialConnection({ httpClient: clientFor(error).httpClient, ...INPUT });
     assert.equal(result, "unavailable");
     assert.equal(JSON.stringify(result).includes(TOKEN), false);
   },
@@ -90,14 +90,14 @@ test.each([
   { connection: { token: `FlyV1${TOKEN}`, username: "leftover" }, schemes: [{ id: "fly", prefix: "FlyV1", scheme: "FlyV1" }], header: `FlyV1 ${TOKEN}` },
 ])("probe reuses authentication precedence for $header", async ({ connection, schemes, header }) => {
   const client = clientFor();
-  await probeCredentialConnection({ connection, schemes, url: URL }, client);
+  await probeCredentialConnection({ connection, schemes, url: URL, httpClient: client.httpClient });
   assert.equal(client.requests[0]?.headers.Authorization, header);
 });
 
 test.each([`${TOKEN} invalid URL`, `https://account:${TOKEN}@api.example/`, `file:///${TOKEN}`])(
   "probe rejects malformed or credential-bearing URLs without reflecting input", async url => {
     const client = clientFor();
-    await assert.rejects(probeCredentialConnection({ ...INPUT, url }, client), error => {
+    await assert.rejects(probeCredentialConnection({ ...INPUT, url, httpClient: client.httpClient }), error => {
       assert.ok(error instanceof CredentialedRequestValidationError);
       assert.equal(error.message, "credential probe requires an absolute HTTP(S) URL without embedded credentials");
       assert.equal(error.cause, undefined);

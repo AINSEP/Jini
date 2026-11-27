@@ -310,18 +310,18 @@ export interface CredentialConnectionProbeInput {
 }
 
 /** Send one bodyless GET through the guarded HTTP port without following redirects.
- * @param required Plaintext connection, trusted host-resolved URL and auth-scheme rules.
- * @param options Guarded HTTP client; owns DNS/address policy, peer pinning and response bounds.
+ * @param required Plaintext connection, trusted host-resolved URL, auth-scheme rules and the guarded HTTP client that owns DNS/address policy, peer pinning and response bounds.
+ * @param optional Explicit GET method.
  * @returns Only ok/refused/unavailable; no bodies, headers, URLs, secrets or transport errors.
  * @throws CredentialedRequestValidationError with value-free text for non-GET or malformed URLs.
  * @complexity One bounded HTTP send plus O(r) auth matching for r supplied scheme rules.
- * @example await probeCredentialConnection({ connection, url, schemes }, { httpClient });
+ * @example await probeCredentialConnection({ connection, url, schemes, httpClient });
  */
 export async function probeCredentialConnection(
-  required: CredentialConnectionProbeInput,
-  options: { httpClient: HttpClientPort },
+  required: Omit<CredentialConnectionProbeInput, "method"> & { httpClient: HttpClientPort },
+  optional: { method?: CredentialConnectionProbeInput["method"] } = {},
 ): Promise<CredentialConnectionProbeStatus> {
-  if (required.method !== undefined && required.method !== "GET") {
+  if (optional.method !== undefined && optional.method !== "GET") {
     throw new CredentialedRequestValidationError({ message: "credential probes only support GET" });
   }
   let url: URL;
@@ -331,7 +331,7 @@ export async function probeCredentialConnection(
     // URL parse errors may contain their input; probe failures must never echo caller values.
     throw new CredentialedRequestValidationError({ message: "credential probe requires an absolute HTTP(S) URL without embedded credentials" });
   }
-  return classifyCredentialProbeStatus(await sendCredentialGet({ ...required, url, httpClient: options.httpClient }, { strict: true }));
+  return classifyCredentialProbeStatus(await sendCredentialGet({ ...required, url }, { strict: true }));
 }
 
 /** One bodyless authenticated GET shared by the probe and verification. Returns the HTTP status,
@@ -536,7 +536,7 @@ function failTransport(
   audit.record({ entry: { ...auditEntry(auditBase, 0), ...(egressRefusal !== undefined ? { egressRefusal } : {}) } });
   if (egressRefusal !== undefined) throw err;
   const detail = err instanceof Error ? err.message : String(err);
-  throw new CredentialedRequestTransportError({ message: `request to '${auditBase.label}' failed: ${resolveRedactedResponseBody(detail, redaction.connection.token, redaction.secrets, false)}` });
+  throw new CredentialedRequestTransportError({ message: `request to '${auditBase.label}' failed: ${resolveRedactedResponseBody({ bodyText: detail, token: redaction.connection.token, secrets: redaction.secrets, bodyTruncated: false })}` });
 }
 
 // Only a host-recognized refusal yields audit detail; any other failure, or no policy, yields none.
@@ -555,7 +555,7 @@ function buildExecutedResult(
   return {
     executed: true,
     status: response.status,
-    headers: redactResponseHeaders(response.headers, redaction.secrets),
+    headers: redactResponseHeaders({ headers: response.headers, secrets: redaction.secrets }),
     bodyText: redactExecutedBody({ response, redaction }, optional),
     ...(authDiagnostic ? { authDiagnostic } : {}),
   };
@@ -574,5 +574,5 @@ function redactExecutedBody(
       throw new CredentialedRequestValidationError({ message: "JSON response must be valid" });
     }
   }
-  return resolveRedactedResponseBody(response.bodyText, redaction.connection.token, redaction.secrets, response.bodyTruncated === true);
+  return resolveRedactedResponseBody({ bodyText: response.bodyText, token: redaction.connection.token, secrets: redaction.secrets, bodyTruncated: response.bodyTruncated === true });
 }

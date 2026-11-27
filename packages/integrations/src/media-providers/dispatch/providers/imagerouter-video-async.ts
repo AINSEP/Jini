@@ -145,7 +145,7 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
 
     async parseSubmitResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: UnsignedVendorRequest<ImageRouterVideoMeta> }
     ): Promise<SubmitOutcome> {
-      const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
+      const data = (await parseOpenAICompatibleJson({ resp, providerTag: 'imagerouter video' })) as Record<string, unknown>;
 
       if (Array.isArray(data.data)) return completedVideo({ data, ctx, meta: request.meta });
 
@@ -170,7 +170,7 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
     },
 
     async parsePollResponse({ resp, ctx }: { resp: Response; ctx: RenderContext; state: Readonly<Record<string, unknown>> }): Promise<PollOutcome> {
-      const data = (await parseOpenAICompatibleJson(resp, 'imagerouter video')) as Record<string, unknown>;
+      const data = (await parseOpenAICompatibleJson({ resp, providerTag: 'imagerouter video' })) as Record<string, unknown>;
       const failed = failedOutcome(data);
       if (failed) return failed;
       if (Array.isArray(data.data)) return completedVideo({ data, ctx, meta: videoMetaFor({ ctx, config }) });

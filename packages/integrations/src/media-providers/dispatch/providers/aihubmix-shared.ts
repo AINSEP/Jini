@@ -79,7 +79,7 @@ export function aihubmixOriginFromBase(baseUrl: string): string {
 }
 
 /** Gemini-native `generateContent` endpoint for an AIHubMix image model. */
-export function aihubmixGeminiImageUrl(baseUrl: string, wireModel: string): string {
+export function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }): string {
   return `${aihubmixOriginFromBase(baseUrl)}/gemini/v1beta/models/${encodeURIComponent(wireModel)}:generateContent`;
 }
 
@@ -101,8 +101,8 @@ export interface AIHubMixGeminiImageRequest {
  * (proxy dispatcher, abort signal); throws on a non-OK status or a
  * response without inline image data.
  */
-export async function aihubmixGeminiImageBytes(req: AIHubMixGeminiImageRequest, doFetch: (url: string, init: RequestInit) => Promise<Response>): Promise<Buffer> {
-  const url = aihubmixGeminiImageUrl(req.baseUrl, req.wireModel);
+export async function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (url: string, init: RequestInit) => Promise<Response> }): Promise<Buffer> {
+  const url = aihubmixGeminiImageUrl({ baseUrl: req.baseUrl, wireModel: req.wireModel });
   const resp = await doFetch(url, {
     method: 'POST',
     redirect: 'error',

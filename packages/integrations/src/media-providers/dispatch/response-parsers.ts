@@ -61,7 +61,7 @@ export function createRawBytesParser<Meta = undefined>(options: RawBytesParserOp
     if (!resp.ok) {
       const text = await resp.text();
       const tag = resolve(options.errorTag, { meta: request.meta });
-      throw new Error(`${tag} ${resp.status}: ${truncate(text, 240)}`);
+      throw new Error(`${tag} ${resp.status}: ${truncate({ s: text, n: 240 })}`);
     }
     const bytes = Buffer.from(await resp.arrayBuffer());
     if (bytes.length === 0) {
@@ -114,7 +114,7 @@ export function createHexEnvelopeAudioParser<Meta extends HexEnvelopeAudioMeta>(
   return async ({ resp, request }) => {
     const respText = await resp.text();
     if (!resp.ok) {
-      throw new Error(`${errorTag} ${resp.status}: ${truncate(respText, 240)}`);
+      throw new Error(`${errorTag} ${resp.status}: ${truncate({ s: respText, n: 240 })}`);
     }
     const data = parseHexEnvelopeBody({ respText, errorTag });
     const bytes = decodeHexEnvelopeAudio({ data, errorTag });
@@ -134,7 +134,7 @@ function parseHexEnvelopeBody(required: { respText: string; errorTag: string }):
   try {
     data = JSON.parse(respText);
   } catch {
-    throw new Error(`${errorTag} non-JSON: ${truncate(respText, 200)}`);
+    throw new Error(`${errorTag} non-JSON: ${truncate({ s: respText, n: 200 })}`);
   }
   if (data.base_resp && data.base_resp.status_code !== 0) {
     throw new Error(`${errorTag} api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);

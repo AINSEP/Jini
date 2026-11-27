@@ -211,7 +211,7 @@ export async function createSqliteMediaTaskStore(
     if (getStmt.get(input.id)) {
       throw new Error(`media task "${input.id}" already exists`);
     }
-    const task = buildNewTask(input, Date.now());
+    const task = buildNewTask({ input, now: Date.now() });
     writeRow(task, true);
     return task;
   });
@@ -219,7 +219,7 @@ export async function createSqliteMediaTaskStore(
   const updateTxn = db.transaction((id: string, patch: MediaTaskPatch): MediaTask | null => {
     const row = getStmt.get(id);
     if (!row) return null;
-    const next = applyTaskPatch(rowToTask(row), patch, Date.now());
+    const next = applyTaskPatch({ existing: rowToTask(row), patch, now: Date.now() });
     writeRow(next, false);
     return next;
   });
@@ -231,7 +231,7 @@ export async function createSqliteMediaTaskStore(
     let deleted = 0;
     for (const row of selectAllStmt.all()) {
       const task = rowToTask(row);
-      const action = reconcileAction(task, now, cutoff);
+      const action = reconcileAction({ task, now, cutoff });
       switch (action.kind) {
         case 'interrupt':
           writeRow(action.next, false);

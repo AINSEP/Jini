@@ -128,13 +128,13 @@ const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
   async parseResponse({ resp, ctx: _ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<NanoBananaImageMeta> }): Promise<RenderResult> {
     const text = await resp.text();
     if (!resp.ok) {
-      throw new Error(`nano-banana image ${resp.status}: ${truncate(text, 240)}`);
+      throw new Error(`nano-banana image ${resp.status}: ${truncate({ s: text, n: 240 })}`);
     }
     let data: unknown;
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error(`nano-banana image non-JSON response: ${truncate(text, 200)}`);
+      throw new Error(`nano-banana image non-JSON response: ${truncate({ s: text, n: 200 })}`);
     }
     const bytes = inlineImageBytesFromGenerateContent(data);
     return {

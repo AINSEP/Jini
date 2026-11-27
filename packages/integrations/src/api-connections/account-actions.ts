@@ -110,16 +110,15 @@ function firstFailure(results: readonly RevocationResult[]): ApiConnectionRevoca
 }
 
 export async function confirmSwitchAccount(
-  deps: ApiConnectionServiceDeps,
-  requiredArgs: OwnedRecordArgs & { readonly actorId: string },
+  { deps, ...requiredArgs }: { readonly deps: ApiConnectionServiceDeps } & OwnedRecordArgs & { readonly actorId: string },
 ): Promise<ApiConnectionSwitchResult> {
-  const record = await loadOwnedRecord(deps, requiredArgs);
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   if (!stagedSwitchUsable(record, requiredArgs.actorId, deps.clock.nowMs())) throw switchNotStaged();
   const stagedKey = stagedTokenKey({ key: record.key });
   const tokens = await deps.tokens.load({ key: stagedKey });
   if (tokens === null) throw switchNotStaged();
   const staged = record.staged!;
-  const updated = await installCredential(deps, { current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes });
+  const updated = await installCredential({ deps, current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes });
   await deps.tokens.delete({ key: stagedKey });
   return toStatusView(updated);
 }
@@ -129,28 +128,26 @@ export async function confirmSwitchAccount(
  * provider does not confirm, the switch stays staged (still confirmable) and cancelling again retries.
  */
 export async function cancelSwitchAccount(
-  deps: ApiConnectionServiceDeps,
-  requiredArgs: OwnedRecordArgs,
+  { deps, ...requiredArgs }: { readonly deps: ApiConnectionServiceDeps } & OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
-  const record = await loadOwnedRecord(deps, requiredArgs);
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   // Without a staged record the slot can only hold a confirmed switch's copy of the live grant
   // (or a credential a pending disconnect owns): revoking it here would cut off the live account.
   if (record.staged === null) return { ...toStatusView(record), remoteRevocation: 'not-needed' };
   const result = await revokeStoredCredential(deps, stagedTokenKey({ key: record.key }));
-  const updated = await writeRecord(deps, record, result.outcome === 'pending'
-    ? { revocationFailure: result.failure } : { staged: null, revocationFailure: result.failure });
+  const updated = await writeRecord({ deps, current: record, patch: result.outcome === 'pending'
+    ? { revocationFailure: result.failure } : { staged: null, revocationFailure: result.failure } });
   return { ...toStatusView(updated), remoteRevocation: combineRevocations([result.outcome]) };
 }
 
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
 export async function disconnectApiConnection(
-  deps: ApiConnectionDisconnectDeps,
-  requiredArgs: OwnedRecordArgs,
+  { deps, ...requiredArgs }: { readonly deps: ApiConnectionDisconnectDeps } & OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
-  const record = await loadOwnedRecord(deps, requiredArgs);
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   // Stop use before any network call: no token is served or refreshed once the generation moves.
   const stopped = record.status === 'revocation-pending' ? record
-    : await writeRecord(deps, record, { status: 'revocation-pending', generation: record.generation + 1, staged: null });
+    : await writeRecord({ deps, current: record, patch: { status: 'revocation-pending', generation: record.generation + 1, staged: null } });
   const results = [
     await revokeStoredCredential(deps, record.key),
     await revokeStoredCredential(deps, stagedTokenKey({ key: record.key })),
@@ -159,7 +156,7 @@ export async function disconnectApiConnection(
   const remoteRevocation = combineRevocations(outcomes);
   const revocationFailure = firstFailure(results);
   // Only a kept credential can be retried; an abandoned one leaves nothing to wait for locally.
-  if (outcomes.includes('pending')) return { ...toStatusView(await writeRecord(deps, stopped, { revocationFailure })), remoteRevocation };
-  const cleared = await writeRecord(deps, stopped, { status: 'disconnected', account: null, grantedScopes: [], revocationFailure });
+  if (outcomes.includes('pending')) return { ...toStatusView(await writeRecord({ deps, current: stopped, patch: { revocationFailure } })), remoteRevocation };
+  const cleared = await writeRecord({ deps, current: stopped, patch: { status: 'disconnected', account: null, grantedScopes: [], revocationFailure } });
   return { ...toStatusView(cleared), remoteRevocation };
 }

@@ -43,7 +43,7 @@ async function refuseUnexpected(deps: AttemptDeps): Promise<never> {
 }
 
 /** Seal side: store the attempt under fresh random state. */
-export function attemptSealer(deps: AttemptDeps, requiredArgs: { readonly draft: AttemptDraft }): SealedAuthorizationState {
+export function attemptSealer({ deps, ...requiredArgs }: { readonly deps: AttemptDeps; readonly draft: AttemptDraft }): SealedAuthorizationState {
   return {
     async seal({ entry }) {
       const createdAt = nowIso({ clock: deps.clock });
@@ -72,8 +72,8 @@ function matchesBinding(deps: AttemptDeps, attempt: ApiConnectionAttempt, expect
 
 /** Open side: consume first, then check binding, so a probe burns the state it guessed. */
 export function attemptOpener(
-  deps: AttemptDeps,
-  requiredArgs: {
+  { deps, ...requiredArgs }: {
+    readonly deps: AttemptDeps;
     /** The binding the callback's browser carried; the core's `open` arguments have no slot for it. */
     readonly browserBinding: string;
     readonly onOpen: (requiredArgs: { readonly attempt: ApiConnectionAttempt }) => void;

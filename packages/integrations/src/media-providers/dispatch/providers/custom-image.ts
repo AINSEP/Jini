@@ -56,14 +56,14 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
     if (credentials.apiKey) {
       headers.authorization = `Bearer ${credentials.apiKey}`;
     }
-    const size = openaiSizeFor('gpt-image-1', ctx.aspect);
+    const size = openaiSizeFor({ model: 'gpt-image-1' }, { aspect: ctx.aspect });
     const body: Record<string, unknown> = {
       prompt: ctx.prompt || 'A high-quality reference image.',
       model: wireModel,
       n: 1,
       size,
     };
-    let url = buildOpenAIImageUrl(baseUrl, false);
+    let url = buildOpenAIImageUrl({ baseUrl, isAzure: false });
     if (ctx.imageRef?.dataUrl) {
       body.response_format = 'b64_json';
       body.images = [{ image_url: ctx.imageRef.dataUrl }];
@@ -82,7 +82,7 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<CustomImageMeta> }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'custom image');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'custom image' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'custom image' }, ctx);
     return {
       bytes,

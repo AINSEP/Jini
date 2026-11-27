@@ -72,7 +72,7 @@ function assertStartAllowed(record: ApiConnectionRecord | null, intent: ApiConne
 /** A connected record whose stored tokens this host can read and that hold a refresh token. */
 async function holdsRenewableCredential(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord | null): Promise<boolean> {
   if (record?.status !== 'connected') return false;
-  return (await loadReadableTokens(deps, { key: record.key }))?.refreshToken != null;
+  return (await loadReadableTokens({ deps, key: record.key }))?.refreshToken != null;
 }
 
 /**
@@ -100,18 +100,18 @@ function toConnectionError(deps: ApiConnectionServiceDeps, raw: unknown): unknow
 }
 
 export async function startApiConnectionAuthorization(
-  deps: ApiConnectionServiceDeps,
-  requiredArgs: {
+  { deps, ...requiredArgs }: {
+    readonly deps: ApiConnectionServiceDeps;
     readonly workspaceId: string; readonly actorId: string; readonly intent: ApiConnectionIntent;
     readonly scopeSetIds: readonly string[]; readonly redirectUri: string;
   },
   optionalArgs: { readonly startParams?: Readonly<Record<string, string>> } = {},
 ): Promise<StartApiConnectionResult> {
   const { workspaceId, actorId, intent } = requiredArgs;
-  assertId(workspaceId, 'workspaceId');
-  assertId(actorId, 'actorId');
+  assertId({ value: workspaceId, name: 'workspaceId' });
+  assertId({ value: actorId, name: 'actorId' });
   if (intent !== 'connect' && intent !== 'switch-account') throw requestInvalid('intent');
-  const startParams = checkStartParams(deps.descriptor.startParams, optionalArgs.startParams ?? {});
+  const startParams = checkStartParams({ fields: deps.descriptor.startParams, values: optionalArgs.startParams ?? {} });
   const key = deriveApiConnectionKey({ workspaceId, pluginId: deps.descriptor.pluginId, connectionId: deps.descriptor.connectionId });
   const record = await deps.records.read({ key });
   assertStartAllowed(record, intent);
@@ -123,7 +123,7 @@ export async function startApiConnectionAuthorization(
   const draft = { key, attemptId, ownerKey, browserBindingHash: hashBrowserBinding(browserBinding), workspaceId, actorId, pluginId: deps.descriptor.pluginId,
     connectionId: deps.descriptor.connectionId, intent, requestedScopes, generation: record?.generation ?? 0 };
   const begun = await deps.oauth.flow.beginAuthorizationCode({
-    provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
+    provider: providerFor(deps), stateless: attemptSealer({ deps, draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
   }, { scopes: requestedScopes, extraAuthorizationParams: { ...kindParams, ...startParams } })
     .catch((error: unknown) => { throw toConnectionError(deps, error); });
@@ -138,24 +138,24 @@ export async function startApiConnectionAuthorization(
  * missing or different binding burns the attempt with the same `invalid-attempt`.
  */
 export async function completeApiConnectionAuthorization(
-  deps: ApiConnectionServiceDeps,
-  requiredArgs: {
+  { deps, ...requiredArgs }: {
+    readonly deps: ApiConnectionServiceDeps;
     readonly workspaceId: string; readonly actorId: string; readonly redirectUri: string;
     readonly callbackParams: Readonly<Record<string, string>>; readonly browserBinding: string;
   },
 ): Promise<CompletedAuthorization> {
-  assertId(requiredArgs.workspaceId, 'workspaceId');
-  assertId(requiredArgs.actorId, 'actorId');
+  assertId({ value: requiredArgs.workspaceId, name: 'workspaceId' });
+  assertId({ value: requiredArgs.actorId, name: 'actorId' });
   if (!URL.canParse(requiredArgs.redirectUri)) throw requestInvalid('redirectUri');
-  const params = checkCallbackParams(requiredArgs.callbackParams, { maxAuthorizationStateLength: deps.oauth.maxAuthorizationStateLength,
-    maxCallbackFieldLength: deps.oauth.callbackFieldRules.maxLength });
-  const callbackFields = pickBoundedFields(deps.descriptor.callbackFields, requiredArgs.callbackParams, 'callback field');
+  const params = checkCallbackParams({ value: requiredArgs.callbackParams, limits: { maxAuthorizationStateLength: deps.oauth.maxAuthorizationStateLength,
+    maxCallbackFieldLength: deps.oauth.callbackFieldRules.maxLength } });
+  const callbackFields = pickBoundedFields({ fields: deps.descriptor.callbackFields, values: requiredArgs.callbackParams, where: 'callback field' });
   let attempt: ApiConnectionAttempt | undefined;
   const tokens: OAuthTokenSet = await deps.oauth.flow.completeAuthorizationCode({
-    provider: providerFor(deps), stateless: attemptOpener(deps, { browserBinding: requiredArgs.browserBinding, onOpen: opened => { attempt = opened.attempt; } }),
+    provider: providerFor(deps), stateless: attemptOpener({ deps, browserBinding: requiredArgs.browserBinding, onOpen: opened => { attempt = opened.attempt; } }),
     redirectUri: new URL(requiredArgs.redirectUri).href, ownerKey: ownerKeyFor(deps, requiredArgs), client: deps.client, params,
     fetchFn: deps.fetchFn, guard: deps.guard, clock: deps.clock,
   }).catch((error: unknown) => { throw toConnectionError(deps, error); });
   // completeAuthorizationCode only reaches the exchange after `open` returned an attempt.
-  return finishAuthorization(deps, { attempt: attempt!, tokens, callbackFields });
+  return finishAuthorization({ deps, attempt: attempt!, tokens, callbackFields });
 }
