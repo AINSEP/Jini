@@ -130,26 +130,26 @@ it("wires each editable field to its own patch key and surfaces the server error
 });
 
 it("copies the public URL, stored embed slug and hash from their own read-only rows", async () => {
-  vi.useFakeTimers();
-  try {
-    const user = userEvent.setup({ advanceTimers: (ms) => { vi.advanceTimersByTime(ms); } });
-    const { view, writeText } = setup();
-    const { unmount } = render(view(cover));
-    const dialog = within(screen.getByRole("dialog", { name: 'Editing "Cover"' }));
-    const publicUrl = "https://public.example/m/cover-art/image.jpg";
-    const embed = '<div data-embed="media:slug:cover-art"></div>';
-    expect(dialog.getByRole("link", { name: publicUrl })).toHaveAttribute("href", publicUrl);
-    for (const value of [publicUrl, embed, "content-hash-123"]) {
-      const field = dialog.getByText(value).closest<HTMLElement>(".field")!;
-      const copy = within(field).getByRole("button", { name: "Copy" });
-      await user.click(copy);
-      expect(copy).toHaveAccessibleName("Copied");
-    }
-    expect(writeText.mock.calls).toEqual([[publicUrl], [embed], ["content-hash-123"]]);
-    unmount();
-  } finally {
-    vi.useRealTimers();
+  // Real timers: Testing Library's async wrapper waits on a real `setTimeout(0)`, so Vitest fake timers would hang
+  // every click. The "Copied" label lives 1.5 s, far longer than these synchronous assertions take.
+  const user = userEvent.setup();
+  const { view, writeText } = setup();
+  render(view(cover));
+  const dialog = within(screen.getByRole("dialog", { name: 'Editing "Cover"' }));
+  const publicUrl = "https://public.example/m/cover-art/image.jpg";
+  const embed = '<div data-embed="media:slug:cover-art"></div>';
+  expect(dialog.getByRole("link", { name: publicUrl })).toHaveAttribute("href", publicUrl);
+  const buttons: HTMLElement[] = [];
+  for (const value of [publicUrl, embed, "content-hash-123"]) {
+    const field = dialog.getByText(value).closest<HTMLElement>(".field")!;
+    const copy = within(field).getByRole("button", { name: "Copy" });
+    await user.click(copy);
+    expect(copy).toHaveAccessibleName("Copied");
+    buttons.push(copy);
   }
+  expect(writeText.mock.calls).toEqual([[publicUrl], [embed], ["content-hash-123"]]);
+  // Each row's own timer resets only its own label back to "Copy".
+  await waitFor(() => expect(buttons.map((button) => button.textContent)).toEqual(["Copy", "Copy", "Copy"]), { timeout: 3000 });
 });
 
 it("routes native cancel and backdrop dismissal through the owner without treating an inside click as dismissal", async () => {

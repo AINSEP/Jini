@@ -23,11 +23,12 @@ it("encodes one item without allowing its ID to become another query parameter",
 
 it("opens a bookmark, replaces rather than pushes selection changes, and clears a stale URL ID on close", () => {
   const length = window.history.length;
+  const bookmarked: { itemId: string | null } = { itemId: "clip / &" };
   const { result, rerender } = renderHook(({ itemId }: { itemId: string | null }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const { notFound } = useMediaItemLink({ itemId, activeTab: "videos", media, editingId, setEditingId });
     return { editingId, setEditingId, notFound };
-  }, { initialProps: { itemId: "clip / &" } });
+  }, { initialProps: bookmarked });
   expect(result.current.editingId).toBe("clip / &");
   expect(result.current.notFound).toBe(false);
   expect(window.location.search).toBe("?tab=videos&id=clip%20%2F%20%26");
@@ -45,10 +46,11 @@ it("opens a bookmark, replaces rather than pushes selection changes, and clears 
 });
 
 it("reports a missing ID only once the loaded catalog can answer it", () => {
+  const loading: { items: AdminMedia[] | null; itemId: string | undefined } = { items: null, itemId: "missing" };
   const { result, rerender } = renderHook(({ items, itemId }: { items: AdminMedia[] | null; itemId: string | undefined }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     return useMediaItemLink({ itemId, activeTab: "all", media: items, editingId, setEditingId });
-  }, { initialProps: { items: null, itemId: "missing" } });
+  }, { initialProps: loading });
   expect(result.current.notFound).toBe(false);
   rerender({ items: media, itemId: "missing" });
   expect(result.current.notFound).toBe(true);

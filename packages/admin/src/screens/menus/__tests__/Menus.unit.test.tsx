@@ -134,6 +134,8 @@ it("shows pending only for the confirmed menu and does not close a different row
   expect(result.current.trashing).toBe(true);
   act(() => result.current.requestTrash(footer));
   expect(result.current.trashing).toBe(false);
+  // The mutation calls the port on a later tick; wait for the held write before releasing it.
+  await waitFor(() => expect(port.trash.mock.calls).toEqual([[{ id: "m1" }]]));
   await act(async () => { finish(); await pending; });
   expect(result.current.pendingTrash).toEqual(footer);
   expect(result.current.trashing).toBe(false);

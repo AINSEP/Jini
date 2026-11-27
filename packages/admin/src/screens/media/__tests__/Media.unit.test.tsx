@@ -35,8 +35,9 @@ const asset = (id: string, title: string, overrides: Partial<AdminMedia> = {}): 
 const beach = asset("beach", "Beach", { byteSize: 2048 });
 const archive = asset("archive", "Archive", { createdAt: "not-a-date", contentType: "application/octet-stream" });
 const adminKit = fakeAdminKit();
+const { Button: KitButton, TextField: KitTextField } = adminKit.components;
 const kit: MediaProps["kit"] = {
-  Button: adminKit.components.Button, TextField: adminKit.components.TextField, Dialog: adminKit.components.Dialog,
+  Button: (props) => <KitButton {...props} />, TextField: (props) => <KitTextField {...props} />, Dialog: adminKit.components.Dialog,
   Lightbox, RowMenu, ConfirmDialog, TabBar, Icon: adminKit.components.Icon,
   InfoTip: ({ label, icon }) => <span title={label}>{icon}</span>,
   MiddleTruncate: ({ text }) => <span>{text}</span>, ServerLabel: ({ value }) => <span>{value}</span>,

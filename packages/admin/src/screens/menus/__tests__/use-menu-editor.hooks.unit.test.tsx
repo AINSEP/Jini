@@ -199,7 +199,7 @@ it.each([true, false])("keeps the new route active when an old read finishes (re
   const kit = stubKit({ slugRedirectPath: () => "/menus/stale-redirect" });
   const { result, rerender } = renderHook(({ menuId }: { menuId: string | null }) => useMenuEditor({
     menuId, dependencies: { port, navigate, t: (key) => key, kit },
-  }), { initialProps: { menuId: "m1" } });
+  }), { initialProps: { menuId: "m1" as string | null } });
   expect(result.current.loading).toBe(true);
   await waitFor(() => expect(getMenu.mock.calls).toEqual([[{ id: "m1" }]]));
   rerender({ menuId: null });
@@ -225,7 +225,7 @@ it("keeps the new route loading when the previous read settles first", async () 
   });
   port.getMenu = getMenu;
   const dependencies = { port, navigate: vi.fn(), t: (key: string) => key, kit: stubKit() };
-  const { result, rerender } = renderHook(({ menuId }) => useMenuEditor({ menuId, dependencies }), { initialProps: { menuId: "m1" } });
+  const { result, rerender } = renderHook(({ menuId }) => useMenuEditor({ menuId, dependencies }), { initialProps: { menuId: "m1" as string | null } });
   await waitFor(() => expect(getMenu.mock.calls).toEqual([[{ id: "m1" }]]));
   rerender({ menuId: "m2" });
   await waitFor(() => expect(getMenu.mock.calls).toEqual([[{ id: "m1" }], [{ id: "m2" }]]));
@@ -250,7 +250,7 @@ it.each([true, false])("does not publish a save settlement on a different menu (
     return write(required);
   });
   const dependencies = { port, navigate: vi.fn(), t: (key: string) => key, kit: stubKit() };
-  const { result, rerender } = renderHook(({ menuId }) => useMenuEditor({ menuId, dependencies }), { initialProps: { menuId: "m1" } });
+  const { result, rerender } = renderHook(({ menuId }) => useMenuEditor({ menuId, dependencies }), { initialProps: { menuId: "m1" as string | null } });
   await waitFor(() => expect(result.current.menu?.id).toBe("m1"));
   act(() => result.current.setTitle({ next: "New header" }));
   let saving!: Promise<void>;
@@ -283,7 +283,7 @@ it.each([true, false])("does not publish a clipboard settlement after changing r
     kit: stubKit({ failures: { getGeneration: () => 7, isClipboardRefusal: () => false, publishLocal } }),
   };
   const { result, rerender } = renderHook(({ menuId }: { menuId: string | null }) => useMenuEditor({ menuId, dependencies }),
-    { initialProps: { menuId: "m1" } });
+    { initialProps: { menuId: "m1" as string | null } });
   await waitFor(() => expect(result.current.menu?.id).toBe("m1"));
   let copying!: Promise<void>;
   act(() => { copying = result.current.copyHtmlEmbed(); });

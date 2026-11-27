@@ -6,9 +6,11 @@ const original = "/api/admin/v1/workspaces/workspace-local/media/p%2Fa%20%26b/or
 const id = "p/a &b";
 
 function setup() {
-  const request = vi.fn<MediaRequestFn>();
+  const request = vi.fn<(...args: Parameters<MediaRequestFn>) => Promise<unknown>>();
+  // The port is generic over the response type; the fake answers whatever each test queued.
+  const typedRequest: MediaRequestFn = <T,>(...args: Parameters<MediaRequestFn>) => request(...args) as Promise<T>;
   const siteUrl = vi.fn(({ path }: { path: string }) => `https://public.example${path}`);
-  return { request, siteUrl, api: createMediaApi({ request: request as unknown as MediaRequestFn, siteUrl }) };
+  return { request, siteUrl, api: createMediaApi({ request: typedRequest, siteUrl }) };
 }
 
 it("targets the live catalog, the plain grid, the opaque next cursor and the exact item lookup", async () => {
