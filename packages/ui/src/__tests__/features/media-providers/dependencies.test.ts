@@ -75,6 +75,27 @@ describe('createFakeMediaProviderRowsPort', () => {
     await expect(port.fetchMediaProviders()).resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a', baseUrl: 'https://a.test' } });
   });
 
+  it('applies a batch of removes and patches in one write, creating a patched provider that did not exist', async () => {
+    const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true, model: 'm-a' }, b: { apiKeyConfigured: true }, c: { apiKeyConfigured: false } } });
+    await expect(port.applyProviderChanges({
+      removes: ['b', 'missing'],
+      patches: [{ providerId: 'a', fields: { model: 'm-a2' } }, { providerId: 'd', fields: { baseUrl: 'https://d.test' } }],
+    })).resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a2' }, c: { apiKeyConfigured: false }, d: { baseUrl: 'https://d.test' } });
+    await expect(port.fetchMediaProviders()).resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a2' }, c: { apiKeyConfigured: false }, d: { baseUrl: 'https://d.test' } });
+  });
+
+  it('a batch that removes and re-patches the same provider starts that provider from empty', async () => {
+    const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true, model: 'm-a' } } });
+    await expect(port.applyProviderChanges({ removes: ['a'], patches: [{ providerId: 'a', fields: { baseUrl: 'https://a.test' } }] }))
+      .resolves.toEqual({ a: { baseUrl: 'https://a.test' } });
+  });
+
+  it('a rejected batch persists none of its changes', async () => {
+    const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true } }, saveError: 'store is down' });
+    await expect(port.applyProviderChanges({ removes: ['a'], patches: [{ providerId: 'b', fields: { model: 'm' } }] })).rejects.toThrow('store is down');
+    await expect(port.fetchMediaProviders()).resolves.toEqual({ a: { apiKeyConfigured: true } });
+  });
+
   it('resolves null when unreachable and rejects writes with saveError without persisting', async () => {
     const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true } }, unreachable: true, saveError: 'store is down' });
     await expect(port.fetchMediaProviders()).resolves.toBeNull();

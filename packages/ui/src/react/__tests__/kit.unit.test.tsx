@@ -1,7 +1,7 @@
 import { createRef } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { SecretInput, UiKitProvider, useOverlayContainer } from '../kit.js';
+import { SecretInput, UiKitProvider, useOverlayContainer, useSecretReveal } from '../kit.js';
 import { fakeUiKit } from '../testing.js';
 import { renderWithUiKit } from './render-with-ui-kit.js';
 
@@ -46,4 +46,28 @@ it('uses the injected input kit and forwards the same ref without leaking the ho
   render(<SecretInput label="Injected key" ref={ref} useUiKitHook={() => kit} />);
   expect(ref.current).toBe(screen.getByLabelText('Injected key'));
   expect(seen.mock.calls[0]![0]).not.toHaveProperty('useUiKitHook');
+});
+
+describe('fakeUiKit', () => {
+  it('starts hidden and flips type and label on each toggle, through the kit facade', () => {
+    const labels = { show: 'Show key', hide: 'Hide key' };
+    const hook = renderHook(() => useSecretReveal({ value: 'x', labels }), { wrapper: ({ children }) => <UiKitProvider kit={fakeUiKit}>{children}</UiKitProvider> });
+    expect(hook.result.current).toMatchObject({ revealed: false, inputType: 'password', toggleLabel: 'Show key' });
+    act(() => hook.result.current.toggle());
+    expect(hook.result.current).toMatchObject({ revealed: true, inputType: 'text', toggleLabel: 'Hide key' });
+    act(() => hook.result.current.toggle());
+    expect(hook.result.current).toMatchObject({ revealed: false, inputType: 'password', toggleLabel: 'Show key' });
+  });
+
+  it('renders a password input that password managers will not autofill, wired to value and change', () => {
+    const changes: string[] = [];
+    const Input = fakeUiKit.components.SecretInput;
+    render(<Input label="Token" value="tok-a" onChange={(e) => changes.push(e.target.value)} />);
+    const input = screen.getByLabelText('Token');
+    expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveAttribute('autocomplete', 'new-password');
+    expect(input).toHaveValue('tok-a');
+    fireEvent.change(input, { target: { value: 'tok-b' } });
+    expect(changes).toEqual(['tok-b']);
+  });
 });

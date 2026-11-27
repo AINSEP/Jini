@@ -89,7 +89,9 @@ export function AgentDiagnosticRow({ diagnostic, handlers = {}, className, useTH
   };
   const actions = (diagnostic.fixActions ?? [])
     .map((intent) => resolveAction(intent, handlers, labels))
-    .filter((action): action is ResolvedAction => action !== null);
+    // `undefined` too: an intent kind this build does not know (a newer host over the wire) falls
+    // through `resolveAction`'s exhaustive switch to `unhandledCase`, which yields `undefined`.
+    .filter((action): action is ResolvedAction => action !== null && action !== undefined);
   const tooltip = agentDiagnosticTooltip(diagnostic);
 
   return (

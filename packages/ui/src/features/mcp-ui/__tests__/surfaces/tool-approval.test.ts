@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { toolApprovalPresentation } from '../../surfaces/tool-approval.js';
+import { approvalText } from '@jini-ai/core/contracts/site/approval-i18n';
+import { toolApprovalConfirmation, toolApprovalPresentation } from '../../surfaces/tool-approval.js';
 import { renderDetailList } from '../../surfaces/document.js';
 
 const text = ({ key }: { key: string }) => key;
@@ -72,5 +73,54 @@ describe('tool approval presentation', () => {
       expect(toolApprovalPresentation({ descriptor: { id: 'action', metadata: { title } } }, { text }).title).toBe(title);
     }
     expect(toolApprovalPresentation({ descriptor: { id: 'action', metadata: { title: 'Send $&' } } }, { text }).title).toBe('Send $&?');
+  });
+});
+
+describe('tool approval confirmation', () => {
+  const descriptor = {
+    id: 'site.publish',
+    metadata: { title: 'Publish static site', summary: 'Ships the site.', actionVerb: 'Publish' },
+    inputSchema: { type: 'object', properties: { target: { type: 'string', title: 'Hosting project' } } },
+  };
+
+  it('builds the operator-language confirm spec with the input disclosed under its technical name', () => {
+    const details = [{ label: 'Site', value: 'Docs' }];
+    expect(toolApprovalConfirmation({ descriptor, input: { target: 'prod' }, locale: 'en', details, danger: true })).toEqual({
+      toolId: 'site.publish',
+      errorCode: 'TOOL_APPROVAL',
+      title: 'Publish static site?',
+      description: 'Ships the site.',
+      details,
+      danger: true,
+      detailDisclosure: {
+        label: approvalText({ locale: 'en', key: 'Details' }),
+        details: [{
+          label: 'Input', value: { target: 'prod' }, labels: { target: 'Hosting project' },
+          description: 'Technical name: site.publish',
+        }],
+      },
+      confirmLabel: 'Publish',
+      cancelLabel: 'Cancel',
+    });
+  });
+
+  it('defaults to no extra details, not dangerous, an empty input object, and no description without a summary', () => {
+    const spec = toolApprovalConfirmation({ descriptor: { id: 'plain_tool' }, input: undefined, locale: 'en' });
+    expect(spec).not.toHaveProperty('description');
+    expect(spec).toMatchObject({ details: [], danger: false, confirmLabel: 'Confirm', title: 'Plain tool?' });
+    expect(spec.detailDisclosure?.details[0]?.value).toEqual({});
+    expect(toolApprovalConfirmation({ descriptor: { id: 'plain_tool' }, input: null, locale: 'en' }).detailDisclosure?.details[0]?.value).toEqual({});
+  });
+
+  it('translates every chrome string through the requested locale', () => {
+    const spec = toolApprovalConfirmation({ descriptor, input: {}, locale: 'de' });
+    expect(spec.title).toBe('Statische Website veröffentlichen?');
+    expect(spec.confirmLabel).toBe('Veröffentlichen');
+    expect(spec.cancelLabel).toBe(approvalText({ locale: 'de', key: 'Cancel' }));
+    expect(spec.cancelLabel).not.toBe('Cancel');
+    expect(spec.detailDisclosure?.details[0]).toMatchObject({
+      label: approvalText({ locale: 'de', key: 'Input' }),
+      description: 'Technischer Name: site.publish',
+    });
   });
 });
