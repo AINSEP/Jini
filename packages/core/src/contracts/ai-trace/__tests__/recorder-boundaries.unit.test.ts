@@ -102,7 +102,7 @@ it('reports a pricing failure without inventing cost or losing usage', () => {
   recorder.finish({ outcome: 'succeeded' });
 
   expect(priceUsage).toHaveBeenCalledExactlyOnceWith({ model: 'local-model', usage: {
-    inputTokens: 17, outputTokens: null, totalTokens: null, cacheReadTokens: null, cacheWriteTokens: null, reasoningTokens: null,
+    inputTokens: 17, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, reasoningTokens: null,
   } });
   expect(onSinkError).toHaveBeenCalledExactlyOnceWith(failure);
   expect(sink.events.find(event => event.kind === 'model_turn')).toMatchObject({ usage: { inputTokens: 17 }, costUsd: null, costSource: null });

@@ -148,7 +148,7 @@ it('consumes a failed proposal and publishes its failure to subscribers without 
   const execute = vi.fn(async () => { throw error; });
   expect(store.propose({ description: { target: 'a' }, signal: new AbortController().signal, execute })).toMatchObject({ approvalId: 'proposal-failure' });
   await expect(store.respond({ approvalId: 'proposal-failure', approved: true })).rejects.toBe(error);
-  expect(store.getSnapshot()).toMatchObject({ pending: null, error: expect.stringContaining('target changed') });
+  expect(store.getSnapshot()).toEqual({ pending: null, error: 'The approved action stopped with an error (Error).' });
   expect(listener.mock.results.map(({ value }) => value?.pending?.approvalId ?? null)).toEqual(['proposal-failure', null, null]);
   await expect(store.respond({ approvalId: 'proposal-failure', approved: true })).rejects.toThrow('missing');
   expect(execute).toHaveBeenCalledTimes(1);

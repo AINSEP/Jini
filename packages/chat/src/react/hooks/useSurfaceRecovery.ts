@@ -69,7 +69,7 @@ export function useSurfaceRecovery({ resource, call, runStreaming, onToolCall }:
     answerController.current = controller;
     try {
       return await caller.answer({ call: submitted, signal: controller.signal, onSurface });
-    } finally { answerController.current = undefined; }
+    } finally { if (answerController.current === controller) answerController.current = undefined; }
   } : onToolCall;
   return { resource: restored ?? resource, restored: restored !== undefined, live, onToolCall: toolCall };
 }

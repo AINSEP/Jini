@@ -23,7 +23,7 @@ function inspect({ head, body }: { head: string; body: string }) {
     const doc = window.document;
     const config = doc.querySelector('#jini-consent-config');
     return {
-      scripts: Array.from(doc.querySelectorAll('script[src]'), (tag) => tag.getAttribute('src')),
+      scripts: Array.from(doc.querySelectorAll('script[src]'), (tag: Element) => tag.getAttribute('src')),
       config: config ? JSON.parse(config.textContent ?? '') : null,
       settings: doc.querySelector('[data-consent-open].jini-consent-settings')?.getAttribute('href'),
     };
@@ -106,7 +106,7 @@ it.each([false, true])('installs settings once and rebases only consent-owned UR
     });
     expect(document.querySelector('[data-consent-open]')?.getAttribute('href')).toBe(`${prefix}/privacy`);
     expect(document.querySelector('#authored')?.getAttribute('href')).toBe('/about');
-    expect(Array.from(document.querySelectorAll('script[src]'), (script) => script.getAttribute('src'))).toEqual([`${prefix}/consent/client.js`]);
+    expect(Array.from(document.querySelectorAll('script[src]'), (script: Element) => script.getAttribute('src'))).toEqual([`${prefix}/consent/client.js`]);
   } finally { dom.window.close(); }
 });
 
