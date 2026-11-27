@@ -173,6 +173,9 @@ function useEmailTemplateWorkingCopy(
     if (!detail) { seededId.current = null; return; }
     if (seededId.current === loadedId) return;
     seededId.current = loadedId;
+    // A different template: drop the previous one's preview (and the undeclared fields it reported)
+    // so they never show under this template while its own preview renders.
+    setPreview({ data: null, error: null, pending: true });
     setHtml(detail.html);
     setName(detail.name);
     setValues(Object.fromEntries(detail.fields.map((field) => [field.name, field.sample ?? ""])));

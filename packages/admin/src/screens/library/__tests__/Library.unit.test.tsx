@@ -196,14 +196,23 @@ it("announces each upload status on its own row and keeps unfinished work when c
 
 it("offers cleanup but not the Documents shortcut when every finished upload failed", () => {
   const clearUploads = vi.fn();
-  inKit(<Library useLibraryHook={() => controller({
-    uploads: [{ key: "failure", name: "invalid.txt", size: 0, status: "failed", error: "This file is empty." }],
-    clearUploads,
-  })} />);
+  function Harness() {
+    const [uploads, setUploads] = useState<LibraryController["uploads"]>([
+      { key: "failure", name: "invalid.txt", size: 0, status: "failed", error: "This file is empty." },
+    ]);
+    return <Library useLibraryHook={() => controller({
+      uploads,
+      clearUploads: () => { clearUploads(); setUploads([]); },
+    })} />;
+  }
+  inKit(<Harness />);
   expect(screen.getByRole("alert").textContent).toBe("This file is empty.");
   expect(screen.queryByRole("button", { name: "View in Documents" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Clear list" }));
-  expect(clearUploads).toHaveBeenCalledExactlyOnceWith();
+  // The button is wired straight to the controller (React hands it the click event): one call, and the list empties.
+  expect(clearUploads).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Clear list" })).toBeNull();
 });
 
 it("offers only Download for a read-only Office document, and downloads the exact attachment", () => {
@@ -333,7 +342,8 @@ it("moves only the selected document to Trash and offers a dismissible restore s
   const row = within(screen.getByRole("row", { name: /Refund policy\.docx/ }));
   expect(row.getByText("Moving…")).toBeInTheDocument();
   expect(row.queryByRole("button", { name: 'Actions for "Refund policy.docx"' })).toBeNull();
-  expect(port.trashDocument).toHaveBeenCalledExactlyOnceWith({ id: "policy/2" });
+  // The fetch mutation dispatches the port call asynchronously, after the row has switched to "Moving…".
+  await waitFor(() => expect(port.trashDocument).toHaveBeenCalledExactlyOnceWith({ id: "policy/2" }));
   await act(async () => { trashReply.resolve(); });
   await waitFor(() => expect(screen.queryByRole("button", { name: "Refund policy.docx" })).toBeNull());
   expect(screen.getByRole("button", { name: "Field guide.md" })).toBeInTheDocument();
