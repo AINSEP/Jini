@@ -193,8 +193,10 @@ it("approval rechecks consent and reserves one scoped publish job before backgro
   const { deps: base, publishJobs, historyStore, grants } = fixture();
   const readiness = vi.fn<PublishCredentialSource["isConfigured"]>(async () => ({ configured: true, basis: { id: "selected", revision: 1 } }));
   let revoke = true;
+  let consentChecks = 0;
   const consent = vi.fn<StaticPublishToolDeps["checkToolPublishConsent"]>(async () => {
-    const sinceReview = revoke && consent.mock.calls.length === 2;
+    consentChecks += 1;
+    const sinceReview = revoke && consentChecks === 2;
     return sinceReview ? { code: "CONSENT_REVOKED" } : null;
   });
   const card = vi.fn<StaticPublishToolDeps["toolApprovalConfirmation"]>(() => ({

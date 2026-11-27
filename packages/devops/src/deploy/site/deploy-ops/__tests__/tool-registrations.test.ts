@@ -123,7 +123,7 @@ test('cancellation during credential resolution prevents later transport', async
   const controller = new AbortController();
   let transportCalls = 0;
   const bound = bindDeployOpsRuntime({ runtime: { credentials: {} } as DeployOpsRuntime,
-    deps: { deployOpsHttpClient: { send: async () => { transportCalls++; return { status: 200, headers: {}, bodyText: 'unexpected' }; } } } as Parameters<typeof bindDeployOpsRuntime>[0]['deps'],
+    deps: { deployOpsHttpClient: { send: async (_request: import('@jini-ai/core/primitives').HttpRequest) => { transportCalls++; return { status: 200, headers: {}, bodyText: 'unexpected', bodyTruncated: false }; } } } as Parameters<typeof bindDeployOpsRuntime>[0]['deps'],
     makeCredentialedRequest: async (deps, input) => {
       controller.abort();
       const result = await deps.httpClient.send({ method: 'GET', url: input.url, headers: {}, timeoutMs: 100 });
@@ -195,7 +195,9 @@ test('a confirmation aborted after the permission check cannot approve replaceme
 });
 
 test('a non-truncated write forwards headers and body without adding an absent signal', async () => {
-  const audit = { record: () => assert.fail('audit writes are owned by the credential adapter') };
+  const audit: NonNullable<Parameters<typeof bindDeployOpsRuntime>[0]['deps']['customCredentialsAudit']> = {
+    record: () => assert.fail('audit writes are owned by the credential adapter'),
+  };
   const send = async (request: import('@jini-ai/core/primitives').HttpRequest) => {
     assert.deepEqual(request, { method: 'PATCH', url: 'https://host.example/config', headers: { 'content-type': 'application/json' },
       timeoutMs: 200, body: '{"active":true}', maxResponseBytes: 256 });
