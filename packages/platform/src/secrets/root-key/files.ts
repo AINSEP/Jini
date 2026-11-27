@@ -67,14 +67,16 @@ export function atomicCreateSiteKeyFile({ filePath, hex, fs, pid, randomHex, dir
   mkdirSync(dir, { recursive: true, mode: directoryMode });
   const tmpPath = join(dir, `.${basename(filePath)}.tmp-${pid}-${randomHex({ bytes: 4 })}`);
   const fd = openSync(tmpPath, "w", fileMode);
+  // Every step after the temp file exists sits inside this `try`, so a failed write, fsync or
+  // chmod never leaves candidate key bytes behind in the key directory.
   try {
-    writeSync(fd, hex);
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-  chmodSync(tmpPath, fileMode);
-  try {
+    try {
+      writeSync(fd, hex);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    chmodSync(tmpPath, fileMode);
     linkSync(tmpPath, filePath);
   } catch (err) {
     if (!isErrorCode({ err, code: "EEXIST" })) throw err;

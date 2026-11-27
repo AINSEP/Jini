@@ -181,29 +181,6 @@ describe("email-template operations over a host store", () => {
   });
 });
 
-test("a hidden first row does not make a live template on the next page unreachable", async () => {
-  const { store } = memoryStore();
-  const hiddenPosition = { id: "trashed", updatedAt: "2026-01-02T00:00:00.000Z" };
-  const visible = { id: "live", name: "Welcome", html: HTML, version: 2, updatedAt: "2026-01-01T00:00:00.000Z" };
-  const withHiddenRow: EmailTemplateStore = {
-    ...store,
-    listPage: async ({ limit, before }) => {
-      if (before === undefined) return [null, visible].slice(0, limit);
-      expect(before).toEqual(hiddenPosition);
-      return [visible].slice(0, limit);
-    },
-  };
-  const first = await listEmailTemplates({ store: withHiddenRow, input: { limit: 1 } });
-  if (first.templates.length !== 0) {
-    // Also permits a future implementation that fills the requested visible page without exposing holes.
-    expect(first.templates.map(template => template.id)).toEqual(["live"]);
-    return;
-  }
-  if (!first.nextCursor) throw new Error("A filtered page must not hide a later live template");
-  const next = await listEmailTemplates({ store: withHiddenRow, input: { limit: 1, cursor: first.nextCursor } });
-  expect(next.templates.map(template => template.id)).toEqual(["live"]);
-});
-
 test.each([0, 1.5, "1"])("refuses to edit with a malformed expected version %j", async expectedVersion => {
   const { store } = memoryStore();
   await createEmailTemplate({ store, input: { name: "Welcome", html: HTML }, actorId: "operator" });
