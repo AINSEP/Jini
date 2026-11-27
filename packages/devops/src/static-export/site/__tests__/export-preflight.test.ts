@@ -42,3 +42,12 @@ describe("export preflight", () => {
     expect(thirdPartyWarning).not.toHaveBeenCalled();
   });
 });
+
+it("ignores unusable origin evidence and non-web scripts without losing third-party warnings", () => {
+  const collector = createExportPreflight({ ownOrigins: [null, "https://[", "https://site.example:8443"], copy });
+  collector.setConsentConfigured({ configured: true });
+  collector.observePage({ html: '<script></script><script src="https://["></script><script src="ftp://archive.example/a.js"></script>'
+    + '<script src="https://site.example:8443/own.js"></script><script src="https://site.example/other-port.js"></script>'
+    + '<script src="http://external.example/tracker.js"></script>' });
+  expect(collector.joinWarnings({ existing: undefined })).toBe("scripts:1:external.example,site.example");
+});

@@ -20,3 +20,23 @@ it('marks canonical and feed discovery references so portable copies preserve th
   const locations = exportUrlLocations({ body, contentType: 'text/html' });
   expect(locations.map(location => location.identity === true)).toEqual([true, true, false]);
 });
+
+it('locates namespaced sitemap URLs and valid JSON link values without capturing prose', () => {
+  const xml = '<urlset><image:loc>/image?a=1&amp;b=2</image:loc><title>/article</title><loc>/page</loc></urlset>';
+  const json = String.raw`{"src":"\/icons\/mark.svg","nested":{"href":"/about","url":"/catalog?q=a\"b"},"title":"/not-a-link"}`;
+  const slices = (body: string, contentType: string) =>
+    exportUrlLocations({ body, contentType }).map(({ start, end, kind }) => [body.slice(start, end), kind]);
+
+  expect(slices(xml, 'application/xml')).toEqual([['/image?a=1&amp;b=2', 'url'], ['/page', 'url']]);
+  expect(slices(json, 'application/manifest+json')).toEqual([
+    [String.raw`\/icons\/mark.svg`, 'url'], ['/about', 'url'], [String.raw`/catalog?q=a\"b`, 'url'],
+  ]);
+  expect(slices('{"src":"/unfinished"', 'application/json')).toEqual([]);
+});
+
+it('visits template content and distinguishes valueless attributes from a deliberately empty action', () => {
+  const html = '<img src><template><img src="/placeholder.png"></template><form action=""></form>';
+  expect(exportUrlLocations({ body: html, contentType: 'text/html' }).map(({ start, end, kind }) => [html.slice(start, end), kind])).toEqual([
+    ['/placeholder.png', 'url'], ['', 'action'],
+  ]);
+});

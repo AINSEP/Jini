@@ -57,3 +57,41 @@ describe("buildRouteManifest", () => {
     }
   });
 });
+
+it("exports the storefront and exact redirects while reporting non-exact rules", async () => {
+  const result = await buildRouteManifest({ policy: {
+    ...policy,
+    initialSkips: [{ reason: "host-filter", detail: "Internal page" }],
+    productPaths: { list: "/shop", detail: ({ slug }) => `/shop/item/${slug}` },
+    skipCopy: { ...policy.skipCopy, nonExactRedirect: ({ matchType, fromPattern, toTarget }) => `${matchType}: ${fromPattern} -> ${toTarget}` },
+  }, sources: {
+    readThemeAndPosts: async () => ({
+      theme: { kind: "selected", identity: { id: "cms", dir: "/themes/cms" }, tier: "dynamic", pages: ["about"] },
+      posts: [{ slug: "news", title: "News", kind: "post" }],
+    }),
+    listProducts: async () => [{ slug: "zine", title: "Quarterly Zine" }, { slug: "mug", title: "Studio Mug" }],
+    listActiveRedirects: async () => [
+      { matchType: "prefix", fromPattern: "/legacy", toTarget: "/archive", statusCode: 301 },
+      { matchType: "exact", fromPattern: "/store", toTarget: "/shop", statusCode: 308 },
+      { matchType: "regex", fromPattern: "/item-(.*)", toTarget: "/shop/item/$1", statusCode: 302 },
+    ],
+  } });
+
+  expect(result).toEqual({
+    activeTheme: { id: "cms", dir: "/themes/cms" },
+    routes: [
+      { path: "/", kind: "home", label: "home" },
+      { path: "/news", kind: "post", label: "News" },
+      { path: "/shop", kind: "product-list", label: "products" },
+      { path: "/shop/item/zine", kind: "product", label: "Quarterly Zine" },
+      { path: "/shop/item/mug", kind: "product", label: "Studio Mug" },
+      { path: "/store", kind: "redirect", label: "/store", redirectTarget: "/shop", redirectStatusCode: 308 },
+      { path: "/probe", kind: "not-found", label: "404" },
+    ],
+    skipped: [
+      { reason: "host-filter", detail: "Internal page" },
+      { reason: "non-exact-redirect", detail: "prefix: /legacy -> /archive" },
+      { reason: "non-exact-redirect", detail: "regex: /item-(.*) -> /shop/item/$1" },
+    ],
+  });
+});

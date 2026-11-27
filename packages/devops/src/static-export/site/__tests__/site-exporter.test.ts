@@ -67,3 +67,65 @@ it("without public origin omits discovery routes and removes their stale output"
     await expect(readFile(path.join(outputDir, "feed.xml"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(outputDir, { recursive: true, force: true }); }
 });
+
+it("reports the multi-theme export size using the runner's actual report", async () => {
+  const outputDir = await mkdtemp(path.join(tmpdir(), "wmz-export-"));
+  try {
+    const deps = fixture();
+    const buildPreviewExportManifest = vi.fn<ExportSiteRouteDeps["buildPreviewExportManifest"]>(async (required, options) => ({
+      ...await deps.buildPreviewExportManifest(required, options), themeCount: 3,
+    }));
+    const themePreview = { themeCount: 3, htmlSizeMultiplier: 2.125, sizeMultiplier: 1.5, additionalPages: 7 };
+    const themePreviewExportSize = vi.fn<ExportSiteRouteDeps["themePreviewExportSize"]>(() => themePreview);
+    const reportInfo = vi.fn();
+    const result = await exportHostSite({
+      outputDir, includeThemePreviews: true,
+      routeDeps: { ...deps, buildPreviewExportManifest, themePreviewExportSize, reportInfo },
+    });
+
+    expect(buildPreviewExportManifest.mock.calls.map(([, options]) => options)).toEqual([{ includeThemePreviews: true }]);
+    expect(themePreviewExportSize).toHaveBeenCalledExactlyOnceWith({
+      report: await runner.run.mock.results.at(-1)?.value, themeCount: 3,
+    });
+    expect(result.themePreview).toEqual(themePreview);
+    expect(reportInfo).toHaveBeenCalledExactlyOnceWith(
+      "[export] Theme previews: 3 themes, 7 additional pages, 1.50x export bytes (2.13x HTML); shared assets are deduplicated.",
+    );
+  } finally { await rm(outputDir, { recursive: true, force: true }); }
+});
+
+it("refuses an invalid public destination before starting the app or writing artifacts", async () => {
+  const deps = fixture();
+  const createSiteApp = vi.fn(deps.createSiteApp);
+  runner.run.mockClear();
+  await expect(exportHostSite({
+    outputDir: "/unused-export", publicUrl: "http://public.example/copy", routeDeps: { ...deps, createSiteApp },
+  })).rejects.toThrow("The public URL must be a public HTTPS address.");
+  expect(createSiteApp).not.toHaveBeenCalled();
+  expect(runner.run).not.toHaveBeenCalled();
+});
+
+it("sends only local listing batches and pagination routes to the runner", async () => {
+  const outputDir = await mkdtemp(path.join(tmpdir(), "wmz-export-"));
+  try {
+    const deps = fixture();
+    const home = '<button data-next-href="/news/_more/first">More</button><a href="/news/page/2">Page 2</a>';
+    const batch = '{"nextCursor":"second"}';
+    const extractListingMoreHrefs = vi.fn(({ html }: { html: string }) =>
+      html === home ? ["/news/_more/first", "//elsewhere.example/more", "relative"] : []);
+    const extractListingPageHrefs = vi.fn(({ html }: { html: string }) =>
+      html === home ? ["/news/page/2", "https://elsewhere.example/news/page/3"] : []);
+    const listingJsonNextPath = vi.fn(({ path, body }: { path: string; body: string }) =>
+      path === "/news/_more/first" && body === batch ? "/news/_more/second" : undefined);
+    await exportHostSite({ outputDir, routeDeps: { ...deps, extractListingMoreHrefs, extractListingPageHrefs, listingJsonNextPath } });
+    const args = runner.run.mock.calls.at(-1)![0] as ExportSiteArgs;
+    expect(args.discoverRoutes!({ path: "/news", html: home })).toEqual([
+      { kind: "listing-batch", path: "/news/_more/first", label: "/news/_more/first" },
+      { kind: "listing-page", path: "/news/page/2", label: "/news/page/2" },
+    ]);
+    expect(args.discoverRoutes!({ path: "/news/_more/first", html: batch })).toEqual([
+      { kind: "listing-batch", path: "/news/_more/second", label: "/news/_more/second" },
+    ]);
+    expect(listingJsonNextPath.mock.calls).toEqual([[{ path: "/news", body: home }], [{ path: "/news/_more/first", body: batch }]]);
+  } finally { await rm(outputDir, { recursive: true, force: true }); }
+});

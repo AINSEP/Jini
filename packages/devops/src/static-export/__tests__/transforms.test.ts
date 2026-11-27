@@ -178,3 +178,8 @@ test('manifest and sitemap crawling require their explicit response formats', ()
   assert.deepEqual(extractAssetUrls({ html: '{"icons":[{"src":"/assets/icon.png"}],"description":"url(/assets/sample.png)"}', prefixes }, { format: 'json' }), ['/assets/icon.png']);
   assert.deepEqual(extractAssetUrls({ html: '<urlset><image:loc>/assets/map.png</image:loc></urlset>', prefixes }, { format: 'xml' }), ['/assets/map.png']);
 });
+
+test('a malformed manifest stays byte-for-byte intact when applying a base path', () => {
+  const body = '{"icons":[{"src":"/assets/mark.svg"}';
+  assert.equal(rewriteRouteBodyForBasePath({ path: '/site.json', body, basePath: '/docs' }), body);
+});

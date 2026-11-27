@@ -25,3 +25,7 @@ test('prefixing and containment enforce exact canonical directory boundaries', (
     assert.throws(() => prefixRepositoryPath({ folder: 'site', path }), /path/i);
   }
 });
+
+test('a malformed configured folder never claims a canonical repository file', () => {
+  assert.equal(repositoryPathContained({ folder: '../site', path: 'site/index.html' }), false);
+});

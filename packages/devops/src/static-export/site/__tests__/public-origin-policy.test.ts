@@ -49,3 +49,12 @@ test('text responses are rewritten and drop stale length headers; robots sitemap
   const moved = await rewriteExportOriginResponse({ response: redirect, url: 'http://127.0.0.1:4000/old', publicOrigin: 'https://public.example.test' });
   assert.equal(moved.headers.get('location'), 'https://public.example.test/new');
 });
+
+test('invalid public evidence is refused and a configured former origin can be relocated', async () => {
+  const credentials = registryReturning({ scheme: 'https', host: 'user@site.example', source: 'workspace-setting', verifiedAt: VERIFIED_AT });
+  assert.equal(await exportPublicOrigin({ registry: credentials, workspaceId: 'site' }), undefined);
+  assert.equal(rewriteRenderOrigins({
+    body: 'https://old.example/a https://old.example https://[:::] https://external.example/a',
+    renderOrigin: 'http://127.0.0.1:4000', sourceOrigin: 'https://old.example',
+  }), '/a / https://[:::] https://external.example/a');
+});
