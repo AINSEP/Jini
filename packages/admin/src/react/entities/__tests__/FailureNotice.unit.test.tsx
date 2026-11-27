@@ -38,8 +38,9 @@ it("keeps a copy failure visible until copying succeeds and offers the right rec
   const notice = within(screen.getByRole("alert"));
   expect(notice.getByText(view.message)).toBeVisible();
   await user.click(notice.getByRole("button", { name: "Reload" }));
-  expect(onReload.mock.calls).toEqual([[]]);
-  expect(onRetry.mock.calls).toEqual([]);
+  // The callbacks take no arguments (`() => void`); the click event React forwards is irrelevant.
+  expect(onReload).toHaveBeenCalledTimes(1);
+  expect(onRetry).not.toHaveBeenCalled();
   const copy = notice.getByRole("button", { name: "Copy details" });
   await user.click(copy);
   expect((await notice.findByRole("status")).textContent).toBe("Could not copy details");
@@ -48,6 +49,6 @@ it("keeps a copy failure visible until copying succeeds and offers the right rec
   expect(copyText.mock.calls).toEqual([[{ text: view.details }], [{ text: view.details }]]);
   mounted.rerender(<FailureNotice {...{ view, translate, onReload, onRetry, copyText }} />);
   await user.click(notice.getByRole("button", { name: "Try again" }));
-  expect(onRetry.mock.calls).toEqual([[]]);
-  expect(onReload.mock.calls).toEqual([[]]);
+  expect(onRetry).toHaveBeenCalledTimes(1);
+  expect(onReload).toHaveBeenCalledTimes(1);
 });

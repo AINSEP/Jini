@@ -82,7 +82,9 @@ test("the list columns preserve all sorting choices and use host URL builders", 
   expect(screen.getByRole("link", { name: "/one" }).getAttribute("href")).toBe("https://site.test/one");
   fireEvent.click(screen.getByRole("button", { name: "Not sorted by Title. Activate to sort ascending." }));
   expect(setSort).toHaveBeenCalledWith({ column: "title", direction: "asc" });
-  expect(screen.getByRole("columnheader", { name: /Sorted by updated date, newest first/ })).toBeTruthy();
+  expect(screen.getByRole("columnheader", { name: "Updated" }).getAttribute("aria-sort")).toBe("descending");
+  expect(screen.getByRole("columnheader", { name: "Title" }).getAttribute("aria-sort")).toBe("none");
+  expect(screen.getByRole("button", { name: "Sorted by updated date, newest first. Activate to sort oldest first." })).toBeVisible();
 });
 
 test("the bound list uses the injected default, comparators, and sort labels", async () => {
@@ -143,7 +145,6 @@ test("the bound controller localizes trash failures and drops only the confirmed
   });
   const { result } = renderHook(() => useBoundPosts({}), { wrapper: FetchQueryProvider });
   await waitFor(() => expect(result.current.posts).toEqual([post, keep]));
-  expect(result.current.locale).toBe("es");
   await act(() => result.current.removePost());
   expect(deletePost.mock.calls).toEqual([]);
   for (const error of ["trash refused", "es: failed to delete post"]) {

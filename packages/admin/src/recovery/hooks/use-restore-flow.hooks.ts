@@ -204,10 +204,15 @@ function useRestoreFlowState(
     setPlan(null);
     setConfirmationToken(null);
     setResult(null);
+    // A late answer for a point the operator already left must not land on the current one.
+    let current = true;
     port
       .computeRecoveryDisclosure({ restorePointId: props.point.id })
-      .then(setDisclosure)
-      .catch((e) => setError(describeError({ e, fallback: t({ locale: locale, key: "Failed to compute the discarded-write-window disclosure" }) })));
+      .then((next) => { if (current) setDisclosure(next); })
+      .catch((e) => {
+        if (current) setError(describeError({ e, fallback: t({ locale: locale, key: "Failed to compute the discarded-write-window disclosure" }) }));
+      });
+    return () => { current = false; };
   }, [props.point.id, port]);
   return {
     locale, boundT, disclosure, error, acknowledged, setAcknowledged, step, setStep, busy, setBusy, ceremonyError, setCeremonyError, plan, setPlan,

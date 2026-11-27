@@ -11,7 +11,7 @@ import {
   pageAutosaveStaleBasisMessage, pageVersionConflictMessage, pageDirtyGuardBaseline,
   pageRefreshMayHaveUnsavedEdits, pageEditableHtml, pageAcceptsHtmlBody,
   pagePreviewFormTarget, buildPageAutosaveDraft, buildPageSavePlan, pagePartialSaveMessage,
-  pageSaveSuccessMessage, pageUnchangedSaveMessage,
+  pageSaveSuccessMessage, pageUnchangedSaveMessage, pickerValueToChoice,
 } from "../page-editor-rules.js";
 import { pagePreviewYoutubeIds } from "../lib/page-preview-youtube.js";
 import { isProtectedEmbedElement, createEmbedPlaceholderDescriber } from "../lib/embed-placeholder.js";
@@ -130,6 +130,7 @@ function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
   let saved = page;
   let refresh: () => void = () => {};
   const scheduleAutosave = vi.fn();
+  const readVersionConflict: PageEditorDependencies["readVersionConflict"] = () => null;
   const port: PageEditorDependencies["port"] = {
     getPage: vi.fn(async () => ({ post: saved })),
     getPresentation: async () => ({ activeThemeTemplates: [], activeThemeId: "theme", activeThemeApiVersion: undefined, activeThemeTier: null }),
@@ -161,7 +162,7 @@ function editorBinding({ page = editorPage }: { page?: AdminPost } = {}) {
     pageEditableHtml, pageAcceptsHtmlBody, createEmbedPlaceholderDescriber, slugRedirectPath,
     editorTemplateOptions, pagePreviewFormTarget, buildPageAutosaveDraft, buildPageSavePlan,
     pagePartialSaveMessage, pageSaveSuccessMessage, pageUnchangedSaveMessage,
-    writePage, applySavedPage, applySaveFailure, PageBodyWriteError, readVersionConflict: () => null,
+    writePage, applySavedPage, applySaveFailure, PageBodyWriteError, readVersionConflict,
     isUnexpectedServerFailure: () => false, setTimeout, clearTimeout, document, window,
   } satisfies Omit<PageEditorDependencies, "locale" | "hooks">;
   const binding = bindPageEditorHooks({ hooks, deps });
@@ -402,13 +403,21 @@ test("draft recovery and version-conflict notices act only on the control select
     baseVersion: 3, savedAt: "2026-11-26T01:00:00Z", savedByPrincipalId: "operator-7",
   };
   const standingDraftRecoveryMessage = vi.fn<Parameters<typeof PageEditorNotices>[0]["deps"]["standingDraftRecoveryMessage"]>(() => "Check the previous draft before replacing this editor.");
-  const kit = { PageExternalChangeBanner: ({ onKeepEdits }: ComponentProps<PageEditorProps["kit"]["PageExternalChangeBanner"]>) =>
-    <button onClick={() => onKeepEdits()}>Keep edits from external change</button>,
-  } as PageEditorProps["kit"];
-  const deps = {
+  const kit: PageEditorProps["kit"] = {
+    Icon: () => null, ConfirmDialog: () => null, InteractiveHtmlEditor: () => null, DevicePreviewFrame: () => null,
+    DevicePreviewToggle: () => null, ViewTemplateButton: () => null, WiredThemePreviewReloadButton: () => null,
+    TermPicker: () => null, SuggestInput: () => null, TemplateSourceModal: () => null,
+    PageExternalChangeBanner: ({ onKeepEdits }: ComponentProps<PageEditorProps["kit"]["PageExternalChangeBanner"]>) =>
+      <button onClick={() => onKeepEdits()}>Keep edits from external change</button>,
+  };
+  const deps: PageEditorProps["deps"] = {
     standingDraftRecoveryMessage, pageVersionConflictMessage, pageAutosaveStaleBasisMessage,
     pageExternalChangeBindings: { agentHandle, copy: { messageKey: "outside", regionAgentLabel: "outside", loadLatestAgentLabel: "load", keepEditsAgentLabel: "keep" } },
-  } as PageEditorProps["deps"];
+    siteUrl: ({ path }) => path, pagePublicPath: ({ slug }) => `/${slug}`, pagePickerValue: () => "",
+    resolveTabBarTabIndex: () => 0, pageEditorSurface: () => ({ kind: "preview" }), pickerValueToChoice,
+    THEME_DEFAULT_SENTINEL, devicePreviewWidths: DEVICE_PREVIEW_WIDTHS, isProtectedEmbedElement, pagePreviewYoutubeIds,
+    previewIframeSandbox: PAGE_PREVIEW_IFRAME_SANDBOX, videoLink: ({ id }) => id, isDevMode: false,
+  };
   const props = {
     t, kit, deps, recoverableDraft: draft, serverUpdatedAt: editorPage.updatedAt,
     onRestore: vi.fn(), onDiscard: vi.fn(), autosaveStaleBasis: { baseVersion: 3, draft },
@@ -504,7 +513,8 @@ test("a failed page trash closes the confirmation and reports the refusal, but a
 
 test("debounces draft preview submissions and cancels them on a view change", async () => {
   const binding = editorBinding();
-  binding.deps.setTimeout = (...args) => setTimeout(...args);
+  // Resolve the timer global per call, so the fake timers installed below drive the debounce.
+  binding.deps.setTimeout = Object.assign((handler: () => void, ms?: number) => setTimeout(handler, ms), setTimeout);
   binding.deps.clearTimeout = (...args) => clearTimeout(...args);
   const editor = renderHook(() => binding.useWiredPageEditor({ routeSlug: "page" }));
   await waitFor(() => expect(editor.result.current.page).toEqual(editorPage));

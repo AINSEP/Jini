@@ -43,13 +43,15 @@ describe("createDeploymentApi request shapes", () => {
 });
 
 it("does not substitute the request match value when the server omits the Dockerfile revision", async () => {
-  const authenticatedRequest = vi.fn(async (_req: unknown, options?: { onOk?: (required: { response: Response }) => void }) => {
-    options?.onOk?.({ response: new Response("{}") });
-    return { exists: false, contents: null };
-  });
+  // Like the real request: hands `onOk` the response (no ETag header here), then decodes its body.
+  const authenticatedRequest: DeploymentApiDeps["authenticatedRequest"] = async (_req, options) => {
+    const response = new Response('{"exists":false,"contents":null}');
+    options?.onOk?.({ response });
+    return response.json();
+  };
   const api = createDeploymentApi({
-    request: vi.fn() as DeploymentApiDeps["request"],
-    authenticatedRequest: authenticatedRequest as unknown as DeploymentApiDeps["authenticatedRequest"],
+    request: async () => { throw new Error("Only the Dockerfile endpoints are exercised here"); },
+    authenticatedRequest,
     workspaceId: "revisionless",
   });
   await expect(api.getDockerfileSource()).resolves.toEqual({ exists: false, contents: null, etag: "" });

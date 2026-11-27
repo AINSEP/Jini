@@ -208,8 +208,13 @@ export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEdito
   const onInteractiveSourceError = useCallback((_error?: Error) => {
     setError(boundT("Can't edit this source visually. Use HTML."));
   }, [boundT]);
+  // The edit the unchanged-Save preflight just flushed. Its `save()` runs from the same render, whose
+  // `html` predates that flush, and the second flush has nothing new, so it hands this over once.
+  const preflushedHtmlRef = useRef<string | undefined>(undefined);
   const flushInteractiveSafely = useCallback(async () => {
-    try { return { ok: true as const, html: await flushInteractiveEdits() }; }
+    const preflushed = preflushedHtmlRef.current;
+    preflushedHtmlRef.current = undefined;
+    try { return { ok: true as const, html: (await flushInteractiveEdits()) ?? preflushed }; }
     catch { onInteractiveSourceError(); return { ok: false as const }; }
   }, [flushInteractiveEdits, onInteractiveSourceError]);
   // Save with no visible change still checks an open Interactive text session first — see
@@ -217,7 +222,9 @@ export function usePageEditorHtmlWorkspace(input: ReturnType<typeof usePageEdito
   const flushPendingEdits = useCallback(async () => {
     const flushed = await flushInteractiveSafely();
     if (!flushed.ok) return "failed" as const;
-    return flushed.html !== undefined && flushed.html !== savedHtml ? "changed" as const : "unchanged" as const;
+    if (flushed.html === undefined || flushed.html === savedHtml) return "unchanged" as const;
+    preflushedHtmlRef.current = flushed.html;
+    return "changed" as const;
   }, [flushInteractiveSafely, savedHtml]);
   const { requestEditHtml: onRequestEditHtml, htmlTextareaRef, consumeJumpFormatting } = useWiredEditorHtmlJump({
     html, contentRevision, flush: flushInteractiveEdits, setView, setDraftHtml, scrollTop: htmlScrollTopRef,

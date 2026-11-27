@@ -4,12 +4,29 @@ import { subscribeToSettingsChanges } from "../settings-events.js";
 import type { BrowserStreamPorts } from "../../shell/lib/browser-stream.js";
 import { createStreamActivity } from "../../shell/lib/stream-activity.js";
 
-class FeedSource extends EventTarget {
+type FeedListener = ((event: MessageEvent) => unknown) | EventListenerObject;
+
+/** Typed EventSource fake: records listeners the way the native source does and replays frames to them. */
+class FeedSource {
   readyState = 1;
+  private readonly listeners = new Map<string, FeedListener[]>();
+
+  addEventListener(type: string, listener: FeedListener) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
   close() { this.readyState = 2; }
 
+  emit(type: string, init: MessageEventInit<string> = {}) {
+    const event = new MessageEvent(type, init);
+    for (const listener of this.listeners.get(type) ?? []) {
+      if (typeof listener === "function") listener(event);
+      else listener.handleEvent(event);
+    }
+  }
+
   settings(data: string, lastEventId = "") {
-    this.dispatchEvent(new MessageEvent("settings-changed", { data, lastEventId }));
+    this.emit("settings-changed", { data, lastEventId });
   }
 }
 
@@ -35,13 +52,13 @@ it("refreshes scoped settings, falls back for unexpected frames, and catches up 
   const source = new FeedSource();
   const { stop, publishSettings } = subscribe(() => source);
   try {
-    source.dispatchEvent(new Event("open"));
+    source.emit("open");
     expect(publishSettings.mock.calls).toEqual([]);
 
     source.settings('{"namespaces":["appearance","identity"]}', "73");
     source.settings('{"namespaces":"appearance"}');
     source.settings("not-json");
-    source.dispatchEvent(new Event("open"));
+    source.emit("open");
     expect(publishSettings.mock.calls).toEqual([[["appearance", "identity"]], [undefined], [], []]);
   } finally {
     stop();
@@ -66,7 +83,7 @@ it("resumes from the last event id across pagehide and refreshes on the new conn
     page.dispatchEvent(new Event("pagehide"));
     expect(first.readyState).toBe(2);
     page.dispatchEvent(new Event("pageshow"));
-    second.dispatchEvent(new Event("open"));
+    second.emit("open");
     expect(urlFor.mock.calls).toEqual([
       [{ workspaceId: "workspace-9", cursor: "", supplementalRevision: "" }],
       [{ workspaceId: "workspace-9", cursor: "73", supplementalRevision: "" }],
@@ -87,12 +104,12 @@ it("reports construction failure and attaches normally when the page returns", (
     expect(warn.mock.calls).toEqual([["[admin] settings change feed unavailable", error]]);
     page.dispatchEvent(new Event("pagehide"));
     page.dispatchEvent(new Event("pageshow"));
-    source.dispatchEvent(new Event("open"));
+    source.emit("open");
     expect(publishSettings.mock.calls).toEqual([]);
-    source.dispatchEvent(new Event("error"));
+    source.emit("error");
     expect(warn.mock.calls).toEqual([["[admin] settings change feed unavailable", error]]);
     source.readyState = 2;
-    source.dispatchEvent(new Event("error"));
+    source.emit("error");
     expect(warn.mock.calls).toEqual([
       ["[admin] settings change feed unavailable", error],
       ["[admin] settings change feed closed by the server; no further updates on this connection"],
