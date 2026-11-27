@@ -86,3 +86,20 @@ describe("byPluginRefId indexing", () => {
     await expect(projectComposerCapabilities({ sources: [sourceA, sourceB] })).rejects.toThrow(/duplicate pluginRefId/i);
   });
 });
+
+it("distinguishes a standalone skill and same-named agent plugin without removing either selection", async () => {
+  const program = fakeSource("skills", [
+    { groupId: "skills", groupLabel: "Skills", item: { id: "scan-skill", command: "scan", label: "Scan", kind: "skill" } },
+  ]);
+  const plugins = fakeSource("plugins", [
+    { groupId: "plugins", groupLabel: "Plugins", pluginRefId: "scan-tool", item: { id: "scan-plugin", command: "SCAN", label: "Scan (Agent Plugin)" } },
+    { groupId: "plugins", groupLabel: "Plugins", pluginRefId: "jobs-tool", item: { id: "jobs-plugin", command: "jobs", label: "Jobs (Agent Plugin)" } },
+    { groupId: "plugins", groupLabel: "Plugins", item: { id: "item-only", command: "scan", label: "Scan command" } },
+  ]);
+  const projection = await projectComposerCapabilities({ sources: [program, plugins] });
+  expect(projection.groups.flatMap(({ items }) => items.map(({ id, label }) => [id, label]))).toEqual([
+    ["scan-skill", "Scan · Skill"], ["scan-plugin", "Scan · Agent plugin"], ["jobs-plugin", "Jobs (Agent Plugin)"], ["item-only", "Scan command"],
+  ]);
+  expect(projection.byPluginRefId.get("scan-tool")?.item.id).toBe("scan-plugin");
+  expect(projection.byItemId.get("scan-skill")?.item.kind).toBe("skill");
+});

@@ -243,3 +243,13 @@ describe("formatErrorCopyText", () => {
     expect(text.endsWith(message)).toBe(true);
   });
 });
+
+it("continues past a colon with no same-line message but preserves whitespace-only causes", () => {
+  expect(summarizeErrorMessage({ message: "Save failed\nError:\u2028\nRangeError: disk full" })).toEqual({
+    scope: null, summary: "Save failed — disk full",
+  });
+  expect(summarizeErrorMessage({ message: "Save failed\nError:\t\u2028" })).toEqual({
+    scope: null, summary: "Save failed — \t",
+  });
+  expect(summarizeErrorMessage({ message: "Save failed\nError: across\u2028lines\nRangeError: disk full" }).summary).toBe("Save failed — disk full");
+});
