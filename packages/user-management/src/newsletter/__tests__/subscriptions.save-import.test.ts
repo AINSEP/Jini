@@ -15,7 +15,7 @@ function setup({ existing = [] }: { existing?: SubscriptionRow[] } = {}) {
   let id = 0;
   const deps: SubscriptionsDeps = {
     subscriptionRepo, listRepo: new InMemoryNewsletterListRepo({}, { initialRows: [list("news"), list("old", "archived")] }),
-    subscriberDirectory: { getContact: async ({ subscriberId }) => (contacts[subscriberId] ? { subscriberId, email: contacts[subscriberId] } : null), getContacts: async () => [] },
+    subscriberDirectory: { getContact: async ({ subscriberId }) => (contacts[subscriberId] ? { subscriberId, workspaceId: "w", email: contacts[subscriberId], emailDeliverable: true } : null), getContacts: async () => [] },
     clock: { nowIso: () => now }, ids: { newId: () => `id-${++id}` },
     confirmationDeps: { tokenRepo, subscriptionRepo, consentCapability: null, clock: { nowIso: () => now }, ids: { newId: () => `tok-${++id}` },
       resolveFrom: async () => ({ email: "from@example.test" }), mintRawToken: () => "a".repeat(64), hashToken: () => "b".repeat(64),
@@ -66,7 +66,7 @@ it("importSubscriptions routes every row through saveSubscription and reports pe
 it("importSubscriptions reports an unexpected row failure as INTERNAL_ERROR and keeps going", async () => {
   const { deps } = setup();
   let calls = 0;
-  deps.subscriberDirectory.getContact = async ({ subscriberId }) => { calls += 1; if (calls === 1) throw new Error("directory offline"); return { subscriberId, email: "x@example.test" }; };
+  deps.subscriberDirectory.getContact = async ({ subscriberId }) => { calls += 1; if (calls === 1) throw new Error("directory offline"); return { subscriberId, workspaceId: "w", email: "x@example.test", emailDeliverable: true }; };
   const out = await importSubscriptions({ deps, input: { workspaceId: "w", listId: "news", subscribers: [{ subscriberId: "ana", source: "import" }, { subscriberId: "bo", source: "import" }] } });
   expect(out.failed).toEqual([{ index: 0, code: "INTERNAL_ERROR", message: "directory offline" }]);
   expect(out.created).toHaveLength(1);

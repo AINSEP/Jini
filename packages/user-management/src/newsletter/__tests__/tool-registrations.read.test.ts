@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { buildNewsletterRegistrations, contributeNewsletterTools, newsletterDerivedRisk } from "../tool-registrations.js";
 import { toNewsletterSendPipelineDeps } from "../tool-registrations.deps.js";
 import { call, campaignRow, listRow, newsletterHarness, sendRow, subscriptionRow } from "./tool-registrations.harness.js";
@@ -10,7 +10,7 @@ it("registers every catalog tool with its derived risk, and contributes under th
   const contributor = contributeNewsletterTools();
   expect(contributor.domain).toBe("newsletter");
   expect(contributor.risk).toBe(newsletterDerivedRisk);
-  expect(contributor.build(deps).map(row => row.descriptor.id)).toEqual(registrations.map(row => row.descriptor.id));
+  expect(contributor.build(deps, { surfaceExchanges: { open: vi.fn(), deliver: vi.fn(), findTypedAnswerTarget: vi.fn(), size: vi.fn() } }).map(row => row.descriptor.id)).toEqual(registrations.map(row => row.descriptor.id));
 });
 
 it("newsletter_list_campaigns asks for the read permission, filters by status and hides plumbing fields", async () => {
@@ -26,7 +26,7 @@ it("newsletter_list_campaigns asks for the read permission, filters by status an
 it("newsletter_get_campaign returns the tool view and reports a missing id with its domain code", async () => {
   const { deps } = newsletterHarness({ campaigns: [campaignRow("c1", { preheader: "Pre" })] });
   expect(await call({ deps, id: "newsletter_get_campaign", input: { campaignId: "c1" } })).toEqual({ campaign: {
-    id: "c1", status: "draft", subject: "Subject c1", preheader: "Pre", fromName: "Sender", fromEmail: "sender@example.test", replyTo: null, listId: "list-1",
+    id: "c1", status: "draft", subject: "Subject c1", preheader: "Pre", fromName: "Sender", fromEmail: "sender@example.test", replyTo: "reply@example.test", listId: "list-1",
     scheduledAt: null, counters: { recipients: 0, delivered: 0, failed: 0, bounced: 0, complained: 0, unsubscribed: 0 }, version: 1, createdAt: campaignRow("c1").createdAt, updatedAt: campaignRow("c1").updatedAt } });
   await expect(call({ deps, id: "newsletter_get_campaign", input: { campaignId: "nope" } })).rejects.toThrow(/^NEWSLETTER_CAMPAIGN_NOT_FOUND: campaign nope was not found/);
 });

@@ -10,7 +10,7 @@ import type { CampaignRecord, NewsletterListRow, SendRow, SubscriptionRow } from
 export const now = "2026-11-25T00:00:00.000Z";
 export const campaignRow = (id: string, over: Partial<CampaignRecord> = {}): CampaignRecord => ({
   id, workspaceId: "ws-1", status: "draft", subject: `Subject ${id}`, preheader: null, fromName: "Sender", fromEmail: "sender@example.test",
-  replyTo: null, listId: "list-1", scheduledAt: null, sendStartedAt: null, audienceSnapshotId: "snap-internal",
+  replyTo: "reply@example.test", listId: "list-1", scheduledAt: null, sendStartedAt: null, audienceSnapshotId: "snap-internal",
   counters: { recipients: 0, delivered: 0, failed: 0, bounced: 0, complained: 0, unsubscribed: 0 },
   version: 1, createdByPrincipal: "actor-internal", createdAt: now, updatedAt: now, ...over,
 });
