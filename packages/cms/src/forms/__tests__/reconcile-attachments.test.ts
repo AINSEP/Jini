@@ -74,3 +74,12 @@ test('retained JSON detects escaped keys, nested references and URL identities; 
   assert.equal(retainedJsonReferencesAttachment({ json: '{"other":[1,null,true,"unrelated"]}', keys }), false);
   assert.throws(() => retainedJsonReferencesAttachment({ json: '{bad', keys }));
 });
+
+test('a terminal job needs an object payload even with every outer identity present', async () => {
+  const { matchesFormAttachmentCleanupEvidence } = await import('../reconcile-attachments.js');
+  const event = { id: 'forms:file:cleanup:w:m', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm' };
+  for (const payload of [undefined, null, true, [{ workspaceId: 'w', sha256: 'sha' }]]) {
+    assert.equal(matchesFormAttachmentCleanupEvidence({ workspaceId: 'w', candidate, event: { ...event, payload } }), false);
+  }
+  assert.equal(matchesFormAttachmentCleanupEvidence({ workspaceId: 'w', candidate, event: { ...event, payload: { workspaceId: 'w', sha256: 'sha' } } }), true);
+});

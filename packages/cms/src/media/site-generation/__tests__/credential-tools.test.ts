@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRecord, MediaProviderCredentialRepoPort } from "../../site/provider-credential-contracts.js";
 import { saveMediaProviderKey } from "../provider-credential-save.js";
-import { buildMediaProviderRegistrations, saveMediaCredential, type MediaProviderToolDeps } from "../providers-tools.js";
+import { buildMediaProviderRegistrations, contributeMediaProviderTools, saveMediaCredential, type MediaProviderToolDeps } from "../providers-tools.js";
 
 it("a provider patch preserves concurrent unrelated rows and preserves the sealed record descriptor", async () => {
   const current: MediaProviderCredentialRecord[] = [
@@ -73,4 +73,44 @@ it("listing returns presence only", async () => {
   expect(await registration.handler({ executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: {}, signal: new AbortController().signal })).toEqual({ providers: [
     { id: "selected", label: "Selected", integrated: true, configured: true, kinds: ["image", "video"] },
   ] });
+});
+
+it("credential-card outcomes distinguish saved, blank, failed and cancelled without echoing a submitted value", async () => {
+  const f = fixture();
+  f.deps.mediaProviderRegistry = { ...f.deps.mediaProviderRegistry,
+    listProviders: () => [{ id: "selected", label: "Selected", hint: "", integrated: false }] };
+  f.host.credentialText = ({ id }) => ({ saved: "Key saved.", blank: "Enter a key.", generationUnavailable: "Generation is not available." })[id];
+  f.host.formatCredentialHint = ({ hint }) => hint?.last4 ? `Ends in ${hint.last4}` : "";
+  const genericFailure = 'Nothing was saved. Check the key and the server credential store, then try again.';
+  const records: unknown[] = [];
+  const tokenHint = { length: 16, last4: "4567" };
+  f.host.secureCard = async ({ prep, result, outcome }) => {
+    for (const run of [
+      { status: "saved", saved: { configured: true, tokenHint } }, { status: "blank" }, { status: "cancelled" },
+      { status: "failed", safeMessage: "Choose another key." }, { status: "failed", safeMessage: genericFailure },
+    ] as const) records.push([result({ prep, run }), outcome({ prep, run })]);
+    return result({ prep, run: { status: "cancelled" } });
+  };
+  const ctx = { executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: { provider: "selected" }, signal: new AbortController().signal };
+  const declined = { saved: false, provider: "selected", configured: true };
+  expect(await saveMediaCredential({ ...f, ctx })).toEqual(declined);
+  expect(records).toEqual([
+    [{ saved: true, provider: "selected", configured: true, tokenHint, connection: "not_tested",
+      message: "Ends in 4567. Key saved. Generation is not available." },
+    { title: "Provider key saved", state: "success", message: "Ends in 4567. Key saved. Generation is not available." }],
+    [{ ...declined, message: "Enter a key." }, { title: "Provider key not saved", state: "failure", message: "Enter a key." }],
+    [declined, undefined],
+    [{ ...declined, message: "Choose another key." }, { title: "Provider key not saved", state: "failure", message: "Choose another key." }],
+    [declined, { title: "Provider key not saved", state: "failure", message: genericFailure }],
+  ]);
+  expect(vi.mocked(f.host.saveProviders).mock.calls).toEqual([]);
+});
+
+it("media-provider contribution dispatches its safe configured marker using the chosen workspace", async () => {
+  const f = fixture();
+  const getMediaProviderCredentials = vi.fn(f.host.getMediaProviderCredentials);
+  const [registration] = contributeMediaProviderTools({ host: { ...f.host, getMediaProviderCredentials } }).build(f.deps, f.surfaces);
+  const input = { executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: {}, signal: new AbortController().signal };
+  expect(await registration!.handler(input)).toEqual({ providers: [{ id: "selected", label: "Selected", integrated: true, configured: true, kinds: ["image", "video"] }] });
+  expect(getMediaProviderCredentials.mock.calls).toEqual([[{ repo: f.deps.mediaProviderCredentialRepo }, { workspaceId: "ws" }]]);
 });

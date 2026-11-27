@@ -2,6 +2,7 @@ import { webcrypto } from "node:crypto";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { submitForm } from '../submit-service.js';
+import { boundedFormRetryDraft, formRetryFields } from '../stale-form.js';
 import { captureSubmissionEvidence } from '../submission-evidence.js';
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from './repo.fixture.js';
 import type { FormDefinitionRecord } from '../types.js';
@@ -104,4 +105,18 @@ test('honeypot submissions ignore stale schema and malformed answers without eff
   assert.deepEqual(await submitForm({ deps, input }, { validateEmails: true }), { status: 'accepted' });
   assert.deepEqual(effects, []);
   assert.equal((await deps.submissionRepo.listByDefinition({ workspaceId: 'ws', formDefinitionId: 'form', limit: 10 })).items.length, 0);
+});
+
+test('an oversized multi-select draft is copy-only but a later scalar answer can still be restored', () => {
+  const selections = ['a'.repeat(2500), 'b'.repeat(2500), 'c'.repeat(2500)];
+  const draft = boundedFormRetryDraft({ body: { choices: selections, note: 'Keep my amended note', invalid: Infinity } });
+  assert.deepEqual(draft.truncatedFields, ['choices']);
+  assert.equal(draft.truncated, true);
+  assert.equal(Object.hasOwn(draft.answers, 'invalid'), false);
+  const retry = formRetryFields({ answers: draft.answers, fields: [
+    { id: 'choices', label: 'Options', type: 'multi-select', required: false, options: [], default: ['obsolete'] },
+    { id: 'note', label: 'Note', type: 'textarea', required: false },
+  ] }, { truncatedFields: draft.truncatedFields });
+  assert.deepEqual(retry.retained, { choices: JSON.stringify(selections).slice(0, 5000) });
+  assert.deepEqual(retry.fields.map(field => [field.id, field.default]), [['choices', undefined], ['note', 'Keep my amended note']]);
 });

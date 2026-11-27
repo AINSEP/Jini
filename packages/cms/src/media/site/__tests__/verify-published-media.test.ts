@@ -82,3 +82,12 @@ it("propagates a failed batched type read", async () => {
   vi.spyOn(p.contentTypeStore, "getMany").mockRejectedValue(error);
   await expect(verifyPublishedMedia({ ports: p, workspaceId, entities: [entity], orFallback })).rejects.toBe(error);
 });
+
+it("reports a missing published file without attempting to infer the type from absent bytes", async () => {
+  const p = ports([record]);
+  const get = vi.spyOn(p.blobStore, "get");
+  expect(await verifyPublishedMedia({ ports: p, workspaceId, entities: [entity], orFallback })).toEqual([
+    "Media 'intro' is on the site without its file, so it cannot be shown.",
+  ]);
+  expect(get.mock.calls).toEqual([]);
+});

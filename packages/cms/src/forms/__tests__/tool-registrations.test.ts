@@ -223,3 +223,70 @@ test("duplicating a form picks the next free name and slug, keeps a disabled sou
   await assert.rejects(duplicateFormDefinition({ deps: fixture.deps, input: input({ status: "draft" }) }), /does not support the 'status' override/);
   await assert.rejects(duplicateFormDefinition({ deps: fixture.deps, input: { ...input({}), id: "missing" } }), FormDefinitionNotFoundError);
 });
+
+test("submission listing passes the validated cursor to the scoped repo and projects expired IPs", async () => {
+  const fixture = makeFixture();
+  const formId = await seedForm(fixture);
+  const submittedAt = "2026-11-18T00:00:00.000Z";
+  await fixture.submissions.create({ id: "s-1", workspaceId: WORKSPACE_ID, formDefinitionId: formId, data: { email: "first@example.test" }, sourceIp: null, submittedAt });
+  await fixture.submissions.create({ id: "s-2", workspaceId: WORKSPACE_ID, formDefinitionId: formId, data: { email: "second@example.test" }, sourceIp: "203.0.113.4", submittedAt });
+  const call = build(fixture);
+  for (const limit of ["1", 1.5, 0, 101]) {
+    await assert.rejects(call("forms_list_submissions", { formId, limit }), {
+      name: "ToolInputError", message: "'limit' must be an integer between 1 and 100",
+    });
+  }
+  const first = await call("forms_list_submissions", { formId, limit: 1 }) as { nextCursor: string };
+  assert.deepEqual(first, { submissions: [{ id: "s-2", formDefinitionId: formId, data: { email: "second@example.test" }, sourceIp: "203.0.113.4", submittedAt }], nextCursor: "s-2" });
+  assert.deepEqual(await call("forms_list_submissions", { formId, limit: 1, cursor: first.nextCursor }), {
+    submissions: [{ id: "s-1", formDefinitionId: formId, data: { email: "first@example.test" }, sourceIp: "", submittedAt }], nextCursor: null,
+  });
+});
+
+test("submission details preserve evidence and invalid classification but never reveal workspace internals", async () => {
+  const fixture = makeFixture();
+  const formId = await seedForm(fixture);
+  const evidence = { version: 1 as const, schemaHash: "a".repeat(64), fields: FIELDS, consent: [], capturedAt: "2026-11-17", source: "native" as const };
+  const validation = { status: "invalid" as const, fieldErrors: [] };
+  const submission = { id: "s-1", formDefinitionId: formId, data: { email: "old" }, sourceIp: "203.0.113.4", submittedAt: "2026-11-18", evidence, validation };
+  await fixture.submissions.create({ ...submission, workspaceId: WORKSPACE_ID });
+  assert.deepEqual(await build(fixture)("forms_get_submission", { formId, submissionId: "s-1" }), { submission });
+  await assert.rejects(build(fixture)("forms_get_submission", { formId, submissionId: "missing" }), { message: /submission 'missing' was not found/ });
+});
+
+test("recent delivery status uses the bounded workspace query and strips private row fields", async () => {
+  const fixture = makeFixture();
+  const calls: unknown[] = [];
+  const row = { bindingId: "warehouse", adapterId: "sql", formId: "bookings", submissionId: "s-7",
+    status: "failed" as const, attempts: 3, nextRetryAt: null, errorCode: "delivery-failed" as const };
+  fixture.deps.formDeliveryStatus = {
+    forSubmission: async () => { throw new Error("unexpected single submission query"); },
+    recentUnfinished: async (required, options) => { calls.push([required, options]); return [{ ...row, internalError: "not for tool callers" }]; },
+  };
+  const call = build(fixture);
+  for (const limit of ["1", 1.5, 0]) {
+    await assert.rejects(call("forms_delivery_status", { limit }), {
+      name: "ToolInputError", message: `'limit' must be an integer between 1 and ${DELIVERY_STATUS_MAX_LIMIT}`,
+    });
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await call("forms_delivery_status", {}), { deliveries: [row] });
+  assert.deepEqual(await call("forms_delivery_status", { limit: 2 }), { deliveries: [row] });
+  assert.deepEqual(calls, [[{ workspaceId: WORKSPACE_ID }, { limit: DELIVERY_STATUS_MAX_LIMIT }], [{ workspaceId: WORKSPACE_ID }, { limit: 2 }]]);
+});
+
+test("definition tools preserve supplied field, notification and provider patches in caller-visible and stored state", async () => {
+  const fixture = makeFixture();
+  const formId = await seedForm(fixture);
+  const fields: FieldDescriptor[] = [...FIELDS, { id: "note", type: "textarea", label: "Note", required: false }];
+  const notify = { enabled: true, recipients: ["ops@example.test"] };
+  const provider = { id: "builtin", config: {} };
+  const call = build(fixture);
+  assert.deepEqual(await call("forms_update_definition", { formId, expectedVersion: 1, fields, notify, provider }), {
+    definition: { id: formId, name: "Contact", slug: "contact", status: "active", version: 2, fields, notify, provider },
+  });
+  const stored = await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: formId });
+  assert.deepEqual(stored?.fields, fields);
+  assert.deepEqual(stored?.notify, notify);
+  assert.equal(stored?.version, 2);
+});

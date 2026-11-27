@@ -232,3 +232,19 @@ test('malformed remote evidence is not acknowledged and leaves no receipt or sub
   await assert.rejects(importRemoteFormSubmissions({deps:s.deps,workspaceId:'w',destinationKey:'d',items:[row('bad-evidence',{email:'a@b.co'},{evidence:{version:1}})]}),/evidence/i);
   assert.equal(s.rows.length,0); assert.equal(s.receipts.size,0);
 });
+
+test("remote import falls back to the import timestamp and carries only trusted analytics provenance", async () => {
+  const s = setup();
+  const trusted = { source: "verified-receiver", consent: true };
+  const provenanceInputs: RemoteSubmissionInput[] = [];
+  const item = row("r1", { email: "a@b.co" }, { submittedAt: "unavailable" });
+  const result = await importRemoteFormSubmissions({
+    deps: { ...s.deps, readAnalyticsProvenance: ({ item }) => { provenanceInputs.push(item); return trusted; } },
+    workspaceId: "w", destinationKey: "public-receiver", items: [item],
+  });
+  assert.deepEqual(result.committedIds, ["r1"]);
+  assert.deepEqual(provenanceInputs, [item]);
+  assert.deepEqual(s.rows.map(({ submittedAt, data }) => [submittedAt, data]), [["2026-10-19T12:00:00.000Z", { email: "a@b.co" }]]);
+  assert.deepEqual(s.events.map(event => event.payload), [{ workspaceId: "w", formDefinitionId: "f1", submissionId: "id-1",
+    deliveryMode: "remote_import", analyticsProvenance: trusted }]);
+});

@@ -111,3 +111,19 @@ test('hosted embed collection creates no built-in receiver destination and retai
   assert.equal(pendingDelivery.slug, waitlist.slug);
   assert.equal(pendingDelivery.fields.length, waitlist.fields.length);
 });
+
+test('built-in receiver keeps authored text minima and checkbox values', () => {
+  const definition: FormDefinitionRecord = { ...waitlist, fields: [
+    { id: 'code', label: 'Code', type: 'text', required: true, minLength: 4, attributes: { minlength: '2' } },
+    { id: 'note', label: 'Note', type: 'textarea', required: false, attributes: { minlength: '7', pattern: '[A-Z]+' } },
+    { id: 'consent', label: 'Consent', type: 'checkbox', required: true, checkboxValue: 'accepted' },
+  ] };
+  const provider = { id: 'builtin', config: {} };
+  assert.deepEqual(buildFormDestinationManifest({ definitions: [{ ...definition, provider }] }).map(({ slug, fields }) => ({ slug, fields })), [
+    { slug: 'byho-waitlist', fields: [
+      { name: 'code', type: 'text', required: true, maxLength: 100, minLength: 4 },
+      { name: 'note', type: 'textarea', required: false, maxLength: 2000, minLength: 7, validationUnsupported: true },
+      { name: 'consent', type: 'checkbox', required: true, checkboxValue: 'accepted' },
+    ] },
+  ]);
+});

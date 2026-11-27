@@ -154,3 +154,12 @@ test("host-supplied key names control encoding, decoding and clearing", () => {
   clearFormSubmissionResultQueryParams({ params, keys });
   assert.equal(params.toString(), 'keep=yes');
 });
+
+test("decode admits error text at the exact payload ceiling but omits it above the ceiling", () => {
+  const raw = '[{"field":"date","reason":"Choose an available date"}]';
+  const read = (length: number) => decodeFormSubmissionResultFromQuery({ keys, query: {
+    form: "contact", form_status: "validation", form_errors: raw.padEnd(length, " "),
+  } });
+  assert.deepEqual(read(4000), { kind: "validation", slug: "contact", fieldErrors: [{ field: "date", reason: "Choose an available date" }] });
+  assert.deepEqual(read(4001), { kind: "validation", slug: "contact", fieldErrors: [] });
+});

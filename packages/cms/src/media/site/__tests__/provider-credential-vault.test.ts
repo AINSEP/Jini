@@ -1,6 +1,7 @@
+import { InMemoryVaultRepo } from "@jini-ai/platform/secrets/credential-sets";
 import { expect, it, vi } from "vitest";
 import { VaultError, type VaultRecord, type VaultRepoPort } from "@jini-ai/core/contracts/vault";
-import { MediaProviderCredentialVaultRepo, mediaVaultRecord, mediaProviderVault, mediaVaultScope, type MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
+import { MediaProviderCredentialVaultRepo, mediaVaultRecord, mediaProviderVault, mediaVaultScope, mediaVaultId, type MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
 
 it("a row whose kind, ownerKey, principalId or binding differs from the policy is refused with VaultError({code:'context'}) on list, read, replace and delete, never mapped to a record", async () => {
   const policy: MediaCredentialVaultPolicy = { ownerKey: "expected", legacyIds: {}, parseMeta: () => ({ baseUrl: null, model: null }) };
@@ -20,4 +21,23 @@ it("a row whose kind, ownerKey, principalId or binding differs from the policy i
     await expect(repo.deleteByProviderIds({ workspaceId: "w", providerIds: ["p"] })).rejects.toMatchObject({ code: "context" });
     expect(applyBatch).not.toHaveBeenCalled();
   }
+});
+
+it("clearing a canonical provider deletes only that workspace’s canonical and alias credentials", async () => {
+  const vault = new InMemoryVaultRepo({});
+  const policy: MediaCredentialVaultPolicy = { ownerKey: "expected", legacyIds: { provider: ["alias"] }, parseMeta: () => ({ baseUrl: null, model: null }) };
+  const row = (workspaceId: string, provider: string): VaultRecord => ({
+    workspaceId, provider, id: `${workspaceId}-${provider}`, kind: "media-provider", ownerKey: "expected", principalId: null, binding: null,
+    label: provider, isDefault: false, revision: 1, sealed: null, last4: null, tokenLength: null, meta: {}, createdAt: "old", updatedAt: "old",
+  });
+  expect(mediaVaultId({ providerId: "alias" })).toBe('vault:["media-provider","alias"]');
+  for (const record of [row("west", "provider"), row("west", "alias"), row("west", "other"), row("east", "provider")]) {
+    await vault.put({ record, expectedRevision: null });
+  }
+  const repo = new MediaProviderCredentialVaultRepo({ vault, policy, idGen: { newId: () => "new" } });
+  await repo.deleteByProviderIds({ workspaceId: "west", providerIds: [] });
+  expect((await repo.listByWorkspaceId({ workspaceId: "west" })).map(record => record.providerId).sort()).toEqual(["alias", "other", "provider"]);
+  await repo.deleteByProviderIds({ workspaceId: "west", providerIds: ["provider"] });
+  expect((await repo.listByWorkspaceId({ workspaceId: "west" })).map(record => record.providerId)).toEqual(["other"]);
+  expect((await repo.listByWorkspaceId({ workspaceId: "east" })).map(record => record.providerId)).toEqual(["provider"]);
 });

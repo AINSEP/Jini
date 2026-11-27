@@ -47,3 +47,40 @@ test('refuses malformed or oversized remote evidence rather than inventing histo
   assert.throws(()=>readSubmissionEvidence({value:{version:1,fields:'forged'}}),/evidence/i);
   assert.throws(()=>readSubmissionEvidence({value:{...submissionEvidenceSchema({definition}),version:1,schemaHash:'a'.repeat(64),capturedAt:'now',source:'cloudflare',html:'x'.repeat(1024*1024)}}),/evidence/i);
 });
+
+test('remote evidence refuses each malformed header, field, option and consent independently', () => {
+  const header = { version: 1, schemaHash: 'b'.repeat(64), capturedAt: '2026-11-20T12:00:00.000Z', source: 'cloudflare' };
+  const field = { id: 'shift', label: 'Shift', type: 'select', required: true, options: [{ value: 'am', label: 'Morning' }] };
+  const consent = { fieldId: 'check', wording: 'I agree', helpText: 'Privacy notice' };
+  const valid = { ...header, html: '<p>Privacy notice</p>', fields: [field], consent: [consent] };
+  assert.equal(readSubmissionEvidence({ value: null }), undefined);
+  assert.deepEqual(readSubmissionEvidence({ value: valid }), valid);
+  for (const value of [true, 'history', 2, []]) {
+    assert.throws(() => readSubmissionEvidence({ value }), new TypeError('Invalid form submission evidence.'));
+  }
+  const cases: Array<[object, string]> = [
+    [{ version: 2 }, 'hash'], [{ schemaHash: 64 }, 'hash'], [{ schemaHash: 'B'.repeat(64) }, 'hash'],
+    [{ capturedAt: null }, 'provenance'], [{ source: 'unknown' }, 'provenance'],
+    [{ html: [] }, 'HTML'], [{ fields: {} }, 'fields'],
+    [{ fields: [field, undefined] }, 'fields'],
+    ...[ { id: null }, { label: null }, { type: null }, { required: 'true' }, { options: {} },
+      { options: [null] }, { options: [{ value: 1, label: 'Morning' }] }, { options: [{ value: 'am', label: 1 }] },
+    ].map((patch): [object, string] => [{ fields: [field, { ...field, ...patch }] }, 'fields']),
+    [{ consent: {} }, 'consent'], [{ consent: [consent, null] }, 'consent'],
+    ...[{ fieldId: null }, { wording: 1 }, { helpText: [] }].map((patch): [object, string] => [
+      { consent: [consent, { ...consent, ...patch }] }, 'consent',
+    ]),
+  ];
+  for (const [patch, reason] of cases) {
+    assert.throws(() => readSubmissionEvidence({ value: { ...valid, ...patch } }), new TypeError(`Invalid form submission evidence ${reason}.`), JSON.stringify(patch));
+  }
+  const decoded = readSubmissionEvidence({ value: valid })!;
+  valid.fields[0]!.options[0]!.label = 'Edited label';
+  assert.equal(decoded.fields[0]?.options?.[0]?.label, 'Morning');
+});
+
+test('a list with an allowed provenance label is not itself a valid provenance value', () => {
+  const evidence = { version: 1, schemaHash: 'a'.repeat(64), capturedAt: '2026-11-20T12:00:00.000Z',
+    fields: [], consent: [], source: ['cloudflare'] };
+  assert.throws(() => readSubmissionEvidence({ value: evidence }), new TypeError('Invalid form submission evidence provenance.'));
+});

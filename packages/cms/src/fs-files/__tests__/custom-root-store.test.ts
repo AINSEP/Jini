@@ -246,3 +246,14 @@ test("persistence read I/O rejection propagates instead of becoming an empty sto
   onTestFinished(() => { vi.restoreAllMocks(); syncBuiltinESMExports(); fs.rmSync(siteDir, { recursive: true, force: true }); });
   assert.throws(() => getCustomFsRoot({ workspaceId: WORKSPACE_A, optional: { siteDir } }), error => error === cause);
 });
+
+test("a valid JSON array is not a path map and can be replaced with a valid saved root", () => {
+  const siteDir = freshSiteDir();
+  const filename = path.join(siteDir, ".fs-custom-root.json");
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "host-custom-root-repair-"));
+  onTestFinished(() => { fs.rmSync(folder, { recursive: true, force: true }); fs.rmSync(siteDir, { recursive: true, force: true }); });
+  fs.writeFileSync(filename, JSON.stringify([folder]));
+  assert.equal(getCustomFsRoot({ workspaceId: "0", optional: { siteDir } }), undefined);
+  setCustomFsRoot({ workspaceId: WORKSPACE_A, path: folder, optional: { siteDir } });
+  assert.deepEqual(JSON.parse(fs.readFileSync(filename, "utf8")), { [WORKSPACE_A]: fs.realpathSync(folder) });
+});

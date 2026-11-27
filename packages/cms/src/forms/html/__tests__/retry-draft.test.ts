@@ -34,3 +34,18 @@ test('current multi-select/radio/group choices restore while obsolete choices st
   const checked = nodes.filter(node => node.tagName === 'input' && attr(node, 'checked') !== undefined);
   assert.deepEqual(checked.map(node => [attr(node, 'name'), attr(node, 'value')]).sort(), [['group', 'b'], ['radio', 'a']]);
 });
+
+test('restores an option submitted by its text and clears stale control defaults', () => {
+  const fields: FieldDescriptor[] = [
+    { id: 'choice-id', name: 'choice', type: 'select', label: 'Choice', required: false, default: 'Afternoon' },
+    { id: 'note', type: 'textarea', label: 'Note', required: false },
+    { id: 'file', type: 'file', label: 'File', required: false },
+  ];
+  const output = repopulateFormRetryHtml({ fields, html: '<select name="choice"><option selected>Morning</option><option> Afternoon </option></select><textarea name="note">Old answer</textarea><input name="file" type="file" value="old.pdf"><template><input name="note" value="template value"></template>' });
+  const nodes = elements(output);
+  const selected = nodes.filter(node => node.tagName === 'option' && attr(node, 'selected') !== undefined);
+  assert.deepEqual(selected.map(node => node.childNodes.map(child => 'value' in child ? child.value : '')), [[' Afternoon ']]);
+  assert.match(output, /<textarea name="note"><\/textarea>/);
+  assert.match(output, /<input name="file" type="file">/);
+  assert.match(output, /<template><input name="note" value="template value"><\/template>/);
+});

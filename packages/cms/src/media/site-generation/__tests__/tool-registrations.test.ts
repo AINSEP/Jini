@@ -102,3 +102,21 @@ it("an unknown saved-selection model does not hide the next eligible model", asy
   deps.providers.readSavedSelections.mockResolvedValue({ plugin: { apiKeyConfigured: true, model: "plugin-first" } });
   expect(await registration.handler(ctx({ prompt: "Picture" }))).toMatchObject({ model: "plugin-first", provider: "actual-provider" });
 });
+
+it("omitted model tries the next configured provider, falling back only when no credential is usable", async () => {
+  const { deps, registration, ctx } = fixture();
+  deps.providers.readSavedCredential.mockImplementation(async ({ providerId }) => providerId === "other" ? { apiKey: "other-saved" } : null);
+  deps.providers.readEnvCredential.mockReturnValue(null);
+  const input = ctx({ prompt: "A garden" });
+  expect(await registration.handler(input)).toMatchObject({ model: "plugin-second", provider: "actual-provider" });
+  expect(deps.providers.generateImage.mock.calls).toEqual([[{
+    model: "plugin-second", providerId: "other", credentials: { apiKey: "other-saved" },
+    prompt: "A garden", allowStubFallback: false,
+  }, { signal: input.signal }]]);
+  deps.providers.readSavedCredential.mockResolvedValue(null);
+  const unavailable = { generated: false as const, message: "Set up the fallback provider", credentialSetup: { setupToolId: "credential_save" } };
+  deps.missingCredential.mockReturnValue(unavailable);
+  expect(await registration.handler(input)).toEqual(unavailable);
+  expect(deps.missingCredential.mock.calls).toEqual([[{ providerId: "plugin" }, {}]]);
+  expect(deps.providers.generateImage.mock.calls).toHaveLength(1);
+});

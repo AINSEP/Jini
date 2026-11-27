@@ -79,3 +79,18 @@ test("any other chooser failure is thrown, and a machine with no chooser is unav
   assert.equal(none.available, false);
   await assert.rejects(none.pick(), /no native folder chooser/);
 });
+
+test("kdialog cancel is benign but a Windows nonzero result is a chooser failure", async () => {
+  const failure = { code: 1 };
+  const linux = fakeExec({ failure });
+  assert.equal(await createNativeFolderPicker({ platform: "linux", env: { WAYLAND_DISPLAY: "wayland-1" } },
+    { exists: file => file === "/usr/bin/kdialog", execFile: linux.execFile }).pick(), null);
+  assert.deepEqual(linux.calls, [{
+    file: "/usr/bin/kdialog", args: ["--title", "Choose a folder to insert its path", "--getexistingdirectory"],
+    options: { timeout: 600000, maxBuffer: 65536, encoding: "utf8" },
+  }]);
+  const windows = fakeExec({ failure });
+  await assert.rejects(createNativeFolderPicker({ platform: "win32", env: {} }, { exists: everyFileExists, execFile: windows.execFile }).pick(),
+    { code: 1, message: "exec failed" });
+  assert.deepEqual(windows.calls.map(call => call.file), ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"]);
+});

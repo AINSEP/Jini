@@ -1,3 +1,4 @@
+import { resolvePortableFormField } from "../portable-validation.js";
 import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -108,4 +109,12 @@ test("date/time bounds normalize equivalent native formats and reject values out
   const datetime: FieldDescriptor = { ...timed, type: "datetime", min: "2026-10-11T12:30:00", max: "2026-10-11T12:30:00" };
   assert.equal(validateSubmissionPayload({ definition: definition([datetime]), body: { answer: "2026-10-11T12:30" } }).valid, true);
   assert.equal(validateSubmissionPayload({ definition: definition([datetime]), body: { answer: "2026-10-12T12:30" } }).valid, false);
+});
+
+test("portable dates reject a zero calendar component and retain valid leap-day answers", () => {
+  const field: FieldDescriptor = { id: "visit", label: "Visit date", type: "date", required: true };
+  for (const value of ["0000-01-02", "2024-00-01", "2024-01-00", "2025-02-29"]) {
+    assert.deepEqual(resolvePortableFormField({ field, value }), { kind: "rejected", reason: "invalid_date" }, value);
+  }
+  assert.deepEqual(resolvePortableFormField({ field, value: "2024-02-29" }), { kind: "accepted", value: "2024-02-29" });
 });

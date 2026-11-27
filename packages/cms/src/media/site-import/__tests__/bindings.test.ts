@@ -24,7 +24,8 @@ class EgressRefusedError extends Error {
   }
 }
 
-function fixture() {
+function fixture(resolveSiteFileRequest: Parameters<typeof bindMediaImportTools<Omit<VideoImportOptions, "linkDerivedMedia">>>[0]["resolveSiteFileRequest"] =
+  ({ relativePath }) => ({ rootPath: "/site", relativePath })) {
   const media: MediaRecord = { id: "asset", workspaceId: "site", slug: "asset", title: "Asset", alt: "", caption: "", credit: "",
     source: { sha256: "hash" }, status: "active", version: 3, createdAt: "2026-11-25", updatedAt: "2026-11-25",
     width: null, height: null, cssClass: null, htmlAttributes: null };
@@ -37,7 +38,7 @@ function fixture() {
   const replaceMediaFile = vi.fn(async () => null);
   const log = vi.fn();
   const binding = bindMediaImportTools<Omit<VideoImportOptions, "linkDerivedMedia">>({ fsRootIds: ["site"], recoveryText: "Pick a folder.", mediaAssetReadToolId: "read_asset",
-    resolveSiteFileRequest: ({ relativePath }) => ({ rootPath: "/site", relativePath }), openFsFileForRead: read,
+    resolveSiteFileRequest, openFsFileForRead: read,
     withLocalStream: async () => { throw new Error("unexpected staged read"); },
     withStagedFile: async () => { throw new Error("unexpected staging"); },
     createConvertingStagedUploader: () => upload,
@@ -153,4 +154,23 @@ test("replacement conflicts preserve the probe, signal and refusal without uploa
   await expect(tool.handler({ ...f.ctx, input: { mediaId: "asset", root: "site", path: "asset.png" } })).rejects.toThrow("changed while replacing");
   expect(f.replaceMediaFile).toHaveBeenCalledWith(expect.objectContaining({ principalId: "human" }), { maxUploadBytes: 100, videoCodecProbe, signal: f.ctx.signal });
   expect(f.upload).not.toHaveBeenCalled();
+});
+
+test("local request binding preserves typed path refusals and translates other thrown values without reading bytes", () => {
+  const input = { root: "site", relativePath: "asset.png" };
+  const denied = new URIError("restricted source");
+  for (const [error, message] of [
+    [new Error("owner-picked root is unavailable"), "owner-picked root is unavailable"],
+    ["internal thrown value", "Source must be inside this site or the owner-picked folder. Pick a folder."],
+  ] as const) {
+    const f = fixture(() => { throw error; });
+    const resolve = () => f.binding.resolveLocalImportRequest({ routeDeps: f.routeDeps, ...input });
+    expect(resolve).toThrow(MediaImportValidationError);
+    expect(resolve).toThrow(message);
+    expect(f.read.mock.calls).toEqual([]);
+  }
+  const f = fixture(() => { throw denied; });
+  expect(() => f.binding.resolveLocalImportRequest({ routeDeps: f.routeDeps, ...input })).toThrow(URIError);
+  expect(() => f.binding.resolveLocalImportRequest({ routeDeps: f.routeDeps, ...input })).toThrow('restricted source');
+  expect(f.read.mock.calls).toEqual([]);
 });

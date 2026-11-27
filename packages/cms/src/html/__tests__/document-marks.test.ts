@@ -71,3 +71,9 @@ test("empty styles, missing marks and malformed record shapes preserve escaped t
   assert.equal(renderMarks({ text: "<&", marks: undefined, toAllowedHref }), "&lt;&amp;");
   assert.equal(renderMarks({ text: "t", marks: [null, [], { type: "textStyle", attrs: [] }, { type: "highlight", attrs: { color: "red;x" } }], toAllowedHref }), "<mark>t</mark>");
 });
+
+test("unknown mark names inherited from Object.prototype cannot replace or corrupt text", () => {
+  for (const type of ["constructor", "toString", "__proto__"]) {
+    assert.equal(renderMarks({ text: "<River>", marks: [{ type }, { type: "bold" }], toAllowedHref }), "<strong>&lt;River&gt;</strong>", type);
+  }
+});

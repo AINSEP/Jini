@@ -3,10 +3,12 @@ import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "
 import { describe, expect, it, vi } from "vitest";
 import type { MediaProviderCredentialRepoPort } from "../provider-credential-contracts.js";
 import type { MediaProviderCredentialSaveDeps, MediaProviderCredentialResolveDeps } from "../provider-credential-store.js";
-import { mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError } from "../provider-credential-store.js";
+import { getMediaProviderCredentials, mediaProviderSetRevision, saveMediaProviderCredentials, resolveMediaProviderCredential, MediaProviderCredentialStaleError, MediaProviderCredentialValidationError } from "../provider-credential-store.js";
 import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { MediaCredentialVaultPolicy } from "../provider-credential-vault.js";
 import { MediaProviderCredentialVaultRepo, mediaProviderVault, mediaVaultRecord, mediaVaultScope } from "../provider-credential-vault.js";
+
+import { applyMediaProviderChanges } from "../provider-credential-batch.js";
 
 const vaultPolicy: MediaCredentialVaultPolicy = { ownerKey: "test", legacyIds: { canonical: ["legacy"] },
   parseMeta: ({ meta }) => { const m = meta as Record<string, unknown>; return {
@@ -89,4 +91,59 @@ it("the singleton adapter delegates ownership validation to the vault service", 
   vi.mocked(s.vault.list).mockResolvedValue([stored]);
   const vault = mediaProviderVault({ vault: s.vault, providerId: "canonical", policy: vaultPolicy });
   expect(await vault.findOne!({ workspaceId: "w", kind: "media-provider", ownerKey: "test", principalId: null })).toBe(stored);
+});
+
+it("marker reads collapse legacy ids without decrypting, with the canonical row taking precedence", async () => {
+  const prior = { ...legacy, meta: { model: "old-model" }, tokenLength: 16, last4: "9876" };
+  const newRow = { ...row("canonical"), sealed: null, meta: { model: "better-model" } };
+  const lookup = async (rows: VaultRecord[]) => {
+    const s = setup(rows);
+    const view = await getMediaProviderCredentials({ deps: s.deps, workspaceId: "w" });
+    expect(s.findOne.mock.calls).toEqual([]);
+    return view;
+  };
+  expect(await lookup([prior])).toEqual({ canonical: { model: "old-model", apiKeyConfigured: true,
+    apiKeyHint: { length: 16, last4: "9876" }, apiKeyTail: "9876" } });
+  expect(await lookup([prior, newRow])).toEqual({ canonical: { model: "better-model" } });
+});
+
+it("no canonical or legacy row returns null without opening a credential", async () => {
+  const s = setup([]);
+  expect(await resolveMediaProviderCredential({ deps: s.deps, workspaceId: "w", providerId: "canonical" })).toBeNull();
+  expect(s.findOne.mock.calls).toEqual([]);
+});
+
+it("a malformed credential edit never prepares secrets or changes the stored set", async () => {
+  const s = setup([row("canonical")]);
+  type Providers = Parameters<typeof saveMediaProviderCredentials>[0]["input"]["providers"];
+  const choices: Array<[unknown, string]> = [
+    [[], "providers must be an object keyed by provider id"],
+    [{ canonical: null }, 'provider "canonical" must be an object'],
+    [{ unknown: {} }, 'unknown media provider "unknown"'],
+    [{ canonical: { apiKey: 7 } }, 'apiKey for "canonical" must be a string'],
+    [{ canonical: { model: "x".repeat(2049) } }, 'model for "canonical" exceeds 2048 characters'],
+  ];
+  for (const [providers, diagnostic] of choices) {
+    const failed = saveMediaProviderCredentials({ deps: s.deps, input: { workspaceId: "w", providers: providers as Providers } });
+    await expect(failed).rejects.toBeInstanceOf(MediaProviderCredentialValidationError);
+    await expect(failed).rejects.toThrow(diagnostic);
+  }
+  expect(s.prepare.mock.calls).toEqual([]);
+  expect(vi.mocked(s.repo.replaceWorkspace).mock.calls).toEqual([]);
+  expect(s.records().map(record => [record.providerId, record.sealed])).toEqual([["canonical", row("canonical").sealed]]);
+});
+
+it("batch rejects duplicate and overlapping ids, including canonical removal with a legacy removal", async () => {
+  const s = setup([row("canonical")]);
+  for (const changes of [
+    { removes: ["canonical", "legacy"], patches: [] },
+    { removes: [], patches: [{ providerId: "canonical", fields: { model: "first" } }, { providerId: "canonical", fields: { model: "second" } }] },
+    { removes: ["canonical"], patches: [{ providerId: "canonical", fields: { model: "first" } }] },
+  ]) {
+    const call = applyMediaProviderChanges({ deps: s.deps, workspaceId: "w", ...changes });
+    await expect(call).rejects.toBeInstanceOf(MediaProviderCredentialValidationError);
+    await expect(call).rejects.toThrow("provider changes must not contain duplicate or overlapping ids");
+  }
+  expect(s.prepare.mock.calls).toEqual([]);
+  expect(vi.mocked(s.repo.replaceWorkspace).mock.calls).toEqual([]);
 });

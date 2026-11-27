@@ -217,3 +217,32 @@ test('delayed notifications use captured original labels and choice meanings', a
   assert.match(mailer.calls[0]!.message.text!,/Original meaning/);
   assert.doesNotMatch(mailer.calls[0]!.message.text!,/Changed/);
 });
+
+test('delayed notification formats every stored choice and preserves unknown and non-string values', async () => {
+  const bus = new InMemoryEventBus();
+  const definitionRepo = new InMemoryFormDefinitionRepo();
+  const submissionRepo = new InMemoryFormSubmissionRepo();
+  const mailer = new RecordingMailer();
+  await definitionRepo.create(makeDefinition({ notify: { enabled: true, recipients: ['ops@example.com'] } }));
+  await submissionRepo.create(makeSubmission({
+    data: { shifts: ['am', 'retired', 'pm'], people: 3, note: 'Entrance B' },
+    evidence: {
+      version: 1, capturedAt: NOW, source: 'native', schemaHash: 'b'.repeat(64), consent: [],
+      fields: [
+        { id: 'shifts', label: 'Shifts', type: 'multi-select', required: true, options: [{ value: 'am', label: 'Morning' }, { value: 'pm', label: 'Afternoon' }] },
+        { id: 'people', label: 'People', type: 'number', required: true },
+        { id: 'note', label: 'Note', type: 'text', required: false },
+      ],
+    },
+  }));
+  await registerFormNotifySubscriber({ bus, mailer, formDefinitionRepo: definitionRepo, formSubmissionRepo: submissionRepo });
+  await publishSubmissionEvent(bus, 'sub-1');
+
+  assert.deepEqual(mailer.calls.map(({ message }) => [message.to.email, JSON.parse(message.text!)]), [
+    ['ops@example.com', { schemaHash: 'b'.repeat(64), answers: [
+      { label: 'Shifts', value: ['Morning', 'retired', 'Afternoon'] },
+      { label: 'People', value: 3 },
+      { label: 'Note', value: 'Entrance B' },
+    ], consent: [] }],
+  ]);
+});

@@ -1,9 +1,11 @@
+import { ToolInputError } from "@jini-ai/core";
+import { MediaConflictError } from "../../types.js";
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryBlobStore, InMemoryMediaRepo, uploadMedia } from "../../index.js";
-import { duplicateMediaAsset } from "../duplicate-asset.js";
+import { contributeMediaDuplicateHandlers, duplicateMediaAsset } from "../duplicate-asset.js";
 
 /**
  * @file Why: `content_duplicate` re-uploads the source's bytes through `uploadMedia`, so it must pick the
@@ -34,7 +36,7 @@ function pngBytes(size: number): Uint8Array {
 function makeDeps() {
   let n = 0;
   return {
-    authorize: () => undefined, workspaceId: WORKSPACE_ID,
+    authorize: async () => ({ allowed: true, reason: "fixture" }), workspaceId: WORKSPACE_ID,
     createHash, clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z"), nowIso: () => "2026-11-25T00:00:00.000Z" },
     idGen: { newId: () => `id-${++n}` },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}),
@@ -74,4 +76,38 @@ test("a 60 MiB image is still refused at the general cap even when a video cap i
 test("without a video cap a 60 MiB video is refused at the general 50 MiB cap (other hosts unchanged)", async () => {
   const { deps, source } = await seed({ bytes: mp4Bytes(SIZE), contentType: "video/mp4" });
   await assert.rejects(duplicate({ deps, source, caps: {} }));
+});
+
+test("the contributor applies copy-specific metadata and rolls back a rejected slug without losing shared bytes", async () => {
+  const { deps, source } = await seed({ bytes: pngBytes(8), contentType: "image/png" });
+  const [contribution] = contributeMediaDuplicateHandlers({ deriveDuplicateName: async ({ sourceName }) => `${sourceName} copy` });
+  assert.equal(contribution?.resource, "media");
+  const handler = contribution!.build(deps);
+  assert.equal(handler.permission, "media.upload");
+  const copy = (overrides: { slug?: string; title?: string; status?: string }) =>
+    handler.duplicate({ principalId: "new-owner", id: source.id, overrides });
+  await assert.rejects(copy({ status: "draft" }), error => error instanceof ToolInputError && error.message.includes("does not support the 'status' override"));
+  await assert.rejects(copy({ slug: source.slug }), error => error instanceof MediaConflictError && error.message.includes(source.slug));
+  assert.deepEqual((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id), [source.id]);
+  const blob = await deps.assetBlobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: source.source.sha256 });
+  assert.equal(blob?.status, "active");
+  assert.deepEqual(await deps.blobStore.get({ storageKey: blob!.storageKey }), pngBytes(8));
+
+  await copy({ slug: "operator-copy", title: "Image v1.2" });
+  const saved = await deps.mediaRepo.findBySlug({ workspaceId: WORKSPACE_ID, slug: "operator-copy" });
+  assert.equal(saved?.title, "Image v1.2");
+  assert.equal(saved?.createdBy, "new-owner");
+  assert.equal(saved?.source.sha256, source.source.sha256);
+  assert.deepEqual(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: source.id }), source);
+});
+
+test("duplicate refuses a trashed asset or missing blob before creating any copy", async () => {
+  const { deps, source } = await seed({ bytes: pngBytes(8), contentType: "image/png" });
+  await deps.mediaRepo.save({ ...source, status: "trashed" });
+  await assert.rejects(duplicate({ deps, source, caps: {} }), error =>
+    error instanceof ToolInputError && error.message.includes("is in the trash and was not copied"));
+  await deps.mediaRepo.save({ ...source, id: "missing-blob", slug: "missing", source: { sha256: "b".repeat(64) } });
+  await assert.rejects(duplicate({ deps, source: { id: "missing-blob" }, caps: {} }), error =>
+    error instanceof ToolInputError && error.message.includes("has no stored blob for hash") && error.message.includes("nothing was copied"));
+  assert.deepEqual((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id).sort(), [source.id, "missing-blob"].sort());
 });

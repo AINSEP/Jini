@@ -6,6 +6,7 @@ import { buildMediaRegistrations, type MediaToolDeps } from "../tool-registratio
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { uploadMedia } from "../media-service.js";
+import { VideoConversionError } from "../video-transcode.js";
 import { CONVERT_VIDEO_TOOL_ID } from "../convert-video-tool.js";
 import type { MediaTranscoderPort } from "@jini-ai/core/contracts/site/cms-media";
 
@@ -75,4 +76,19 @@ test("media_convert_video refuses a non-video in plain words with an ERR- id", a
   assert.equal(result.error.reason, "not-video");
   assert.equal(result.error.message, "Only videos can be converted for the web, and this item is not a video. (ERR-CDCD-CDCD-CDCD-CDCD)");
   assert.equal((await base.mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, 1);
+});
+
+test("media_convert_video rethrows cancellation instead of presenting a recoverable conversion refusal", async () => {
+  const base = deps();
+  const id = await seed(base, { bytes: mp4(1), filename: "Party.mp4" });
+  const controller = new AbortController();
+  const transcode: MediaTranscoderPort["transcode"] = async () => {
+    controller.abort(new Error("user pressed Stop"));
+    return { ok: true, bytes: mp4(9) };
+  };
+  const tool = buildMediaRegistrations(base, { videoConversion: { ...videoConversion, transcoder: { transcode } } }).find(r => r.descriptor.id === CONVERT_VIDEO_TOOL_ID)!;
+  await assert.rejects(tool.handler({ ...context({ mediaId: id }), signal: controller.signal }), error =>
+    error instanceof VideoConversionError && error.reason === "canceled" &&
+    error.message === "Video conversion was canceled. (ERR-CDCD-CDCD-CDCD-CDCD)");
+  assert.deepEqual((await base.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(row => row.id), [id]);
 });

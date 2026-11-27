@@ -1,7 +1,7 @@
 import { isoBmffVideoBytes } from "./iso-bmff-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 
 import {
   MediaConflictError,
@@ -19,8 +19,10 @@ import {
   trashMedia,
   updateMediaMetadata,
   uploadMedia,
+  uploadStagedVideo,
   MEDIA_MAX_DESCRIPTION_LENGTH,
 } from "../media-service.js";
+import type { BlobStorePort } from "../ports.js";
 import type { MediaCleanupJournalInput } from "../media-service.js";
 import {
   InMemoryAssetBlobRepo,
@@ -1114,4 +1116,66 @@ test("uploadMedia accepts text/vtt captions", async () => {
   });
   assert.equal(media.title, "clip-en");
   assert.equal(media.status, "active");
+});
+
+function stagedFixture() {
+  const bytes = isoBmffVideoBytes("isom");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const openChunks = vi.fn<Parameters<typeof uploadStagedVideo>[0]["input"]["staged"]["openChunks"]>(async function* () {
+    yield bytes.subarray(0, 8);
+    yield bytes.subarray(8);
+  });
+  return { workspaceId: WORKSPACE_ID, filename: "Trip.mp4", contentType: "video/mp4", createdByPrincipal: "editor",
+    staged: { path: "/staging/stream.mp4", root: "/staging", contentType: "video/mp4", byteLength: bytes.byteLength, sha256, openChunks }, bytes };
+}
+
+test("staged video commits streamed bytes and an original rendition once per digest, while creating distinct assets", async () => {
+  const { deps } = makeDeps();
+  const { bytes, ...input } = stagedFixture();
+  type Writer = NonNullable<Awaited<ReturnType<NonNullable<BlobStorePort["resolveStagedWriter"]>>>>;
+  const writer = vi.fn<Writer>(async ({ workspaceId, sha256, byteLength, openChunks }, options = {}) => {
+    const chunks = [];
+    for await (const chunk of openChunks({}, options)) chunks.push(chunk);
+    const streamed = Buffer.concat(chunks);
+    if (streamed.byteLength !== byteLength) throw new Error("unexpected staged length");
+    return deps.blobStore.put({ workspaceId, sha256, bytes: streamed });
+  });
+  const resolveStagedWriter = vi.fn<NonNullable<BlobStorePort["resolveStagedWriter"]>>(async () => writer);
+  const ports = { ...deps, blobStore: Object.assign(deps.blobStore, { resolveStagedWriter }) };
+  const signal = new AbortController().signal;
+  const first = await uploadStagedVideo({ deps: ports, input }, { signal });
+  const second = await uploadStagedVideo({ deps: ports, input: { ...input, filename: "Trip copy.mp4" } });
+  const { byteLength, sha256, openChunks } = input.staged;
+  assert.deepEqual(resolveStagedWriter.mock.calls, [[{}, { signal }], [{}, {}]]);
+  assert.deepEqual(writer.mock.calls, [[{ workspaceId: WORKSPACE_ID, sha256, byteLength, openChunks }, { signal }]]);
+  assert.deepEqual(openChunks.mock.calls, [[{}, { signal }]]);
+  assert.notEqual(first.media.id, second.media.id);
+  assert.deepEqual(second.media.source, { ...first.media.source });
+  const [rendition] = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: first.media.id });
+  assert.deepEqual({ name: rendition?.transformName, version: rendition?.version, sha256: rendition?.sha256 }, { name: "original", version: 1, sha256 });
+  assert.deepEqual(await deps.blobStore.get({ storageKey: rendition!.storageKey }), bytes);
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: second.media.id }))?.title, "Trip copy");
+});
+
+test("staged video refuses mismatches, invalid lengths, unsupported storage and cancellation without owning bytes", async () => {
+  const { deps } = makeDeps();
+  const { bytes: _, ...input } = stagedFixture();
+  for (const staged of [{ ...input.staged, contentType: "video/quicktime" }, { ...input.staged, contentType: "image/png" }]) {
+    await assert.rejects(uploadStagedVideo({ deps, input: { ...input, staged } }), error => error instanceof MediaValidationError && error.message === "staged import must contain a video");
+  }
+  for (const byteLength of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(uploadStagedVideo({ deps, input: { ...input, staged: { ...input.staged, byteLength } } }),
+      error => error instanceof MediaValidationError && error.message === "staged video length is invalid");
+  }
+  await assert.rejects(uploadStagedVideo({ deps, input }), error => error instanceof MediaValidationError && error.message === "Staged video storage is unavailable on this adapter.");
+  const controller = new AbortController();
+  const refusal = new Error("staged import was cancelled");
+  const writer = vi.fn(async () => { throw new Error("the aborted stream must not open"); });
+  const blobStore = Object.assign(deps.blobStore, { resolveStagedWriter: async () => { controller.abort(refusal); return writer; } });
+  await assert.rejects(uploadStagedVideo({ deps: { ...deps, blobStore }, input }, { signal: controller.signal }),
+    error => error === refusal);
+  assert.deepEqual(writer.mock.calls, []);
+  assert.deepEqual(input.staged.openChunks.mock.calls, []);
+  assert.deepEqual(await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID }), []);
+  assert.deepEqual(await deps.blobRepo.list({ workspaceId: WORKSPACE_ID }), []);
 });

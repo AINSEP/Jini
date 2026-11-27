@@ -27,3 +27,11 @@ it("refuses stored bytes with matching length but a different digest", async () 
   const sha256 = createHash("sha256").update(new Uint8Array([1])).digest("hex");
   await expect(bindings.verifyStoredBlob({ storageKey: "key", sha256, byteLength: 1 })).rejects.toThrow("Stored blob 'key' failed verification");
 });
+
+it("uses the canonical workspace and digest key regardless of the bound storage driver", () => {
+  const blobStore = { get: async () => { throw new Error("unexpected read"); } };
+  const bindings = createHostBlobWriteBindings({ blobStore, bytesMatchSha256 });
+  const sha256 = "ab" + "9".repeat(62);
+  expect(bindings.storageKeyFor({ workspaceId: "site-one", sha256 })).toBe(`ws/site-one/blobs/ab/${sha256}`);
+  expect(bindings.storageKeyFor({ workspaceId: "site-two", sha256 })).toBe(`ws/site-two/blobs/ab/${sha256}`);
+});

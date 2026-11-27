@@ -18,3 +18,25 @@ it("a valid saved key wins before the environment is read", async () => {
   expect(readEnvCredential).not.toHaveBeenCalled();
 });
 
+it("rejects a catalog id the registry cannot resolve without consulting arbitrary credentials", async () => {
+  const readSavedCredential = vi.fn(async () => null);
+  const readEnvCredential = vi.fn(() => ({}));
+  await expect(resolveDefaultImageModel({ imageModelIds: ["vanished-model"], defaultModelId: "fallback", routeDeps: {
+    workspaceId: "w", findModel: () => undefined, providers: { readSavedSelections: async () => ({}), readSavedCredential, readEnvCredential },
+  } })).rejects.toThrow("Media generation registry has no model vanished-model");
+  expect(readSavedCredential.mock.calls).toEqual([]);
+  expect(readEnvCredential.mock.calls).toEqual([]);
+});
+
+it("prefers a configured saved model, otherwise checks each provider once and uses the explicit fallback", async () => {
+  const readSavedCredential = vi.fn(async (_input: { workspaceId: string; providerId: string }, _options?: Record<string, never>) => null);
+  const readEnvCredential = vi.fn((_input: { providerId: string }, _options?: Record<string, never>) => ({}));
+  const providers = { readSavedSelections: async () => ({ studio: { apiKeyConfigured: true, model: "studio-v2" } }), readSavedCredential, readEnvCredential };
+  const routeDeps = { workspaceId: "w", findModel: ({ id }: { id: string }) => ({ provider: id.startsWith("studio-") ? "studio" : "other" }), providers };
+  const input = { routeDeps, imageModelIds: ["other-v1", "studio-v1", "studio-v2"], defaultModelId: "fallback" };
+  expect(await resolveDefaultImageModel(input)).toBe("studio-v2");
+  expect(readSavedCredential.mock.calls).toEqual([]);
+  expect(await resolveDefaultImageModel({ ...input, routeDeps: { ...routeDeps, providers: { ...providers, readSavedSelections: async () => ({}) } } })).toBe("fallback");
+  expect(readSavedCredential.mock.calls).toEqual([[{ workspaceId: "w", providerId: "other" }, {}], [{ workspaceId: "w", providerId: "studio" }, {}]]);
+  expect(readEnvCredential.mock.calls).toEqual([[{ providerId: "other" }, {}], [{ providerId: "studio" }, {}]]);
+});

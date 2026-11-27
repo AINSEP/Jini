@@ -139,3 +139,15 @@ test("a status flip compares against its own read and moves the version", async 
   assert.equal(fresh.definition.version, 3);
   assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.version, 3);
 });
+
+test('memory compare-and-set refuses a trashed form without resurrecting it or revealing its last version', async () => {
+  const repo = new InMemoryFormDefinitionRepo();
+  await repo.create(definition());
+  const deletedAt = '2026-11-14T00:00:00.000Z';
+  await repo.save({ ...definition(), deletedAt });
+  await assert.rejects(repo.update(definition({ name: 'Late client edit', version: 2 }), { expectedVersion: 1 }), {
+    name: 'RecordVersionConflictError', expectedVersion: 1, currentVersion: null,
+  });
+  assert.equal(await repo.findById({ workspaceId: WS, id: 'form' }), null);
+  assert.deepEqual(await repo.findAnyById({ workspaceId: WS, id: 'form' }), { ...definition(), deletedAt });
+});

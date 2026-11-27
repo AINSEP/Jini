@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createStagedFileAdapter } from "@jini-ai/platform/fs";
 import { buildMediaImportAgentToolCatalog } from "../agent-tools.js";
-import { buildMediaImportRegistrations, type MediaImportToolDeps } from "../tool-registrations.js";
+import { buildMediaImportRegistrations, contributeMediaImportTools, type MediaImportToolDeps } from "../tool-registrations.js";
 
 const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const media: MediaRecord = {
@@ -183,4 +183,42 @@ it("keeps omitted editorial properties in the storage input", async () => {
     workspaceId: "workspace", bytes, filename: "image.png", contentType: "image/png", provenance: { kind: "upload", path: "image.png" },
     alt: undefined, caption: undefined, description: undefined, createdByPrincipal: "agent",
   } }, {});
+});
+
+it("the contributed local import collects an ordinary bounded stream in order instead of staging it", async () => {
+  const { deps, ctx } = fixture();
+  deps.storage.canUploadStagedVideo.mockResolvedValue(true);
+  const opened: unknown[] = [];
+  const withLocalStream: MediaImportToolDeps["source"]["withLocalStream"] = async ({ consume, ...request }, options) => {
+    opened.push([request, options]);
+    return consume({ length: bytes.byteLength, chunks: (async function* () { yield bytes.slice(0, 3); yield bytes.slice(3); })() });
+  };
+  const routed = { ...deps, source: { ...deps.source, withLocalStream } };
+  const bindDeps = vi.fn(({ deps }: { deps: { configured: boolean } }, _optional?: Record<string, never>) => {
+    if (!deps.configured) throw new Error("wrong host fixture");
+    return routed;
+  });
+  const [registration] = contributeMediaImportTools({ catalog, bindDeps }).build({ configured: true }, {})
+    .filter(tool => tool.descriptor.id === "media_import_local_file");
+  const input = ctx({ root: "site", path: "image.png" });
+  expect(await registration!.handler(input)).toMatchObject({ media: { id: "asset", sha256: "hash", sourceUrl: "", publicUrl: "https://public.example/picture" } });
+  expect(bindDeps.mock.calls).toEqual([[{ deps: { configured: true } }, {}]]);
+  expect(opened).toEqual([[{ rootPath: "/site", relativePath: "image.png", maxBytes: 50_000_000 }, { signal: input.signal }]]);
+  expect(deps.storage.upload).toHaveBeenCalledWith({ input: {
+    workspaceId: "workspace", bytes: Buffer.from(bytes), filename: "image.png", contentType: "image/png", createdByPrincipal: "agent",
+    alt: undefined, caption: undefined, description: undefined,
+    provenance: { kind: "upload", path: "image.png" },
+  } }, {});
+  expect(deps.storage.uploadStagedVideo).not.toHaveBeenCalled();
+});
+
+it("a successful replace resolves the persisted record's URL and reports its new version", async () => {
+  const { deps, ctx, handler } = fixture();
+  const saved = { ...media, version: 2, source: { sha256: "new-hash" } };
+  deps.replacement.replace.mockResolvedValue(saved);
+  const input = ctx({ mediaId: "asset", url: "https://submitted.example/picture" });
+  expect(await handler("media_replace_file")(input)).toEqual({ media: {
+    id: "asset", title: "Picture", slug: "picture", sha256: "new-hash", version: 2, publicUrl: "https://public.example/picture",
+  } });
+  expect(deps.storage.resolvePublicUrls).toHaveBeenCalledWith({ assets: [saved] }, {});
 });

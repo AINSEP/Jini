@@ -214,3 +214,28 @@ test("importMediaEntity without a video cap refuses a 60 MiB video at the genera
   const result = await replaceWith({ bytes: sizedBytes({ size: SIXTY_MIB, magic: MP4_MAGIC }), caps: {} });
   assert.equal(result.status, "blocked");
 });
+
+test("malformed source and missing bytes are separate import refusals and leave the destination empty", async () => {
+  const deps = makeDeps();
+  const base = { workspaceId: WORKSPACE_ID, record: makeRecord(), bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer", baseVersion: null };
+  assert.deepEqual(await importMediaEntity({ deps, input: { ...base, record: makeRecord({ source: { sha256: "invalid-sha" } }) } }),
+    { status: "blocked", code: "precondition", reason: "malformed source sha256 'invalid-sha'" });
+  assert.deepEqual(await importMediaEntity({ deps, input: { ...base, bytes: null } }),
+    { status: "blocked", code: "missing-blob", reason: `required blob '${HELLO_SHA256}' was never received by this destination` });
+  assert.deepEqual(await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID }), []);
+  assert.deepEqual(await deps.assetBlobRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("resurrects a verified tombstoned blob for a new row without re-stamping the original owner", async () => {
+  const deps = makeDeps();
+  const { storageKey } = await deps.blobStore.put({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, bytes: HELLO_BYTES });
+  await deps.assetBlobRepo.save({ id: "old", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey, status: "tombstoned",
+    tombstonedAt: "2026-09-17", createdAt: "2026-09-16", createdByPrincipal: "original-owner" });
+  const record = makeRecord();
+  assert.deepEqual(await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record, bytes: HELLO_BYTES,
+    blobCreatedByPrincipal: "new-owner", baseVersion: null } }), { status: "imported", id: "source-asset-1", blobWritten: false });
+  const renewed = await deps.assetBlobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256 });
+  assert.deepEqual(renewed, { id: "old", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey, status: "active",
+    tombstonedAt: undefined, createdAt: "2026-09-16", createdByPrincipal: "original-owner" });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: record.id }))?.source.sha256, HELLO_SHA256);
+});

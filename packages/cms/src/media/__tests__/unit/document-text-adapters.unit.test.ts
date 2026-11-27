@@ -94,3 +94,15 @@ test('Word parser failures are typed and archive expansion bombs never reach the
   await assert.rejects(bomb.extract({ bytes: tinyDocx, limits }), MediaValidationError);
   assert.equal(calls, 0);
 });
+
+test('an already cancelled Word text request never loads or runs the optional parser', async () => {
+  let loads = 0;
+  const extractor = createMammothDocumentTextExtractor({ archiveReader: fixtureArchiveReader }, {
+    loadModule: async () => { loads++; throw new Error('unexpected Mammoth module load'); },
+  });
+  const controller = new AbortController();
+  const cause = new Error('Word preview cancelled');
+  controller.abort(cause);
+  await assert.rejects(extractor.extract({ bytes: tinyDocx, limits }, { signal: controller.signal }), error => error === cause);
+  assert.equal(loads, 0);
+});

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, test } from "vitest";
+import { afterEach, test, vi } from "vitest";
 import { FS_WRITE_LIMITS, FsWriteInputError, inspectWriteTarget, prepareFileWrites, requirePickedFolder, writePreparedFiles, type ResolveFsFilePath } from "../write-files.js";
 
 /**
@@ -90,5 +91,35 @@ test("the picked-folder rule refuses symlinks, home and site ancestors, the site
   assert.equal(requirePickedFolder({ dir: folder, siteDir: site }, { homeDir: home }), folder);
   for (const dir of ["picked", path.join(base, "link"), home, base, site, path.join(site, "themes")]) {
     assert.throws(() => requirePickedFolder({ dir, siteDir: site }, { homeDir: home }), FsWriteInputError, dir);
+  }
+});
+
+test("an invalid filesystem component surfaces ENOTDIR instead of masquerading as a missing folder", () => {
+  const { site, folder } = folderFixture();
+  const plain = path.join(folder, "regular.txt");
+  fs.writeFileSync(plain, "preserve");
+  assert.throws(() => requirePickedFolder({ dir: path.join(plain, "child"), siteDir: site }, { homeDir: site }), { code: "ENOTDIR" });
+  assert.equal(fs.readFileSync(plain, "utf8"), "preserve");
+});
+
+test("a refused atomic rename removes its staging file, preserves the approved target and stops the batch", () => {
+  const { folder } = folderFixture();
+  const target = path.join(folder, "primary.txt");
+  fs.writeFileSync(target, "original");
+  const writes = prepareFileWrites({ folder, resolveFsFilePath, files: [utf8("primary.txt", "replacement"), utf8("later.txt", "later")] });
+  const rename = vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+    if (to !== target) throw new Error("unexpected rename destination");
+    throw new Error(`rename refused for ${fs.readFileSync(from, "utf8")}`);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.deepEqual(writePreparedFiles({ folder, writes, resolveFsFilePath }), {
+      written: [], failed: { path: "primary.txt", reason: "rename refused for replacement" }, notWritten: ["later.txt"],
+    });
+    assert.equal(fs.readFileSync(target, "utf8"), "original");
+    assert.deepEqual(fs.readdirSync(folder), ["primary.txt"]);
+  } finally {
+    rename.mockRestore();
+    syncBuiltinESMExports();
   }
 });

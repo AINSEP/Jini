@@ -33,7 +33,7 @@ async function boundFixture() {
   const createBlobWriteBindings = vi.fn(createHostBlobWriteBindings);
   const uploadCaps = { maxUploadBytes: 1024, maxVideoUploadBytes: 2048 };
   const deps = { workspaceId: "site", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
-    authorize: async () => ({ allowed: true, reason: "grant" }), outbox: new InMemoryOutbox(), changeSets: new InMemoryChangeSetRepo(), ports: { media } };
+    authorize: async () => ({ allowed: true, reason: "grant" }), mutationActor: { id: "human", kind: "user" as const }, outbox: new InMemoryOutbox(), changeSets: new InMemoryChangeSetRepo(), ports: { media } };
   const record: MediaRecord = { id: "video", workspaceId: "site", kind: "media", title: "Video", slug: "video", alt: "", caption: "", credit: "",
     source: { sha256 }, status: "active", createdAt: "now", updatedAt: "now", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null };
   const entity = { entityType: "media", id: "video", schemaVersion: 1, hashVersion: 1, contentHash: "hash", requiredBlobs: [sha256], state: { ...record } };
@@ -73,4 +73,56 @@ it("the bound contributor refuses Library documents and missing blobs without wr
   expect(await f.handler.precheck({ entity: f.entity })).toContain("is not available");
   expect(insert).not.toHaveBeenCalled();
   expect(await f.repo.findById({ workspaceId: "site", id: "video" })).toBeNull();
+});
+
+it("pack carries poster references with a stable content hash and excludes Library documents", async () => {
+  const f = await boundFixture();
+  const poster = '/m/club-cover/original';
+  const asset = { ...f.record, htmlAttributes: `poster="${poster}"`, originalFilename: "camera.mov", createdBy: "first-editor" };
+  await f.repo.save(asset);
+  await f.repo.save({ ...f.record, id: "private-notes", slug: "private-notes", kind: "document" });
+  const collect = async () => {
+    const entities = [];
+    for await (const entity of f.handler.pack()) entities.push(entity);
+    return entities;
+  };
+  const [packed, ...rest] = await collect();
+  expect(rest).toEqual([]);
+  expect(packed).toMatchObject({ id: "video", requiredBlobs: [f.record.source.sha256],
+    state: { htmlAttributes: `poster="${poster}"`, createdBy: "first-editor" } });
+  expect(packed?.state).not.toHaveProperty("originalFilename");
+  expect(f.handler.references!({ entity: packed! })).toEqual([{ entityType: "media", key: "club-cover" }]);
+  await f.repo.remove({ workspaceId: "site", id: "video" });
+  await f.repo.save({ ...asset, originalFilename: "renamed.mp4", createdBy: "rewritten-owner" });
+  const [updated] = await collect();
+  expect(updated?.state).toMatchObject({ createdBy: "rewritten-owner" });
+  expect(updated?.state).not.toHaveProperty("originalFilename");
+  expect(updated?.contentHash).toBe(packed?.contentHash);
+});
+
+it("a missing staged source becomes a blocked row at apply and does not persist media", async () => {
+  const f = await boundFixture();
+  const sha256 = f.record.source.sha256;
+  await f.blobStore.remove({ storageKey: computeBlobStorageKey({ workspaceId: "site", sha256 }) });
+  const promise = f.handler.apply({ entity: f.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "video-missing" });
+  await expect(promise).rejects.toBeInstanceOf(MediaApplyBlockedError);
+  await expect(promise).rejects.toMatchObject({ code: "blocked:missing-blob",
+    message: `media 'video' cannot be applied — required blob '${sha256}' was never received by this destination` });
+  expect(await f.repo.findById({ workspaceId: "site", id: "video" })).toBeNull();
+  expect(await f.deps.changeSets.listByWorkspace({ workspaceId: "site" })).toEqual([]);
+});
+
+it("a failed publish-audit insert restores the prior media metadata and version", async () => {
+  const f = await boundFixture();
+  const args = { principalId: "human" };
+  await f.handler.apply({ ...args, entity: f.entity, expectedVersion: undefined, idempotencyKey: "first" });
+  const key = { workspaceId: "site", id: "video" };
+  const before = await f.repo.findById(key);
+  expect(before).toMatchObject({ title: "Video", version: 1 });
+  const failure = new Error("change-set store unavailable");
+  vi.spyOn(f.deps.changeSets, "insert").mockRejectedValueOnce(failure);
+  const renamed = { ...f.entity, state: { ...f.entity.state, title: "Edited video" } };
+  await expect(f.handler.apply({ ...args, entity: renamed, expectedVersion: 1, idempotencyKey: "update" })).rejects.toBe(failure);
+  expect(await f.repo.findById(key)).toEqual(before);
+  expect((await f.deps.changeSets.listByWorkspace({ workspaceId: "site" })).map(row => row.idempotencyKey)).toEqual(["first"]);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { safeAspectRatio, safeTextAlign, safeLanguageClass } from "../style-values.js";
+import { safeAspectRatio, safeTextAlign, safeLanguageClass, safeCssColor, safeCssFontFamily, safeCssLength } from "../style-values.js";
 
 // CSS allowlists for the two author-supplied
 // values a renderer interpolates straight into a `style="…"` attribute. HTML escaping alone cannot stop
@@ -49,4 +49,16 @@ test("language classes accept one trimmed token and reject internal whitespace",
   assert.equal(safeLanguageClass({ value: "python repl" }), null);
   assert.equal(safeLanguageClass({ value: "python\trepl" }), null);
   assert.equal(safeLanguageClass({ value: "python\nrepl" }), null);
+});
+
+test("optional CSS author values ignore non-strings without coercing and trim supported strings", () => {
+  for (const value of [false, 12, ["red"], null, undefined]) {
+    assert.equal(safeCssColor({ value }), null);
+    assert.equal(safeCssFontFamily({ value }), null);
+    assert.equal(safeCssLength({ value }), null);
+  }
+  assert.equal(safeCssFontFamily({ value: "   " }), null);
+  assert.equal(safeCssColor({ value: "  oklch(50% .2 25)  " }), "oklch(50% .2 25)");
+  assert.equal(safeCssFontFamily({ value: "  Georgia, serif  " }), "Georgia, serif");
+  assert.equal(safeCssLength({ value: "  1.25rem  " }), "1.25rem");
 });

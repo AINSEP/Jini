@@ -65,3 +65,12 @@ test("injectCollectionEmbeds: same-config markers with different templates each 
   assert.ok(rendered?.includes("<i>Chili</i>"), "the italic-template marker gets the italic rendering");
   assert.ok(!rendered.includes("data-embed-config"), "a hit removes the marker config");
 });
+
+test("only the built-in listing wrapper keeps the see-more identity", () => {
+  const config = '{"type":"collection","typeKey":"recipe"}';
+  const html = `<section class="recipes" data-jini-listing="3" data-embed-config='${config}'>No recipes yet</section>`;
+  const rendered = '<div data-jini-listing="3"><article>Chili</article></div>';
+  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[config, rendered]]) }),
+    '<section class="recipes"><div data-jini-listing="3"><article>Chili</article></div></section>');
+  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[config, undefined]]) }), html);
+});

@@ -7,7 +7,7 @@ import { createApprovalHandler, type ApprovalAnswer, type SurfaceExchangeStore, 
 import type { AssetTheme, PreparedAssetBatch } from "@jini-ai/core/contracts/site/asset-transfer-tool-ports";
 import { prepareAssetWrites, requireAssetDestination, writeAssetFiles, type AssetDestinationDeps } from "../../../asset-transfer/asset-destinations.js";
 import type { AssetApprovalToolHandler } from "../../../asset-transfer/copy-tool.js";
-import { buildImageTransformAgentToolCatalog, buildImageTransformRegistrations, IMAGE_TRANSFORM_TOOL_ID, type ImageTransformToolDeps } from "../tool.js";
+import { buildImageTransformAgentToolCatalog, buildImageTransformRegistrations, contributeImageTransformTools, IMAGE_TRANSFORM_TOOL_ID, type ImageTransformToolDeps } from "../tool.js";
 
 function fixture() {
   const destination = {
@@ -47,9 +47,10 @@ function fixture() {
     path: { type: "string", minLength: 1, description: "Path" }, themeId: { type: "string", minLength: 1, description: "Theme" },
   } } as const;
   const catalog = buildImageTransformAgentToolCatalog({ sourceSchema, fsReadPermission: "files.read" });
-  const handler = buildImageTransformRegistrations({ deps, surfaces, catalog, approval: { approvalToolHandler, describeWriteBatch }, destinationKit })[0]!.handler;
+  const approval = { approvalToolHandler, describeWriteBatch };
+  const handler = buildImageTransformRegistrations({ deps, surfaces, catalog, approval, destinationKit })[0]!.handler;
   const ctx = (input: unknown): ToolExecutionContext => ({ input, executionId: "execution", principal: { id: "agent" }, run: { id: "run" }, signal: new AbortController().signal });
-  return { deps, destinationKit, describeWriteBatch, askHuman, handler, ctx };
+  return { deps, destinationKit, describeWriteBatch, askHuman, handler, ctx, approval, catalog, surfaces };
 }
 
 describe("image transform execution", () => {
@@ -118,4 +119,25 @@ describe("image transform execution", () => {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
+});
+
+it("the transform contributor uses the bound source and reports known shape errors with the tool schema", async () => {
+  const { approval, catalog, surfaces, destinationKit, deps, ctx, askHuman } = fixture();
+  const missingSource = new Error("Pick the source folder again");
+  const unrelated = new Error("injected source storage unavailable");
+  const bindDeps = vi.fn(({ deps: host }: { deps: { site: string } }, _options?: Record<string, never>) => {
+    if (host.site !== "west") throw new Error("wrong host fixture");
+    return { ...deps, isFsShapeRejection: ({ error }: { error: unknown }) => error === missingSource };
+  });
+  const tool = contributeImageTransformTools({ approval, catalog, destinationKit, bindDeps }).build({ site: "west" }, surfaces)[0]!;
+  const inspect = { source: { root: "site", path: "source.png" } };
+  deps.source.readAsset.mockRejectedValueOnce(missingSource).mockRejectedValueOnce(unrelated);
+  await expect(tool.handler(ctx(inspect))).rejects.toThrow(/Pick the source folder again[\s\S]*image_transform/);
+  await expect(tool.handler(ctx(inspect))).rejects.toBe(unrelated);
+  const invalidOutput = { ...inspect, outputs: [{ path: "small.png", format: "jpeg" }] };
+  await expect(tool.handler(ctx(invalidOutput))).rejects.toThrow(/small\.png[\s\S]*image_transform/);
+  expect(bindDeps.mock.calls).toEqual([[{ deps: { site: "west" } }, {}]]);
+  expect(deps.source.readAsset.mock.calls).toHaveLength(2);
+  expect(askHuman.mock.calls).toEqual([]);
+  expect(destinationKit.writeAssetFiles.mock.calls).toEqual([]);
 });

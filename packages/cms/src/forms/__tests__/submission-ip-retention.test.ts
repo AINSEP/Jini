@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { sweepExpiredSubmissionIps, SUBMISSION_IP_RETENTION_DAYS, type SubmissionIpRetentionPort } from "../index.js";
+import { retainedSubmissionIp } from "../submission-ip-retention.js";
 
 /** Owner decision 2026-10-04 / DR-002: metadata expires; the submission survives. */
 const NOW = Date.parse("2026-10-04T12:00:00.000Z");
@@ -63,4 +64,12 @@ test('retainedSubmissionIp clears late imports at the exact retention cutoff', a
   const cutoff = now - 90 * 86400000;
   expect(retainedSubmissionIp({ sourceIp: '203.0.113.1', submittedAt: new Date(cutoff).toISOString(), now })).toBe(null);
   expect(retainedSubmissionIp({ sourceIp: '203.0.113.1', submittedAt: new Date(cutoff + 1).toISOString(), now })).toBe('203.0.113.1');
+});
+
+test("invalid imported timestamps cannot preserve visitor IP metadata", () => {
+  const now = Date.parse("2026-11-25T00:00:00.000Z");
+  const sourceIp = "203.0.113.5";
+  expect(retainedSubmissionIp({ now, sourceIp, submittedAt: "broken-date" })).toBeNull();
+  expect(retainedSubmissionIp({ now: NaN, sourceIp, submittedAt: "2026-11-24T00:00:00.000Z" })).toBeNull();
+  expect(retainedSubmissionIp({ now, sourceIp, submittedAt: "2026-11-24T00:00:00.000Z" })).toBe(sourceIp);
 });

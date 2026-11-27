@@ -95,3 +95,22 @@ test("an inner plain MenuConflictError is re-wrapped only under expectedVersion"
   });
   await assert.rejects(repo.save(menuRow()), (error: unknown) => error === conflict);
 });
+
+test("transaction runs and returns the callback using the inner menu repo", async () => {
+  const inner = new InMemoryMenuRepo({});
+  const calls: string[] = [];
+  const wrapped: MenuRepoPort = Object.assign(Object.create(inner) as MenuRepoPort, {
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => {
+      calls.push("entered inner transaction");
+      return inner.transaction({ fn });
+    },
+  });
+  const repo = new TrashAwareInMemoryMenuRepo({}, { inner: wrapped });
+  const result = await repo.transaction({ fn: async () => {
+    await repo.save(menuRow({ title: "Inside transaction" }));
+    return "saved";
+  } });
+  assert.deepEqual(calls, ["entered inner transaction"]);
+  assert.equal(result, "saved");
+  assert.equal((await repo.findById({ workspaceId: "ws-1", id: "menu-1" }))?.title, "Inside transaction");
+});

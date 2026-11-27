@@ -124,3 +124,22 @@ test("lookup: an unknown media id is `not-found` for the caller to render, witho
   assert.deepEqual(outcome, { outcome: "not-found" });
   assert.equal(reads, 0);
 });
+
+test("document downloads refuse a known oversized object before reading its contents", async () => {
+  const deps = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: "ws", kind: "document", bytes: Buffer.from("Notes"),
+    filename: "planning.txt", contentType: "text/plain", createdByPrincipal: "u" } });
+  const found = await lookupMediaOriginalBlob({ deps: { mediaRepo: deps.mediaRepo, assetBlobRepo: deps.blobRepo },
+    params: { workspaceId: "ws", mediaId: media.id } });
+  assert.equal(found.outcome, "ok");
+  const sizeQueries: unknown[] = [];
+  let reads = 0;
+  const blobStore = Object.assign(deps.blobStore, {
+    sizeOf: async (input: { storageKey: string }) => { sizeQueries.push(input); return 50 * 1024 * 1024 + 1; },
+    get: async () => { reads++; throw new Error("oversize bytes must not be read"); },
+  });
+  await assert.rejects(decideMediaOriginalForAsset({ deps: { blobStore, parseRangeHeader }, media: found.media, blob: found.blob, rangeHeader: undefined }),
+    new Error("document exceeds size limit"));
+  assert.deepEqual(sizeQueries, [{ storageKey: found.blob.storageKey }]);
+  assert.equal(reads, 0);
+});

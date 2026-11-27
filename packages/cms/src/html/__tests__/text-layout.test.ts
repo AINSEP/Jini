@@ -41,3 +41,12 @@ test("table spans preserve column-before-row order and independent numeric bound
   for (const colspan of [1001, 999999, 0, -1, 1.5, "3", null]) assert.equal(tableSpanAttrs({ attrs: { colspan, rowspan: 3 } }), ' rowspan="3"');
   assert.equal(tableSpanAttrs({ attrs: {} }), "");
 });
+
+test("record-shaped nodes with missing or non-string alignment do not emit a table or paragraph style", () => {
+  const variations: JsonValue[] = [{}, { align: 2, textAlign: 2 }, [], null];
+  for (const attrs of variations) {
+    assert.equal(tableCellAlignAttr({ node: { attrs } }), "");
+    assert.equal(alignStyleAttr({ node: { attrs } }), "");
+  }
+  assert.equal(headingAnchorId({ node: { type: "heading", content: { text: "not inline content" } }, toSlug: ({ text }) => text }), "");
+});

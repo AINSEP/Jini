@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { uploadMedia } from "../media-service.js";
 import {
-  VIDEO_TRANSCODE_THRESHOLD_BYTES, VideoConversionError, convertMediaVideo, shouldTranscodeOnImport,
+  VIDEO_TRANSCODE_THRESHOLD_BYTES, VideoConversionError, convertMediaVideo, convertStagedMediaVideo, shouldTranscodeOnImport,
   type ConvertMediaVideoDeps,
 } from "../video-transcode.js";
-import type { MediaTranscoderPort, VideoTranscodeResult } from "@jini-ai/core/contracts/site/cms-media";
+import type { BlobStorePort } from "../ports.js";
+import type { MediaTranscoderPort, VideoTranscodeResult, StagedMediaFile, StagedMediaTranscoderPort } from "@jini-ai/core/contracts/site/cms-media";
 
 const WORKSPACE_ID = "ws-video-transcode";
 const PRINCIPAL_ID = "principal-video";
@@ -185,4 +186,71 @@ test("convertMediaVideo removes the new item again when the provenance link cann
   await assert.rejects(convertMediaVideo({ deps: h.deps, input: input(h.originalId) }), /link store offline/);
   const rows = await h.mediaRepo.list({ workspaceId: WORKSPACE_ID });
   assert.deepEqual(rows.map(row => row.id), [h.originalId]);
+});
+
+function describeStage({ bytes, path }: { bytes: Uint8Array; path: string }): StagedMediaFile {
+  return {
+    path, root: "/stage", contentType: "video/mp4", byteLength: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex"),
+    async *openChunks() { yield bytes; },
+  };
+}
+
+test("staged conversion streams the new bytes and links the web copy without reading the original object", async () => {
+  const h = await harness({});
+  const original = describeStage({ bytes: mp4Bytes({ marker: 1 }), path: "/stage/original" });
+  const outputBytes = mp4Bytes({ marker: 2 });
+  const output = describeStage({ bytes: outputBytes, path: "/stage/output" });
+  const seen: unknown[] = [];
+  const transcodeStaged: StagedMediaTranscoderPort["transcodeStaged"] = async ({ input, target, consume }, options) => {
+    seen.push({ input, target, options });
+    return { ok: true, value: await consume(output) };
+  };
+  const read = vi.spyOn(h.blobStore, "get");
+  const resolveStagedWriter: NonNullable<BlobStorePort["resolveStagedWriter"]> = async () =>
+    async ({ workspaceId, sha256, byteLength, openChunks }, options) => {
+      const chunks = [];
+      for await (const chunk of openChunks({}, options)) chunks.push(chunk);
+      const bytes = Buffer.concat(chunks);
+      if (bytes.byteLength !== byteLength) throw new Error("writer got the wrong staged length");
+      return h.blobStore.put({ workspaceId, sha256, bytes });
+    };
+  const blobStore = Object.assign(h.blobStore, { resolveStagedWriter });
+  const signal = new AbortController().signal;
+  const { originalId, convertedId, media } = await convertStagedMediaVideo({
+    deps: { ...h.deps, blobStore, transcoder: { transcodeStaged } }, input: input(h.originalId), staged: original,
+  }, { signal, maxInputBytes: 32, maxOutputBytes: 40 });
+
+  assert.deepEqual(seen, [{ input: original, target: "mp4-h264-aac-faststart", options: { signal, maxOutputBytes: 40 } }]);
+  assert.deepEqual(read.mock.calls, []);
+  assert.equal(originalId, h.originalId);
+  assert.notEqual(convertedId, originalId);
+  assert.equal(JSON.stringify(await h.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: originalId })), h.originalSnapshot);
+  assert.deepEqual(await h.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: convertedId }), media);
+  assert.equal(media.source.sha256, output.sha256);
+  assert.equal(media.title, "Beach day (web)");
+  assert.equal(media.alt, "Waves");
+  const blob = await h.deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: output.sha256 });
+  assert.deepEqual([...await h.blobStore.get({ storageKey: blob!.storageKey })], [...outputBytes]);
+  assert.deepEqual(h.links, [{ workspaceId: WORKSPACE_ID, originalId, derivedId: convertedId, target: "mp4-h264-aac-faststart" }]);
+});
+
+test("staged conversion refuses wrong digest or oversize before decoding and reports codec refusals unchanged", async () => {
+  const h = await harness({});
+  const staged = describeStage({ bytes: mp4Bytes({ marker: 1 }), path: "/stage/original" });
+  const seen: string[] = [];
+  const transcodeStaged: StagedMediaTranscoderPort["transcodeStaged"] = async ({ target }) => {
+    seen.push(target);
+    return { ok: false, reason: "unavailable", message: "The local video codec is unavailable." };
+  };
+  const base = { deps: { ...h.deps, transcoder: { transcodeStaged } }, input: input(h.originalId), staged };
+  await assert.rejects(convertStagedMediaVideo({ ...base, staged: { ...staged, sha256: "c".repeat(64) } }), error =>
+    error instanceof VideoConversionError && error.reason === "invalid");
+  await assert.rejects(convertStagedMediaVideo(base, { maxInputBytes: 31 }), error =>
+    error instanceof VideoConversionError && error.reason === "too-large");
+  assert.deepEqual(seen, []);
+  await assert.rejects(convertStagedMediaVideo(base, { maxInputBytes: 32 }), error =>
+    error instanceof VideoConversionError && error.reason === "unavailable" && error.message.includes("The local video codec is unavailable."));
+  assert.deepEqual(seen, ["mp4-h264-aac-faststart"]);
+  assert.deepEqual((await h.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id), [h.originalId]);
+  assert.deepEqual(h.links, []);
 });
