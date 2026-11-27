@@ -258,9 +258,12 @@ test("HTML pane edits preserve exact source in both the displayed draft and the 
   fireEvent.change(screen.getByLabelText("Template"), { target: { value: "page.html" } });
   expect(view.deps.pickerValueToChoice).toHaveBeenCalledWith({ value: "page.html" });
   await waitFor(() => expect(current.value?.templateChoice).toBe("page.html"));
-  fireEvent.change(screen.getByLabelText("Template"), { target: { value: "host-default" } });
-  expect(view.deps.pickerValueToChoice).toHaveBeenCalledWith({ value: "host-default" });
-  await waitFor(() => expect(current.value?.templateChoice).toBeNull());
+  // The sentinel option is offered only while it is the current choice (see PageEditorTemplateOptions),
+  // so after picking a real template the way back is a real value: "No template" stores "".
+  expect(screen.queryByRole("option", { name: "Theme default" })).toBeNull();
+  fireEvent.change(screen.getByLabelText("Template"), { target: { value: "" } });
+  expect(view.deps.pickerValueToChoice).toHaveBeenLastCalledWith({ value: "" });
+  await waitFor(() => expect(current.value?.templateChoice).toBe(""));
   const frame = vi.fn(DevicePreviewFrame);
   view.kit.DevicePreviewFrame = frame;
   view.deps.devicePreviewWidths = { ...DEVICE_PREVIEW_WIDTHS, desktop: 1111 };
