@@ -58,3 +58,13 @@ describe("UsersPanel", () => {
     expect(seen.every((v) => v === false)).toBe(true);
   });
 });
+
+describe("useLocalizedUsers password-reset notice", () => {
+  it("hands the users hook a notice builder bound to the host locale", async () => {
+    const port = createFakeUsersPort({}, { users: [ALICE] });
+    const injected = vi.fn(useUsers);
+    renderHook(() => useLocalizedUsers({ port, useUsers: injected, useAdminLocale: () => "es", queryScope: "w1", t }), { wrapper });
+    const notice = injected.mock.calls[0]?.[1]?.passwordResetNotice;
+    expect(notice?.({ username: "bob" })).toBe('Se restableció la contraseña de "bob" — se revocó toda sesión activa de este usuario.');
+  });
+});
