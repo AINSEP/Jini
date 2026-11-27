@@ -148,6 +148,8 @@ describe('validateHtmlArtifact — boundaries and reserved-path sites (F3)', () 
     ['<style> block url()', '<style>body{background:url(\'.tmp/a.png\')}</style>'],
     ['<style> block @import string', '<style>@import ".workspace/x.css";</style>'],
     ['<style> block @import url()', '<style>@import url(.live-artifacts/x.css);</style>'],
+    ['<style> block @import after a safe @import', '<style>@import "theme.css"; @import ".workspace/x.css";</style>'],
+    ['<style> block @import after an unreadable @import', '<style>@import theme; @import ".tmp/x.css";</style>'],
     ['reserved dir followed by query', '<img src=".tmp?x=1">'],
     ['case-insensitive', '<img src=".TMP/a.png">'],
   ])('rejects a reserved path in %s', (_label, inner) => {
@@ -164,6 +166,7 @@ describe('validateHtmlArtifact — boundaries and reserved-path sites (F3)', () 
     ['lookalike prefix', '<img src="x.tmp/a.png">'],
     ['empty src', '<img src="">'],
     ['srcset of safe candidates only', '<img srcset="a.png 1x, b.png 2x">'],
+    ['<style> block of safe @imports only', '<style>@import "theme.css"; @import url(fonts.css);</style>'],
     ['srcset data: url containing the word', '<img srcset="data:text/plain,.tmp/x 1x">'],
     ['text, not an attribute', '<p>see .tmp/a.png</p>'],
   ])('allows %s', (_label, inner) => {

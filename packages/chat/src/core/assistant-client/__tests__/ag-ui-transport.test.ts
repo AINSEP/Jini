@@ -459,6 +459,20 @@ describe("durable AG-UI Local CLI binding", () => {
     expect(binding.prepareRunInput).toHaveBeenCalledTimes(1);
   });
 
+  it("a detach before acceptance forgets the accepted run without cancelling it, since detach is not Stop", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const detach = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: detach.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    detach.abort();
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    expect(binding.followAcceptedRun.mock.calls[0]![0]).toMatchObject({ runId: "run-canon", signal: detach.signal });
+    // The detached segment holds no accepted run, and nothing asked the canonical run to stop.
+    expect(client.isAcceptedAgUiRun?.({ runId: "run-canon" })).toBe(false);
+    expect(binding.cancelPendingRun).not.toHaveBeenCalled();
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+  });
+
   it("a durable AG-UI start retains Local CLI launch and attachment context", async () => {
     const { client: agUi, agents, binding, order } = durableSetup();
     const bound: unknown[] = [];

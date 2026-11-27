@@ -7,7 +7,7 @@ import type { PageDriver } from '@jini-ai/agentic';
 import { createDriverPagePort } from '@jini-ai/agentic/dom';
 import { createFrontendSessionBridge } from '../frontend-session-bridge.js';
 
-function pageBridge({ click }: { click: (...args: unknown[]) => Promise<void> }) {
+function pageBridge({ click }: { click: (...args: unknown[]) => Promise<void> }, extra: Omit<NonNullable<Parameters<typeof createFrontendSessionBridge>[1]>, 'page'> = {}) {
   const sources: EventTarget[] = [];
   const bodies: unknown[] = [];
   const send = vi.fn(async (_url: unknown, init?: RequestInit) => {
@@ -19,7 +19,7 @@ function pageBridge({ click }: { click: (...args: unknown[]) => Promise<void> })
       const source = new EventTarget(); sources.push(source);
       return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
     },
-  }, { page: createDriverPagePort({ driver: { click, findElements: async () => [] } as unknown as PageDriver }) });
+  }, { ...extra, page: createDriverPagePort({ driver: { click, findElements: async () => [] } as unknown as PageDriver }) });
   const frame = (data: unknown) => sources[0]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
   return { bridge, frame, bodies, send };
 }
@@ -61,4 +61,17 @@ it('bridge-cancel: a cancelled frame for a queued action prevents its effect', a
   expect(click).toHaveBeenCalledTimes(1);
   expect(send).toHaveBeenCalledTimes(1);
   bridge.close();
+});
+
+it('bridge-claims: an invocation for a capability this surface did not claim is refused without running or announcing it', async () => {
+  const click = vi.fn(async () => {});
+  const onInvocation = vi.fn();
+  const { bridge, frame, bodies, send } = pageBridge({ click }, { capabilityIds: ['page.scrollTo'], onInvocation });
+  frame({ type: 'attached', sessionId: 's', bindToken: 't' });
+  await bridge.ready;
+  frame({ type: 'invocation', invocationId: 'inv-unclaimed', capabilityId: 'page.click', input: { handle: 'save' } });
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  expect(bodies[0]).toMatchObject({ ok: false, message: 'Capability unavailable' });
+  expect(click).not.toHaveBeenCalled();
+  expect(onInvocation).not.toHaveBeenCalled();
 });
