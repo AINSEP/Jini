@@ -254,3 +254,31 @@ test("staged conversion refuses wrong digest or oversize before decoding and rep
   assert.deepEqual((await h.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id), [h.originalId]);
   assert.deepEqual(h.links, []);
 });
+
+test("convertMediaVideo without an injected random source mints a fresh Web Crypto error id per failure", async () => {
+  const h = await harness({ result: { ok: false, reason: "unavailable", message: "Video conversion needs ffmpeg on this computer." } });
+  const { randomHex: _injected, ...deps } = h.deps;
+  const ids: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(convertMediaVideo({ deps, input: input(h.originalId) }), (error: unknown) => {
+      assert.ok(error instanceof VideoConversionError);
+      assert.match(error.errorId, /^ERR-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}$/);
+      ids.push(error.errorId);
+      return true;
+    });
+  }
+  assert.notEqual(ids[0], ids[1]);
+});
+
+test("convertMediaVideo refuses a trashed original and one whose stored file is missing, before transcoding", async () => {
+  const h = await harness({});
+  await assert.rejects(convertMediaVideo({ deps: { ...h.deps, blobRepo: new InMemoryAssetBlobRepo({}) }, input: input(h.originalId) }),
+    (error: unknown) => error instanceof VideoConversionError && error.reason === "invalid"
+      && error.message === "The original video file is missing from storage, so it cannot be converted. (ERR-ABAB-ABAB-ABAB-ABAB)");
+  const original = await h.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: h.originalId });
+  assert.ok(original);
+  await h.mediaRepo.save({ ...original, status: "trashed" });
+  await assert.rejects(convertMediaVideo({ deps: h.deps, input: input(h.originalId) }),
+    (error: unknown) => error instanceof VideoConversionError && error.reason === "trashed");
+  assert.equal(h.calls.length, 0);
+});
