@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { bindInMemoryPostRepo } from "../repo.memory.js";
 import { createMediaAccessEvidence } from "../../media/site/access-evidence.js";
 import { createPostFeaturedImageRefusals } from "../post-tool-policy.js";
-import { bindPostPreviewTools, createPostPreviewAgentToolCatalog } from "../preview-tool.js";
+import { bindPostPreviewTools, contributePostPreviewTools, createPostPreviewAgentToolCatalog } from "../preview-tool.js";
 import type { PostRecord } from "../post.js";
 import type { ToolExecutionContext } from "@jini-ai/core";
 
@@ -85,4 +85,100 @@ test("preview preserves the original host bag for the renderer and template read
   const find = vi.spyOn(deps.postRepo, "findById");
   await expect(tool!.handler(ctx)).rejects.toThrow("not authorized");
   expect(find).not.toHaveBeenCalled();
+});
+
+function contributedPreview() {
+  const saved = { ...row, slug: "welcome-guide" };
+  const deps = { workspaceId: "site", authorize: async () => ({ allowed: true, reason: "editor" }),
+    postRepo: new InMemoryPostRepo({}, { initialRows: [saved] }) };
+  type Renderer = Parameters<ReturnType<typeof bindPostPreviewTools>["contributePostPreviewTools"]>[0];
+  const renderPostPreview = vi.fn<Renderer["renderPostPreview"]>(async ({ input }) => ({
+    html: input.bodyHtml ?? "<p>Saved preview</p>", templateChoice: input.templateChoice ?? null,
+  }));
+  const binding = bindPostPreviewTools({
+    catalog: createPostPreviewAgentToolCatalog({ fetchPublishedPageToolId: "page.local", fetchLiveUrlToolId: "page.live" }),
+    readPageBodyOptions: ({ input }) => input.textOnly === true ? { textOnly: true } : {},
+    shapePageBody: ({ body }, options) => ({ body: options?.textOnly ? body.replace(/<[^>]+>/g, "") : body, bodyBytes: body.length, truncated: false }),
+    readPostTemplateOptions: async ({ kind }) => kind === "page" ? ["page.html"] : ["post.html"],
+    readPermission: "content.read", contentPostReadToolId: "post.find",
+  });
+  const contributor = binding.contributePostPreviewTools({ renderPostPreview });
+  expect(contributor.domain).toBe("post-preview");
+  expect(contributor.risk?.get("content_post_preview")).toBe("none");
+  const [tool] = contributor.build(deps, {});
+  if (!tool) throw new Error("Missing preview registration");
+  const invoke = (input: unknown) => tool.handler({ executionId: "e", run: { id: "run" }, principal: { id: "human" }, signal: new AbortController().signal, input });
+  return { saved, deps, invoke, renderPostPreview };
+}
+
+it("contributes preview with unsaved overrides and forwards shaping options without saving the draft", async () => {
+  const { saved, deps, invoke, renderPostPreview } = contributedPreview();
+  const bodyJson = { type: "doc", content: [{ type: "paragraph" }] };
+  const bodyHtml = "<p>Unsaved copy</p>";
+  expect(await invoke({ id: "post", postId: "wrong", bodyJson, bodyHtml, templateChoice: "", textOnly: true })).toEqual({
+    postId: "post", title: "Post", status: "draft", templateChoice: "", availableTemplates: ["post.html"],
+    body: "Unsaved copy", bodyBytes: 19, truncated: false,
+  });
+  expect(renderPostPreview).toHaveBeenCalledExactlyOnceWith({ deps, input: { post: saved, bodyJson, bodyHtml, templateChoice: "" } });
+  expect(await deps.postRepo.findById({ workspaceId: "site", id: "post" })).toEqual(saved);
+});
+
+it.each([
+  { input: { id: " ", postId: "post" }, message: "content_post_preview: id must be a non-empty id or slug (postId is a legacy alias)." },
+  { input: { id: "post", bodyJson: null }, message: "content_post_preview: bodyJson must be a JSON object." },
+  { input: { id: "post", bodyJson: [] }, message: "content_post_preview: bodyJson must be a JSON object." },
+  { input: { id: "post", bodyJson: "text" }, message: "content_post_preview: bodyJson must be a JSON object." },
+  { input: { id: "post", templateChoice: 3 }, message: "content_post_preview: templateChoice must be a string." },
+])("refuses malformed preview input $input before loading the row", async ({ input, message }) => {
+  const { deps, invoke, renderPostPreview } = contributedPreview();
+  const find = vi.spyOn(deps.postRepo, "findById");
+  await expect(invoke(input)).rejects.toMatchObject({ name: "ToolInputError", message });
+  expect(find).not.toHaveBeenCalled();
+  expect(renderPostPreview).not.toHaveBeenCalled();
+});
+
+it("propagates a storage failure instead of claiming the preview target is missing", async () => {
+  const { deps, invoke, renderPostPreview } = contributedPreview();
+  const failure = new Error("storage disconnected");
+  vi.spyOn(deps.postRepo, "findById").mockRejectedValueOnce(failure);
+  await expect(invoke({ id: "post" })).rejects.toBe(failure);
+  expect(renderPostPreview).not.toHaveBeenCalled();
+});
+
+it("previews a post by the slug advertised in the tool schema", async () => {
+  const { invoke, saved, renderPostPreview, deps } = contributedPreview();
+  expect(await invoke({ id: "welcome-guide" })).toEqual({
+    postId: "post", title: "Post", status: "draft", templateChoice: null, availableTemplates: ["post.html"],
+    body: "<p>Saved preview</p>", bodyBytes: 20, truncated: false,
+  });
+  expect(renderPostPreview).toHaveBeenCalledExactlyOnceWith({ deps, input: { post: saved } });
+});
+
+test("featured image refusal has caller guidance even when the type is unavailable", () => {
+  const refusals = createPostFeaturedImageRefusals({ mediaAssetReadToolId: "media.find" });
+  expect(refusals["not-image"]({ ref: "asset" })).toBe("featuredImage: media asset 'asset' is not an image, not an image. A featured image must be an image.");
+});
+
+test("the standalone preview contribution retains the legacy selector and uses the injected read scope", async () => {
+  const repo = new InMemoryPostRepo({}, { initialRows: [row] });
+  const renderPostPreview = vi.fn<Parameters<typeof contributePostPreviewTools>[0]["renderPostPreview"]>(async ({ input }) => {
+    if (input.post.id !== "post") throw new Error("wrong render target");
+    return { html: "<p>Preview</p>", templateChoice: "post.html" };
+  });
+  const contributor = contributePostPreviewTools({ renderPostPreview });
+  const authorize = vi.fn(async () => ({ allowed: true, reason: "grant" }));
+  const deps = {
+    workspaceId: "site", postRepo: repo, authorize, readPermission: "article.inspect",
+    catalog: createPostPreviewAgentToolCatalog({ fetchPublishedPageToolId: "page.local", fetchLiveUrlToolId: "page.live" }),
+    readPageBodyOptions: () => ({ maxBytes: 40 }),
+    shapePageBody: ({ body }: { body: string }) => ({ body, bodyBytes: body.length, truncated: false }),
+    readPostTemplateOptions: async () => ["post.html"],
+    missingPostMessage: (id: string) => `Missing article ${id}`,
+  } satisfies Parameters<typeof contributor.build>[0];
+  const [tool] = contributor.build(deps, {});
+  if (!tool) throw new Error("Missing preview registration");
+  expect(await tool.handler({ executionId: "e", run: { id: "run" }, principal: { id: "reader" }, signal: new AbortController().signal, input: { postId: "post" } }))
+    .toEqual({ postId: "post", title: "Post", status: "draft", templateChoice: "post.html", availableTemplates: ["post.html"], body: "<p>Preview</p>", bodyBytes: 14, truncated: false });
+  expect(authorize).toHaveBeenCalledExactlyOnceWith({ workspaceId: "site", principalId: "reader", permission: "article.inspect", entityType: "post" });
+  expect(renderPostPreview).toHaveBeenCalledExactlyOnceWith({ deps, input: { post: row } });
 });
