@@ -6,7 +6,7 @@ it("wraps a scheduled HTML page in the admin post envelope without leaking stora
   const post: PostRecord = {
     id: "page-22", workspaceId: "ws-9", kind: "page", title: "Fall opening", slug: "opening",
     status: "draft", updatedAt: "2026-09-17T12:34:56Z", version: 7,
-    bodyFormat: "html", bodyHtml: "<main>We open at noon</main>", bodyJson: null,
+    bodyFormat: "html", bodyHtml: "<main>We open at noon</main>", bodyJson: { type: "doc", content: [] },
     publishAt: "2026-10-01T09:00:00Z", deletedAt: null, showAuthor: true,
   };
   expect(toAdminPostResponse(post)).toStrictEqual({ post: {

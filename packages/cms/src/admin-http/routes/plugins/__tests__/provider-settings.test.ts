@@ -124,7 +124,7 @@ describe("plugin provider settings specs", () => {
 });
 
 it("saves settings declared without provider contracts and records an empty telemetry contract list", async () => {
-  const tracker = { capture: () => undefined } as NonNullable<ProviderSettingsRouteDeps["tracker"]>;
+  const tracker = { capture: () => undefined } as never;
   const d = deps({ tracker, discoverPlugins: async () => [{ id: "obs", manifest: { contributes: {} } }] });
   expect(await put(d.value, { host: "eu" })).toMatchObject({ ok: true, value: { pluginId: "obs", appliesAt: "now" } });
   expect(d.saves).toEqual([{
