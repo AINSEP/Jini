@@ -63,3 +63,55 @@ it("refuses duplicate granted worksFor aliases", async () => {
   }
   await expect(attachments.keyForLabel?.({ siteId: "a", label: "alias" })).rejects.toThrow("duplicate");
 });
+
+it("isAttached, usersOf, renameSite and removeKey read and write the grant rows", async () => {
+  await attachments.attach({ siteId: "b", keyId: "key", siteName: "Beta" });
+  await attachments.attach({ siteId: "a", keyId: "key", siteName: "Alpha" });
+  await attachments.attach({ siteId: "a", keyId: "other", siteName: "Alpha" });
+  expect(await attachments.isAttached({ siteId: "a", keyId: "key" })).toBe(true);
+  expect(await attachments.isAttached({ siteId: "c", keyId: "key" })).toBe(false);
+  expect(await attachments.isAttached({ siteId: "", keyId: "key" })).toBe(false);
+  expect(await attachments.usersOf({ keyId: "key" })).toEqual([{ siteId: "a", siteName: "Alpha" }, { siteId: "b", siteName: "Beta" }]);
+  await attachments.renameSite({ siteId: "a", siteName: "Zulu" });
+  expect(await attachments.usersOf({ keyId: "key" })).toEqual([{ siteId: "b", siteName: "Beta" }, { siteId: "a", siteName: "Zulu" }]);
+  await attachments.removeKey({ keyId: "key" });
+  expect(await attachments.usersOf({ keyId: "key" })).toEqual([]);
+  expect(await attachments.usersOf({ keyId: "other" })).toEqual([{ siteId: "a", siteName: "Zulu" }]);
+});
+
+it("attach without a site id is refused and writes nothing", async () => {
+  await expect(attachments.attach({ siteId: "", keyId: "key", siteName: "A" })).rejects.toThrow("no site");
+  expect(await attachments.usersOf({ keyId: "key" })).toEqual([]);
+});
+
+it("an empty site id has no keys and no label matches, without querying", async () => {
+  await sql`INSERT INTO vault VALUES ('key', 'owner', 'custom', 'Name', '{}')`.execute(db);
+  await attachments.attach({ siteId: "a", keyId: "key", siteName: "A" });
+  expect(await attachments.keysFor({ siteId: "" })).toEqual([]);
+  expect(await attachments.keyForLabel?.({ siteId: "", label: "Name" })).toBeNull();
+  expect(await attachments.keyForLabel?.({ siteId: "a", label: "Name" })).toBe("key");
+});
+
+it("object-shaped meta (Postgres) and meta without worksFor both match by label only", async () => {
+  const objectMeta: AttachmentSqlPort = {
+    dialect: "sqlite",
+    query: async <Row>(statement: Parameters<AttachmentSqlPort["query"]>[0]) => (await db.executeQuery<Row & { meta?: unknown }>(statement.compile(db))).rows
+      .map(row => (typeof row.meta === "string" ? { ...row, meta: JSON.parse(row.meta) } : row) as Row),
+    execute: async statement => { await statement.execute(db); },
+  };
+  const pg = createKeyAttachments({ sql: objectMeta, tables: { attachments: "grants", vault: "vault" }, nowIso: () => "now", policy,
+    credentialTypeText: ({ column }) => sql<string | null>`json_extract(${column}, '$.credentialType')` });
+  await sql`INSERT INTO vault VALUES ('one', 'owner', 'custom', 'One', '{"worksFor":["alias"]}'), ('two', 'owner', 'custom', 'Two', '{"worksFor":"not-a-list"}')`.execute(db);
+  await pg.attach({ siteId: "a", keyId: "one", siteName: "A" });
+  await pg.attach({ siteId: "a", keyId: "two", siteName: "A" });
+  expect(await pg.keyForLabel?.({ siteId: "a", label: "alias" })).toBe("one");
+  expect(await pg.keyForLabel?.({ siteId: "a", label: "not-a-list" })).toBeNull();
+  expect(await pg.keyForLabel?.({ siteId: "a", label: "Two" })).toBe("two");
+});
+
+it("rejects table names that are not plain identifiers", () => {
+  const port: AttachmentSqlPort = { dialect: "sqlite", query: async () => [], execute: async () => undefined };
+  for (const tables of [{ attachments: "grants; DROP", vault: "vault" }, { attachments: "grants", vault: "1vault" }]) {
+    expect(() => createKeyAttachments({ sql: port, tables, nowIso: () => "now", policy, credentialTypeText: ({ column }) => sql<string | null>`${column}` })).toThrow("Invalid attachment table identifier.");
+  }
+});
