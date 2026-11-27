@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { watchProviderRevisions } from '../../provider-revision-watch.js';
 
 const pluginIdOf = ({ keyId }: { keyId: string }) => /^plugin-state:([a-z0-9-]+):provider\.config$/.exec(keyId)?.[1];
@@ -43,4 +43,21 @@ test("site revisions apply without a project store, and identical ids in both st
   assert.equal(applied.length, 5);
   site = []; await check(); assert.equal(applied.length, 6);
   stop();
+});
+
+test("without an injected schedule the watcher polls every 30 s on a real interval and stops polling on close", async () => {
+  vi.useFakeTimers();
+  try {
+    let reads = 0;
+    const stop = watchProviderRevisions({ read: async () => { reads += 1; return []; }, pluginIdOf, reapply: async () => "now" });
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reads, 1, "the first check runs immediately");
+    await vi.advanceTimersByTimeAsync(29_999);
+    assert.equal(reads, 1);
+    await vi.advanceTimersByTimeAsync(1);
+    assert.equal(reads, 2, "then once per 30 s interval");
+    stop();
+    await vi.advanceTimersByTimeAsync(90_000);
+    assert.equal(reads, 2, "close clears the interval");
+  } finally { vi.useRealTimers(); }
 });
