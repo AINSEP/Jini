@@ -28,3 +28,17 @@ it('different token endpoint returns the fixed refusal', async () => {
   deps.resolve.mockRejectedValue(new Error('secret-shaped upstream failure'));
   await expect(resolveLoginCredentials({ workspaceId: 'site', provider, deps })).rejects.toEqual(new MemberLoginError({ code: 'LOGIN_UNAVAILABLE' }));
 });
+
+it('a complete card on the pinned token endpoint opens to the client id, secret and the preset auth method', async () => {
+  const resolve = vi.fn(async () => ({ baseUrl: provider.tokenEndpoint, connection: { username: 'client-a', token: 'test-secret' } }));
+  expect(await resolveLoginCredentials({ workspaceId: 'site', provider, deps: { resolve } }))
+    .toEqual({ clientId: 'client-a', clientSecret: 'test-secret', authMethod: 'client_secret_post' });
+  expect(resolve).toHaveBeenCalledWith({ workspaceId: 'site', label: 'OIDC' });
+});
+
+it('an absent card, a blank client id or a missing secret is the same fixed refusal', async () => {
+  for (const saved of [null, { baseUrl: provider.tokenEndpoint, connection: { username: '  ', token: 'test-secret' } },
+    { baseUrl: provider.tokenEndpoint, connection: { username: 'client-a', token: null } }]) {
+    await expect(resolveLoginCredentials({ workspaceId: 'site', provider, deps: { resolve: async () => saved } })).rejects.toEqual(new MemberLoginError({ code: 'LOGIN_UNAVAILABLE' }));
+  }
+});

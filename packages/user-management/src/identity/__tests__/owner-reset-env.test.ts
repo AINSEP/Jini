@@ -53,3 +53,9 @@ test('a failed pre-write backup prevents any password change', async () => {
   }), /backup disk full/);
   assert.equal((await f.deps.auth.repos.users.findByPrincipalId(f.scope))!.passwordHash, 'hash:old');
 });
+
+test('a named owner reset with no pre-write hook still writes the new password', async () => {
+  const f = await resetFixture();
+  assert.equal(await applyOwnerPasswordReset({ deps: f.deps, workspaceId: 'w', password: 'new', username: 'owner' }), 'owner');
+  assert.equal((await f.deps.auth.repos.users.findByPrincipalId(f.scope))!.passwordHash, 'hash:new');
+});
