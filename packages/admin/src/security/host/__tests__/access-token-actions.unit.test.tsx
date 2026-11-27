@@ -8,12 +8,12 @@ import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
 import { localizePublishTargets, localizeSourceControlProviders } from "../../../shell/lib/descriptor-i18n.js";
 import type { AdminCustomCredentialSummary, AdminPublishCredentialSummary } from "../../api/security-api.types.js";
 import type { AdminSourceControlCredentialSummary } from "../../../source-control/api/source-control-api.types.js";
-import { accessTokenDuplicateNameMessage, accessTokenSaveErrorMessage } from "../../security-i18n.js";
+import { accessTokenDuplicateNameMessage, accessTokenMakeDefaultErrorMessage, accessTokenRemoveErrorMessage, accessTokenSaveErrorMessage } from "../../security-i18n.js";
 import type { AccessTokenRow } from "../../access-token-rows.js";
 import { useAccessTokens, type AccessTokensArgs } from "../hooks/use-access-tokens.hooks.js";
 
 /**
- * @file Drives `access-token-add-actions.ts` and `access-token-replace-actions.ts` through the real
+ * @file Drives `access-token-add-actions.ts`, `access-token-replace-actions.ts` and `access-token-actions.ts` through the real
  * `useAccessTokens` assembly (real stores, drafts and row derivation) over a scripted port. The
  * injected deps are fakes with recognizable output, so each assertion names which collaborator ran.
  */
@@ -302,5 +302,122 @@ describe("access-token replace actions", () => {
     act(() => hook.result.current.setExistingField({ rowId: "cus-1", patch: { token: "tok-a" } }));
     await act(async () => { await hook.result.current.replaceToken(requireRow(hook, "cus-1")); });
     expect(rowState(hook, "cus-1")).toMatchObject({ saving: false, error: accessTokenSaveErrorMessage({ locale: "en", error: "denied|t(unknown error)" }) });
+  });
+});
+
+/** Mirrors `withPromotedDefault`'s contract: the promoted row becomes the single default. */
+const promote = ({ credentials, promoted }: { credentials: { id: string; isDefault: boolean }[]; promoted: { id: string } }) =>
+  credentials.map((credential) => ({ ...credential, isDefault: credential.id === promoted.id }));
+
+describe("access-token remove, make-default and custom-key actions", () => {
+  it("removes a custom credential and re-reads the custom inventory", async () => {
+    const hook = await loaded({ custom: [customCredential(), customCredential({ id: "cus-9", label: "Other API" })] });
+    vi.mocked(hook.port.custom.list).mockResolvedValue({ credentials: [customCredential({ id: "cus-9", label: "Other API" })] } as never);
+    await act(async () => { await hook.result.current.removeToken(requireRow(hook, "cus-1")); });
+    expect(hook.port.custom.remove).toHaveBeenCalledWith({ id: "cus-1" });
+    expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-9", "pub-1"]);
+    expect(rowState(hook, "cus-9")).toMatchObject({ saving: false, error: null });
+  });
+
+  it("removes a hosting token through the publish port and a source token through the source-control port", async () => {
+    const hook = await loaded();
+    act(() => hook.result.current.setAddField(SOURCE, { name: "Repo", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(SOURCE); });
+    vi.mocked(hook.port.publish.list).mockResolvedValue({ credentials: [], executionMode: "hosted-api-only" } as never);
+    await act(async () => { await hook.result.current.removeToken(requireRow(hook, "pub-1")); });
+    expect(hook.port.publish.remove).toHaveBeenCalledWith({ id: "pub-1" });
+    expect(rows(hook).map((row) => row.id)).not.toContain("pub-1");
+
+    await act(async () => { await hook.result.current.removeToken(requireRow(hook, "src-2")); });
+    expect(hook.port.sourceControl.remove).toHaveBeenCalledWith({ id: "src-2" });
+    expect(hook.port.publish.remove).toHaveBeenCalledTimes(1);
+    expect(rows(hook).map((row) => row.id)).toEqual(["cus-1"]);
+  });
+
+  it("keeps the row and shows the remove-error sentence when the remove call fails", async () => {
+    const hook = await loaded();
+    vi.mocked(hook.port.publish.remove).mockRejectedValueOnce(new Error("forbidden"));
+    await act(async () => { await hook.result.current.removeToken(requireRow(hook, "pub-1")); });
+    expect(rowState(hook, "pub-1")).toMatchObject({
+      saving: false, error: accessTokenRemoveErrorMessage({ locale: "en", error: "forbidden|t(unknown error)" }),
+    });
+  });
+
+  it("does nothing when asked to make the current default the default", async () => {
+    const hook = await loaded();
+    await act(async () => { await hook.result.current.makeDefault(requireRow(hook, "pub-1")); });
+    expect(hook.port.publish.update).not.toHaveBeenCalled();
+    expect(rowState(hook, "pub-1")).toMatchObject({ saving: false, error: null });
+  });
+
+  it("promotes a hosting token from the server's answer and then adopts the re-read list", async () => {
+    const hook = await loaded();
+    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    vi.mocked(hook.deps.withPromotedDefault).mockImplementation(promote as never);
+    const reread = [publishCredential({ isDefault: false }), publishCredential({ id: "pub-2", label: "Second", isDefault: true, worksFor: [] })];
+    vi.mocked(hook.port.publish.list).mockResolvedValue({ credentials: reread, executionMode: "hosted-api-only" } as never);
+    await act(async () => { await hook.result.current.makeDefault(requireRow(hook, "pub-2")); });
+    expect(hook.port.publish.update).toHaveBeenCalledWith({ id: "pub-2", input: { isDefault: true } });
+    expect(hook.deps.withPromotedDefault).toHaveBeenCalledWith(expect.objectContaining({ promoted: expect.objectContaining({ id: "pub-2" }) }));
+    expect(requireRow(hook, "pub-2").isDefault).toBe(true);
+    expect(requireRow(hook, "pub-1").isDefault).toBe(false);
+    expect(rowState(hook, "pub-2")).toMatchObject({ saving: false, error: null });
+  });
+
+  it("keeps the confirmed promotion on screen when only the reconcile re-read fails", async () => {
+    const hook = await loaded();
+    vi.mocked(hook.port.sourceControl.create).mockResolvedValueOnce(sourceCredential({ id: "src-3", label: "Repo", isDefault: false }));
+    act(() => hook.result.current.setAddField(SOURCE, { name: "Repo", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(SOURCE); });
+    vi.mocked(hook.deps.withPromotedDefault).mockImplementation(promote as never);
+    vi.mocked(hook.port.sourceControl.list).mockRejectedValue(new Error("offline"));
+    await act(async () => { await hook.result.current.makeDefault(requireRow(hook, "src-3")); });
+    expect(hook.port.sourceControl.update).toHaveBeenCalledWith({ id: "src-3", input: { isDefault: true } });
+    expect(requireRow(hook, "src-3").isDefault).toBe(true);
+    expect(rowState(hook, "src-3")).toMatchObject({ saving: false, error: null });
+  });
+
+  it("shows the make-default error sentence when the promotion itself is rejected", async () => {
+    const hook = await loaded();
+    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    vi.mocked(hook.port.publish.update).mockRejectedValueOnce(new Error("conflict"));
+    await act(async () => { await hook.result.current.makeDefault(requireRow(hook, "pub-2")); });
+    expect(hook.deps.withPromotedDefault).not.toHaveBeenCalled();
+    expect(requireRow(hook, "pub-2").isDefault).toBe(false);
+    expect(rowState(hook, "pub-2")).toMatchObject({
+      saving: false, error: accessTokenMakeDefaultErrorMessage({ locale: "en", error: "conflict|t(unknown error)" }),
+    });
+  });
+
+  it("attaches a project key once per pending click, reloads every store and clears the busy state", async () => {
+    const hook = await loaded({ custom: [customCredential({ scope: "project", id: "cus-p" })], projectKeysAvailable: true });
+    let release: () => void = () => {};
+    vi.mocked(hook.port.custom.useKey).mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve; }) as never);
+    const listCalls = vi.mocked(hook.port.publish.list).mock.calls.length;
+    let first: Promise<void> = Promise.resolve();
+    act(() => { first = hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-p"), use: true }); });
+    expect(hook.result.current.customKeyBusy["cus-p"]).toEqual({ saving: true, error: null });
+    await act(async () => { await hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-p"), use: true }); });
+    expect(hook.port.custom.useKey).toHaveBeenCalledTimes(1);
+    await act(async () => { release(); await first; });
+    expect(hook.port.custom.useKey).toHaveBeenCalledWith({ keyId: "cus-p", use: true });
+    expect(vi.mocked(hook.port.publish.list).mock.calls.length).toBeGreaterThan(listCalls);
+    expect(hook.result.current.customKeyBusy["cus-p"]).toEqual({ saving: false, error: null });
+  });
+
+  it("ignores site-scoped keys, and reports a failed detach so a retry can run", async () => {
+    const hook = await loaded({ custom: [customCredential(), customCredential({ scope: "project", id: "cus-p", label: "Project API" })], projectKeysAvailable: true });
+    await act(async () => { await hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-1"), use: false }); });
+    expect(hook.port.custom.useKey).not.toHaveBeenCalled();
+    expect(hook.result.current.customKeyBusy["cus-1"]).toBeUndefined();
+
+    vi.mocked(hook.port.custom.useKey).mockRejectedValueOnce(new Error("locked"));
+    await act(async () => { await hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-p"), use: false }); });
+    expect(hook.result.current.customKeyBusy["cus-p"]).toEqual({ saving: false, error: "locked|t(unknown error)" });
+    await act(async () => { await hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-p"), use: false }); });
+    expect(hook.port.custom.useKey).toHaveBeenNthCalledWith(2, { keyId: "cus-p", use: false });
+    expect(hook.result.current.customKeyBusy["cus-p"]).toEqual({ saving: false, error: null });
   });
 });
