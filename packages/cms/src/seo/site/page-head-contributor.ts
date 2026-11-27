@@ -1,5 +1,5 @@
 import { buildHeadElements, type GetEntryMetaDeps, type PageHeadHook } from "../index.js";
-import { withCoverReadDeps } from "../cover-image.js";
+import { hasAuthoredOgImage, withCoverReadDeps } from "../cover-image.js";
 
 /**
  * @file SEO's host PageHeadHook (ADR-PIPE-008 Decision, C-003). Ordered descriptor production
@@ -28,12 +28,13 @@ export function createSeoPageHeadHook(
     priority: optional.priority ?? DEFAULT_CONTRIBUTOR_PRIORITY,
     handle: async (ctx) => {
       if (!ctx.entry) return buildHeadElements({ ...required, ctx }, {});
-      const { deps, cover } = await withCoverReadDeps({ deps: required.deps, workspaceId: ctx.workspaceId, entryId: ctx.entry.id });
+      const { deps, cover, rawPost } = await withCoverReadDeps({ deps: required.deps, workspaceId: ctx.workspaceId, entryId: ctx.entry.id });
       const elements = await buildHeadElements({ ...required, deps, ctx }, {});
       const ogImage = elements.find((element) => element.kind === "og" && element.property === "og:image");
       if (ogImage?.kind !== "og") return elements;
       // The owner permits an external body URL for OG only; it is not a schema image fallback.
-      if (cover?.url === ogImage.content) return elements;
+      // A stored override equal to that URL is still authored and stays authoritative.
+      if (cover?.url === ogImage.content && !hasAuthoredOgImage({ rawPost })) return elements;
       // JSON-LD's entry image is the evaluator's final OG choice, including explicit overrides.
       return elements.map((element) => element.kind === "jsonld" && element.data["@type"] !== "BreadcrumbList"
         ? { ...element, data: { ...element.data, image: ogImage.content } }

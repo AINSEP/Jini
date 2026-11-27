@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, expect, test, vi } from "vitest";

@@ -19,7 +19,9 @@ import { buildSeoRegistrations, contributeSeoTools, type SeoToolDeps, type SeoTo
 
 const WORKSPACE = "ws-seo-tools";
 const clock = { nowIso: () => "2026-11-23T00:00:00.000Z" };
-const ids = { newId: () => "seo-tool-id" };
+// Unique per call: the in-memory ledger keys definitions by id, so a constant id would leave only the last one registered.
+let idSeq = 0;
+const ids = { newId: () => `seo-tool-id-${++idSeq}` };
 const principalRepo = {} as PrincipalRepoPort;
 const createPrincipalLookup = () => ({ findActiveById: async ({ id }: { id: string }) => ({ id }) });
 const toolMetadata = { seo_get_settings: { search: { keywords: "host seo settings words", queries: [] } } } as unknown as ToolMetadataById;

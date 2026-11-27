@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";

@@ -68,7 +68,7 @@ test("link actions remove an existing mark or insert one valid URL, and reject m
   const frames: (() => void)[] = [];
   const { result, rerender } = renderHook(({ live }: { live: PostUrlEditorPort | null }) =>
     usePostUrlDialog({ editor: live, getEmbedUrlFromYoutubeUrl: () => null }, { afterEditorFocus: close => frames.push(close) }),
-  { initialProps: { live: null } });
+  { initialProps: { live: null as PostUrlEditorPort | null } });
   const opener = document.createElement("button");
   act(() => result.current.openLink({ currentTarget: opener }));
   expect(result.current.open).toBe(false);

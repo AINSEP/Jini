@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { ExpandIcon, EyeIcon, PlaceholderIcon, PlayIcon, UploadIcon } from "../media-icons.js";

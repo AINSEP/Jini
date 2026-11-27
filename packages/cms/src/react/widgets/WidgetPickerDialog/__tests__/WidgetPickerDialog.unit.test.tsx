@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { FetchQueryProvider, useFetchQuery } from "@jini-ai/ui/fetch-query";
 import { Dialog } from "@jini-ai/ui-kit/react";
@@ -180,7 +181,7 @@ it("keeps a single dialog during type changes and recovers a created widget afte
   await waitFor(() => expect(onResolved.mock.calls).toEqual([["new-1"], ["new-1"]]));
   expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-  expect(onCancel.mock.calls).toEqual([[]]);
+  expect(onCancel).toHaveBeenCalledOnce();
 });
 
 it("keeps a creation refusal in the dialog and retries the same unsaved draft through the create port", async () => {

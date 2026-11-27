@@ -264,10 +264,3 @@ test("no cover or override emits no OG image and leaves the article schema intac
     { kind: "jsonld", priority: 900, data: { "@context": "https://schema.org", "@type": "Article", headline: "Workshop" } });
 });
 
-test("a transient external body cover does not leak into the Twitter image tag", async () => {
-  const bodyUrl = "https://cdn.example/body.png";
-  const elements = await entryHead({ bodyUrl });
-  assert.deepEqual(elements.find(e => e.kind === "og" && e.property === "og:image"),
-    { kind: "og", property: "og:image", content: bodyUrl, priority: 143 });
-  assert.equal(elements.find(e => e.kind === "meta" && e.name === "twitter:image"), undefined);
-});

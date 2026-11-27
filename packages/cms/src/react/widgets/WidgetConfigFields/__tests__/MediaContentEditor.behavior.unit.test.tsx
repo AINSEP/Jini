@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import { FetchQueryProvider, useFetchQuery } from "@jini-ai/ui/fetch-query";
 import { Dialog } from "@jini-ai/ui-kit/react";

@@ -81,6 +81,16 @@ export async function withCoverReadDeps(
   } }, cover, rawPost };
 }
 
+/** True when the stored row authored its own OG image, even one equal to the body URL.
+ * @complexity O(s) stored SEO JSON parsing; malformed JSON counts as not authored.
+ */
+export function hasAuthoredOgImage(
+  { rawPost }: { rawPost: SeoPostRecord | null },
+  _optional: Record<string, never> = {},
+): boolean {
+  return Boolean(rawPost && readCoverSeoOverrides({ seoExtJson: rawPost.seoExtJson }).ogImage);
+}
+
 /** Mark an external body URL as content in admin meta: its transient ogImage is not a stored
  * override. Keep actual stored overrides authoritative, including ones equal to the body URL.
  * @complexity O(s) stored SEO JSON parsing; pure, with malformed JSON treated as no override.

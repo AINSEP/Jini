@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, cleanup, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useEffect, useState } from "react";
 import { WidgetConfigFields, type WidgetConfigFieldsProps } from "../WidgetConfigFields.js";
@@ -67,7 +67,7 @@ it("text edits retain sibling config and publish a handle only when requested", 
   const onChange = vi.fn();
   const props = configFixture();
   const view = render(<WidgetConfigFields {...props} onChange={onChange} agentHandle="widget-settings" config={{ body: "Old text", id: "preserved" }} />);
-  const body = view.getByRole<HTMLTextAreaElement>("textbox", { name: "Text" });
+  const body = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Text" });
   expect(body.value).toBe("Old text");
   expect(body.getAttribute("data-agent-element")).toBe("widget-settings-body");
   fireEvent.change(body, { target: { value: "New text" } });
@@ -92,11 +92,11 @@ it("social controls edit the addressed row, allow adding below twenty, and stop 
   fireEvent.change(platform, { target: { value: "Docs" } });
   fireEvent.change(url, { target: { value: "https://docs.example" } });
   fireEvent.click(row.getByRole("button", { name: "Remove" }));
-  const add = mounted.getByRole<HTMLButtonElement>("button", { name: "Add link" });
+  const add = mounted.getByRole("button", { name: "Add link" }) as HTMLButtonElement;
   fireEvent.click(add);
   expect(updateLink.mock.calls).toEqual([[{ index: 1, patch: { platform: "Docs" } }], [{ index: 1, patch: { url: "https://docs.example" } }]]);
   expect(removeLink).toHaveBeenCalledExactlyOnceWith({ index: 1 });
-  expect(addLink).toHaveBeenCalledExactlyOnceWith();
+  expect(addLink).toHaveBeenCalledOnce();
   mounted.rerender(<WidgetConfigFields {...props} widgetType="social-links" useSocialLinksConfigHook={() => ({
     ...controller, links: Array.from({ length: 20 }, () => link),
   })} />);
@@ -113,11 +113,11 @@ it("menu selection is loaded asynchronously and edits the selected reference, no
   const mounted = render(<WidgetConfigFields {...props} widgetType="menu" agentHandle="settings"
     config={{ menuRef: "main", preserved: "yes" }} onChange={onChange} port={{ ...props.port, listMenus }} />);
   expect(mounted.getByText("Loading menus…").textContent).toBe("Loading menus…");
-  const select = await mounted.findByRole<HTMLSelectElement>("combobox", { name: "Menu" });
+  const select = (await mounted.findByRole("combobox", { name: "Menu" })) as HTMLSelectElement;
   expect(listMenus).toHaveBeenCalledExactlyOnceWith();
   expect(select.value).toBe("main");
   expect(select.getAttribute("data-agent-element")).toBe("settings-menu-ref");
-  expect(within(select).getByRole<HTMLOptionElement>("option", { name: "Old nav (disabled)" }).value).toBe("old");
+  expect((within(select).getByRole("option", { name: "Old nav (disabled)" }) as HTMLOptionElement).value).toBe("old");
   fireEvent.change(select, { target: { value: "old" } });
   expect(onChange).toHaveBeenCalledExactlyOnceWith({ menuRef: "old", preserved: "yes" });
 });
@@ -134,13 +134,13 @@ it("contact-form pick reports form status and clearing its optional message does
   }
   const mounted = render(<Probe />);
   expect(mounted.getByText("Loading forms…").textContent).toBe("Loading forms…");
-  const select = await mounted.findByRole<HTMLSelectElement>("combobox", { name: "Form" });
+  const select = (await mounted.findByRole("combobox", { name: "Form" })) as HTMLSelectElement;
   expect(listForms).toHaveBeenCalledExactlyOnceWith();
   expect(select.value).toBe("newsletter");
   expect(select.getAttribute("data-agent-element")).toBe("settings-form-definition-id");
-  expect(within(select).getByRole<HTMLOptionElement>("option", { name: "Sales — disabled" }).value).toBe("sales");
+  expect((within(select).getByRole("option", { name: "Sales — disabled" }) as HTMLOptionElement).value).toBe("sales");
   fireEvent.change(select, { target: { value: "sales" } });
-  const message = mounted.getByRole<HTMLInputElement>("textbox", { name: "Success message (optional)" });
+  const message = mounted.getByRole("textbox", { name: "Success message (optional)" }) as HTMLInputElement;
   expect(message.getAttribute("data-agent-element")).toBe("settings-success-message");
   fireEvent.change(message, { target: { value: "We will follow up" } });
   fireEvent.change(message, { target: { value: "" } });
@@ -191,7 +191,7 @@ it("collection list renders only displayable fields and forwards each change wit
   expect(title.getAttribute("value")).toBe("-unit_price");
   expect(listCollections).toHaveBeenCalledExactlyOnceWith();
   expect(mounted.queryByText(/Field details/)).toBeNull();
-  const check = mounted.getByRole<HTMLInputElement>("checkbox", { name: "Field unit_price" });
+  const check = mounted.getByRole("checkbox", { name: "Field unit_price" }) as HTMLInputElement;
   expect(check.checked).toBe(true);
   expect(check.getAttribute("data-agent-element")).toBe("settings-field-unit-price");
   fireEvent.click(check);
@@ -204,7 +204,7 @@ it("collection list renders only displayable fields and forwards each change wit
   expect(setColumns).toHaveBeenCalledExactlyOnceWith({ value: "4" });
   fireEvent.change(mounted.getByRole("combobox", { name: "Filter" }), { target: { value: "" } });
   expect(setFilterField).toHaveBeenCalledExactlyOnceWith({ name: "" });
-  const value = mounted.getByRole<HTMLInputElement>("textbox", { name: "Filter value" });
+  const value = mounted.getByRole("textbox", { name: "Filter value" }) as HTMLInputElement;
   expect(value.value).toBe("12");
   expect(value.getAttribute("data-agent-element")).toBe("settings-filter-value");
   fireEvent.change(value, { target: { value: "35" } });

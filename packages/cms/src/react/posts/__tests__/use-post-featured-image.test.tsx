@@ -45,7 +45,7 @@ it("falls from rendition to original to unavailable, resetting for a new id", ()
 it("cancel closes the picker without replacing the image and a host without renditions uses the original", () => {
   const onChange = vi.fn();
   const { result, rerender } = renderHook(({ value }: { value: string | null }) =>
-    usePostFeaturedImage({ value, onChange, deps: { port: deps.port } }), { initialProps: { value: null } });
+    usePostFeaturedImage({ value, onChange, deps: { port: deps.port } }), { initialProps: { value: null as string | null } });
   expect(result.current.previewUrl).toBeNull();
   rerender({ value: "existing" });
   expect(result.current.previewUrl).toBe("/original/existing");

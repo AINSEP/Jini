@@ -66,7 +66,7 @@ it("a conflict hides competing prompts and its choices route to the correct reco
   fireEvent.click(screen.getByRole("button", { name: "Load latest" }));
   fireEvent.click(screen.getByRole("button", { name: "Keep my edits" }));
   expect(loadExternalChange.mock.calls).toEqual([[], []]);
-  expect(dismissExternalChange.mock.calls).toEqual([[], []]);
+  expect(dismissExternalChange).toHaveBeenCalledTimes(2);
 });
 
 it("parked draft recovery shows the saved title and sends only the chosen action", () => {
@@ -93,10 +93,10 @@ it("parked draft recovery shows the saved title and sends only the chosen action
   expect(screen.getByText("Translated Parked edits").textContent).toBe("Translated Parked edits");
   expect(standingDraftRecoveryMessage).toHaveBeenCalledExactlyOnceWith({ draft: recoverableDraft, t, serverUpdatedAt });
   fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
-  expect(discardRecoveredDraft).toHaveBeenCalledExactlyOnceWith();
+  expect(discardRecoveredDraft).toHaveBeenCalledOnce();
   expect(restoreRecoveredDraft).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Restore draft" }));
-  expect(restoreRecoveredDraft).toHaveBeenCalledExactlyOnceWith();
+  expect(restoreRecoveredDraft).toHaveBeenCalledOnce();
   rerender(<PostEditorNotices {...props} recoverableDraft={null} />);
   expect(screen.queryByRole("button", { name: "Restore draft" })).toBeNull();
 });

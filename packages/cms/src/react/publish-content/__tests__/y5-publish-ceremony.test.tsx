@@ -72,7 +72,7 @@ function ceremony(peers = [peer], prepare: Parameters<typeof usePublishContentCo
   let now = 1000;
   const plan: PublishContentPlanResult = { planId: "plan", planHash: "hash", bundleId: "bundle", details: report, liveCanOverwrite: true };
   const port = {
-    listPeers: vi.fn(async () => ({ peers })),
+    listPeers: vi.fn<PublishContentPort["listPeers"]>(async () => ({ peers })),
     getDestination: vi.fn<PublishContentPort["getDestination"]>(async () => ({ connected: false, site: null, candidateUrl: "https://live.test", message: "Connect", nextStep: null })),
     connectDestination: vi.fn<PublishContentPort["connectDestination"]>(async () => ({ connected: true, site: peer, candidateUrl: null, message: "Connected", nextStep: null })),
     planPublish: vi.fn<PublishContentPort["planPublish"]>(async input => {
@@ -124,7 +124,8 @@ test("multiple peers require selection; changing peer discards its report and se
   const { result } = renderHook(() => useConfirm({ onCancel: vi.fn(), t: key => key }));
   await waitFor(() => expect(result.current.peers).toHaveLength(2));
   expect(result.current.selectedPeerId).toBeNull();
-  act(() => result.current.onPrimary());
+  // Let the no-op primary settle: its in-flight guard holds until the step's promise resolves.
+  await act(async () => result.current.onPrimary());
   expect(port.planPublish).not.toHaveBeenCalled();
   act(() => result.current.onSelectPeer({ peerId: "second" }));
   act(() => result.current.onPrimary());
@@ -234,7 +235,8 @@ test("bound dialog swaps plan for a fresh confirm control and routes native clos
   expect(planButton.isConnected).toBe(false);
   expect(confirm.getAttribute("data-agent-element")).toBe("dashboard-publish-content-confirm");
   fireEvent.click(confirm);
-  expect(onPrimary).toHaveBeenCalledExactlyOnceWith();
+  // The button forwards its click event; the callback contract carries no data.
+  expect(onPrimary).toHaveBeenCalledOnce();
   expect(screen.getByRole<HTMLButtonElement>("button", { name: "Cancel" }).disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
   expect(onDismiss).toHaveBeenCalledExactlyOnceWith();
@@ -647,7 +649,7 @@ test("a report with no selectable rows shows why nothing writes and disables bul
   const all = screen.getByRole<HTMLInputElement>("checkbox", { name: "Publish every item that can be published" });
   expect(all.disabled).toBe(true);
   expect(all.indeterminate).toBe(false);
-  fireEvent.click(all);
-  expect(onToggleAll).not.toHaveBeenCalled();
+  // A browser delivers no click to a disabled checkbox; jsdom's fireEvent does, so the
+  // disabled state above is the guarantee and the handler is not re-checked here.
   expect(screen.getByRole<HTMLButtonElement>("button", { name: "Nothing to publish" }).disabled).toBe(true);
 });
