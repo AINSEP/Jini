@@ -72,3 +72,9 @@ describe("themeFileResetRoute", () => {
     expect(d.log).toEqual([]);
   });
 });
+
+it("preserves a classified string path fault as the generated-tree refusal", async () => {
+  const reason = "No original release was stored.";
+  const d = deps({ restoreGeneratedTree: () => { throw reason; }, isThemePathError: ({ err }) => err === reason });
+  expect(await refusalOf(() => run(d, "dist/a.js"))).toEqual({ status: 409, body: { error: reason, code: "NO_ORIGINAL" } });
+});

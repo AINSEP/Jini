@@ -1,7 +1,7 @@
 import { ToolInputError } from "@jini-ai/core";
 import { describe, expect, it } from "vitest";
 import {
-  mailActivityGetRoute, mailActivityListRoute, mailFeedbackRoute, mailSuppressionRemoveRoute, mailSuppressionsListRoute, mailUsesRoute,
+  mailActivityGetRoute, mailActivityListRoute, mailCaptureClearRoute, type MailCaptureClearRouteDeps, mailFeedbackRoute, mailSuppressionRemoveRoute, mailSuppressionsListRoute, mailUsesRoute,
   type MailActivityFailure, type MailActivityGetRouteDeps, type MailActivityListRouteDeps, type MailFeedbackRouteDeps,
   type MailSuppressionRemoveRouteDeps, type MailSuppressionsListRouteDeps, type MailUsesRouteDeps,
 } from "../mail-activity.js";
@@ -149,4 +149,39 @@ describe("mail activity route specs", () => {
       await expect(run(entry, makeDeps(), entry.input, null)).rejects.toThrow(/no authenticated principal/);
     });
   });
+});
+
+it("clears only the reviewed capture revision, previewing first and preserving captures on stale confirmation", async () => {
+  const captured = new Set(["test-email-1", "test-email-2"]);
+  const plans: unknown[] = [];
+  const deps: MailCaptureClearRouteDeps = {
+    classifyMailActivityError: () => undefined,
+    planCaptureClear: async (input) => {
+      plans.push(input);
+      const reviewed = [...captured];
+      return {
+        plan: { count: reviewed.length, newestAt: "2026-11-26T11:00:00.000Z" },
+        revision: reviewed.join(","),
+        clear: async () => ({ cleared: true, deleted: reviewed.filter((id) => captured.delete(id)).length }),
+      };
+    },
+  };
+  const post = async (body: unknown) => {
+    const parsed = await mailCaptureClearRoute.parse(raw({ body }));
+    if (!parsed.ok) throw new Error("mail capture parse should accept the body");
+    return mailCaptureClearRoute.handle({ input: parsed.value, deps, context: PRINCIPAL }, { signal });
+  };
+  expect(await post({ confirmed: "true", revision: 2 })).toEqual({ ok: true, value: {
+    cleared: false, confirmationRequired: true,
+    plan: { count: 2, newestAt: "2026-11-26T11:00:00.000Z" }, revision: "test-email-1,test-email-2",
+  } });
+  captured.add("test-email-3");
+  expect(await refusalOf(() => post({ confirmed: true, revision: "test-email-1,test-email-2" }))).toEqual({ status: 400, body: {
+    error: "Captured test emails changed or no reviewed revision was supplied. Review and confirm again.", code: "INVALID_INPUT",
+  } });
+  expect(captured).toEqual(new Set(["test-email-1", "test-email-2", "test-email-3"]));
+  expect(await post({ confirmed: true, revision: "test-email-1,test-email-2,test-email-3" }))
+    .toEqual({ ok: true, value: { cleared: true, deleted: 3 } });
+  expect(captured).toEqual(new Set());
+  expect(plans).toEqual(Array.from({ length: 3 }, () => ({ principalId: "principal-1" })));
 });

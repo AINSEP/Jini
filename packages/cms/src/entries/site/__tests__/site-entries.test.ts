@@ -5,6 +5,7 @@ import { entryPublicHref, humanizeFieldName, parseCollectionListConfig, DEFAULT_
 import { toolMetadata } from "@jini-ai/core/tool-metadata/entries";
 import { contributeEntriesTools } from "../tool-registrations.js";
 import { extractHtmlEntryRefs } from "../../../widgets/entry-refs-extractor.js";
+import type { ContentTypeRecord } from "@jini-ai/core/contracts/content-types";
 import type { UUID } from "@jini-ai/core/primitives";
 
 /** @file Characterizes the site entries surface: layout vocabulary, public-list helpers, tool seam. */
@@ -63,4 +64,53 @@ describe("site entries surface", () => {
     expect(reports[0]?.message).toMatch(/UNINDEXED/);
     expect(reports[0]?.message).toMatch(/safe-delete/i);
   });
+});
+
+const author = { name: "author", kind: "text", required: false, queryable: true } as const;
+const pages = { name: "pages", kind: "integer", required: false, queryable: true } as const;
+const featured = { name: "featured", kind: "boolean", required: false, queryable: true } as const;
+const collection: ContentTypeRecord = {
+  workspaceId: "ws-1", key: "books", label: "Books", fields: [author, pages, featured], status: "active", version: 7, tombstonedAt: null,
+};
+
+it("keeps all authored scalar predicates, sorts on the chosen field, and displays fields in authored order", () => {
+  expect(parseCollectionListConfig({ contentType: collection, config: {
+    where: { author: "Herbert", featured: false, pages: 0 }, sort: "-pages", fields: ["pages", "author"],
+    listSize: 99, columns: 2, layout: "accordion", structuredData: "faq-page",
+  } }, { limitKey: "listSize" })).toEqual({
+    ok: true,
+    query: { type: "books", where: [{ field: "author", value: "Herbert" }, { field: "featured", value: false }, { field: "pages", value: 0 }],
+      sort: { by: { field: "pages" }, dir: "desc" }, limit: 24 },
+    display: { columns: 2, layout: "accordion", fields: [pages, author], structuredData: "faq-page" },
+  });
+});
+
+it.each<[string, string, "asc" | "desc"]>([
+  ["oldest", "published", "asc"],
+  ["updated", "updated", "desc"],
+  ["-updated", "updated", "asc"],
+  ["title", "title", "asc"],
+  ["-title", "title", "desc"],
+])("resolves the authored %s sort direction", (sort, by, dir) => {
+  expect(parseCollectionListConfig({ contentType: collection, config: { sort, where: null, fields: [] } })).toEqual({
+    ok: true, query: { type: "books", where: [], sort: { by, dir }, limit: 6 },
+    display: { columns: 3, layout: "cards", fields: [] },
+  });
+});
+
+it.each<[unknown, string]>([
+  [{ where: [] }, "where must be an object of {field: value} pairs"],
+  [{ where: { curator: "Herbert" } }, 'unknown field in where: "curator"'],
+  [{ where: { featured: [true] } }, "non-scalar value for where.featured"],
+  [{ sort: "-curator" }, 'unknown field in sort: "-curator"'],
+  [{ fields: ["author", "curator"] }, 'unknown field in fields: "curator"'],
+])("refuses config %j instead of silently widening the query", (config, reason) => {
+  expect(parseCollectionListConfig({ contentType: collection, config })).toEqual({ ok: false, reason });
+});
+
+it("does not expose system and tombstoned types through public collection listings", () => {
+  expect(parseCollectionListConfig({ contentType: { ...collection, key: "widget" }, config: {} }))
+    .toEqual({ ok: false, reason: 'system content type: "widget"' });
+  expect(parseCollectionListConfig({ contentType: { ...collection, status: "tombstone", tombstonedAt: "2026-11-26T00:00:00Z" }, config: {} }))
+    .toEqual({ ok: false, reason: 'content type is tombstoned: "books"' });
 });

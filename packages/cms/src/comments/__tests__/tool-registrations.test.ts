@@ -1,5 +1,5 @@
 import { ToolInputError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InMemoryCommentRepo } from "../repo.memory.js";
 import {
@@ -9,7 +9,7 @@ import {
   type CommentsPackageToolDeps,
   type CommentsSettingsPort,
 } from "../tool-registrations.js";
-import type { CommentsSettings } from "../types.js";
+import type { CommentRecord, CommentsSettings } from "../types.js";
 import { CommentsSettingsValidationError } from "../errors.js";
 
 const SETTINGS: CommentsSettings = { enabled: true, requireModeration: true, maxDepth: 5, closeAfterDays: null, spamAutoRejectScore: 0.5, maxPerIpPerHour: 20 };
@@ -104,4 +104,88 @@ describe("buildCommentsToolRegistrations", () => {
     const { registrations } = makeDeps({ commentsProviders: undefined });
     await expect(run(registrations, "comments_get_provider", {})).rejects.toMatchObject({ message: "Comments provider service is unavailable." });
   });
+});
+
+const comment: CommentRecord = {
+  id: "comment-8", workspaceId: "ws-1", entryId: "entry-2", parentId: null, threadRootId: "comment-8",
+  depth: 0, status: "pending", authorPrincipalId: null, authorName: "Visitor", authorEmail: "visitor@example.test",
+  authorUrl: "https://private.example", authorIpHash: "private-hash", bodyText: "Please update the hours.",
+  spamScore: 0.1, spamProvider: "internal", createdAt: "2026-11-26T14:00:00.000Z", updatedAt: "2026-11-26T14:05:00.000Z", version: 3,
+};
+const view = {
+  id: "comment-8", entryId: "entry-2", parentId: null, status: "pending", authorName: "Visitor",
+  authorEmail: "visitor@example.test", bodyText: "Please update the hours.", spamScore: 0.1,
+  createdAt: "2026-11-26T14:00:00.000Z", version: 3,
+};
+
+it("looks up one scoped comment and projects the same safe moderation fields as the queue", async () => {
+  const commentRepo = new InMemoryCommentRepo({ initialComments: [
+    { ...comment, workspaceId: "other-workspace", bodyText: "foreign comment" },
+    comment, { ...comment, id: "spam-4", status: "spam", bodyText: "Repeated ad." },
+  ] });
+  const { registrations, calls } = makeDeps({ commentRepo });
+  expect(await run(registrations, "comments_get_comment", { commentId: "comment-8" })).toEqual({ comment: view });
+  expect(await run(registrations, "comments_list_moderation_queue", {})).toEqual({ items: [view], nextCursor: null });
+  expect(await run(registrations, "comments_list_moderation_queue", { status: "spam", limit: 1 })).toEqual({
+    items: [{ ...view, id: "spam-4", status: "spam", bodyText: "Repeated ad." }], nextCursor: null,
+  });
+  await expect(run(registrations, "comments_get_comment", { commentId: "absent" })).rejects.toThrow("COMMENTS_NOT_FOUND: comment 'absent' was not found");
+  expect(calls.authorize).toEqual(Array.from({ length: 4 }, () => "comments.read"));
+});
+
+it.each([
+  [null, undefined, true, "Public comments are off. Stored comments, settings and the moderation queue are kept; select built-in to show them again."],
+  ["built-in", undefined, true, "The 'built-in' provider is selected but not ready yet; comments are not showing. Try again shortly."],
+  ["built-in", {}, false, "The 'built-in' provider is selected but comments are disabled in comments settings; enable them there."],
+  ["built-in", {}, true, undefined],
+] as const)("describes provider %s readiness without dropping the count of stored pending comments", async (providerId, adapter, enabled, note) => {
+  const commentRepo = new InMemoryCommentRepo({ initialComments: [comment, { ...comment, workspaceId: "elsewhere" }] });
+  const { registrations, calls } = makeDeps({
+    commentRepo,
+    commentsProviders: { active: async () => ({ providerId, revision: 6, adapter }), select: async () => {} },
+    commentsSettings: { get: async () => ({ ...SETTINGS, enabled }), set: async () => { throw new Error("read-only fixture"); } },
+  });
+  expect(await run(registrations, "comments_get_provider", {})).toEqual({
+    providerId, revision: 6, ready: note === undefined, pendingCount: 1, ...(note === undefined ? {} : { note }),
+  });
+  expect(calls.authorize).toEqual(["comments.configure"]);
+});
+
+it.each([
+  ["comments_approve_comment", "approve", "approved", "comments.moderate"],
+  ["comments_mark_comment_spam", "mark_spam", "spam", "comments.moderate"],
+  ["comments_restore_comment", "restore", "approved", "comments.moderate"],
+  ["comments_trash_comment", "trash", "trash", "comments.delete"],
+] as const)("wires %s to the guarded action and updates repository state", async (tool, action, toStatus, permission) => {
+  const commentRepo = new InMemoryCommentRepo({ initialComments: [{ ...comment, status: action === "restore" ? "trash" : "pending" }] });
+  const applyModeration = vi.fn<CommentsPackageToolDeps["commentWriteService"]["applyModeration"]>(async (input) =>
+    commentRepo.applyModeration({ ...input, at: "2026-11-26T15:00:00.000Z" }));
+  const { registrations, calls } = makeDeps({ commentRepo, commentWriteService: { applyModeration, purge: async () => { throw new Error("unexpected purge"); } } });
+  const acknowledgment = { moderated: { commentId: "comment-8", toStatus } };
+  expect(await run(registrations, tool, { commentId: "comment-8", expectedVersion: 3, note: "reviewed" })).toEqual(
+    action === "trash" ? { ...acknowledgment, trashed: true, cancelled: false } : acknowledgment,
+  );
+  expect(applyModeration.mock.calls).toEqual([[{
+    workspaceId: "ws-1", id: "comment-8", expectedVersion: 3, actorPrincipalId: "p1", note: "reviewed", action, toStatus,
+    ...(action === "trash" ? { actorPluginId: "assistant" } : {}),
+  }]]);
+  expect(calls.authorize).toEqual(action === "trash" ? [permission, permission] : [permission]);
+  expect(await commentRepo.findById({ workspaceId: "ws-1", id: "comment-8" })).toMatchObject({ status: toStatus, version: 4 });
+});
+
+it("returns actionable version conflicts and missing-comment refusals without changing the row", async () => {
+  const commentRepo = new InMemoryCommentRepo({ initialComments: [comment] });
+  const applyModeration = vi.fn<CommentsPackageToolDeps["commentWriteService"]["applyModeration"]>(async (input) =>
+    commentRepo.applyModeration({ ...input, at: "2026-11-26T15:00:00.000Z" }));
+  const { registrations } = makeDeps({ commentRepo, commentWriteService: { applyModeration, purge: async () => { throw new Error("unexpected purge"); } } });
+  await expect(run(registrations, "comments_trash_comment", { commentId: "absent", expectedVersion: 3 })).rejects.toThrow("COMMENTS_NOT_FOUND: comment 'absent' was not found");
+  expect(applyModeration.mock.calls).toEqual([]);
+  await expect(run(registrations, "comments_approve_comment", { commentId: "absent", expectedVersion: 3 })).rejects.toThrow("COMMENTS_NOT_FOUND: comment 'absent' was not found");
+  await expect(run(registrations, "comments_trash_comment", { commentId: "comment-8", expectedVersion: 2, note: 7 })).rejects.toThrow(
+    "COMMENTS_VERSION_CONFLICT: comment 'comment-8' was modified concurrently (current version is 3)",
+  );
+  expect(applyModeration.mock.calls.at(-1)).toEqual([{
+    workspaceId: "ws-1", id: "comment-8", expectedVersion: 2, actorPrincipalId: "p1", actorPluginId: "assistant", note: null, action: "trash", toStatus: "trash",
+  }]);
+  expect(await commentRepo.findById({ workspaceId: "ws-1", id: "comment-8" })).toEqual(comment);
 });

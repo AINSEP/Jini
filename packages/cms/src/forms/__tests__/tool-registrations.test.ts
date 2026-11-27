@@ -5,6 +5,7 @@ import { executeCommand } from "../../core/index.js";
 import { DELIVERY_STATUS_MAX_LIMIT } from "../delivery-status-limits.js";
 import { FormDefinitionNotFoundError } from "../errors.js";
 import { duplicateFormDefinition } from "../duplicate-form.js";
+import { createFormAuthoring } from "../html/authoring-adapter.js";
 import { formsAgentToolCatalog } from "../agent-tools.js";
 import type { FormsPackageToolDeps, FormsToolDeliveryStatusRow, FormsToolWriteDeps, FormsWriteOps } from "../tool-handlers.types.js";
 import { buildFormsToolRegistrations, formsDerivedRisk } from "../tool-registrations.js";
@@ -222,4 +223,27 @@ test("duplicating a form picks the next free name and slug, keeps a disabled sou
   assert.deepEqual([second.definition.name, second.definition.status], ["Contact 3", "disabled"]);
   await assert.rejects(duplicateFormDefinition({ deps: fixture.deps, input: input({ status: "draft" }) }), /does not support the 'status' override/);
   await assert.rejects(duplicateFormDefinition({ deps: fixture.deps, input: { ...input({}), id: "missing" } }), FormDefinitionNotFoundError);
+});
+
+test("duplicating HTML preserves its authored form and uses the explicit name and slug", async () => {
+  const fixture = makeFixture();
+  const html = '<label>Email <input type="email" name="email"></label><button>Join</button>';
+  const authoring = createFormAuthoring({ permission: "admin.forms.manage" });
+  const writes: FormsWriteOps = {
+    ...fixture.deps.formWrites,
+    create: ({ deps, input }) => createFormDefinition({
+      deps: { ...deps, permission: "admin.forms.manage", reservedSlugs: new Set(["new"]) }, input,
+    }, { authoring }),
+  };
+  const source = await writes.create({
+    deps: { ...fixture.deps, repo: fixture.repo },
+    input: { workspaceId: WORKSPACE_ID, actor: { id: PRINCIPAL_ID, kind: "user" }, name: "Signup", slug: "signup", fields: FIELDS, mode: "html", html },
+  });
+  const result = await duplicateFormDefinition({ deps: { ...fixture.deps, formWrites: writes }, input: {
+    principalId: PRINCIPAL_ID, id: source.definition.id, overrides: { title: "Pilot signup", slug: "pilot-subscribe" },
+  } }) as { definition: { id: string; name: string; slug: string } };
+  assert.deepEqual([result.definition.name, result.definition.slug], ["Pilot signup", "pilot-subscribe"]);
+  assert.notEqual(result.definition.id, source.definition.id);
+  const stored = await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: result.definition.id }) as { mode?: string; html?: string } | null;
+  assert.deepEqual({ mode: stored?.mode, html: stored?.html }, { mode: "html", html });
 });

@@ -56,3 +56,16 @@ test("host-supplied adapter options reach the adapter next to the plugin's state
   await deliver({ workspaceId: "w", job });
   assert.deepEqual(seen, [{ state, legacyHeaders: { submissionId: ["w/p"] } }]);
 });
+
+test("passes through the kit's bound clock without dropping its receiver", async () => {
+  const now = () => 946684800000;
+  const host = {
+    ...kit, instant: now(),
+    now() { return this.instant; },
+  };
+  const seen: unknown[] = [];
+  const registry = registryWith({ deliver: async ({ kit: scoped }) => { seen.push(scoped.now?.()); } });
+  const deliver = createFormDestinationDeliverer({ resolveRequestTarget, kit: host, connections: async () => credential, loadRegistry: async () => registry });
+  await deliver({ workspaceId: "w", job });
+  assert.deepEqual(seen, [946684800000]);
+});

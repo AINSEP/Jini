@@ -64,3 +64,15 @@ test('ownership mismatches have a distinct safe warning from retryable stamp fai
     protect: async () => { throw new FormAttachmentOwnerMismatchError(); }, warn: input => { warnings.push(input); } });
   assert.deepEqual(warnings, [{ submissionId: 's', code: 'attachment-owner-mismatch' }]);
 });
+
+test('does not prepare removal when a form submission contains only ordinary answers', async () => {
+  const prepares: string[] = [];
+  const hooks = createFormAttachmentPurgeHooks({
+    readSubmissions: async ({ after }) => after ? [] : [{ id: 's', dataJson: JSON.stringify({ number: 7, photo: ['a'], missing: null, comment: 'text', metadata: { mediaId: 4 } }) }],
+    prepareRemoval: async () => { prepares.push('opened'); return async () => { throw new Error('ordinary answers have no attachments'); }; },
+  });
+  const input = { workspaceId: 'w', entityId: 'form-2' };
+  const priorState = await hooks.beforePurge!({ ...input });
+  await hooks.afterPurge!({ ...input, priorState });
+  assert.deepEqual(prepares, []);
+});

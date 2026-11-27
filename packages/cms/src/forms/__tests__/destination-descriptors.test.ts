@@ -40,3 +40,13 @@ describe('form destination module rules', () => {
     expect(formDestinationMissingMethods({ entry: { descriptor: { ...descriptor, receive: 'external' }, module: { pull: fn, ack: fn } } })).toBe('an external receiver needs prepare()');
   });
 });
+
+it.each<[unknown, string]>([
+  [null, 'destinations must be an array'],
+  [[null], 'destinations[0] must be an object'],
+  [[{ ...entry, label: '  ' }], 'destinations[0].label must be a non-empty string'],
+  [[{ ...entry, receive: 'external', hosts: ['bad-host!'] }], 'destinations[0].hosts must be an array of hosting target ids'],
+  [[{ ...entry, receive: 'external', credentialLabel: '' }], 'destinations[0].credentialLabel must be a non-empty string'],
+])('refuses a malformed plugin descriptor %j with its field-specific explanation', (destinations, reason) => {
+  expect(parseFormDestinationsFile({ raw: file(destinations) })).toEqual({ ok: false, reason });
+});

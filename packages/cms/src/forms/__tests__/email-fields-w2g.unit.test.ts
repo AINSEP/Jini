@@ -38,3 +38,13 @@ test('choice arrays containing credentials are omitted as a whole while public a
     safe: 'a', site_name: 'Host', site_url: '/', submitted_at: '2026-10-28',
   });
 });
+
+test('exports real falsy scalar answers but not uploaded objects as email tokens', () => {
+  const form = definition({ fields: [field({ id: 'count' }, { type: 'number' }),
+    field({ id: 'join' }, { type: 'toggle' }), field({ id: 'proof' }, { type: 'file' })] });
+  const submission: FormSubmissionRecord = { id: 's', workspaceId: 'site', formDefinitionId: 'form',
+    data: { count: 0, join: false, proof: { mediaId: 'attachment', filename: 'proof.pdf', contentType: 'application/pdf', byteSize: 12 } }, sourceIp: null, submittedAt: '2026-10-28' };
+  expect(resolveFormEmailValues({ definition: form, submission, site: { name: 'Host', url: '/' } })).toEqual({
+    count: '0', join: 'false', site_name: 'Host', site_url: '/', submitted_at: '2026-10-28',
+  });
+});

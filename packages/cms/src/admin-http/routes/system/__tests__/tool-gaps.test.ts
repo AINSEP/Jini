@@ -39,3 +39,11 @@ describe('toolGapsRoute', () => {
     expect(error.response).toEqual({ status: 503, body: { error: 'Tool gap audit storage is unavailable.' } });
   });
 });
+
+it('does not query the audit store when the mount omits the principal', async () => {
+  const requests: unknown[] = [];
+  await expect(toolGapsRoute.handle({
+    input: {}, deps: { workspaceId: 'w', ownerPrincipalId: Promise.resolve('owner'), toolGaps: { list: async (input) => { requests.push(input); return []; } } },
+  })).rejects.toThrow('tool-gaps route has no authenticated principal');
+  expect(requests).toEqual([]);
+});

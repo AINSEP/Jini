@@ -72,3 +72,10 @@ describe("assistant subagents (full CLI) grant", () => {
     expect(widened.calls).toEqual([["read", null]]);
   });
 });
+
+it("reads the current permission grant from the bound host", async () => {
+  const next = { enabled: true, capabilities: { files: false, shell: true } };
+  const { policy, calls } = fixture({ next });
+  expect(await policy.read()).toEqual(next);
+  expect(calls).toEqual([["read", null]]);
+});

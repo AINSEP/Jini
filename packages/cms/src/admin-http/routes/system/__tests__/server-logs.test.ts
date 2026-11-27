@@ -80,3 +80,12 @@ describe('serverLogsRoute', () => {
     expect(parses).toBe(0);
   });
 });
+
+it('does not parse or read filters without the route authorizer', async () => {
+  const parsed: unknown[] = [];
+  const d = deps({ parseServerLogFilters: ({ raw }) => { parsed.push(raw); return {}; } });
+  await expect(serverLogsRoute.handle({ input: { query: { level: 'warn' } }, deps: d, context: { id: 'owner' } }))
+    .rejects.toThrow('server-logs route has no authorizer');
+  expect(parsed).toEqual([]);
+  expect(reads).toEqual([]);
+});

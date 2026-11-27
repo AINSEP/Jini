@@ -4,6 +4,11 @@ import type { CommentRepoPort } from '../../ports.js';
 import type { CommentRecord, CommentsSettings } from '../../types.js';
 import { createBuiltinCommentsProvider, BUILTIN_COMMENTS_DEFINITION, type BuiltinCommentsDeps } from '../builtin-provider.js';
 import { ToolInputError } from '@jini-ai/core';
+import type { CommentsProviderBinding, CommentsProviderRegistry, CommentsSelectionStorePort } from '@jini-ai/core/contracts/site/comments-providers';
+import type { PrincipalRepoPort } from '@jini-ai/core/contracts/site/user-management';
+import { InMemorySettingsRepo } from '@jini-ai/core/settings';
+import { createCommentsCapability, ensureCommentsProviderDefinition } from '../provider-selection.js';
+import type { SetCommentsSettingsDeps } from '../settings.js';
 
 const entry = { id: 'e', slug: 'post', title: 'Post', canonicalUrl: '/post', status: 'published' };
 const row = (patch: Partial<CommentRecord> = {}): CommentRecord => ({ id: 'c', workspaceId: 's', entryId: 'e', parentId: null, threadRootId: 'c',
@@ -109,4 +114,85 @@ test('a stale or hand-edited cursor falls back to the first page; other repo fai
   assert.match(html, /<a href="\/post#comments">First comments<\/a>/);
   assert.ok(!(await f.provider.renderer.renderThread({ siteId: 's', entry, locale: 'en' })).html.includes('First comments'));
   await assert.rejects(f.provider.renderer.renderThread({ siteId: 's', entry, locale: 'en' }, { cursor: 'boom' }), /database down/);
+});
+
+/** Host registry double preserves each registration and resolves it for the requested site. */
+function registryFor(selections: CommentsSelectionStorePort): CommentsProviderRegistry {
+  const bindings = new Map<string, CommentsProviderBinding>();
+  const resolve: CommentsProviderRegistry['resolve'] = async ({ siteId, providerId }) => bindings.get(providerId)?.resolve({ siteId });
+  return {
+    register: (binding) => { bindings.set(binding.definition.id, binding); },
+    get: ({ providerId }) => bindings.get(providerId)?.definition,
+    has: ({ providerId }) => bindings.has(providerId),
+    list: () => [...bindings.values()].map(({ definition }) => definition),
+    resolve,
+    active: async ({ siteId }) => {
+      const choice = await selections.read({ siteId });
+      return { ...choice, adapter: choice.providerId === null ? undefined : await resolve({ siteId, providerId: choice.providerId }) };
+    },
+    select: async (input) => {
+      if (!await selections.compareAndSet(input)) throw new Error('stale choice');
+    },
+  };
+}
+
+async function capabilityFixture() {
+  const f = fixture();
+  let ids = 0;
+  const settings: SetCommentsSettingsDeps = {
+    settingsRepo: new InMemorySettingsRepo(), clock: { nowMs: () => 0 }, ids: { newId: () => `setting-${++ids}` },
+    principals: {} as PrincipalRepoPort, createPrincipalLookup: () => ({ findActiveById: async () => null }),
+    authorize: async () => ({ allowed: true, reason: 'fixture' }),
+  };
+  await ensureCommentsProviderDefinition({ deps: settings, systemPrincipalId: 'bootstrap' });
+  const make = (commentsReady = Promise.resolve(), settingsReady = Promise.resolve()) =>
+    createCommentsCapability({
+      siteId: 's', commentsReady, settingsReady, settings,
+      module: { commentRepo: f.deps.repo, ingressPolicy: f.deps.ingress, writeService: f.deps.writes },
+      createProviderRegistry: ({ selections }) => registryFor(selections),
+    });
+  return { f, make };
+}
+
+test('publishes the built-in provider only after both readiness ports and never resolves it for another site', async () => {
+  const { make } = await capabilityFixture();
+  let settingsReady!: () => void;
+  const ready = new Promise<void>((resolve) => { settingsReady = resolve; });
+  const { providers } = make(Promise.resolve(), ready);
+  let resolved = false;
+  const pending = providers.resolve({ providerId: 'built-in', siteId: 's' }).then((value) => { resolved = true; return value; });
+  // Drain promise continuations without a timing guess; a provider that skipped the readiness gate would settle.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(resolved, false);
+  assert.equal(await providers.resolve({ providerId: 'built-in', siteId: 'other' }), undefined);
+  settingsReady();
+  const builtin = await pending;
+  assert.equal(builtin?.kind, 'stored');
+  assert.equal(providers.get({ providerId: 'built-in' })?.label, BUILTIN_COMMENTS_DEFINITION.label);
+});
+
+test('fallback for an unregistered choice preserves the stored revision, while explicit disable stops moderation but not erasure', async () => {
+  const { f, make } = await capabilityFixture();
+  const { providers, writeService } = make();
+  await providers.select({ siteId: 's', providerId: 'deprecated-addon', actorPrincipalId: 'owner', expectedRevision: 0 });
+  const fallback = await providers.active({ siteId: 's' });
+  assert.equal(fallback.providerId, 'built-in');
+  assert.equal(fallback.adapter?.kind, 'stored');
+  assert.ok(fallback.revision > 0);
+  const request = { workspaceId: 's', id: 'c', expectedVersion: 1, actorPrincipalId: 'owner', note: 'approved for publishing', action: 'approve' as const, toStatus: 'approved' as const };
+  assert.deepEqual(await writeService.applyModeration(request), { ok: true });
+  assert.deepEqual(f.calls.apply, request);
+  await writeService.applyModeration({ ...request, workspaceId: 'other' }).then(
+    () => assert.fail('foreign-site moderation unexpectedly succeeded'),
+    (error: unknown) => assert.equal((error as Error).message, 'Comments site mismatch'),
+  );
+
+  await providers.select({ siteId: 's', providerId: null, actorPrincipalId: 'owner', expectedRevision: fallback.revision });
+  const disabled = await providers.active({ siteId: 's' });
+  assert.equal(disabled.providerId, null);
+  assert.equal(disabled.adapter, undefined);
+  await assert.rejects(writeService.applyModeration(request), { message: 'No stored comments provider is active. Select built-in first.' });
+  await assert.rejects(writeService.purge({ workspaceId: 'other', id: 'c', actorPrincipalId: 'owner', note: null }), { message: 'Comments site mismatch' });
+  assert.deepEqual(await writeService.purge({ workspaceId: 's', id: 'c', actorPrincipalId: 'owner', note: null }), { ok: true });
+  assert.deepEqual(f.calls.purge, { workspaceId: 's', id: 'c', actorPrincipalId: 'owner', note: null });
 });

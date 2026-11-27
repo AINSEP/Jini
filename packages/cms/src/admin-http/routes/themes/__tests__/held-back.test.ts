@@ -57,7 +57,10 @@ describe("heldBackListRoute", () => {
   it("authorizes theme.set on theme, then answers the host's listing", async () => {
     const { authorize, calls } = recordingAuthorize();
     const listing = { themes: [{ id: "static/a" }], chosenThemeHeldBack: null };
-    const result = await heldBackListRoute.handle({ input: undefined, deps: { ...failures, listHeldBack: () => listing }, context: PRINCIPAL, authorize }, { signal });
+    const parsed = await heldBackListRoute.parse(raw({}, undefined));
+    expect(parsed).toEqual({ ok: true, value: undefined });
+    if (!parsed.ok) throw new Error("the list route must accept an empty body");
+    const result = await heldBackListRoute.handle({ input: parsed.value, deps: { ...failures, listHeldBack: () => listing }, context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([READ]);
     expect(result).toEqual({ ok: true, value: listing });
   });

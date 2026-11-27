@@ -38,7 +38,7 @@ describe("themeDetailRoute", () => {
   });
 
   it("lists no inherited entries for a theme without inherited sources", async () => {
-    const plain = { ...THEME, inheritedTemplateSources: {} };
+    const plain: ExploreThemeDetailSource = { manifest: THEME.manifest, status: THEME.status, errors: [], pages: {}, partials: {} };
     const result = await run(deps(plain, async () => ({ files: [], hasOriginal: false })));
     expect(result).toMatchObject({ ok: true, value: { files: [], hasOriginal: false } });
   });

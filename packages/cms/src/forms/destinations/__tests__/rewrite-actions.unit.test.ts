@@ -35,3 +35,12 @@ test("a submit address must be plain https: no http, userinfo, query or fragment
   }
   assert.throws(() => rewriteFormActions({ files: [], submitUrl: "http://relay.example" }), /not a plain https URL/);
 });
+
+test("rewrites portable Uint8Array HTML as UTF-8 without losing the form or page text", () => {
+  const source = '<p>Crème</p><form action="/forms/contact/submit"></form>';
+  const [page] = rewriteFormActions({
+    files: [{ file: "contacts/index.html", data: new TextEncoder().encode(source) }],
+    submitUrl: "https://relay.example",
+  });
+  assert.equal(new TextDecoder().decode(page!.data), '<p>Crème</p><form action="https://relay.example/forms/contact/submit"></form>');
+});

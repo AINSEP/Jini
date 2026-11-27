@@ -144,3 +144,9 @@ describe("source-control credential routes", () => {
     expect(deleted).toEqual([{ workspaceId: "ws-1", id: "c1" }]);
   });
 });
+
+it("preserves automatic default selection when the host has no shared project vault", async () => {
+  const local = createDeps({ hasProjectStore: () => false });
+  await sourceControlCreateRoute.handle({ input: { id: "", body: { label: "Local account" } }, deps: local, authorize: recording().authorize });
+  expect(local.created).toEqual([{ workspaceId: "ws-1", label: "Local account", connection: undefined, isDefault: undefined, scope: undefined }]);
+});

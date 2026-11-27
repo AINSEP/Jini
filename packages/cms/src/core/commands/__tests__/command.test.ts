@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
+import { InMemoryChangeSetRepo } from "../repo.memory.js";
 import type { NewChangeSetRecord, AttributedDomainEvent, DomainEvent, OutboxPort, ChangeSetItemRecord, ChangeSetRecord, ChangeSetRepoPort } from "@jini-ai/core/contracts/events";
 import {
   DuplicateCommandError,
@@ -282,4 +283,29 @@ test("one command persists one actor on both atomic records", async () => {
   expectTypeOf<ChangeSetRecord>().not.toMatchTypeOf<NewChangeSetRecord>();
   expectTypeOf<ChangeSetRecord>().not.toMatchTypeOf<Parameters<ChangeSetRepoPort["insert"]>[0]["record"]>();
   expectTypeOf<DomainEvent>().not.toMatchTypeOf<AttributedDomainEvent>();
+});
+
+test("the memory change-set ledger preserves workspace-local idempotency and forwards only the supplied event", async () => {
+  const events: AttributedDomainEvent[] = [];
+  const changeSets = new InMemoryChangeSetRepo([], [], { ...fakeOutbox(), enqueue: async (event) => { events.push(event); } });
+  const primary: NewChangeSetRecord = {
+    id: "manual-1", workspaceId: "ws-a", idempotencyKey: "same-retry", status: "applied",
+    actor: { id: "editor", kind: "user" }, actorId: "editor", summary: "Review draft", createdAt: "2026-11-26T12:00:00.000Z",
+  };
+  const secondary = { ...primary, id: "manual-2", workspaceId: "ws-b" };
+  const event: AttributedDomainEvent = {
+    id: "event-1", name: "change-set.applied", occurredAt: primary.createdAt, aggregateId: "manual-1",
+    workspaceId: "ws-a", actorId: "editor", actor: { id: "editor", kind: "user" }, changeSetId: "manual-1",
+    payload: { changeSetId: "manual-1" },
+  };
+  await changeSets.insert({ record: primary, items: [] }, { event });
+  await changeSets.insert({ record: secondary, items: [] });
+  expect(await changeSets.findByIdempotencyKey({ workspaceId: "ws-b", idempotencyKey: "same-retry" })).toEqual(secondary);
+  expect(await changeSets.findByIdempotencyKey({ workspaceId: "ws-a", idempotencyKey: "absent" })).toBeNull();
+  expect(await changeSets.findByIdempotencyKey({ workspaceId: "ws-missing", idempotencyKey: "same-retry" })).toBeNull();
+  expect(events).toEqual([event]);
+
+  const withoutOutbox = new InMemoryChangeSetRepo();
+  await withoutOutbox.insert({ record: primary, items: [] }, { event });
+  expect(await withoutOutbox.findById({ workspaceId: "ws-a", id: "manual-1" })).toEqual({ changeSet: primary, items: [] });
 });

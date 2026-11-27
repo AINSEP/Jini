@@ -57,3 +57,17 @@ describe("themeFilePutRoute", () => {
     expect(d.log).toEqual([]);
   });
 });
+
+it("edits a physical file even when the theme has no inherited-source inventory", async () => {
+  const d = deps({ findTheme: ({ themeId }) => themeId === "plain" ? { manifest: { id: "plain" } } : undefined });
+  expect(await run(d, input({ themeId: "plain", path: "plain.css", content: ".f{}" })))
+    .toEqual({ ok: true, value: { path: "plain.css", bytes: 4 } });
+  expect(d.log).toEqual(["write:plain.css:.f{}:false", "reload:plain"]);
+});
+
+it("relays a classified string as the host's invalid path refusal without reloading", async () => {
+  const reason = "The file is not inside the theme directory.";
+  const d = deps({ writeThemeFile: () => { throw reason; }, isThemePathError: ({ err }) => err === reason });
+  expect(await refusalOf(() => run(d))).toEqual({ status: 400, body: { error: reason, code: "INVALID_THEME_PATH" } });
+  expect(d.log).toEqual(["find:t1"]);
+});

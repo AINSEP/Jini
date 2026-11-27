@@ -37,7 +37,11 @@ function fixture({ enabled = true, deny = false, kinds = { '/mnt': 'directory' }
     calls.push(['authorize', args]);
     if (deny) throw new RouteRefusalError({ status: 403, body: { error: 'denied' } });
   };
-  const readConfig = () => sitesConfigReadRoute.handle({ input: {}, deps, context: { id: 'owner' }, authorize }, {});
+  const readConfig = async () => {
+    const parsed = await sitesConfigReadRoute.parse({ body: undefined, query: {}, params: { workspaceId: 'ws' } });
+    if (!parsed.ok) throw new Error('config read must accept an empty request');
+    return sitesConfigReadRoute.handle({ input: parsed.value, deps, context: { id: 'owner' }, authorize }, {});
+  };
   const setHome = (body: unknown) => {
     const parsed = sitesHomeSetRoute.parse({ body, query: {}, params: {} });
     if (!parsed.ok) throw new Error('parse must be total');

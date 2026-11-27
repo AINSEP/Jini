@@ -50,3 +50,9 @@ test("descriptor checks skip null and primitive entries before asking the cap po
   }), '<input name="name">');
   assert.deepEqual(calls, ["name", "note", "nick", "ref"]);
 });
+
+test("does not add the server cap to unnamed controls or capped fields rendered as hidden", () => {
+  const html = '<input type="text"><input name="name" type="hidden"><input name="name" type="text">';
+  assert.equal(stampFormFieldMaxLengths({ html, fields, fieldMaxChars }),
+    '<input type="text"><input name="name" type="hidden"><input name="name" type="text" maxlength="100">');
+});

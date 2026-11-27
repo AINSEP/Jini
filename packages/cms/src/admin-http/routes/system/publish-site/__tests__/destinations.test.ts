@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createPublishDestinationsRoute } from "../destinations.js";
+import { createPublishDestinationsRoute, registerPublishDestinationsRoute } from "../destinations.js";
 
 it("missing peer capability never reads peer rows or identities", async () => {
   const calls: string[] = []; const listPeers = vi.fn(async () => [{ identity: "secret" }]);
@@ -31,4 +31,31 @@ it('registers one static spec and reads each trust context only after registry a
   current = { granted: true };
   expect(await run()).toEqual({ ok: true, value: { count: 2 } });
   expect(order).toEqual(['system.read', 'registry', 'trust', 'rbac', 'system.read', 'registry', 'trust', 'grant']);
+});
+
+it("routes a destination resolver failure to its configured incident operation", () => {
+  type Registration = Parameters<typeof registerPublishDestinationsRoute<string, string, string[], never>>[0];
+  const mount = vi.fn<Registration["mount"]>();
+  registerPublishDestinationsRoute({
+    mount, workspaceId: "ws-2", operation: "publish.targets", loadRegistry: async () => "registry", listPeers: async () => [],
+    listDestinations: async ({ peers }) => [...peers], authorize: async () => ({ allowed: true, reason: "fixture" }),
+    authorizeForTrust: () => { throw new Error("trust was not supplied"); },
+  });
+  expect(mount).toHaveBeenCalledTimes(1);
+  const { failure } = mount.mock.calls[0]![0];
+  const internal = new Error("private registry failure");
+  const incident = vi.fn();
+  failure({ error: internal, incident });
+  expect(incident.mock.calls).toEqual([[internal, { operation: "publish.targets", code: "INTERNAL_ERROR" }]]);
+});
+
+it("parses a body-less read and rejects a missing principal before loading a registry", async () => {
+  const loadRegistry = vi.fn(async () => "registry");
+  const deps = { loadRegistry, mayReadPeers: async () => true, listPeers: async () => ["backup"], listDestinations: async ({ peers }: { peers: readonly string[]; registry: string }) => [...peers] };
+  const route = createPublishDestinationsRoute({ deps });
+  const parsed = await route.parse({ query: {}, params: { workspaceId: "ws-2" }, body: undefined });
+  expect(parsed).toEqual({ ok: true, value: undefined });
+  if (!parsed.ok) throw new Error("expected read parse");
+  await expect(route.handle({ input: parsed.value, deps, authorize: async () => {} })).rejects.toThrow("publish-site route has no authenticated principal");
+  expect(loadRegistry.mock.calls).toEqual([]);
 });

@@ -65,3 +65,18 @@ test("missing or unauthorized terms cause no entry write", async () => {
     expect(await f.entries.findById({ workspaceId: "site", id: "entry" })).toBeNull();
   }
 });
+
+test("imports collection state through the entry service into the receiving workspace", async () => {
+  const f = await fixture();
+  expect(await f.entries.findById({ workspaceId: "site", id: "entry" })).toBeNull();
+  const changed = {
+    type: "recipe", title: "Miso soup", slug: "miso-soup", status: "draft",
+    fieldsJson: { ext: { site: {} } }, bodyJson: null, workspaceId: "sending-site",
+  };
+  await f.handler.apply({ entity: { ...entity, state: changed }, expectedVersion: undefined, principalId: "human", idempotencyKey: "new-recipe" });
+  expect(await f.entries.findById({ workspaceId: "site", id: "entry" })).toMatchObject({
+    id: "entry", workspaceId: "site", type: "recipe", title: "Miso soup", slug: "miso-soup", status: "draft",
+    fieldsJson: { ext: { site: {} } }, bodyJson: null, publishedAt: null, version: 1,
+  });
+  expect(await f.entries.findById({ workspaceId: "sending-site", id: "entry" })).toBeNull();
+});

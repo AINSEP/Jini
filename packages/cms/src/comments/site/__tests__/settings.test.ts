@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { createCommentsSelectionStore, ensureCommentsProviderDefinition } from "../provider-selection.js";
 import { InMemorySettingsRepo, type AuthorizeFn } from "@jini-ai/core/settings";
 import type { PrincipalRepoPort } from "@jini-ai/core/contracts/site/user-management";
 import { CommentsSettingsValidationError } from "../../errors.js";
@@ -149,4 +150,41 @@ test("ISO-only clocks register definitions and timestamp persisted settings with
   const definitions = await deps.settingsRepo.listActiveDefinitions({ workspaceId: WORKSPACE });
   assert.equal(definitions.length, 6);
   for (const definition of definitions) assert.equal(definition.createdAt, isoClock.nowIso());
+});
+
+test("registers the built-in provider default and preserves selection when a stale compare-and-set fails", async () => {
+  const { settingsRepo, deps } = makeDeps();
+  const calls: unknown[] = [];
+  const store = createCommentsSelectionStore({ ...deps, authorize: async (input) => { calls.push(input); return { allowed: true, reason: "configure fixture" }; } });
+  assert.deepEqual(await store.read({ siteId: WORKSPACE }), { providerId: "built-in", revision: 0 });
+  await ensureCommentsProviderDefinition({ deps, systemPrincipalId: "bootstrap" });
+  const definition = await settingsRepo.findActiveDefinition({ namespace: "core.comments", key: "provider", workspaceId: null });
+  assert.equal(definition?.defaultValue, "built-in");
+
+  const actorPrincipalId = "moderator";
+  assert.equal(await store.compareAndSet({ siteId: WORKSPACE, providerId: "retired-addon", expectedRevision: 0, actorPrincipalId }), true);
+  const selected = await store.read({ siteId: WORKSPACE });
+  assert.equal(selected.providerId, "retired-addon");
+  assert.ok(selected.revision > 0);
+  assert.deepEqual(await store.read({ siteId: "other-workspace" }), { providerId: "built-in", revision: 0 });
+  const revisionBefore = await settingsRepo.maxRevisionSeq();
+  await assert.rejects(store.compareAndSet({ siteId: WORKSPACE, providerId: null, expectedRevision: 0, actorPrincipalId }), { message: "Comments provider changed; read it again." });
+  assert.equal(await settingsRepo.maxRevisionSeq(), revisionBefore);
+  assert.deepEqual(await store.read({ siteId: WORKSPACE }), selected);
+  assert.equal(await store.compareAndSet({ siteId: WORKSPACE, providerId: null, expectedRevision: selected.revision, actorPrincipalId }), true);
+  const disabled = await store.read({ siteId: WORKSPACE });
+  assert.equal(disabled.providerId, null);
+  assert.ok(disabled.revision > selected.revision);
+  assert.deepEqual(calls.map((input) => (input as { permission: string }).permission), ["comments.configure", "comments.configure", "comments.configure"]);
+});
+
+test("accepts a host clock exposing an ISO timestamp for provider registration and selection", async () => {
+  const { settingsRepo, deps } = makeDeps();
+  const setup = { ...deps, clock: { nowIso: () => "2026-11-26T18:00:00.000Z" } };
+  await ensureCommentsProviderDefinition({ deps: setup, systemPrincipalId: "bootstrap" });
+  const definition = await settingsRepo.findActiveDefinition({ namespace: "core.comments", key: "provider", workspaceId: null });
+  assert.equal(definition?.createdAt, "2026-11-26T18:00:00.000Z");
+  const store = createCommentsSelectionStore({ ...setup, clock: { nowIso: () => "2026-11-26T19:00:00.000Z" } });
+  assert.equal(await store.compareAndSet({ siteId: WORKSPACE, providerId: null, expectedRevision: 0, actorPrincipalId: "moderator" }), true);
+  assert.equal((await settingsRepo.getWorkspaceValue({ workspaceId: WORKSPACE, settingId: definition!.settingId }))?.updatedAt, "2026-11-26T19:00:00.000Z");
 });

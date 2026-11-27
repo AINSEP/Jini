@@ -91,3 +91,81 @@ describe("asset destinations", () => {
     }
   });
 });
+
+it("bounds rename probing when every name is already occupied", () => {
+  const deps = fixture();
+  deps.fs.inspect.mockReturnValue({ overwrite: true });
+  expect(() => prepareAssetWrites({ deps, destination: { kind: "site" }, policy: "rename", files: [
+    { path: "icon.png", bytes: Buffer.from("fixture") },
+  ] })).toThrow("icon.png: too many filename collisions");
+  expect(deps.fs.inspect).toHaveBeenCalledTimes(1000);
+  expect(deps.fs.prepareSite.mock.calls).toEqual([]);
+});
+
+it("rejects a nested filename before validating or persisting media bytes", () => {
+  const deps = fixture();
+  expect(() => prepareAssetWrites({ deps, destination: { kind: "media" }, files: [
+    { path: "nested/icon.png", bytes: Buffer.from("fixture") },
+  ] })).toThrow("Media destinations use a filename, not a folder path");
+  expect(deps.media.validateBytes.mock.calls).toEqual([]);
+  expect(deps.media.persist.mock.calls).toEqual([]);
+});
+
+it("checks then writes the requested theme file and returns reloaded theme status", async () => {
+  const deps = fixture();
+  const bytes = Buffer.from("fixture image");
+  const theme = { dir: "/theme", status: "before" };
+  deps.theme.findTheme.mockReturnValue(theme);
+  deps.theme.reloadTheme.mockReturnValue({ dir: "/theme", status: "after" });
+  const prepared = prepareAssetWrites({ deps, destination: { kind: "theme", themeId: "ink" }, files: [
+    { path: "assets/icon.png", bytes },
+  ] });
+  expect(deps.theme.checkThemeWrite.mock.calls).toEqual([[{ theme, relativePath: "assets/icon.png" }, {}]]);
+  expect(deps.theme.writeThemeFile.mock.calls).toEqual([]);
+  expect(await writeAssetFiles({ deps, ctx, prepared }))
+    .toEqual({ written: ["assets/icon.png"], skipped: [], status: "after", errors: undefined });
+  expect(deps.theme.writeThemeFile.mock.calls).toEqual([[{ theme, relativePath: "assets/icon.png", bytes }, {}]]);
+  expect(deps.theme.reloadTheme.mock.calls).toEqual([[{ theme, themeId: "ink" }, {}]]);
+});
+
+it("reports a skipped theme file without modifying or reloading the theme", async () => {
+  const deps = fixture();
+  const prepared = prepareAssetWrites({ deps, destination: { kind: "theme", themeId: "ink" }, policy: "skip", files: [
+    { path: "image.png", bytes: Buffer.from("unused") },
+  ] });
+  expect(await writeAssetFiles({ deps, ctx, prepared })).toEqual({ written: [], skipped: ["image.png"], status: "ready", errors: undefined });
+  expect(deps.theme.writeThemeFile.mock.calls).toEqual([]);
+  expect(deps.theme.reloadTheme.mock.calls).toEqual([]);
+});
+
+it("persists private document bytes through the Library with actor and display filename", async () => {
+  const deps = fixture();
+  const document = { id: "private-doc" };
+  const bytes = Buffer.from("private fixture");
+  deps.library.saveDocument.mockResolvedValue({ document });
+  const prepared = prepareAssetWrites({ deps, destination: { kind: "library" }, files: [{ path: "notes.txt", bytes }] });
+  expect(await writeAssetFiles({ deps, ctx, prepared })).toEqual({ written: ["notes.txt"], skipped: [], documents: [document] });
+  expect(deps.library.saveDocument.mock.calls).toEqual([[{ name: "notes.txt", bytes, principalId: "agent" }, {}]]);
+  expect(deps.media.persist.mock.calls).toEqual([]);
+});
+
+it("refuses a file batch containing duplicate destination names under overwrite", () => {
+  const deps = fixture();
+  expect(() => prepareAssetWrites({ deps, destination: { kind: "site" }, policy: "overwrite", files: [
+    { path: "First.png", bytes: Buffer.from("one") }, { path: "first.png", bytes: Buffer.from("two") },
+  ] })).toThrow("first.png: duplicate destination in this batch");
+  expect(deps.fs.prepareSite.mock.calls).toEqual([]);
+});
+
+it("refuses a site write when its prepared approval batch is missing", async () => {
+  const deps = fixture();
+  const prepared = prepareAssetWrites({ deps, destination: { kind: "site" }, files: [
+    { path: "new.txt", bytes: Buffer.from("requires approval") },
+  ] });
+  expect(prepared.batch).toEqual({ folder: "/site", writes: [{ path: "new.txt", bytes: Buffer.from("requires approval"), overwrite: false }] });
+  const { batch: _lostApproval, ...unapproved } = prepared;
+  await expect(writeAssetFiles({ deps, ctx, prepared: unapproved })).rejects.toThrow("Theme asset destination has no theme ID");
+  expect(deps.fs.writePrepared.mock.calls).toEqual([]);
+  expect(deps.theme.findTheme.mock.calls).toEqual([]);
+  expect(deps.theme.writeThemeFile.mock.calls).toEqual([]);
+});

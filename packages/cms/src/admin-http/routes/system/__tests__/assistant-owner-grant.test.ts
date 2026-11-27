@@ -105,3 +105,11 @@ describe("owner-grant route factory", () => {
     await expect(invoke(f.routes.get, { deps: f.deps })).rejects.toThrow("private backend");
   });
 });
+
+it("uses the owner restriction copy if the host locks changes without a separate explanation", async () => {
+  const f = fixture({ policy: { canEdit: () => false } });
+  expect(await refusalOf(() => invoke(f.routes.put, { deps: f.deps, body: { enabled: false } })))
+    .toEqual({ status: 403, body: { error: "TEST owner only", code: "FORBIDDEN" } });
+  expect(f.parses()).toBe(0);
+  expect(f.writes).toEqual([]);
+});

@@ -94,3 +94,18 @@ describe('observabilityTestErrorRoute', () => {
     expect(calls).toEqual([{}]);
   });
 });
+
+it('does not read provider status when the route authorizer is unwired', async () => {
+  let reads = 0;
+  const deps = statusDeps({ telemetryStatus: () => { reads++; return 'private provider status'; } });
+  await expect(observabilityStatusRoute.handle({ input: {}, deps, context: { id: 'owner' } }))
+    .rejects.toThrow('observability-status route has no authorizer');
+  expect(reads).toBe(0);
+});
+
+it('cannot send a telemetry test error without an authenticated principal', async () => {
+  let sends = 0;
+  const deps = statusDeps({ sendTelemetryTest: async () => { sends++; return {}; } });
+  await expect(observabilityTestErrorRoute.handle({ input: {}, deps })).rejects.toThrow('observability route has no authenticated principal');
+  expect(sends).toBe(0);
+});

@@ -104,3 +104,9 @@ describe('dockerfile source routes', () => {
     expect((reply.body as { error: string }).error).toMatch(/^the Dockerfile changed on the server since your 'If-Match' value was read/);
   });
 });
+
+it('fails closed before reading the Dockerfile when no authorizer is bound', async () => {
+  const { deps, log } = makeDeps();
+  await expect(dockerfileReadRoute.handle({ input: {}, deps })).rejects.toThrow('dockerfile-source route has no authorizer');
+  expect(log).toEqual([]);
+});

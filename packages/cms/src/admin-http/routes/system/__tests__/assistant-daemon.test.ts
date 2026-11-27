@@ -52,3 +52,11 @@ describe('assistantDaemonRestartRoute', () => {
     await expect(result).rejects.toThrow('boom');
   });
 });
+
+it('fails closed before requesting a restart when the authorizer is unwired', async () => {
+  let restarts = 0;
+  await expect(assistantDaemonRestartRoute.handle({
+    input: {}, deps: { restartAssistantDaemon: () => { restarts++; return { ok: true }; } }, context: { id: 'owner' },
+  })).rejects.toThrow('assistant-daemon restart route has no authorizer');
+  expect(restarts).toBe(0);
+});

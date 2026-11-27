@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AliasDepthExceededError, DefinitionInvalidError, DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError, PrincipalNotFoundError,
   RenameRetypeConflictError, ScopeNotAllowedError, SecretNotSupportedError, ValueValidationFailedError,
+  type SettingsWriteServiceDeps,
 } from "@jini-ai/core/settings";
 
 import { settingsSetRoute } from "../set.js";
@@ -119,4 +120,113 @@ describe("settings write specs", () => {
       .toEqual({ status: 400, body: { error: FENCE.codeOwned.error, code: "TEST_CODE_OWNED" } });
     expect(auth.calls).toEqual([]);
   });
+});
+
+function ledgerDeps() {
+  const base = baseDeps();
+  let sequence = 0;
+  const write: SettingsWriteServiceDeps = {
+    repo: base.settingsRepo,
+    clock: { nowMs: () => Date.UTC(2026, 10, 26) },
+    ids: { newId: () => `definition-${++sequence}` },
+    authorize: async () => ({ allowed: true, reason: "fixture grant" }),
+    principals: { findActiveById: async () => null },
+  };
+  return { ...base, writeServiceDeps: () => write };
+}
+
+const siteDefinition = {
+  namespace: "site.display", key: "accent", ownerKind: "site",
+  schemaJson: { type: "string" }, defaultJson: "umber", scopes: "2",
+};
+
+it("POST definitions: defaults the op to register and persists site and platform definitions in their own partitions", async () => {
+  const deps = ledgerDeps();
+  const platform = { ...siteDefinition, namespace: "core.display", ownerKind: "core", defaultJson: "indigo", secret: false };
+  expect(await invoke(settingsRegisterDefinitionsRoute, { deps, body: { definitions: [siteDefinition, platform] } })).toEqual({
+    applied: [
+      { key: "site.display.accent", op: "register", status: "applied" },
+      { key: "core.display.accent", op: "register", status: "applied" },
+    ],
+  });
+  const repo = deps.settingsRepo;
+  expect(await repo.findActiveDefinition({ namespace: "site.display", key: "accent", workspaceId: "ws-1" }))
+    .toMatchObject({ ownerKind: "site", schema: { type: "string" }, defaultValue: "umber", scopes: 2, secret: false });
+  expect(await repo.findActiveDefinition({ namespace: "core.display", key: "accent", workspaceId: null }))
+    .toMatchObject({ ownerKind: "core", defaultValue: "indigo", scopes: 2 });
+  expect(await repo.findActiveDefinition({ namespace: "site.display", key: "accent", workspaceId: null })).toBeNull();
+});
+
+it("POST definitions: renames then retypes the new key before applying a queued registration", async () => {
+  const deps = ledgerDeps();
+  const post = (definitions: unknown[]) => invoke(settingsRegisterDefinitionsRoute, { deps, body: { definitions } });
+  await post([siteDefinition]);
+  const previousRevision = await deps.settingsRepo.maxRevisionSeq();
+  expect(await post([
+    { ...siteDefinition, key: "heading-color" },
+    { namespace: "site.display", key: "accent", ownerKind: "site", op: "rename", newNamespace: "site.brand", newKey: "tone" },
+    { namespace: "site.brand", key: "tone", ownerKind: "site", op: "retype", schemaJson: { type: "number" }, defaultJson: 7, coercionJson: { tag: "from-legacy-color" } },
+  ])).toEqual({ applied: [
+    { key: "site.display.heading-color", op: "register", status: "applied" },
+    { key: "site.display.accent", op: "rename", status: "applied" },
+    { key: "site.brand.tone", op: "retype", status: "applied" },
+  ] });
+  const repo = deps.settingsRepo;
+  expect((await repo.listRevisionsSince({ sinceSeq: previousRevision, workspaceId: "ws-1", limit: 10 })).map(({ op }) => op))
+    .toEqual(["alias", "retype", "register"]);
+  expect(await repo.findActiveDefinition({ namespace: "site.brand", key: "tone", workspaceId: "ws-1" }))
+    .toMatchObject({ schema: { type: "number" }, defaultValue: 7, coercionTag: "from-legacy-color" });
+  expect(await repo.findActiveDefinition({ namespace: "site.display", key: "accent", workspaceId: "ws-1" }))
+    .toMatchObject({ status: "alias", aliasOfNamespace: "site.brand", aliasOfKey: "tone" });
+  expect(await repo.findActiveDefinition({ namespace: "site.display", key: "heading-color", workspaceId: "ws-1" }))
+    .toMatchObject({ status: "active", defaultValue: "umber" });
+});
+
+it("POST definitions: an unknown op stops queued registers but preserves the earlier rename", async () => {
+  const deps = ledgerDeps();
+  const post = (definitions: unknown[]) => invoke(settingsRegisterDefinitionsRoute, { deps, body: { definitions } });
+  await post([siteDefinition]);
+  expect(await refusalOf(() => post([
+    { ...siteDefinition, key: "not-yet-committed" },
+    { namespace: "site.display", key: "accent", ownerKind: "site", op: "rename", newNamespace: "site.brand", newKey: "hue" },
+    { namespace: "site.display", key: "unused", ownerKind: "site", op: "replace" },
+  ]))).toEqual({ status: 400, body: { error: "unknown op 'replace'", code: "VALIDATION_ERROR" } });
+  expect(await deps.settingsRepo.findActiveDefinition({ namespace: "site.brand", key: "hue", workspaceId: "ws-1" }))
+    .toMatchObject({ status: "active", defaultValue: "umber" });
+  expect(await deps.settingsRepo.findActiveDefinition({ namespace: "site.display", key: "not-yet-committed", workspaceId: "ws-1" })).toBeNull();
+});
+
+it("PUT value sends a named user target through the other-user permission and write port", async () => {
+  const { deps, calls } = writeDeps();
+  const auth = recordingAuthorize();
+  expect(await invoke(settingsSetRoute, {
+    deps, authorize: auth.authorize, body: { namespace: "n", key: "k", scope: "user", principalId: "editor-2", valueJson: 12 },
+  })).toEqual({ key: "n.k", scope: "user", value: "v", revisionSeq: 7 });
+  expect(auth.calls).toEqual([{ permission: "settings.user.write", entityType: "setting-value" }]);
+  expect(calls).toEqual([{ method: "set", input: {
+    namespace: "n", key: "k", scope: "user", value: 12, workspaceId: "ws-1", principalId: "editor-2",
+    callerPrincipalId: PRINCIPAL.id, authWorkspaceId: "ws-1",
+  } }]);
+});
+
+it("POST reset rejects a foreign workspace before authorization or reset", async () => {
+  const { deps, calls } = writeDeps();
+  const auth = recordingAuthorize();
+  expect(await refusalOf(() => invoke(settingsResetRoute, {
+    deps, authorize: auth.authorize, body: { namespace: "site.display", scope: "workspace", workspaceId: "other" },
+  }))).toEqual({ status: 400, body: {
+    error: "workspaceId 'other' does not match this route's workspace; a settings write cannot target another workspace",
+    code: "VALIDATION_ERROR",
+  } });
+  expect(auth.calls).toEqual([]);
+  expect(calls).toEqual([]);
+});
+
+it.each([null, { scope: "workspace" }])("POST reset refuses a missing namespace in %j", async (body) => {
+  const { deps, calls } = writeDeps();
+  const auth = recordingAuthorize();
+  expect(await refusalOf(() => invoke(settingsResetRoute, { deps, authorize: auth.authorize, body })))
+    .toEqual({ status: 400, body: { error: "namespace and scope (global|workspace|user) are required", code: "VALIDATION_ERROR" } });
+  expect(auth.calls).toEqual([]);
+  expect(calls).toEqual([]);
 });

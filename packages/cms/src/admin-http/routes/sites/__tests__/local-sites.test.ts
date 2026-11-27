@@ -37,7 +37,7 @@ function fixture(overrides: Partial<LocalSiteLifecycleRouteDeps> = {}, { deny = 
     if (!parsed.ok) throw new Error('parse must be total');
     return route.handle({ input: parsed.value, deps, context: { id: 'operator' }, authorize }, {});
   }
-  return { calls, run };
+  return { calls, run, deps };
 }
 
 async function refusal(promise: Promise<unknown>): Promise<RouteRefusalError['response']> {
@@ -130,4 +130,12 @@ describe('local site lifecycle routes', () => {
     expect(await f.run(localSiteTrashDeleteRoute, { id: 'alpha--1' }, { checked: true, confirmed: true })).toEqual({ ok: true, value: { ok: true } });
     expect(f.calls.slice(-2)).toEqual([['stopped', 'alpha'], ['remove', { base: '/repo', id: 'alpha--1', checked: true, confirmed: true }]]);
   });
+});
+
+it('fails closed without an authorizer before starting a local site', async () => {
+  const { deps, calls } = fixture();
+  await expect(localSiteStartRoute.handle({
+    input: { name: 'alpha', id: '', confirmed: false, checked: false }, deps, context: { id: 'operator' },
+  })).rejects.toThrow('local site lifecycle route has no authorizer');
+  expect(calls).toEqual([]);
 });

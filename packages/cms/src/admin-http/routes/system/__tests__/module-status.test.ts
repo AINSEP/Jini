@@ -41,3 +41,11 @@ describe('moduleStatusRoute', () => {
     expect(reads).toBe(0);
   });
 });
+
+it('does not read module readiness without the authorizer', async () => {
+  let reads = 0;
+  await expect(moduleStatusRoute.handle({
+    input: {}, context: { id: 'owner' }, deps: { getReadinessSnapshot: () => { reads++; return { ok: true }; } },
+  })).rejects.toThrow('module-status route has no authorizer');
+  expect(reads).toBe(0);
+});

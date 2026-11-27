@@ -373,3 +373,16 @@ test('double clicking the form on a schema retry stores one submission', async (
   assert.deepEqual(results.map(result => result.json), [{ status: 'accepted' }, { status: 'accepted' }]);
   assert.equal((await submissionRepo.listByDefinition({ workspaceId: 'ws-1', formDefinitionId: 'form-1', limit: 10 })).items.length, 1);
 });
+
+test('a truncated schema retry tells the visitor which previous answers may be incomplete', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const error = new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'b'.repeat(64), draft: {
+    answers: { name: 'Visitor', retired_items: ['one', 'two'] }, truncated: true, truncatedFields: ['retired_items'],
+  } });
+  const { deps, calls } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS }));
+  assert.equal(sent.status, 409);
+  assert.match(sent.html!, /Some answers exceeded the safe review limit and were shortened or omitted\./);
+  assert.match(sent.html!, /<dt>retired_items<\/dt><dd><pre>\[&quot;one&quot;,&quot;two&quot;\]<\/pre><\/dd>/);
+  assert.deepEqual([calls.lookups, calls.flashPayloads, sent.cookies], [[], [], []]);
+});

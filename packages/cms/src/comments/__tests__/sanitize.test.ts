@@ -15,3 +15,7 @@ test("counts HTTP and HTTPS links case-insensitively, excluding bare domains and
   assert.equal(countLinks({ text: "no links or mailto:user@example.com" }, {}), 0);
   assert.equal(countLinks({ text: "https://only.example" }, {}), 1);
 });
+
+test("preserves an unfinished less-than expression after stripping complete markup", () => {
+  assert.equal(sanitizeCommentBody({ raw: " <b>score</b>  < 5 " }), "score < 5");
+});

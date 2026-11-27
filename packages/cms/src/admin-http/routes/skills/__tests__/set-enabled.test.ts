@@ -52,3 +52,13 @@ describe("skillSetEnabledRoute", () => {
     await expect(run(deps({ setSkillEnabled: async () => { throw new Error("io"); } }).deps, { enabled: true })).rejects.toThrow("io");
   });
 });
+
+it('keeps the host-classified string refusal as the public validation message', async () => {
+  const reason = "This skill is managed by its plugin.";
+  const { deps: d } = deps({
+    setSkillEnabled: async () => { throw reason; },
+    isSkillInputError: ({ err }) => err === reason,
+  });
+  expect(await refusalOf(() => run(d, { enabled: true })))
+    .toEqual({ status: 400, body: { error: reason, code: "VALIDATION_ERROR" } });
+});

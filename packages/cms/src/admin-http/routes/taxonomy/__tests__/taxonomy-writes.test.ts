@@ -60,6 +60,23 @@ describe("taxonomyCreateRoute", () => {
     expect(calls.authorize).toEqual([{ principalId: "principal-7", permission: "admin.taxonomy.manage", workspaceId: "ws-7" }]);
   });
 
+  it("preserves the host's trusted actor on the creation event", async () => {
+    const events: unknown[] = [];
+    const actorRequests: unknown[] = [];
+    const { deps } = writeDeps({
+      mutationActor: ({ principalId }: { principalId: string }) => {
+        actorRequests.push(principalId);
+        return { id: principalId, kind: "user" };
+      },
+      outbox: { enqueue: async (event: unknown) => { events.push(event); } },
+    });
+    await taxonomyCreateRoute.handle({ input: { name: "Topics", hierarchical: true }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize });
+    expect(actorRequests).toEqual(["principal-7"]);
+    expect(events).toEqual([expect.objectContaining({
+      name: "taxonomy.created", workspaceId: "ws-7", actorId: "principal-7", actor: { id: "principal-7", kind: "user" },
+    })]);
+  });
+
   it("maps a denied permission to the flat 403 FORBIDDEN body and rethrows anything unmapped", async () => {
     expect(await refusalOf(() => taxonomyCreateRoute.handle({ input: { name: "T", hierarchical: true }, deps: writeDeps({ authorize: deny }).deps, context: PRINCIPAL, authorize: unusedPortAuthorize }))).toEqual({
       status: 403, body: { error: "principal 'principal-7' is not authorized for 'admin.taxonomy.manage' (no grant)", code: "FORBIDDEN" },
@@ -92,6 +109,33 @@ describe("taxonomyCreateTermRoute", () => {
     expect(refusal.status).toBe(400);
     expect((refusal.body as { code: string }).code).toBe("VALIDATION_ERROR");
   });
+
+  it("persists a term under an existing parent and answers the inserted term", async () => {
+    const inserted: unknown[] = [];
+    const { deps } = writeDeps({
+      termRepo: {
+        findById: async ({ id }: { id: string }) => id === "parent-1" ? { id, taxonomyId: "tax-1" } : null,
+        insert: async (term: unknown) => { inserted.push(term); },
+      },
+    });
+    const parsed = taxonomyCreateTermRoute.parse({ ...RAW, params: { taxonomyId: "tax-1" }, body: { name: "Local", parentId: "parent-1" } });
+    if (!parsed.ok) throw new Error("expected valid term input");
+    const term = { id: "id-new", taxonomyId: "tax-1", parentId: "parent-1", name: "Local", status: "active", updatedAt: "2026-10-21T00:00:00.000Z", version: 1 };
+    expect(await taxonomyCreateTermRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize: unusedPortAuthorize })).toEqual({ ok: true, value: { term } });
+    expect(inserted).toEqual([term]);
+  });
+
+  it.each([
+    { parent: null, message: "parent term 'parent-1' was not found" },
+    { parent: { id: "parent-1", taxonomyId: "different-taxonomy" }, message: "parent term 'parent-1' belongs to taxonomy 'different-taxonomy', not 'tax-1'" },
+  ])("refuses invalid hierarchy without inserting a term ($message)", async ({ parent, message }) => {
+    const inserted: unknown[] = [];
+    const { deps } = writeDeps({ termRepo: { findById: async () => parent, insert: async (term: unknown) => { inserted.push(term); } } });
+    expect(await refusalOf(() => taxonomyCreateTermRoute.handle({ input: { taxonomyId: "tax-1", name: "Local", parentId: "parent-1" }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize }))).toEqual({
+      status: 400, body: { error: message, code: "VALIDATION_ERROR" },
+    });
+    expect(inserted).toEqual([]);
+  });
 });
 
 describe("taxonomyRenameTermRoute", () => {
@@ -103,6 +147,30 @@ describe("taxonomyRenameTermRoute", () => {
     expect(await refusalOf(() => taxonomyRenameTermRoute.handle({ input: { termId: "term-9", newName: "X" }, deps: writeDeps().deps, context: PRINCIPAL, authorize: unusedPortAuthorize }))).toEqual({
       status: 404, body: { error: "term 'term-9' was not found", code: "TERM_NOT_FOUND" },
     });
+  });
+
+  it("renames the path's term in the host transaction and answers the updated version", async () => {
+    const previous = { id: "term-1", taxonomyId: "tax-1", parentId: "parent-1", name: "Old", status: "active", updatedAt: "2026-10-20T00:00:00.000Z", version: 4 };
+    const changed = { ...previous, name: "New", updatedAt: "2026-10-21T00:00:00.000Z", version: 5 };
+    const calls: unknown[] = [];
+    const { deps } = writeDeps({
+      taxonomyRepo: {
+        transaction: async ({ fn }: { fn: () => Promise<unknown> }) => {
+          calls.push("begin");
+          const result = await fn();
+          calls.push("commit");
+          return result;
+        },
+      },
+      termRepo: {
+        findById: async ({ id }: { id: string }) => id === previous.id ? previous : null,
+        update: async (row: unknown) => { calls.push(row); },
+      },
+    });
+    const parsed = taxonomyRenameTermRoute.parse({ ...RAW, params: { id: previous.id }, body: { newName: "New" } });
+    if (!parsed.ok) throw new Error("expected valid rename");
+    expect(await taxonomyRenameTermRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize: unusedPortAuthorize })).toEqual({ ok: true, value: { term: changed } });
+    expect(calls).toEqual(["begin", changed, "commit"]);
   });
 });
 
@@ -151,7 +219,10 @@ describe("taxonomy assignment routes", () => {
 
   it("assigned-terms answers sorted term ids after both permission checks", async () => {
     const { deps, calls } = writeDeps();
-    const result = await taxonomyAssignedTermsRoute.handle({ input: { contentType: "post", contentId: "p1" }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize });
+    const parsed = taxonomyAssignedTermsRoute.parse({ ...RAW, query: { contentType: "post", contentId: "p1", ignored: "extra" } });
+    expect(parsed).toEqual({ ok: true, value: { contentType: "post", contentId: "p1" } });
+    if (!parsed.ok) throw new Error("expected valid assigned terms query");
+    const result = await taxonomyAssignedTermsRoute.handle({ input: parsed.value, deps, context: PRINCIPAL, authorize: unusedPortAuthorize });
     expect(result).toEqual({ ok: true, value: { termIds: ["t-1", "t-2"] } });
     expect(calls.authorize).toEqual([
       { principalId: "principal-7", permission: "admin.taxonomy.manage", workspaceId: "ws-7" },
@@ -174,6 +245,87 @@ describe("taxonomy assignment routes", () => {
     const refusal = await refusalOf(() => taxonomyAssignTermsRoute.handle({ input: { contentType: "post", contentId: "missing", termIds: [] }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize }));
     expect(refusal.status).toBe(404);
     expect((refusal.body as { code: string }).code).toBe("CONTENT_NOT_FOUND");
+  });
+
+  it("parses and applies both assignment verbs to the named post without touching its other terms", async () => {
+    const terms = new Set(["keep"]);
+    const requests: unknown[] = [];
+    const events: unknown[] = [];
+    const { deps, calls } = writeDeps({
+      mutationActor: ({ principalId }: { principalId: string }) => ({ id: principalId, kind: "user" }),
+      outbox: { enqueue: async (event: unknown) => { events.push(event); } },
+      postRepo: { findById: async ({ workspaceId, id }: { workspaceId: string; id: string }) => workspaceId === "ws-7" && id === "post-1" ? { workspaceId, kind: "post" } : null },
+      termRepo: { findById: async ({ id }: { id: string }) => id === "term-1" ? { id, taxonomyId: "tax-1" } : null },
+      entryTermRepo: {
+        upsert: async (row: { contentType: string; contentId: string; termId: string; addedAt: string }) => {
+          requests.push(row);
+          terms.add(row.termId);
+        },
+        remove: async (row: { contentType: string; contentId: string; termId: string }) => {
+          requests.push(row);
+          return terms.delete(row.termId) ? 1 : 0;
+        },
+      },
+    });
+    const body = { contentType: "post", contentId: "post-1", termIds: ["term-1"] };
+    const assigned = taxonomyAssignTermsRoute.parse({ ...RAW, body });
+    if (!assigned.ok) throw new Error("expected valid assignment");
+    expect(await taxonomyAssignTermsRoute.handle({ input: assigned.value, deps, context: PRINCIPAL, authorize: unusedPortAuthorize })).toEqual({ ok: true, value: undefined });
+    expect([...terms]).toEqual(["keep", "term-1"]);
+    const unassigned = taxonomyUnassignTermsRoute.parse({ ...RAW, body });
+    if (!unassigned.ok) throw new Error("expected valid removal");
+    expect(await taxonomyUnassignTermsRoute.handle({ input: unassigned.value, deps, context: PRINCIPAL, authorize: unusedPortAuthorize })).toEqual({ ok: true, value: undefined });
+    expect([...terms]).toEqual(["keep"]);
+    expect(requests).toEqual([
+      { contentType: "post", contentId: "post-1", termId: "term-1", addedAt: "2026-10-21T00:00:00.000Z" },
+      { contentType: "post", contentId: "post-1", termId: "term-1" },
+    ]);
+    expect(events).toEqual(["taxonomy.terms_assigned", "taxonomy.terms_unassigned"].map((name) => expect.objectContaining({
+      name, actor: { id: PRINCIPAL.id, kind: "user" }, payload: expect.objectContaining(body),
+    })));
+    expect(calls.authorize).toEqual(["content.write", "admin.taxonomy.manage", "content.write", "admin.taxonomy.manage"].map(
+      (permission) => ({ principalId: PRINCIPAL.id, workspaceId: "ws-7", permission }),
+    ));
+  });
+
+  it.each([
+    { label: "trashed post", deletedAt: "2026-10-01", kind: "post", term: null, status: 409, code: "ENTITY_IN_TRASH", error: "ENTITY_IN_TRASH: post 'post-1' is in the Trash. Restore it from the Trash before changing it." },
+    { label: "missing term", deletedAt: null, kind: "post", term: null, status: 404, code: "TERM_NOT_FOUND", error: "term 'term-1' was not found" },
+    { label: "content type mismatch", deletedAt: null, kind: "page", term: { id: "term-1", taxonomyId: "tax-1" }, status: 400, code: "VALIDATION_ERROR", error: "supplied content type 'post' does not match the resolved row's own kind 'page'" },
+  ])("refuses an assignment to a $label without writing a join", async ({ deletedAt, kind, term, status, code, error }) => {
+    const writes: unknown[] = [];
+    const { deps } = writeDeps({
+      postRepo: { findById: async () => ({ workspaceId: "ws-7", kind, deletedAt }) },
+      termRepo: { findById: async () => term },
+      entryTermRepo: { upsert: async (row: unknown) => { writes.push(row); } },
+    });
+    expect(await refusalOf(() => taxonomyAssignTermsRoute.handle({
+      input: { contentType: "post", contentId: "post-1", termIds: ["term-1"] }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize,
+    }))).toEqual({ status, body: { error, code } });
+    expect(writes).toEqual([]);
+  });
+
+  it("keeps an unexpected repository rejection unchanged for the host", async () => {
+    const disconnected = "connection reset";
+    const { deps } = writeDeps({ entryTermRepo: { listForContent: async () => { throw disconnected; } } });
+    await expect(taxonomyAssignedTermsRoute.handle({
+      input: { contentType: "post", contentId: "post-1" }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize,
+    })).rejects.toBe(disconnected);
+  });
+
+  it("refuses to assign a term if the post edit gate denies, before looking up content", async () => {
+    const writes: unknown[] = [];
+    const { deps } = writeDeps({
+      authorize: async ({ permission }: { permission: string }) => ({ allowed: permission !== "content.write", reason: "no editor grant" }),
+      postRepo: { findById: async () => { throw new Error("denied request must not read the post"); } },
+      entryTermRepo: { upsert: async (row: unknown) => { writes.push(row); } },
+    });
+    expect(await refusalOf(() => taxonomyAssignTermsRoute.handle({
+      input: { contentType: "post", contentId: "post-1", termIds: ["term-1"] }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize,
+    }))).toEqual({
+      status: 403, body: { error: "principal 'principal-7' is not authorized for 'content.write' (no editor grant)", code: "FORBIDDEN" },
+    });
+    expect(writes).toEqual([]);
   });
 });
 

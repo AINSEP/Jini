@@ -94,3 +94,14 @@ describe("custom credential routes", () => {
     await expect(run(customCredentialDeleteRoute, deps({ deleteCredential: async () => { throw new Error("vault corrupted"); } }))).rejects.toThrow("vault corrupted");
   });
 });
+
+it("does not link a site-local credential even when shared keys are available", async () => {
+  const attached: unknown[] = [];
+  const d = deps({
+    createCredential: async () => ({ id: "site-cred", scope: "site" }),
+    projectKeys: () => ({ ...keys([]), use: async (input: { keyId: string; use: true }) => { attached.push(input); return { usedBy: ["wrong"], usedByThisSite: true }; } }),
+  });
+  expect(await run(customCredentialCreateRoute, d, input({ label: "Local account", scope: "site" })))
+    .toEqual({ ok: true, value: { credential: { id: "site-cred", scope: "site" } } });
+  expect(attached).toEqual([]);
+});

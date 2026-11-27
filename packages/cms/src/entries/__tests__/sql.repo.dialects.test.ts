@@ -146,6 +146,16 @@ describeEachDialect<Bundle>({ title: "entry repo", options: { tables: ["entries"
     assert.deepEqual(ids(await repo.listByWorkspace({ workspaceId: "ws-2" })), []);
   });
 
+  test("an empty type exclusion leaves workspace types intact and applies explicit ascending order", async () => {
+    const { repo } = make();
+    await repo.save(entry("later-recipe", { updatedAt: "2026-09-26T00:00:00Z" }));
+    await repo.save(entry("earlier-widget", { type: "widget", updatedAt: "2026-09-24T00:00:00Z" }));
+    await repo.save(entry("elsewhere", { workspaceId: "ws-2", updatedAt: "2026-09-23T00:00:00Z" }));
+    const filters = { workspaceId: WS, orderBy: "updatedAt", orderDirection: "asc" } as const;
+    assert.deepEqual(ids(await repo.listByWorkspaceExcludingTypes({ ...filters, excludeTypes: [] })), ["earlier-widget", "later-recipe"]);
+    assert.deepEqual(ids(await repo.listByWorkspaceExcludingTypes({ ...filters, excludeTypes: ["widget"] })), ["later-recipe"]);
+  });
+
   test("listPublishedForDisplay: where equality matches string, number and boolean values and nothing else", async () => {
     const { repo } = make();
     await repo.save(entry("a", {}, { chef: "Ana", prep: 10, veg: true }));

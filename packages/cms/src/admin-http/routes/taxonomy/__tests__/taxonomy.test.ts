@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { InMemoryTaxonomyRepo, InMemoryTermRepo } from "../../../../taxonomy/index.js";
 import { taxonomyDeleteRoute, type TaxonomyDeleteRouteDeps } from "../delete-taxonomy.js";
 import { taxonomyListRoute } from "../list.js";
 
@@ -34,6 +35,27 @@ describe("taxonomyListRoute", () => {
     const result = await taxonomyListRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize });
     expect(calls).toEqual([{ permission: "admin.taxonomy.manage", entityType: "taxonomy" }]);
     expect(result).toEqual({ ok: true, value: { items: [] } });
+  });
+
+  it("groups persisted terms under the owning taxonomy and refuses to read without the host gate", async () => {
+    const timestamp = "2026-07-13T00:00:00.000Z";
+    const taxonomyRepo = new InMemoryTaxonomyRepo();
+    const termRepo = new InMemoryTermRepo();
+    const topics = { id: "topics", name: "Topics", hierarchical: true, status: "active" as const, updatedAt: timestamp, version: 1 };
+    const formats = { ...topics, id: "formats", name: "Formats", hierarchical: false };
+    const news = { id: "news", name: "News", parentId: null, taxonomyId: "topics", status: "active" as const, updatedAt: timestamp, version: 1 };
+    await taxonomyRepo.insert(topics);
+    await taxonomyRepo.insert(formats);
+    await termRepo.insert(news);
+    const parsed = taxonomyListRoute.parse({ body: undefined, params: {}, query: { permission: "bypass" } });
+    expect(parsed).toEqual({ ok: true, value: {} });
+    if (!parsed.ok) throw new Error("expected valid list request");
+    const route = { input: parsed.value, deps: { taxonomyRepo, termRepo }, context: PRINCIPAL };
+    const noReads = { list: async () => { throw new Error("unexpected taxonomy read"); } };
+    await expect(taxonomyListRoute.handle({ ...route, deps: { taxonomyRepo: noReads, termRepo } })).rejects.toThrow("taxonomy admin route has no authorizer");
+    expect(await taxonomyListRoute.handle({ ...route, authorize: recordingAuthorize().authorize })).toEqual({
+      ok: true, value: { items: [{ taxonomy: topics, terms: [news] }, { taxonomy: formats, terms: [] }] },
+    });
   });
 });
 

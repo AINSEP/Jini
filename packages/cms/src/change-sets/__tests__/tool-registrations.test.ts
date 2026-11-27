@@ -245,3 +245,20 @@ describe('change_sets_revert per-item policy', () => {
     });
   });
 });
+
+it('still returns the conflict when the scoped change set disappears before the policy re-read', async () => {
+  const { changeSets, widget, tool } = setup();
+  await appliedWithItem(changeSets, 'cs-expired', 2);
+  const original = changeSets.findById.bind(changeSets);
+  const lookups: unknown[] = [];
+  changeSets.findById = async (key) => {
+    lookups.push(key);
+    return lookups.length === 1 ? original(key) : null;
+  };
+  expect(await tool('change_sets_revert').handler(context({ changeSetId: 'cs-expired' }))).toEqual({
+    reverted: false, code: 'REVERT_CONFLICT', currentVersion: 3,
+    note: 'someone edited it since; ask the human to revert from the Recovery page if they still want it',
+  });
+  expect(lookups).toEqual(Array.from({ length: 2 }, () => ({ workspaceId: WORKSPACE_ID, id: 'cs-expired' })));
+  expect(widget.reverted).toEqual([]);
+});

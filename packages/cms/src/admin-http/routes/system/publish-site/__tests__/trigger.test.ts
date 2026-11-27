@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { isRouteReply } from "@jini-ai/core/contracts/server";
 import { createPublishTriggerRoute } from "../trigger.js";
 
 it("permission, config, domain and consent block before the one synchronous start and preserve the chosen credential", async () => {
@@ -46,4 +47,70 @@ it('preserves typed snapshots, distinguishes missing consent and writes refusal 
   expect(await run()).toEqual({ ok: true, value: { ...snapshot, status: 'running' } });
   expect(start).toHaveBeenCalledWith({ principal: { id: 'owner' }, parsed: { projectName: 'project' }, config: { target: 'target', region: 'region' } });
   order.length = 0; refuse(); expect(order).toEqual(['write', 'blocked']);
+});
+
+function triggerFixture() {
+  const readConfig = vi.fn(async () => ({ ok: true as const, config: { region: "north" } }));
+  const snapshot = vi.fn(() => ({ status: "running", id: "run-3" }));
+  const start = vi.fn(() => ({ status: "running", id: "run-4" }));
+  const onBlocked = vi.fn();
+  const deps = {
+    readConfig, snapshot, start, onBlocked, plan: () => ({ ok: true as const }),
+    hasCustomDomain: () => false, domainConfirmationText: "confirm", deploymentCheck: async () => undefined,
+  };
+  const route = createPublishTriggerRoute({ deps });
+  const post = async (body: unknown) => {
+    const parsed = await route.parse({ body, params: { workspaceId: "ws-1" }, query: {} });
+    if (!parsed.ok) throw new Error("the route parser does not validate the body");
+    const result = await route.handle({ input: parsed.value, deps, context: { id: "editor-9" }, authorize: async () => {} });
+    if (!result.ok || !isRouteReply(result.value)) throw new Error("expected a branded refusal");
+    return result.value;
+  };
+  return { post, readConfig, snapshot, start, onBlocked };
+}
+
+it.each<[unknown, string]>([
+  [null, "request body must be a JSON object"],
+  [["site"], "request body must be a JSON object"],
+  [{ projectName: " ", target: "preview" }, "'projectName' (non-empty string) is required"],
+  [{ projectName: "release", target: "preview", credentialId: 42 }, "'credentialId' must be a non-empty string when present"],
+  [{ projectName: "release", target: "preview", credentialId: " " }, "'credentialId' must be a non-empty string when present"],
+  [{ projectName: "release", target: 42 }, "'target' (non-empty string) is required"],
+  [{ projectName: "release", target: " " }, "'target' (non-empty string) is required"],
+])("reports malformed publish input %j before preflight", async (body, error) => {
+  const f = triggerFixture();
+  expect(await f.post(body)).toEqual({ status: 400, body: { error } });
+  expect(f.readConfig.mock.calls).toEqual([]);
+  expect(f.snapshot.mock.calls).toEqual([]);
+  expect(f.start.mock.calls).toEqual([]);
+  expect(f.onBlocked.mock.calls).toEqual([[{ principalId: "editor-9", reasonClass: "config" }]]);
+});
+
+it("returns the still-running snapshot without starting a second publish", async () => {
+  const f = triggerFixture();
+  expect(await f.post({ projectName: "release", target: "preview" })).toEqual({
+    status: 409, body: { error: "a publish is already running", run: { status: "running", id: "run-3" } },
+  });
+  expect(f.snapshot.mock.calls).toEqual([[{}]]);
+  expect(f.start.mock.calls).toEqual([]);
+  expect(f.onBlocked.mock.calls).toEqual([[{ principalId: "editor-9", reasonClass: "busy" }]]);
+});
+
+it.each(["read", "plan"] as const)("does not read the run slot on a failed publish %s preflight", async (failed) => {
+  const readConfig = vi.fn<import("../trigger.js").PublishTriggerDeps<{ targetId: string }, { status: string }>["readConfig"]>(
+    async ({ targetId }) => failed === "read" ? { ok: false, error: "Unknown target." } : { ok: true, config: { targetId } },
+  );
+  const plan = vi.fn(({ config }: { config: { targetId: string } }) => ({ ok: false as const, message: `No deployment directory for ${config.targetId}.` }));
+  const snapshot = vi.fn(() => ({ status: "idle" }));
+  const start = vi.fn(() => ({ status: "running" }));
+  const onBlocked = vi.fn();
+  const deps = { readConfig, plan, snapshot, start, onBlocked, hasCustomDomain: () => false, domainConfirmationText: "confirm", deploymentCheck: async () => undefined };
+  const body = { target: "preview", projectName: "release" };
+  const result = await createPublishTriggerRoute({ deps }).handle({ deps, input: { body }, context: { id: "release-owner" }, authorize: async () => {} });
+  expect(result).toEqual({ ok: true, value: { status: 400, body: { error: failed === "read" ? "Unknown target." : "No deployment directory for preview." } } });
+  expect(readConfig.mock.calls).toEqual([[{ targetId: "preview", raw: body }]]);
+  expect(plan.mock.calls).toEqual(failed === "read" ? [] : [[{ config: { targetId: "preview" } }]]);
+  expect(snapshot.mock.calls).toEqual([]);
+  expect(start.mock.calls).toEqual([]);
+  expect(onBlocked.mock.calls).toEqual([[{ principalId: "release-owner", reasonClass: "config" }]]);
 });

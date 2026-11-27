@@ -58,3 +58,29 @@ describe("settings shared guards", () => {
     expect(await touchesProtectedNamespaces({ body: { namespace: "other" }, repo, workspaceId: "ws-1", namespaces: ["test.owner-only"] })).toBe(false);
   });
 });
+
+it("preserves the public text even when a custom mapping handles a string refusal", async () => {
+  const mappings = [{ matches: (e: unknown) => e === "write locked", status: 409, code: "TEST_LOCKED" }];
+  expect(await refusalOf(() => rejectSettingsError({ err: "write locked", mappings })))
+    .toEqual({ status: 409, body: { error: "write locked", code: "TEST_LOCKED" } });
+});
+
+it("fences a protected alias on a keyed write and namespace reset, but not an unrelated active key", async () => {
+  const { settingsRepo: repo, workspaceId } = baseDeps();
+  const record = {
+    version: 1, workspaceId: null, namespace: "core.legacy", ownerKind: "core", ownerId: null,
+    schema: { type: "string" }, defaultValue: "release", scopes: 2, secret: false, coercionTag: null,
+    createdAt: "2026-11-26T00:00:00.000Z", updatedAt: "2026-11-26T00:00:00.000Z",
+    status: "active", aliasOfNamespace: null, aliasOfKey: null,
+  } as const;
+  await repo.saveDefinition({ ...record, settingId: "regular", key: "regular" });
+  await repo.saveDefinition({ ...record, settingId: "protected", namespace: "core.owner", key: "account" });
+  await repo.saveDefinition({ ...record, settingId: "alias", key: "old-account", status: "alias", aliasOfNamespace: "core.owner", aliasOfKey: "account" });
+  const touches = (body: unknown) => touchesProtectedNamespaces({ body, repo, workspaceId, namespaces: ["core.owner"] });
+
+  expect(await touches({ namespace: "core.legacy", key: "regular" })).toBe(false);
+  expect(await touches({ namespace: "core.legacy", key: "old-account" })).toBe(true);
+  expect(await touches({ namespace: "core.legacy" })).toBe(true);
+  expect(await touches({ definitions: [null, false, { namespace: "core.legacy" }] })).toBe(false);
+  expect(await touches({ definitions: [null, { namespace: ["core.owner"] }] })).toBe(true);
+});

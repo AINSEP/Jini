@@ -132,3 +132,25 @@ test('captured objects stay retryable when a host cannot prove key ownership or 
   await assert.rejects(bus.publish({ id: 'unproven', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm', occurredAt: new Date(0).toISOString(),
     payload: { workspaceId: 'w', sha256: 'source', storageKeys: ['unknown-key'] } }));
 });
+
+test('captured original bytes are checked under their hash lock and retained if another key owner is present', async () => {
+  const bus = new InMemoryEventBus();
+  const removed: string[] = [];
+  const probes: unknown[] = [];
+  let keyInUse = true;
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
+    findBlob: async () => ({ storageKey: 'shared-original', status: 'tombstoned' }), hasOwners: async () => false,
+    withStorageKeyLock: async () => { throw new Error('original must not be processed as a rendition'); },
+    hasStorageKeyOwners: async (input) => { probes.push(input); return keyInUse; },
+    deleteBytes: async ({ storageKey }) => { removed.push(storageKey); },
+    removeBlob: async () => { removed.push('metadata'); },
+  });
+  const payload = { workspaceId: 'site', sha256: 'cleanup-original', storageKeys: ['shared-original'] };
+  const event = { id: 'job-2', name: 'form.attachment.cleanup', workspaceId: 'site', aggregateId: 'media-7', occurredAt: '2026-11-26T00:00:00.000Z', payload };
+  await bus.publish(event);
+  assert.deepEqual(probes, [{ ...payload, storageKey: 'shared-original' }]);
+  assert.deepEqual(removed, []);
+  keyInUse = false;
+  await bus.publish(event);
+  assert.deepEqual(removed, ['shared-original', 'metadata']);
+});

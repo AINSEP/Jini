@@ -81,3 +81,15 @@ describe("themeDuplicateRoute", () => {
     expect(order).toEqual([]);
   });
 });
+
+it("retains a recognized host refusal's string detail and does not refresh the previews", async () => {
+  const order: string[] = [];
+  const deps = makeDeps(order, {
+    duplicateTheme: () => { throw "Destination already taken."; },
+    duplicateThemeErrorCode: ({ err }) => err === "Destination already taken." ? "ID_TAKEN" : undefined,
+  });
+  expect(await refusalOf(() => themeDuplicateRoute.handle({
+    input: { sourceThemeId: "src", newName: "Copy", newId: "taken" }, deps, authorize: recordingAuthorize().authorize, context: PRINCIPAL,
+  }))).toEqual({ status: 409, body: { error: "Destination already taken.", code: "ID_TAKEN" } });
+  expect(order).toEqual([]);
+});

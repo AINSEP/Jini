@@ -3,6 +3,7 @@ import { test } from "vitest";
 
 import { ToolInputError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 
+import { contributeEntriesTools } from "../site/tool-registrations.js";
 import { entriesAgentToolCatalog } from "../agent-tools.js";
 import { ContentTypeNotActiveError, EntryNotFoundError, ForbiddenError, VersionConflictError } from "../errors.js";
 import { InMemoryEntryRepo } from "../repo.memory.js";
@@ -227,4 +228,16 @@ test("a denied principal is refused by the list check and by every mutation's ow
   );
   await assert.rejects(() => createChili(h), ForbiddenError);
   assert.deepEqual(await h.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("the site contributor adds discovery metadata and exposes a typed not-found explanation", async () => {
+  const { deps, entryRepo } = harness();
+  const registrations = contributeEntriesTools().build(deps, undefined);
+  const update = registrations.find(({ descriptor }) => descriptor.id === "collections_entry_update");
+  assert.ok(update, "site contributor should build the registered entry update tool");
+  assert.equal(update.descriptor.metadata?.search?.keywords, "entry record item content edit change save update field value");
+  await assert.rejects(update.handler(ctx({ id: "absent", expectedVersion: 1, title: "Revised" })), (error: unknown) =>
+    error instanceof ToolInputError && error.message.startsWith("ENTRIES_NOT_FOUND:"),
+  );
+  assert.deepEqual(await entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), []);
 });

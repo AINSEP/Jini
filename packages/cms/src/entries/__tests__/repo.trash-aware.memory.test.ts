@@ -141,3 +141,16 @@ test("listPublishedForDisplay: offset 0, 1 and absent; null sort keys first asce
   assert.deepEqual(await ids({ sort: { by: "title", dir: "asc" } }), ["a", "b", "nine", "ten", "two"]);
   assert.deepEqual(await ids({ sort: { by: "title", dir: "desc" } }), ["two", "ten", "nine", "a", "b"]);
 });
+
+test("a versioned save cannot modify a hidden entry even with its actual version", async () => {
+  const { repo, settled } = repoWithRecordedHook();
+  const hidden = { ...entry("held"), deletedAt: NOW, version: 4 };
+  await repo.saveAny(hidden);
+  settled.length = 0;
+  await assert.rejects(repo.save({ ...hidden, title: "changed", version: 5 }, { expectedVersion: 4 }), {
+    message: "expected version 4 for entry 'held', found none",
+  });
+  assert.equal(await repo.findById({ workspaceId: WS, id: "held" }), null);
+  assert.deepEqual(await repo.findAnyById({ workspaceId: WS, id: "held" }), hidden);
+  assert.deepEqual(settled, []);
+});

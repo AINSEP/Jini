@@ -43,3 +43,13 @@ test("nonempty generated bodies render input and textarea with the host's field 
   assert.ok(form.includes('method="post" action="/forms/contact/submit"'));
   assert.ok(form.includes('name="_hp"'));
 });
+
+test("an external file form uses multipart encoding and keeps its authored submit body", () => {
+  const html = renderFormCollection({
+    slug: "invoice", hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" },
+    fields: [{ id: "invoice_file", label: "Invoice", type: "file", required: true }],
+    plan: { kind: "post", external: true, action: "https://forms.example.test/submit",
+      capabilities: { answers: "vendor inbox", validation: "vendor validation", spamProtection: "vendor policy" } },
+  }, { className: 'embedded theme', html: '<label>Invoice<input name="invoice_file" type="file"></label>' });
+  assert.equal(html, '<form method="post" action="https://forms.example.test/submit" data-form-provider="external" class="embedded theme" enctype="multipart/form-data"><label>Invoice<input name="invoice_file" type="file"></label></form>');
+});

@@ -119,3 +119,10 @@ describe('sites admin route specs', () => {
     await expect(siteCreateRoute.handle({ input: { name: 'a', adminPassword: undefined, agentPluginTokens: undefined }, deps: f.deps, authorize: f.authorize }, {})).rejects.toThrow(/no authenticated principal/);
   });
 });
+
+it('does not misreport an unknown switch failure as a user conflict', async () => {
+  const f = fixture();
+  f.deps.activateSite = async () => ({ ok: false, code: 'FUTURE_SITE_FAILURE' });
+  expect(await refusalOf(() => f.run(siteActivateRoute as never, { restartNow: false }, { name: 'preview' })))
+    .toEqual({ status: 500, body: { code: 'FUTURE_SITE_FAILURE' } });
+});

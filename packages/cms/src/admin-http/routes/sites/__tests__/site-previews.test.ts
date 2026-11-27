@@ -76,3 +76,11 @@ describe('preview targets', () => {
     expect(servingAddressOf({ req: {} })).toBeUndefined();
   });
 });
+
+it('uses HTTP for a plain socket and omits a running site without a preview address', () => {
+  expect(servingAddressOf({ req: { socket: { localPort: 3210 } } }, { pid: 3 })).toEqual({ scheme: 'http', port: 3210, pid: 3 });
+  expect(sitePreviewTargets({ servingName: 'owner', localSites: [
+    { name: 'pending-address', status: 'running', pid: 10, adminUrl: null },
+    { name: 'preview', status: 'running', pid: 11, adminUrl: 'http://localhost:3122/admin/' },
+  ] })).toEqual([{ name: 'preview', url: 'http://localhost:3122/', lifecycle: 'pid:11' }]);
+});

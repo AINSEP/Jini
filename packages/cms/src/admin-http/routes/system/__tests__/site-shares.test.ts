@@ -136,3 +136,30 @@ it('poll cannot revise the initial choice', async () => {
   h.deps.readCreateInput = () => ({ jobId: 'j', expiresInDays: 30 });
   expect(JSON.parse((await h.run(siteShareCreateRoute)).text)).toEqual({ principalId: 'owner', signal: true, jobId: 'j' });
 });
+
+it('does not write an artifact if the admitted backend disappears during upload', async () => {
+  const h = harness();
+  let offered = true;
+  h.deps.backend = () => {
+    if (!offered) return undefined;
+    offered = false;
+    return h.backend;
+  };
+  const result = await h.run(siteShareArtifactUploadRoute, { params: { token: 'good', file: 'f' } });
+  expect(result).toEqual({ status: 599, type: 'application/json; charset=utf-8', text: '{"step":"Share artifact upload"}' });
+  expect(h.failures).toHaveLength(1);
+  expect(h.failures[0]?.error).toMatchObject({ message: 'site share artifact upload has no share backend' });
+  expect(h.calls).toEqual([]);
+});
+
+it('does not deliver a truncated ZIP header or a pre-read non-binary body', async () => {
+  const short = harness({ read: { ok: true, value: new Uint8Array([0x50, 0x4b, 0x03]) } });
+  const text = harness({ read: { ok: false, refusal: { reason: 'media-type' } } });
+  const params = { token: 'good', file: 'f' };
+  expect((await short.run(siteShareArtifactUploadRoute, { params })).status).toBe(599);
+  expect((await text.run(siteShareArtifactUploadRoute, { params, body: 'not a ZIP buffer' })).status).toBe(599);
+  for (const h of [short, text]) {
+    expect(h.calls).toEqual([]);
+    expect(h.failures[0]?.error).toMatchObject({ message: 'invalid artifact' });
+  }
+});

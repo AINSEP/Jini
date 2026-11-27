@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createApprovalHandler, type ToolExecutionContext, type SurfaceExchangeStore } from "@jini-ai/core";
+import { createApprovalHandler, ToolInputError, type ToolExecutionContext, type SurfaceExchangeStore } from "@jini-ai/core";
 import type { AssetTheme, PreparedAssetBatch } from "@jini-ai/core/contracts/site/asset-transfer-tool-ports";
-import { buildFilesCopyAgentToolCatalog, buildFilesCopyRegistrations, type AssetApprovalToolHandler, type FilesCopyToolDeps } from "../copy-tool.js";
+import { buildFilesCopyAgentToolCatalog, buildFilesCopyRegistrations, contributeFilesCopyTools, type AssetApprovalToolHandler, type FilesCopyToolDeps } from "../copy-tool.js";
 
 function fixture() {
   const sourceSchema = { type: "object", additionalProperties: false, required: ["root", "path"], properties: {
@@ -33,7 +33,7 @@ function fixture() {
     },
     documentArchiveReader: { entries: vi.fn<FilesCopyToolDeps<AssetTheme>["documentArchiveReader"]["entries"]>() },
     documents: { maxBytes: 50 * 1024 * 1024, validate: vi.fn(async () => ({})) },
-    isFsShapeRejection: () => false, isDocumentShapeRejection: () => false, isThemeShapeRejection: () => false, isImportShapeRejection: () => false,
+    isFsShapeRejection: (_input: { error: unknown }) => false, isDocumentShapeRejection: () => false, isThemeShapeRejection: () => false, isImportShapeRejection: () => false,
   } satisfies FilesCopyToolDeps<AssetTheme>;
   const described = vi.fn(({ batch }: { batch: PreparedAssetBatch<Buffer>; toolId: string }) => ({ toolId: "files_copy", errorCode: "FILES", title: "Copy", confirmLabel: "Confirm", details: [{ label: "Bytes", value: batch.writes.map(({ bytes }) => bytes.toString()).join(",") }] }));
   const askHuman = vi.fn(async () => ({ confirmed: true as const }));
@@ -45,7 +45,7 @@ function fixture() {
   const catalog = buildFilesCopyAgentToolCatalog({ sourceSchema, fsReadPermission: "files.read" });
   const handler = buildFilesCopyRegistrations({ deps, surfaces, catalog, approval: { approvalToolHandler, describeWriteBatch: described } })[0]!.handler;
   const ctx = (input: unknown): ToolExecutionContext => ({ input, executionId: "execution", principal: { id: "agent" }, run: { id: "run" }, signal: new AbortController().signal });
-  return { deps, described, askHuman, handler, ctx };
+  return { deps, described, askHuman, handler, ctx, surfaces, catalog, approvalToolHandler };
 }
 
 describe("files copy execution", () => {
@@ -128,4 +128,77 @@ describe("files copy execution", () => {
     expect(deps.destination.fs.writePrepared).toHaveBeenCalledOnce();
   });
 
+});
+
+it("imports redirected URL bytes under the final URL's filename and passes that URL as media provenance", async () => {
+  const { deps, handler, ctx, askHuman } = fixture();
+  const url = "https://origin.example/image";
+  const finalUrl = new URL("https://cdn.example/media/photo.png");
+  const bytes = Buffer.from("fixture-png");
+  const media = { id: "photo", createdBy: "agent", slug: "photo", title: "photo", alt: "", caption: "", credit: "", sha256: "hash", status: "active", version: 1, publicUrl: "/photo.png", sourceUrl: finalUrl.href };
+  deps.source.fetchUrl.mockResolvedValue({ bytes, url: finalUrl });
+  deps.destination.media.persist.mockResolvedValue({ media });
+  expect(await handler(ctx({ sources: [{ root: "url", url }], destination: { kind: "media" } })))
+    .toEqual({ applied: true, written: ["photo.png"], skipped: [], media: [media] });
+  expect(deps.source.fetchUrl.mock.calls).toEqual([[{ url, media: true, maxBytes: deps.mediaVideoMaxBytes }, {}]]);
+  expect(deps.destination.media.persist.mock.calls).toEqual([[{ actorId: "agent", sourceUrl: finalUrl.href,
+    input: { workspaceId: "workspace", bytes, filename: "photo.png", contentType: "image/png", createdByPrincipal: "agent" },
+  }, {}]]);
+  expect(askHuman.mock.calls).toEqual([]);
+});
+
+it.each<[unknown, unknown, string]>([
+  [{ root: "url", url: "https://api.example/image.png", glob: "*" }, { kind: "site" }, "URL sources do not accept glob"],
+  [{ root: "url", url: "https://api.example/image.png" }, { kind: "library" }, "Library copies need an allowed picked/site/theme file source, not an image URL"],
+  [{ root: "site", path: "asset.png", url: "https://api.example/image.png" }, { kind: "site" }, "url is only valid for root url"],
+  [{ root: "media", path: "asset.png", glob: "*" }, { kind: "site" }, "glob must be 1..256 characters and target a filesystem folder"],
+  [{ root: "site", path: "asset.png" }, { kind: "media", path: "folder" }, "Media and Library destinations do not have folders; omit destination.path"],
+  [{ root: "site", path: "asset.png" }, { kind: "picked" }, "Use fs_write_files to write to the picked folder"],
+])("refuses incompatible copy source %j and destination %j before reading bytes", async (source, destination, message) => {
+  const { deps, handler, ctx, askHuman } = fixture();
+  await expect(handler(ctx({ sources: [source], destination }))).rejects.toThrow(message);
+  expect(deps.source.readAsset.mock.calls).toEqual([]);
+  expect(deps.source.resolveFolder.mock.calls).toEqual([]);
+  expect(deps.source.fetchUrl.mock.calls).toEqual([]);
+  expect(askHuman.mock.calls).toEqual([]);
+});
+
+it("adds caller-facing input guidance only for a classified source refusal", async () => {
+  const { deps, handler, ctx } = fixture();
+  const refused = new Error("source path is outside the chosen folder");
+  const privateFailure = new Error("private storage problem");
+  deps.isFsShapeRejection = ({ error }: { error: unknown }) => error === refused;
+  deps.source.readAsset.mockRejectedValueOnce(refused).mockRejectedValueOnce(privateFailure);
+  const input = { sources: [{ root: "site", path: "source.txt" }], destination: { kind: "site" } };
+  await expect(handler(ctx(input))).rejects.toBeInstanceOf(ToolInputError);
+  await expect(handler(ctx(input))).rejects.toBe(privateFailure);
+  expect(deps.destination.fs.writePrepared.mock.calls).toEqual([]);
+});
+
+it("reports a complete skip without creating an approval card or invoking the writer", async () => {
+  const { deps, handler, ctx, askHuman } = fixture();
+  deps.destination.fs.inspect.mockReturnValue({ overwrite: true });
+  expect(await handler(ctx({ sources: [{ root: "site", path: "source.txt" }], destination: { kind: "site" } })))
+    .toEqual({ applied: false, written: [], skipped: ["source.txt"] });
+  expect(askHuman.mock.calls).toEqual([]);
+  expect(deps.destination.fs.prepareSite.mock.calls).toEqual([]);
+  expect(deps.destination.fs.writePrepared.mock.calls).toEqual([]);
+});
+
+it("binds the current host deps when the copy contributor builds and runs", async () => {
+  const f = fixture();
+  const binding: unknown[] = [];
+  const contributor = contributeFilesCopyTools({
+    catalog: f.catalog, approval: { approvalToolHandler: f.approvalToolHandler, describeWriteBatch: f.described },
+    bindDeps: ({ deps }: { deps: { session: string } }, optional) => { binding.push([deps, optional]); return f.deps; },
+  });
+  expect(binding).toEqual([]);
+  const [copy] = contributor.build({ session: "site-session" }, f.surfaces);
+  expect(copy?.descriptor.id).toBe("files_copy");
+  expect(binding).toEqual([[{ session: "site-session" }, {}]]);
+  expect(await copy!.handler(f.ctx({ sources: [{ root: "site", path: "source.txt" }], destination: { kind: "site" } })))
+    .toEqual({ applied: true, written: ["source.txt"], skipped: [], notWritten: [] });
+  expect(f.deps.destination.fs.writePrepared.mock.calls).toEqual([[{ folder: "/site", writes: [
+    { path: "source.txt", bytes: Buffer.from("approved bytes"), overwrite: false },
+  ] }, {}]]);
 });

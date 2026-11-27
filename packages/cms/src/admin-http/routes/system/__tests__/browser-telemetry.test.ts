@@ -77,3 +77,44 @@ describe('browserTelemetryRoute', () => {
     expect(parseBrowserTelemetry({ body: [] })).toEqual({ ok: false, status: 400, error: 'body must be an object' });
   });
 });
+
+it.each<[unknown, number, string, string]>([
+  [null, 400, 'INVALID_INPUT', 'body must be an object'],
+  ['not an object', 400, 'INVALID_INPUT', 'body must be an object'],
+  [{ type: 'click', route: '/admin' }, 400, 'INVALID_INPUT', "type must be 'error' or 'pageview'"],
+  [{ type: 'pageview', route: '/admin', pageTitle: 'private' }, 400, 'INVALID_INPUT', "unknown field 'pageTitle'"],
+  [{ type: 'pageview' }, 400, 'INVALID_INPUT', "missing field 'route'"],
+  [{ type: 'pageview', route: 99 }, 400, 'INVALID_INPUT', "'route' must be a string"],
+  [{ type: 'error', route: '/admin', stack: '', message: 'm'.repeat(1001) }, 413, 'PAYLOAD_TOO_LARGE', "'message' is too long"],
+])('applies the budget before rejecting telemetry body %j', async (body, status, code, error) => {
+  const result = await post(body);
+  expect(isRouteReply(result.value)).toBe(true);
+  expect(result.value).toEqual({ status, body: { code, error } });
+  expect(result.keys).toEqual(['user-1']);
+  expect(result.captured).toEqual([]);
+  expect(result.reported).toEqual([]);
+});
+
+it('does not consume budget for a session with no principal', async () => {
+  const f = fakeDeps();
+  await expect(browserTelemetryRoute.handle({ input: { body: { type: 'pageview', route: '/admin' }, contentLength: 42 }, deps: f.deps }))
+    .rejects.toThrow('browser telemetry has no authenticated principal');
+  expect(f.keys).toEqual([]);
+  expect(f.captured).toEqual([]);
+});
+
+it('forwards the two scrubbed stacks and templates a long mixed record id', async () => {
+  const result = await post({
+    type: 'error', route: '/admin/posts/preview-article-19#content',
+    message: 'Render failed', stack: 'at https://site.test/file.js?session=private:12:9',
+    componentStack: 'Widget (https://site.test/widget.js#private)',
+  });
+  expect(result.value).toBeUndefined();
+  expect(result.reported).toEqual([{
+    error: expect.objectContaining({ name: 'AdminBrowserError', message: 'Render failed', stack: 'at https://site.test/file.js:12:9' }),
+    context: { operation: 'admin.browser.error', attributes: {
+      source: 'admin-browser', route: '/admin/posts/:id', componentStack: 'Widget (https://site.test/widget.js)',
+    } },
+  }]);
+  expect(result.captured).toEqual([]);
+});

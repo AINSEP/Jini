@@ -88,3 +88,11 @@ test('missing, throwing and malformed settings stay unavailable without changing
   expect(describeFormCollectionProviders({ providers }).slice(1)).toEqual(['missing', 'throwing', 'malformed'].map(id => expect.objectContaining({ id, label: id, available: false, fields: [], message: expect.stringContaining('settings are unavailable') })));
   expect(resolveFormCollectionPlan({ definition: { slug: 'contact', provider: { id: 'missing', config: {} } }, providers })).toEqual(external);
 });
+
+test("does not fall back to built-in when a selected plugin's planner throws", () => {
+  const providers = createFormCollectionRegistry({});
+  providers.contribute({ pluginId: "vendor/unreliable", definition: { id: "unreliable", provider: { plan: () => { throw new Error("vendor config failed"); } } } });
+  expect(resolveFormCollectionPlan({ definition: { slug: "contact", provider: { id: "unreliable", config: {} } }, providers })).toEqual({
+    kind: "unavailable", code: "provider_unavailable", message: "This form cannot send answers because its unreliable form provider is unavailable.",
+  });
+});

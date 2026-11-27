@@ -52,3 +52,12 @@ test("resolve maps a saved scope by destination id or by co-hosted host; get is 
   assert.equal(registry.get("relay"), relay);
 });
 
+
+test("a co-hosted descriptor without host claims never shadows a real host mapping", () => {
+  const old = loaded({ id: "legacy", label: "Legacy", module: "legacy.mjs", receive: "co-hosted" }, "p1");
+  const current = loaded({ id: "current", label: "Current", module: "current.mjs", receive: "co-hosted", hosts: ["host-a"] }, "p2");
+  const registry = buildFormDestinationRegistry({ refusals: [], loaded: [old, current] });
+  assert.equal(registry.resolve({ scope: "host-a" }), current);
+  assert.equal(registry.resolve({ scope: "legacy" }), old);
+  assert.deepEqual(registry.refusals, []);
+});
