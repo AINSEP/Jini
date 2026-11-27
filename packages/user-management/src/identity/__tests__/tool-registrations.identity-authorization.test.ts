@@ -8,7 +8,7 @@ import { IdentityForbiddenError, type IdentityRepos } from '../../core/index.js'
 import { InMemoryPrincipalRepo, InMemoryUserRepo, InMemorySessionRepo, InMemoryRoleRepo, InMemoryPolicyRepo,
   InMemoryPolicyPermissionRepo, InMemoryRolePolicyRepo, InMemoryPrincipalRoleRepo, InMemoryPrincipalPolicyRepo,
   createTransactionalInMemoryIdentityRepos, seedIdentity, assertCallerHasAnyPermission, normalizeUsername, parseIdentityToolInput } from '../../server/index.js';
-import { SelfDeleteError, assertUserAccountAction } from '../delete-user-service.js';
+import { SelfDeleteError, assertUserAccountAction } from '@jini-ai/user-management/identity/delete-user-service';
 import { buildGatedIdentityRegistrations, withoutPassword, type IdentityToolDeps } from '../tool-registrations.js';
 
 async function fixture(afterApproval: (repos: IdentityRepos, owner: string) => Promise<void> = async () => {}) {
