@@ -79,3 +79,32 @@ test("mail-sender registers and reads both sender keys through the injected coll
   assert.deepEqual(await readMailSenderSetting({ settingsRepo: new InMemorySettingsRepo(), workspaceId: WS, getEffective: read }), { email: "hello@example.com", name: "Example" });
   assert.deepEqual(reads, [[MAIL_SENDER_NAMESPACE, MAIL_SENDER_EMAIL_KEY, { workspaceId: WS }], [MAIL_SENDER_NAMESPACE, MAIL_SENDER_NAME_KEY, { workspaceId: WS }]]);
 });
+
+test("an unregistered receiver or a non-string stored value leaves destination selection to the host", async () => {
+  const settingsRepo = new InMemorySettingsRepo();
+  for (const value of [{}, { receiver: false }]) {
+    const { read, reads } = reader(value);
+    assert.equal(await readFormDestinationSetting({ settingsRepo, workspaceId: WS, getEffective: read }), undefined);
+    assert.deepEqual(reads, [["core.forms", "receiver", { workspaceId: WS }]]);
+  }
+});
+
+test("the mail sender omits blank or corrupt properties without hiding the other valid property", async () => {
+  const settingsRepo = new InMemorySettingsRepo();
+  for (const [values, expected] of [
+    [{ senderEmail: "   ", senderName: "  Editorial Desk " }, { name: "Editorial Desk" }],
+    [{ senderEmail: "sender@example.test", senderName: 42 }, { email: "sender@example.test" }],
+    [{}, {}],
+  ] as const) {
+    const { read } = reader(values);
+    assert.deepEqual(await readMailSenderSetting({ settingsRepo, workspaceId: WS, getEffective: read }), expected);
+  }
+});
+
+test("new sites with no forms definitions get automatic pull and no delivery bindings", async () => {
+  const settingsRepo = new InMemorySettingsRepo();
+  const { read, reads } = reader({});
+  assert.equal(await readFormsAutoPull({ settingsRepo, workspaceId: WS, getEffective: read }), true);
+  assert.deepEqual(await readFormDeliveryBindings({ settingsRepo, workspaceId: WS, getEffective: read }), []);
+  assert.deepEqual(reads, [["core.forms", "autoPull", { workspaceId: WS }], ["core.forms", "deliveryBindings", { workspaceId: WS }]]);
+});

@@ -526,3 +526,17 @@ test("setEntrySeoOverrides: null clears a stored enum override instead of failin
   });
   assert.deepEqual(result.overrides, { title: "Kept" });
 });
+
+test("setEntrySeoOverrides: an explicitly undefined patch member preserves a saved override", async () => {
+  const repo = new InMemoryPostRepo([seedPost({ seoExtJson: '{"title":"Carry forward","noindex":true}' })]);
+  const patch = { title: undefined, description: "New summary" } as SeoExtFieldsPatch;
+  const result = await setEntrySeoOverrides({
+    deps: { postRepo: repo, authorize: alwaysAllow, invalidateSitemapCache: noopInvalidate, clock },
+    input: { workspaceId: WORKSPACE, entryId: ENTRY_ID, patch, callerPrincipalId: "p1" },
+  });
+  assert.deepEqual(result.overrides, { title: "Carry forward", noindex: true, description: "New summary" });
+  assert.equal(
+    (await repo.findById({ workspaceId: WORKSPACE, id: ENTRY_ID }))?.seoExtJson,
+    '{"title":"Carry forward","noindex":true,"description":"New summary"}',
+  );
+});

@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { SeoSettingsValidationError } from "../errors.js";
 import { buildSeoToolRegistrations, seoDerivedRisk, type SeoPackageToolDeps, type SeoSettingsPort } from "../tool-registrations.js";
+import { InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
+import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
+import { InMemorySettingsRepo, seoDeps } from "./support/legacy-api.fixture.js";
+import { buildPostRecord, InMemoryPostRepo } from "./support/post.fixture.js";
 import type { SeoSettings } from "../types.js";
 
 const SETTINGS: SeoSettings = { titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: true, robotsRules: [] };
@@ -36,10 +40,10 @@ function makeDeps(overrides: Partial<SeoPackageToolDeps> = {}) {
   return { calls, deps, outbox, bus, registrations: buildSeoToolRegistrations({ deps }) };
 }
 
-function run(registrations: ToolRegistration[], id: string, input: unknown): Promise<unknown> {
+function run(registrations: ToolRegistration[], id: string, input: unknown, signal = new AbortController().signal): Promise<unknown> {
   const tool = registrations.find((registration) => registration.descriptor.id === id);
   if (!tool) throw new Error(`${id} is not wired`);
-  const ctx: ToolExecutionContext = { executionId: "e1", principal: { id: "p1" }, run: { id: "r1" }, input, signal: new AbortController().signal };
+  const ctx: ToolExecutionContext = { executionId: "e1", principal: { id: "p1" }, run: { id: "r1" }, input, signal };
   return Promise.resolve(tool.handler(ctx, {}));
 }
 
@@ -100,4 +104,116 @@ describe("buildSeoToolRegistrations", () => {
     expect(deps.bus).toBe(bus);
     expect(typeof deps.dispatch).toBe("function");
   });
+});
+
+function entryFixture() {
+  const row = buildPostRecord({
+    id: "dispatch", workspaceId: "ws-1", slug: "dispatch", title: "Monthly dispatch",
+    version: 4, seoExtJson: '{"title":"Old override","nofollow":true}',
+    bodyJson: { type: "doc", content: [] },
+  });
+  const repo = new InMemoryPostRepo([row]);
+  const reads = seoDeps({
+    postRepo: repo, settingsRepo: new InMemorySettingsRepo(),
+    media: {
+      mediaRepo: new InMemoryMediaRepo({}, { initialRows: [] }),
+      transformDefinitionRepo: new InMemoryTransformDefinitionRepo({}, { initialRows: [] }),
+    },
+    originRegistry: {
+      canonicalOrigin: async () => { throw new OriginNotVerifiedError({ message: "No verified origin" }); },
+      isAllowedRedirectTarget: async () => false,
+      isAllowedEgressTarget: async () => false,
+    },
+  });
+  const requests: unknown[] = [];
+  const allowed = { workspaceId: "ws-1", principalId: "p1", permission: "admin.seo.manage", entityType: "seo-entry", entityId: "dispatch" };
+  const setup = makeDeps({
+    authorize: async (request) => {
+      requests.push(request);
+      return {
+        allowed: Object.entries(allowed).every(([key, value]) => request[key as keyof typeof request] === value),
+        reason: "entry-specific grant",
+      };
+    },
+    seoDeps: {
+      ...reads,
+      renderBaseUrl: "https://news.example/",
+      postRepo: {
+        ...reads.postRepo, saveIfVersion: input => repo.saveIfVersion(input),
+        appendRevision: input => repo.appendRevision(input), transaction: ({ fn }) => repo.transaction(fn),
+      },
+      dispatch: async () => {},
+    },
+  });
+  return { ...setup, row, repo, requests, allowed };
+}
+
+it("reads resolved metadata and its version under the entry-specific grant", async () => {
+  const { registrations, requests, allowed } = entryFixture();
+  expect(await run(registrations, "seo_get_entry_meta", { entryId: "dispatch" })).toMatchObject({
+    meta: { title: "Old override", version: 4, canonical: "https://news.example/dispatch" },
+  });
+  expect(requests).toEqual([allowed]);
+});
+
+it("returns analysis for the selected entry with a missing-description warning", async () => {
+  const { registrations, requests, allowed } = entryFixture();
+  expect(await run(registrations, "seo_analyze_entry", { entryId: "dispatch" })).toMatchObject({
+    analysis: { entryId: "dispatch", score: 80, issues: [
+      { code: "missing_description", severity: "warning", message: "Description is missing.", field: "description" },
+    ], resolved: { title: "Old override", version: 4 } },
+  });
+  expect(requests).toEqual([allowed]);
+});
+
+it("passes a null clear and the version basis to the override writer, not as SEO fields", async () => {
+  const { registrations, repo, requests, allowed, calls } = entryFixture();
+  expect(await run(registrations, "seo_set_entry_overrides", {
+    entryId: "dispatch", expectedVersion: 4, title: null, canonical: "https://news.example/current",
+  })).toEqual({ overrides: { nofollow: true, canonical: "https://news.example/current" } });
+  expect(await repo.findById({ workspaceId: "ws-1", id: "dispatch" })).toMatchObject({
+    version: 5, seoExtJson: '{"nofollow":true,"canonical":"https://news.example/current"}',
+  });
+  expect(requests).toEqual([allowed]);
+  expect(calls.invalidations.map((request) => (request as { input: unknown }).input)).toEqual([{ workspaceId: "ws-1" }]);
+});
+
+it.each([
+  { field: "typo", value: "on", message: "'typo' is not a registered SEO field" },
+  { field: "canonical", value: "file:///document", message: "'canonical' uses an unsafe URL scheme" },
+])("returns input guidance for a refused override field $field", async ({ field, value, message }) => {
+  const { registrations, repo, row, calls } = entryFixture();
+  const failure = await run(registrations, "seo_set_entry_overrides", {
+    entryId: "dispatch", expectedVersion: 4, [field]: value,
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ToolInputError);
+  expect((failure as Error).message).toContain(message);
+  expect((failure as Error).message).toContain("Schema for 'seo_set_entry_overrides'");
+  expect(await repo.findById({ workspaceId: "ws-1", id: "dispatch" })).toEqual(row);
+  expect(calls.invalidations).toEqual([]);
+});
+
+it("does not authorize or persist a cancelled override write", async () => {
+  const { registrations, repo, requests, row } = entryFixture();
+  const cancellation = new Error("Editor cancelled");
+  const controller = new AbortController();
+  controller.abort(cancellation);
+  await expect(run(registrations, "seo_set_entry_overrides", {
+    entryId: "dispatch", expectedVersion: 4, title: "Cancelled",
+  }, controller.signal)).rejects.toBe(cancellation);
+  expect(requests).toEqual([]);
+  expect(await repo.findById({ workspaceId: "ws-1", id: "dispatch" })).toEqual(row);
+});
+
+it("a stale override write names the configured read tool and preserves the newer saved SEO", async () => {
+  const { deps, row, repo, calls } = entryFixture();
+  const registrations = buildSeoToolRegistrations({ deps }, { hostReads: { readRef: ({ entity }) => `host_read.${entity}` } });
+  const failure = await run(registrations, "seo_set_entry_overrides", {
+    entryId: "dispatch", expectedVersion: 3, title: "Stale title",
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ToolInputError);
+  expect((failure as Error).message).toContain("VERSION_CONFLICT");
+  expect((failure as Error).message).toContain("Call host_read.seo_entry_meta again");
+  expect(await repo.findById({ workspaceId: "ws-1", id: "dispatch" })).toEqual(row);
+  expect(calls.invalidations).toEqual([]);
 });

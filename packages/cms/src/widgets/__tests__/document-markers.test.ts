@@ -57,6 +57,16 @@ test("functional replacement keeps literal replacement metacharacters in marker 
   } }), 'before<div data-embed-config=\'{"type":"widget","id":"w","content":{"note":"$&"}}\'></div>after');
 });
 
+test("malformed children stay with the document renderer and non-text marker attributes are omitted", () => {
+  const malformed = [null, ["legacy"], { type: "widgetEmbed", attrs: [] }, { type: "widgetEmbed", attrs: { widgetEntryId: 42 } }];
+  const bodyJson = { type: "doc", content: [...malformed, { type: "image", attrs: { assetId: "photo", alt: 42, cssClass: 9, htmlAttributes: { title: "not text" } } }] };
+  const html = renderDocWithManagedMarkers({ bodyJson, token: "DOC5N", maxDepth: 10, renderDocNode: ({ node }) => {
+    assert.deepEqual(node, { type: "doc", content: [...malformed, { type: "text", text: "DOC5N0X" }] });
+    return "<p>Legacy fallback</p>DOC5N0X";
+  } });
+  assert.equal(html, '<p>Legacy fallback</p><div data-embed-config=\'{"type":"media","id":"photo"}\'></div>');
+});
+
 test("the managed golden document preserves headings and tail at the document-renderer port", () => {
   const headings = [
     { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Same" }] },

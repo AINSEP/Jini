@@ -138,3 +138,10 @@ test("a parked location wins over live, preserves the live claim, and restores m
   });
   assert.equal(existsSync(join(f.themesDir, "__original-themes__", "static")), true);
 });
+
+test("the locator carries the discovered engine tier into the new parking path", () => {
+  const f = fixture();
+  assert.deepEqual(locateThemeFolder({ themesDir: f.themesDir, themeId: "plain", ports: f.ports }), {
+    liveParent: join(f.themesDir, "static"), liveNames: ["plain"], parkedDir: join(`${f.themesDir}-trash`, "static", "plain"),
+  });
+});

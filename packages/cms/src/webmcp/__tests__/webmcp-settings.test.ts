@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { getEffective, InMemorySettingsRepo, resolveDefinitionRaw, SCOPE_BIT } from "@jini-ai/core/settings";
 
-import { isPublishedWebMcpEnabled, PUBLISHED_WEBMCP_KEY, PUBLISHED_WEBMCP_NAMESPACE } from "../settings.js";
+import { ensureSettingsUiTabDefinitions, isPublishedWebMcpEnabled, PUBLISHED_WEBMCP_KEY, PUBLISHED_WEBMCP_NAMESPACE } from "../settings.js";
 import { PUBLISHED_WEBMCP_CONFIRMATION } from "../webmcp-i18n.js";
 
 /**
@@ -18,6 +19,36 @@ function readerReturning(value: unknown) {
 }
 
 const settingsRepo = {} as Parameters<typeof isPublishedWebMcpEnabled>[0]["settingsRepo"];
+
+test("bootstrap preserves the existing privacy defaults and registers workspace WebMCP enabled by default", async () => {
+  const repo = new InMemorySettingsRepo();
+  const systemPrincipalId = "bootstrap-operator";
+  let id = 0;
+  const required = {
+    settingsRepo: repo,
+    clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
+    ids: { newId: () => `setting-${++id}` },
+    principals: {
+      findActiveById: async ({ workspaceId, id }: { workspaceId: string; id: string }) =>
+        workspaceId === systemPrincipalId && id === systemPrincipalId ? { id } : null,
+    },
+  };
+  const scope = { namespace: "core.privacy", workspaceId: "reader-workspace" };
+  const resolve = (key: string) => resolveDefinitionRaw({ repo }, { ...scope, key });
+  assert.equal(await resolve("published_site_webmcp_enabled"), null);
+
+  await ensureSettingsUiTabDefinitions(required, { systemPrincipalId });
+  const published = await resolve("published_site_webmcp_enabled");
+  assert.ok(published);
+  assert.deepEqual(published.schema, { type: "boolean" });
+  assert.equal(published.scopes, SCOPE_BIT.workspace);
+  assert.equal(published.defaultValue, true);
+  assert.equal((await resolve("telemetry.metrics"))?.defaultValue, false);
+  assert.equal(await isPublishedWebMcpEnabled({ settingsRepo: repo, getEffective }, { workspaceId: scope.workspaceId }), true);
+
+  await ensureSettingsUiTabDefinitions(required, { systemPrincipalId });
+  assert.deepEqual(await resolve("published_site_webmcp_enabled"), published);
+});
 
 test("an absent setting is the owner's ON default", async () => {
   const { read } = readerReturning(null);

@@ -7,9 +7,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import type { FormDeliveryBinding } from "@jini-ai/core/contracts/site/cms-forms";
-import { InMemorySettingsRepo, type SettingValueRecord } from "@jini-ai/core/settings";
+import { getEffective, InMemorySettingsRepo, type SettingDefinitionRecord, type SettingValueRecord } from "@jini-ai/core/settings";
 
-import { FormDeliveryBindingsConflictError, guardedBindingsRepo } from "../form-delivery-write.js";
+import { FormDeliveryBindingsConflictError, guardedBindingsRepo, writeFormDeliveryBindings } from "../form-delivery-write.js";
+
+import { readFormDeliveryBindings } from "../form-delivery.js";
 
 const record: SettingValueRecord = {
   settingId: "setting-1", scope: "workspace", workspaceId: "ws-1", principalId: null, valueJson: [],
@@ -40,4 +42,37 @@ test("every other member passes through: methods bound to the real repo, data me
   await repo.saveWorkspaceValue(record);
   assert.equal((await listWorkspaceValues({ workspaceId: "ws-1" })).length, 1, "a detached method still reads the real repo");
   assert.equal(guarded.label, "primary");
+});
+
+test("the typed bindings writer refuses stale snapshots and allows a reread and retry without a phantom revision", async () => {
+  const workspaceId = "ws-1";
+  const settingId = "forms-binding-setting";
+  const definition: SettingDefinitionRecord = {
+    settingId, version: 1, workspaceId: null, namespace: "core.forms", key: "deliveryBindings",
+    ownerKind: "core", ownerId: null, schema: { type: "json" }, defaultValue: [], scopes: 2, secret: false,
+    status: "active", aliasOfNamespace: null, aliasOfKey: null, coercionTag: null,
+    createdAt: record.updatedAt, updatedAt: record.updatedAt,
+  };
+  const repo = new InMemorySettingsRepo({ definitions: [definition] });
+  const read = () => readFormDeliveryBindings({ settingsRepo: repo, getEffective, workspaceId });
+  let id = 0;
+  const write = (value: unknown, expectedValue: readonly FormDeliveryBinding[]) => writeFormDeliveryBindings({
+    deps: {
+      repo, clock: { nowMs: () => Date.parse(record.updatedAt) }, ids: { newId: () => `binding-${++id}` },
+      authorize: async () => ({ allowed: true, reason: "test" }), principals: { findActiveById: async () => null },
+    },
+    workspaceId, value, callerPrincipalId: "owner", writePolicies: { dedicatedWriters: [] },
+  }, { expectedValue });
+  const first = [{ bindingId: "orders", adapterId: "rows", connectionRef: "conn-1", enabled: true, config: {} }];
+  const next = [{ ...first[0]!, enabled: false }];
+  const initial = await read();
+
+  await write(first, initial);
+  await assert.rejects(write(next, initial), FormDeliveryBindingsConflictError);
+  assert.deepEqual(await read(), first);
+  assert.deepEqual((await repo.listRevisions({ settingId })).map(({ afterJson }) => afterJson), [first]);
+
+  await write(next, await read());
+  assert.deepEqual(await read(), next);
+  assert.deepEqual((await repo.listRevisions({ settingId })).map(({ afterJson }) => afterJson), [first, next]);
 });

@@ -113,4 +113,19 @@ describeEachDialect<Bundle>({ title: "trash repo", options: { tables: ["trashed_
     await repo.releaseLease({ id: claim!.id });
     assert.equal((await repo.claimDue({ now: NOW, leaseOwner: "two", leaseUntil: LATER, limit: 5 })).length, 1);
   });
+
+  test("timestamp ties page by id and unversioned trash stays null when read or claimed", async () => {
+    const { repo } = make();
+    await repo.insert({ row: item("a", { entityVersion: null, purgeAfter: EARLIER }) });
+    await repo.insert({ row: item("b", { entityVersion: null }) });
+    await repo.insert({ row: item("c", { entityType: "form" }) });
+    const first = await repo.list({ workspaceId: WS, now: NOW, limit: 1 }, { entityTypes: [] });
+    assert.deepEqual(first.items.map(({ id, entityVersion }) => [id, entityVersion]), [["c", 3]]);
+    const second = await repo.list({ workspaceId: WS, now: NOW, limit: 1 }, { cursor: first.nextCursor });
+    assert.deepEqual(second.items.map(({ id, entityVersion }) => [id, entityVersion]), [["b", null]]);
+    assert.equal(second.nextCursor, null);
+    assert.deepEqual(await repo.claimDue({ now: NOW, leaseOwner: "sweeper", leaseUntil: LATER, limit: 5 }), [
+      { id: "a", workspaceId: WS, entityType: "post", entityId: "entity-a", entityVersion: null },
+    ]);
+  });
 } });

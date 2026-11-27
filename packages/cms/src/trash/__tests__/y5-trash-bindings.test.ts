@@ -4,7 +4,7 @@ import { bindTrashItemTool } from "../index.js";
 import { bindTrashVisibility } from "../visibility.js";
 
 function fixture() {
-  const postRepo = { findById: vi.fn(async () => ({ kind: "email-template" })) };
+  const postRepo = { findById: vi.fn(async (_target: { workspaceId: string; id: string }): Promise<{ kind: string } | null> => ({ kind: "email-template" })) };
   const commentRepo = { findById: vi.fn(async () => ({ version: 4 })) };
   const authorize = vi.fn(async () => ({ allowed: true, reason: "grant" }));
   const binding = bindTrashItemTool({
@@ -77,4 +77,15 @@ test("visibility bindings require the injected grants and refuse an unknown kind
   expect(visibility.trashPermissionFor({ entityType: "user", registry: deps.registry })).toBe("*");
   expect(await visibility.mayActOnEntityType({ deps, principalId: "human", entityType: "unknown" })).toMatchObject({ permission: null, allowed: false });
   expect(authorize).not.toHaveBeenCalled();
+});
+
+test("the bound post delegate preserves the actual page kind and refuses a missing page", async () => {
+  const f = fixture();
+  f.postRepo.findById.mockResolvedValueOnce({ kind: "page" }).mockResolvedValueOnce(null);
+  const [registration] = f.binding.deriveTrashItemRegistrations(f);
+  const ctx = context("page");
+  expect(await registration!.handler(ctx)).toEqual({ entityType: "post", entityId: "item", via: "content_post_delete", outcome: { trashed: true } });
+  await expect(registration!.handler(ctx)).rejects.toThrow("trash_item: post 'item' was not found. Nothing was changed.");
+  expect(f.run).toHaveBeenCalledExactlyOnceWith({ ...ctx, input: { id: "item", kind: "page" } }, {});
+  expect(f.postRepo.findById.mock.calls).toEqual([[{ workspaceId: "site", id: "item" }], [{ workspaceId: "site", id: "item" }]]);
 });

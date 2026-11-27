@@ -42,4 +42,33 @@ describe('media-html diagnostics reach the injected report, never a console', ()
     const html = '<p>open <b>bold <img data-media-slug="photo"></i> tail';
     expect(renderMediaRawHtml({ html, media, renderMedia: renderPhoto })).toBe('<p>open <b>bold <img data-media-slug="photo" src="/photo" alt="Library"> tail</b></p>');
   });
+
+  it('keeps valid responsive sources and drops the entire srcset when a candidate is empty, malformed, or not HTTP(S)', () => {
+    const html = '<img alt="valid" srcset="/small.jpg 1x, https://example.test/large.jpg 2x">' +
+      '<img alt="empty" srcset="">' +
+      '<img alt="malformed" srcset="https://[bad]/photo.jpg 1x">' +
+      '<img alt="unsupported" srcset="/small.jpg 1x, ftp://example.test/large.jpg 2x">';
+    const events: MediaHtmlEvent[] = [];
+    expect(sanitizePageHtml({ html }, { report: event => events.push(event) })).toBe(
+      '<img alt="valid" srcset="/small.jpg 1x, https://example.test/large.jpg 2x">' +
+      '<img alt="empty"><img alt="malformed"><img alt="unsupported">',
+    );
+    expect(events).toEqual([{ code: 'raw-html-dropped', detail: '{"img@srcset":3}' }]);
+  });
+
+  it('bounds nesting inside templates while preserving markup which fits the limit', () => {
+    const admitted = '<template>' + '<div>'.repeat(126);
+    const closing = '</div>'.repeat(126) + '</template>';
+    const html = admitted + '<b>retained<em>over depth</em></b>' + closing;
+    const events: MediaHtmlEvent[] = [];
+    expect(sanitizePageHtml({ html }, { report: event => events.push(event) })).toBe(admitted + '<b>retained</b>' + closing);
+    expect(events).toEqual([{ code: 'raw-html-dropped', detail: '{"em":1}' }]);
+  });
+
+  it('preserves SVG geometry and removes namespaced links', () => {
+    const html = '<svg viewBox="0 0 8 8"><path d="M 0 0 L 8 8" xlink:href="/unused.svg" /></svg>';
+    const events: MediaHtmlEvent[] = [];
+    expect(sanitizePageHtml({ html }, { report: event => events.push(event) })).toBe('<svg viewBox="0 0 8 8"><path d="M 0 0 L 8 8"></path></svg>');
+    expect(events).toEqual([{ code: 'raw-html-dropped', detail: '{"path@xlink:href":1}' }]);
+  });
 });

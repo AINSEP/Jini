@@ -1,5 +1,6 @@
 import { webcrypto } from "node:crypto";
 import { resolveMenuDoc } from "../../../navigation/index.js";
+import { createFormCollectionRegistry } from "../../../core/form-collection.js";
 import assert from "node:assert/strict";
 import test from "../support/test-runner.js";
 
@@ -105,6 +106,24 @@ test("an absent galleryMedia port behaves exactly like a media port that knows n
 
   assert.deepEqual(withoutPort, withEmptyPort);
   assert.deepEqual(lookups, [1]);
+});
+
+test("the assembled contact form resolver exposes a host provider plan and its explicit consent policy", async () => {
+  const providers = createFormCollectionRegistry({});
+  const collectionPlan = { kind: "post" as const, action: "https://forms.example.test/contact", external: true,
+    capabilities: { answers: "Provider inbox", validation: "Provider validation", spamProtection: "Provider filtering" } };
+  providers.contribute({ pluginId: "test-collector", definition: { id: "collector", provider: { plan: () => collectionPlan } } });
+  const form = { id: "form-id", slug: "contact", status: "active", fields: [], provider: { id: "collector", config: {} } } as const;
+  const formDefinitionRepo = { findById: async () => ({ ...form, fields: [] }), findBySlug: unexpected };
+  const widget: WidgetInstanceView = { id: "w-form", widgetType: "contact-form", config: { formDefinitionId: "form-id" } };
+  const wired = createCoreResolvers(deps({ formDefinitionRepo, formCollectionProviders: () => providers, formEmbedConsentOff: () => true }))["contact-form"]!;
+  assert.deepEqual((await wired.resolveMany([widget], CTX)).get("w-form"), {
+    ok: true, ir: { componentId: "contact-form", props: { formDefinitionId: "form-id", slug: "contact", fields: [], collectionPlan, collectionConsentOff: true, successMessage: null } }, dependencyKeys: ["form-id"],
+  });
+  const unwired = createCoreResolvers(deps({ formDefinitionRepo }))["contact-form"]!;
+  assert.deepEqual((await unwired.resolveMany([widget], CTX)).get("w-form"), {
+    ok: true, ir: { componentId: "contact-form", props: { formDefinitionId: "form-id", slug: "contact", fields: [], collectionPlan: { kind: "unavailable", code: "provider_unavailable", message: "This form cannot send answers because its collector form provider is unavailable." }, successMessage: null } }, dependencyKeys: ["form-id"],
+  });
 });
 
 test("a resolver that drops an instance from its result yields resolver-error for that instance only", async () => {

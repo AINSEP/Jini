@@ -98,3 +98,28 @@ test("exact splices preserve scripts and styles, finalize attributes and accept 
     '<section data-embed-config=\'{"type":"content","id":"empty"}\'>old</section>' + missing + other,
     depth: 0, budget: { remaining: 10 } }), '<main class="body">' + body + '</main><section></section>' + missing + other);
 });
+
+test("targetless and unreadable content markers keep their authored fallback without spending extra reads", async () => {
+  const emptySlug = '<article data-embed-config=\' {"type":"content","slug":""} \'>Missing target</article>';
+  const numericSlug = '<article data-embed-config=\'{"type":"content","slug":42}\'>Invalid target</article>';
+  const unavailable = '<article data-embed-config=\'{"type":"content","id":"private"}\'>Private fallback</article>';
+  const reads: ContentMarkerRef[] = [];
+  const ports: ContentMarkerPorts = {
+    readPublishedHtml: async ({ ref }) => { reads.push(ref); return undefined; },
+    renderEmbeds: async () => { throw new Error("no readable bodies to render"); },
+  };
+  const budget = { remaining: 5 };
+  const html = emptySlug + numericSlug + unavailable;
+  assert.equal(await resolveHtmlFormatContentMarkers({ ports, html, depth: 0, budget }), html);
+  assert.deepEqual(reads, [{ key: "private", by: "id", id: "private" }]);
+  assert.equal(budget.remaining, 4);
+
+  const live = '<article data-embed-config=\'{"type":"content","id":"public"}\'>Old fallback</article>';
+  const withLive: ContentMarkerPorts = {
+    readPublishedHtml: async ({ ref }) => ref.key === "public" ? "<p>Public body</p>" : undefined,
+    renderEmbeds: async ({ html }) => html,
+  };
+  assert.equal(await resolveHtmlFormatContentMarkers({ ports: withLive, html: emptySlug + live + numericSlug + unavailable, depth: 0, budget }),
+    emptySlug + "<article><p>Public body</p></article>" + numericSlug + unavailable);
+  assert.equal(budget.remaining, 2);
+});

@@ -109,3 +109,18 @@ test("the injected ensureSettingDefinitions is the registrar used, with the deps
   await ensureSiteTimeZoneSettingDefinition(deps, { systemPrincipalId: "system" });
   assert.deepEqual(calls, [{ deps, namespace: SITE_TIMEZONE_NAMESPACE, keys: [SITE_TIMEZONE_KEY] }]);
 });
+
+test("an unregistered site with no creation record uses the server zone", async () => {
+  assert.equal(await resolveSiteTimeZone({ getEffective, reportFallback: ignoreFallback, settingsRepo: new InMemorySettingsRepo() }, { workspaceId: "legacy" }), "UTC");
+});
+
+test("a non-Error ledger failure reports Unknown and still uses the trimmed creation zone", async () => {
+  const reports: SiteTimeZoneFallbackEvent[] = [];
+  const result = await resolveSiteTimeZone({
+    getEffective: async () => { throw "runtime signal"; },
+    reportFallback: (report) => reports.push(report), settingsRepo: new InMemorySettingsRepo(),
+    creationTimeZone: { read: () => " Europe/Paris " },
+  }, { workspaceId: "legacy" });
+  assert.equal(result, "Europe/Paris");
+  assert.deepEqual(reports, [{ message: SITE_TIME_ZONE_FALLBACK_MESSAGE, workspaceId: "legacy", errorClass: "Unknown" }]);
+});

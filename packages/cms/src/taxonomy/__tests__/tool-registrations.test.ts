@@ -218,3 +218,27 @@ test("the full catalog covers every handler with the shared assignment/read sche
   assert.deepEqual((tools.find(tool => tool.descriptor.id === "taxonomy_get_assigned_terms")!.descriptor.inputSchema as { properties: Record<string, unknown> }).properties.contentType,
     (tools.find(tool => tool.descriptor.id === "taxonomy_assign_terms")!.descriptor.inputSchema as { properties: Record<string, unknown> }).properties.contentType);
 });
+
+test("taxonomy reads return the addressed term and its group without writing", async () => {
+  const f = makeFixture();
+  const { taxonomyId, fromTermId, intoTermId } = await seedTerms(f);
+  const writes = [...f.events];
+  const selected = await f.call("taxonomy_get_term", { termId: intoTermId });
+  assert.deepEqual(selected, { term: { id: intoTermId, taxonomyId, parentId: null, name: "Beta", status: "active", updatedAt: NOW, version: 1 } });
+  const list = await f.call("taxonomy_list", {}) as { items: Array<{ taxonomy: { id: string; name: string }; terms: Array<{ id: string; name: string }> }> };
+  assert.deepEqual(list.items.map(({ taxonomy, terms }) => [taxonomy.id, taxonomy.name, terms.map(({ id, name }) => [id, name])]),
+    [[taxonomyId, "Topic", [[fromTermId, "Alpha"], [intoTermId, "Beta"]]]]);
+  assert.deepEqual(f.events, writes);
+});
+
+test("assignment and unassignment both reject an invalid middle term before changing the current set", async () => {
+  const f = makeFixture();
+  const { fromTermId, intoTermId } = await seedTerms(f);
+  const writes = [...f.events];
+  for (const id of ["taxonomy_assign_terms", "taxonomy_unassign_terms"]) {
+    await assert.rejects(f.call(id, { contentType: "post", contentId: "post-1", termIds: [fromTermId, 12, intoTermId] }),
+      (error: unknown) => error instanceof ToolInputError && error.message === "'termIds' (string array) is required");
+  }
+  assert.deepEqual((await f.deps.entryTermRepo.listForContent({ contentType: "post", contentId: "post-1" })).map(row => row.termId), [fromTermId]);
+  assert.deepEqual(f.events, writes);
+});

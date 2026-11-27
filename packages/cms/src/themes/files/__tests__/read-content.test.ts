@@ -139,3 +139,10 @@ test("find confines matches and context to the selected range", () => {
     content: "", totalLines: 3, returned: { matches: 0, truncated: false },
   });
 });
+
+test("an explicit cursor at UTF-8 EOF returns an empty final page, while a small unpaged read keeps its compact shape", () => {
+  const content = "é😀";
+  assert.deepEqual(pageThemeReadContent({ content, offset: undefined, invalidOffsetError }), { content });
+  assert.deepEqual(pageThemeReadContent({ content, offset: 6, invalidOffsetError }),
+    { content: "", offset: 6, nextOffset: null, totalBytes: 6, truncated: false });
+});

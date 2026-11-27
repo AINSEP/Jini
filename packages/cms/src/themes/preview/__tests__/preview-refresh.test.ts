@@ -115,3 +115,8 @@ test("reserved-path policy checks decoded and normalized paths in validation and
     assert.equal(readThemePreviewRefresh({ themesDir, isReservedPath }), null);
   }
 });
+
+test("invalid UTF-8 escapes in a preview path fail with public-path guidance", () => {
+  assert.throws(() => validatePreviewPath({ path: "/notes/%C0%AF", isReservedPath }),
+    { message: "path must be a site-relative public URL starting with /" });
+});

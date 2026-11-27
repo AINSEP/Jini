@@ -46,3 +46,25 @@ test("a race after the initial read is refused without retrying against a newer 
   assert.equal(attempts, 1);
   assert.equal((await repo.findById({ workspaceId: "ws", id: "post" }))?.title, "Concurrent");
 });
+
+test("deletion during a conditional save reports the vanished editor basis without recreating the post", async () => {
+  const { repo, deps, postRepo } = fixture();
+  const target = { workspaceId: "ws", id: "post" };
+  const save = postRepo.saveIfVersion;
+  const attemptedVersions: number[] = [];
+  postRepo.saveIfVersion = async (request) => {
+    attemptedVersions.push(request.ifVersion);
+    await repo.hardDelete(target);
+    return save(request);
+  };
+
+  await assert.rejects(setEntrySeoOverrides({
+    deps, input: { workspaceId: "ws", entryId: "post", callerPrincipalId: "editor", patch: { title: "Do not restore" } },
+  }, { expectedVersion: 1 }), (error: unknown) =>
+    error instanceof RecordVersionConflictError && error.code === "VERSION_CONFLICT" &&
+    error.currentVersion === null && error.recordId === "post" && error.message.includes("it has since been deleted")
+  );
+  assert.deepEqual(attemptedVersions, [1]);
+  assert.equal(await repo.findById(target), null);
+  assert.deepEqual(await repo.listRevisions({ workspaceId: "ws", postId: "post" }), []);
+});

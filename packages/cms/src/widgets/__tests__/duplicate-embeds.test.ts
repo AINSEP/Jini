@@ -94,6 +94,15 @@ it("a malformed widgetEmbed node (non-string placementId, or missing attrs) is l
   expect(copy).toEqual(doc);
 });
 
+it("JSON null and array attributes survive copying while only an addressable neighboring embed spends an id", () => {
+  const legacy = [{ type: "widgetEmbed", attrs: null }, { type: "widgetEmbed", attrs: [{ placementId: "not-a-slot" }, null] }];
+  const bodyJson: JsonObject = { type: "doc", content: [...legacy, { type: "widgetEmbed", attrs: { placementId: "old", widgetEntryId: "widget" } }] };
+  let minted = 0;
+  const copy = copyBodyJsonWithFreshEmbedPlacements({ bodyJson, newPlacementId: () => `new-${++minted}` });
+  expect(copy).toEqual({ type: "doc", content: [...legacy, { type: "widgetEmbed", attrs: { placementId: "new-1", widgetEntryId: "widget" } }] });
+  expect(minted).toBe(1);
+});
+
 it("a 5000-deep document is copied with fresh placementIds minted in document order instead of overflowing the call stack", () => {
   const depth = 5000;
   let deep: JsonObject = { type: "widgetEmbed", attrs: { placementId: "old-deep", widgetEntryId: "w-deep" } };

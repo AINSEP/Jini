@@ -73,3 +73,11 @@ test("raising mode rank needs approval except for reviewed built-in reads", () =
   assert.equal(visitorToolsNeedsApproval({ tool: { ...plugin, source: "builtin" }, previous: choice("off", 5, 50), next: choice("auto", 5, 50), visitorTools }), false);
   assert.equal(visitorToolsNeedsApproval({ tool: plugin, previous: choice("auto", 5, 50), next: choice("ask", 5, 50), visitorTools }), false);
 });
+
+test("passes through each legal mode and keeps a supplied partial quota beside it", () => {
+  const visitorTools = fakeContract();
+  for (const mode of ["off", "ask", "auto"] as const) {
+    const value = { toolId: "lookup", expectedRevisionSeq: 3, mode, limits: { perIpPerHour: 1 } };
+    assert.deepEqual(parseVisitorToolsConfigure({ value, visitorTools }), value);
+  }
+});

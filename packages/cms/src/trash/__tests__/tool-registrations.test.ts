@@ -27,7 +27,7 @@ interface Harness {
   permissionsChecked: string[];
 }
 
-function harness(options: { items?: TrashItem[]; outcome?: "restored" | "not-found"; policy?: Partial<TrashToolPolicy>; granted?: readonly string[] } = {}): Harness {
+function harness(options: { items?: TrashItem[]; outcome?: "restored" | "not-found"; policy?: Partial<TrashToolPolicy>; granted?: readonly string[]; listUsers?: TrashPackageToolDeps["userRepo"]["list"] } = {}): Harness {
   const granted = new Set(options.granted ?? ["read", "write"]);
   const restoreCalls: Harness["restoreCalls"] = [];
   const listCalls: unknown[] = [];
@@ -61,7 +61,7 @@ function harness(options: { items?: TrashItem[]; outcome?: "restored" | "not-fou
     workspaceId: WORKSPACE_ID,
     clock: { nowIso: () => NOW },
     trash,
-    userRepo: { list: async () => [{ principalId: "principal-1", username: "alice" }] },
+    userRepo: { list: options.listUsers ?? (async () => [{ principalId: "principal-1", username: "alice" }]) },
     trashPolicy: policy,
     authorize: async (params) => {
       permissionsChecked.push(params.permission);
@@ -97,6 +97,13 @@ describe("buildTrashToolRegistrations", () => {
     const h = harness({ items: [item({ id: "r1", entityType: "post", entityId: "p1", actorPrincipalId: "system" }), item({ id: "r2", entityType: "post", entityId: "p2", actorPrincipalId: "gone" })] });
     const listed = (await call(h, "trash_list_items", undefined)) as { items: Array<{ deletedBy: string }> };
     expect(listed.items.map((row) => row.deletedBy)).toEqual(["system", "deleted user"]);
+  });
+
+  it("keeps the next cursor on a fully hidden page without querying actor names", async () => {
+    const h = harness({ items: [item({ id: "private", entityType: "comment", entityId: "comment-1" })],
+      listUsers: async () => { throw new Error("no visible actors to query"); } });
+    expect(await call(h, "trash_list_items", {})).toEqual({ items: [], nextCursor: "cursor-2" });
+    expect(h.listCalls).toEqual([{ workspaceId: WORKSPACE_ID, now: NOW, limit: 25, cursor: null }]);
   });
 
   it("forwards the workspace, clock, limit, cursor and kind filter to the port", async () => {

@@ -37,10 +37,10 @@ function fixture({ identityKeys = ["plugin@1"], aborted = false, confirm = true 
     settingsRepo: new InMemorySettingsRepo({ definitions }), workspaceId: "workspace",
     authorize: async () => ({ allowed: true, reason: "fixture" }),
     assistantAgentInventory: { listAssistantAgents: async () => [], listDetectedAssistantAgents: async () => [agent] },
-    approvalIdentityForRun: async () => {
+    ...(identityKeys.length ? { approvalIdentityForRun: async () => {
       const key = identityKeys[Math.min(identityCall++, identityKeys.length - 1)]!;
       return { key, label: "Fixture plugin", version: "1.0" };
-    },
+    } } : {}),
   } as unknown as SettingsToolDeps;
   const seen: { surfaces?: AssistantSurfaceDeps; card?: SettingsConfirmCard; declined?: unknown } = {};
   // A minimal stand-in for the host engine: prepare, describe, ask (confirm/decline), run.
@@ -105,4 +105,12 @@ test("a declined, aborted or identity-drifted card is not a confirmation", async
   assert.equal(await aborted.confirmWrite(request(aborted.ctx)), false);
   const drifted = fixture({ identityKeys: ["plugin@1", "plugin@2"] });
   assert.equal(await drifted.confirmWrite(request(drifted.ctx)), false);
+});
+
+test("an omitted proposal displays as null and can be confirmed without plugin details", async () => {
+  const f = fixture({ identityKeys: [] });
+  const { value: _value, ...proposal } = request(f.ctx);
+  assert.equal(await f.confirmWrite(proposal), true);
+  assert.equal(f.seen.card?.access.resources[0]?.proposed, null);
+  assert.deepEqual(f.seen.card?.details, [{ label: "S", value: "core.site.title" }, { label: "SC", value: "workspace" }]);
 });

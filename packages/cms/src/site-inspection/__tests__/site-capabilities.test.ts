@@ -326,3 +326,15 @@ test("a failing section hands the FULL error to the injected reporter, labelled,
   assert.deepEqual(failures, [{ label: "site-capabilities", section: "contentTypes", error }]);
   assert.equal(JSON.stringify(result).includes("CANARY_REPORTED_ERROR_31cd"), false);
 });
+
+test("the screen inventory carries declared navigation metadata without exposing private host fields", async () => {
+  const screen = {
+    id: "posts", label: "Posts", path: "/posts",
+    description: "Edit posts by status", routeTemplates: ["/posts/:id"],
+    allowedQueryParams: { status: ["published", "draft"], query: null },
+    entityTargets: [{ type: "post", routeTemplate: "/posts/:id" }],
+  };
+  const deps = { ...makeDeps(), listAdminScreens: () => [{ ...screen, internalTenantId: "not for the model" }] };
+  const inventory = await buildSiteCapabilities({ deps, input: { principalId: PRINCIPAL_ID } }, { sections: ["adminScreens"] });
+  assert.deepEqual(inventory.sections.adminScreens?.data?.screens, [screen]);
+});

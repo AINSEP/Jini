@@ -3,6 +3,9 @@ import { test } from "vitest";
 
 import { ForbiddenError, InMemorySettingsRepo, type SetValueRequired, type SettingDefinitionRecord } from "@jini-ai/core/settings";
 
+import { PublishContentApplyRowError } from "../../../publish/transfer/apply-errors.js";
+import type { PackedEntity } from "../../../publish/transfer/packed-entity.js";
+
 import { contributeSiteSettingPublish, type SiteSettingPublishDeps, type SiteSettingRepoPublishConfig } from "../publish-content.js";
 import { set, type SiteSettingsWritePolicies } from "../site-title-write.js";
 
@@ -27,8 +30,8 @@ function definition(namespace: string, key: string): SettingDefinitionRecord {
 type Principals = { readonly tag: "host-principals" };
 type Deps = SiteSettingPublishDeps<Principals>;
 
-async function fixture({ writePolicies = { dedicatedWriters: [] } }: { writePolicies?: SiteSettingsWritePolicies } = {}) {
-  const repo = new InMemorySettingsRepo({ definitions: [definition("site", "title"), definition("site", "testing")] });
+async function fixture({ writePolicies = { dedicatedWriters: [] }, includeImage = false }: { writePolicies?: SiteSettingsWritePolicies; includeImage?: boolean } = {}) {
+  const repo = new InMemorySettingsRepo({ definitions: [definition("site", "title"), definition("site", "testing"), definition("site.seo", "default_og_image")] });
   let next = 0;
   const clock = { nowIso: () => NOW, nowMs: () => Date.parse(NOW) } as unknown as SetValueRequired["deps"]["clock"];
   const ids = { newId: () => `00000000-0000-4000-8000-${String((next += 1)).padStart(12, "0")}` } as unknown as SetValueRequired["deps"]["ids"];
@@ -45,7 +48,7 @@ async function fixture({ writePolicies = { dedicatedWriters: [] } }: { writePoli
   const config = contributeSiteSettingPublish<Principals, Deps, SiteSettingRepoPublishConfig<Principals, Deps>>({
     createRepoPublishHandler: (cfg) => cfg,
     gatewayDeps: ({ entityType }) => { seen.gateway.push(entityType); return { authorize }; },
-    publishableSettings: { "site:title": "Site title" },
+    publishableSettings: { "site:title": "Site title", ...(includeImage ? { "site.seo:default_og_image": "Share image" } : {}) },
     writePolicies,
     principalLookup: ({ repo: principalRepo }) => { seen.lookups.push(principalRepo); return principals; },
   });
@@ -77,4 +80,47 @@ test("a write goes through the host's injected dedicated writers", async () => {
   ] } });
   await assert.rejects(f.config.write({ ports: f.ports, deps: f.deps, workspaceId: WS, id: "site:title", state: { value: "Live" }, principalId: "owner" }),
     (error: unknown) => error instanceof ForbiddenError && error.message === "Use the host's dedicated path.");
+});
+
+const ogImageKey = "site.seo:default_og_image";
+function packed(id: string, value: unknown): PackedEntity {
+  return { id, state: { value }, entityType: "site-setting", schemaVersion: 1, hashVersion: 1, contentHash: "fixture", requiredBlobs: [] };
+}
+
+test("a share image reference includes its media UUID, but slugs, URLs and other settings do not", async () => {
+  const { config } = await fixture({ includeImage: true });
+  const mediaId = "b20cf433-23ef-4fcd-83c3-3eb30e5c6d60";
+  assert.deepEqual(config.references({ entity: packed(ogImageKey, `${mediaId}:card`) }), [{ entityType: "media", key: mediaId }]);
+  for (const entity of [
+    packed(ogImageKey, "photography:card"), packed(ogImageKey, "https://images.example.test/card.png"),
+    packed(ogImageKey, null), packed("site:title", `${mediaId}:card`),
+  ]) assert.deepEqual(config.references({ entity }), []);
+});
+
+test("outbound inclusion and inbound publish reject local or malformed image URLs but allow public URLs", async () => {
+  const { config, ports, deps } = await fixture({ includeImage: true });
+  const row = { key: ogImageKey, label: "Share image", version: 9 };
+  const reason = "site-setting 'site.seo:default_og_image' points at this computer";
+  for (const value of ["http://127.0.0.1/card", "https://192.168.1.8/card", "https://studio.local/card", "https://[::1]/card", "https://["]) {
+    assert.equal(config.include({ row: { ...row, value } }), false);
+    assert.equal(await config.validate({ ports, workspaceId: WS, entity: packed(ogImageKey, value) }), reason);
+    await assert.rejects(config.write({ ports, deps, workspaceId: WS, id: ogImageKey, state: { value }, principalId: "owner" }),
+      (error: unknown) => error instanceof PublishContentApplyRowError && error.rowOutcome === "blocked" && error.message === reason);
+  }
+  assert.equal(await config.find({ ports, workspaceId: WS, id: ogImageKey }), null);
+  for (const value of [" https://images.example.test/card ", "card-image:small", null]) {
+    assert.equal(config.include({ row: { ...row, value } }), true);
+    assert.equal(await config.validate({ ports, workspaceId: WS, entity: packed(ogImageKey, value) }), null);
+  }
+});
+
+test("applying a cleared source value clears the existing destination and packs its new revision", async () => {
+  const { config, ports, deps } = await fixture();
+  const id = "site:title";
+  assert.equal((await config.find({ ports, workspaceId: WS, id }))?.value, "title-value");
+  const result = await config.write({ ports, deps, workspaceId: WS, id, state: { cleared: true, value: null }, principalId: "owner" });
+  assert.deepEqual(await config.find({ ports, workspaceId: WS, id }), {
+    key: id, label: "Site title", value: null, cleared: true, version: result.version,
+  });
+  assert.equal((await ports.settings.getWorkspaceValue({ workspaceId: WS, settingId: "site.title" }))?.state, "cleared");
 });

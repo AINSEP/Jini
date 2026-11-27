@@ -21,3 +21,11 @@ it('renders a rootless two-node cycle once per term without recursion overflow',
     { id: 'a', name: 'A', parentId: 'b' }, { id: 'b', name: 'B', parentId: 'a' },
   ] })).toBe('<section data-host-taxonomy="t" aria-label="T"><ul data-host-list data-depth="0"><li data-host-term="a" data-depth="0"><span data-host-label>A</span><ul data-host-list data-depth="1"><li data-host-term="b" data-depth="1"><span data-host-label>B</span></li></ul></li></ul></section>');
 });
+
+it('renders an empty hierarchy without a list and keeps ordinary descendants under their root', () => {
+  const taxonomy = { id: 't', name: 'T', hierarchical: true, attributes };
+  expect(renderHtmlTaxonomy({ ...taxonomy, terms: [] })).toBe('<section data-host-taxonomy="t" aria-label="T"></section>');
+  expect(renderHtmlTaxonomy({ ...taxonomy, terms: [
+    { id: 'child', name: 'Child', parentId: 'root' }, { id: 'root', name: 'Root', parentId: null },
+  ] })).toBe('<section data-host-taxonomy="t" aria-label="T"><ul data-host-list data-depth="0"><li data-host-term="root" data-depth="0"><span data-host-label>Root</span><ul data-host-list data-depth="1"><li data-host-term="child" data-depth="1"><span data-host-label>Child</span></li></ul></li></ul></section>');
+});

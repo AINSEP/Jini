@@ -3,14 +3,16 @@ import { test } from "vitest";
 
 import { ToolInputError, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { InMemoryContentTypeRepo } from "../../content-types/index.js";
+import type { EntryRecord } from "../../entries/index.js";
+import { InMemoryChangeSetRepo } from "../../forms/__tests__/change-set.fixture.js";
 import type { WidgetsAuthorizeFn } from "../authorize-helper.js";
 import { widgetsAgentToolCatalog } from "../agent-tools.js";
-import type { EmbedServiceDeps } from "../embed-service.js";
+import { extractEntryRefs } from "../entry-refs-extractor.js";
+import { InMemoryEntryRefsRepo } from "../entry-refs.memory.js";
 import { InMemoryWidgetRegionBindingRepo } from "../repo.memory.js";
 import { buildWidgetsToolRegistrations, widgetsDerivedRisk } from "../tool-registrations.js";
 import type { WidgetsPackageToolDeps } from "../tool-handlers.types.js";
-import type { WidgetTrashDeps } from "../write-service.js";
-import { InMemoryEntryRefsRepo, InMemoryOutbox, widgetHostFixture } from "./support/host.fixture.js";
+import { InMemoryOutbox, widgetHostFixture } from "./support/host.fixture.js";
 import { memoryWidgetTrash } from "./support/memory-widget-trash.js";
 
 /**
@@ -18,9 +20,8 @@ import { memoryWidgetTrash } from "./support/memory-widget-trash.js";
  * authored risk map, the permission refusal of every tool, one success view per instance and region
  * tool, the typed-error mapping, the schema decoration of a shape rejection, the placement request
  * validation, and that the injected hook-refusal wrapper is applied once over the whole handler map.
- * Host metadata is deliberately absent from these registrations: a host binds it around them. The
- * embed tools' success paths are covered with the embed service's own tests; here they are only
- * checked for their refusals, since this fixture carries the ports the other tools read.
+ * Host metadata is deliberately absent from these registrations: a host binds it around them.
+ * Embed edits in this fixture use the actual entry host, write service and reference index.
  */
 
 const WORKSPACE_ID = "ws-widgets-tools";
@@ -42,6 +43,7 @@ const REFUSAL_PERMISSION: Readonly<Record<(typeof TOOL_IDS)[number], string>> = 
 
 interface Fixture {
   deps: WidgetsPackageToolDeps;
+  entryRepo: ReturnType<typeof memoryWidgetTrash>["entryRepo"];
   allow: { value: boolean };
   wrapped: string[][];
 }
@@ -56,7 +58,7 @@ function makeFixture(options: { wrap?: WidgetsPackageToolDeps["wrapHookRefusals"
   const bindingRepo = new InMemoryWidgetRegionBindingRepo();
   const ids = { newId: () => `id-${++counter}` };
   const base = {
-    host: widgetHostFixture,
+    host: { ...widgetHostFixture, entryRefs: { extract: extractEntryRefs } },
     entryRepo: widgetTrash.entryRepo,
     contentTypeRepo: new InMemoryContentTypeRepo(),
     entryRefsRepo,
@@ -72,15 +74,32 @@ function makeFixture(options: { wrap?: WidgetsPackageToolDeps["wrapHookRefusals"
     entryRepo: widgetTrash.entryRepo,
     entryRefsRepo,
     widgetBindingRepo: bindingRepo,
-    // The embed tools read a post/page store this fixture does not carry; they are only reached here on their refusal paths.
-    composeWriteDeps: () => ({ ...base, remove: widgetTrash.remove } as unknown as WidgetTrashDeps & EmbedServiceDeps),
+    composeWriteDeps: () => ({
+      ...base,
+      host: {
+        ...base.host,
+        posts: {
+          isTrashed: (post) => post.deletedAt != null,
+          isVersionConflict: (error): error is Error & { currentVersion: number } => false,
+          isNotFound: () => false,
+          updatePost: async () => { throw new Error("cannot write a post in the entry-only fixture"); },
+          restorePostForward: async () => { throw new Error("cannot restore a post in the entry-only fixture"); },
+          findPublishedPostById: async () => null,
+          findPublishedPostBySlug: async () => null,
+        },
+      },
+      postRepo: { findById: async () => null, findBySlug: async () => null },
+      forgetRemovedPost: async () => { throw new Error("cannot forget a post in the entry-only fixture"); },
+      changeSets: new InMemoryChangeSetRepo(),
+      remove: widgetTrash.remove,
+    }),
     composeRegionDeps: () => ({ ...base, bindingRepo }),
     wrapHookRefusals: options.wrap ?? ((handlers) => {
       wrapped.push(Object.keys(handlers));
       return handlers;
     }),
   };
-  return { deps, allow, wrapped };
+  return { deps, entryRepo: widgetTrash.entryRepo, allow, wrapped };
 }
 
 function ctx(input: unknown): ToolExecutionContext {
@@ -130,6 +149,14 @@ test("a refusal the injected wrapper produces reaches the model unchanged", asyn
     Object.fromEntries(Object.keys(handlers).map((id) => [id, async () => { throw refusal; }]));
   const call = caller(buildWidgetsToolRegistrations({ deps: makeFixture({ wrap }).deps }));
   assert.equal(await rejection(call("widgets_insert_embed", { hostEntryId: "host", baseVersion: 1, widgetEntryId: "w" })), refusal);
+});
+
+test("an unexpected repository failure is propagated without turning it into a model input error", async () => {
+  const fixture = makeFixture();
+  const disconnected = new Error("widget repository disconnected");
+  fixture.entryRepo.findById = async () => { throw disconnected; };
+  const call = caller(buildWidgetsToolRegistrations({ deps: fixture.deps }));
+  assert.equal(await rejection(call("widgets_get_instance", { widgetInstanceId: "existing" })), disconnected);
 });
 
 for (const toolId of TOOL_IDS) {
@@ -217,4 +244,99 @@ test("placements are validated before any write: malformed, non-boolean enabled,
     "duplicate placementId 'p'",
     "placement content must be an object",
   ]);
+});
+
+function article(id: string): EntryRecord {
+  return { id, workspaceId: WORKSPACE_ID, type: "article", title: "Article", slug: id, bodyJson: { type: "doc", content: [] }, fieldsJson: {}, status: "draft", createdAt: NOW, updatedAt: NOW, publishedAt: null, version: 1 };
+}
+
+test("an explicit region content override survives a stale edit and is returned by the host read tool", async () => {
+  const fixture = makeFixture();
+  const call = caller(buildWidgetsToolRegistrations({ deps: fixture.deps }, { hostReads: { readRef: ({ entity }) => `host_read.${entity}` } }));
+  await call("widgets_create_instance", { widgetType: "text", title: "Note", config: { body: "hi" } });
+  await call("widgets_bind_region", { regionKey: "footer" });
+  const placement = { placementId: "footer-note", widgetEntryId: "id-2", enabled: true, content: { mode: "html", html: "<p>override</p>" } };
+  await call("widgets_set_region_placements", { regionKey: "footer", baseVersion: 1, placements: [placement] });
+
+  const err = await rejection(call("widgets_set_region_placements", { regionKey: "footer", baseVersion: 1, placements: [] }));
+  assert.ok(err instanceof ToolInputError);
+  assert.match(err.message, /^WIDGETS_AREA_CONFLICT: .+ Nothing was written\. Call host_read\.widget_region to get the current baseVersion \(2\) and resend\.$/);
+  const result = await call("widgets_get_region", { regionKey: "footer" }) as { area: { version: number }; placements: unknown[] };
+  assert.equal(result.area.version, 2);
+  assert.deepEqual(result.placements, [{ ...placement, widgetTitle: "Note", widgetType: "text", broken: false }]);
+});
+
+test("reading a stale binding and trashing a non-widget report the specific not-found codes", async () => {
+  const fixture = makeFixture();
+  const call = caller(buildWidgetsToolRegistrations({ deps: fixture.deps }));
+  const retained = article("actual-article");
+  await fixture.entryRepo.save(retained);
+  await fixture.deps.widgetBindingRepo.upsert({ workspaceId: WORKSPACE_ID, regionKey: "footer", areaEntryId: retained.id, updatedAt: NOW });
+
+  for (const [tool, input, message] of [
+    ["widgets_get_region", { regionKey: "footer" }, "WIDGETS_AREA_NOT_FOUND: region area entry for 'footer' was not found"],
+    ["widgets_trash_instance", { widgetInstanceId: "actual-article" }, "WIDGETS_INSTANCE_NOT_FOUND: widget instance 'actual-article' was not found"],
+  ] as const) {
+    const err = await rejection(call(tool, input));
+    assert.ok(err instanceof ToolInputError);
+    assert.equal(err.message, message);
+  }
+  assert.deepEqual(await fixture.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: retained.id }), retained);
+});
+
+test("embed tools return the saved entry version and persist placements and reference changes", async () => {
+  const fixture = makeFixture();
+  const call = caller(buildWidgetsToolRegistrations({ deps: fixture.deps }));
+  const host = article("entry-host");
+  await fixture.entryRepo.save(host);
+  const read = () => fixture.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: host.id });
+  const index = () => fixture.deps.entryRefsRepo.findBySource({ workspaceId: WORKSPACE_ID, sourceEntryId: host.id });
+  await call("widgets_create_instance", { widgetType: "text", title: "First", config: { body: "one" } });
+  const second = await call("widgets_create_instance", { widgetType: "text", title: "Second", config: { body: "two" } }) as { instance: { id: string } };
+
+  const inserted = await call("widgets_insert_embed", { hostEntryId: host.id, baseVersion: 1, widgetEntryId: "id-2" }) as { entryId: string; entryVersion: number; placementId: string };
+  assert.equal(inserted.entryId, "entry-host");
+  assert.equal(inserted.entryVersion, 2);
+  assert.match(inserted.placementId, /^id-\d+$/);
+  const other = await call("widgets_insert_embed", { hostEntryId: host.id, baseVersion: 2, widgetEntryId: second.instance.id }) as { placementId: string };
+  assert.notEqual(other.placementId, inserted.placementId);
+  const embed = (placementId: string, widgetEntryId: string) => ({ type: "widgetEmbed", attrs: { placementId, widgetEntryId } });
+  assert.deepEqual((await read())?.bodyJson, { type: "doc", content: [embed(inserted.placementId, "id-2"), embed(other.placementId, second.instance.id)] });
+
+  const reordered = await call("widgets_reorder_embeds", { hostEntryId: host.id, baseVersion: 3, orderedWidgetEntryIds: [second.instance.id, "id-2"] });
+  assert.deepEqual(reordered, { entryId: "entry-host", entryVersion: 4 });
+  const moved = (await read())?.bodyJson as { type: string; content: { attrs: { placementId: string } }[] };
+  const movedFirst = moved.content[0]?.attrs.placementId;
+  const movedSecond = moved.content[1]?.attrs.placementId;
+  assert.ok(movedFirst && movedSecond);
+  assert.equal(new Set([inserted.placementId, other.placementId, movedFirst, movedSecond]).size, 4);
+  assert.deepEqual(moved, { type: "doc", content: [embed(movedFirst, second.instance.id), embed(movedSecond, "id-2")] });
+  assert.deepEqual((await index()).map((row) => [row.fieldPath, row.targetId]), [["bodyJson.content[0]", second.instance.id], ["bodyJson.content[1]", "id-2"]]);
+
+  assert.deepEqual(await call("widgets_remove_embed", { hostEntryId: host.id, baseVersion: 4, placementId: movedFirst }), { entryId: "entry-host", entryVersion: 5 });
+  assert.deepEqual((await read())?.bodyJson, { type: "doc", content: [embed(movedSecond, "id-2")] });
+  assert.deepEqual((await index()).map((row) => [row.fieldPath, row.targetId]), [["bodyJson.content[0]", "id-2"]]);
+});
+
+test("embed rejections tell the model whether the host, placement, or reorder input must be corrected", async () => {
+  const fixture = makeFixture();
+  const call = caller(buildWidgetsToolRegistrations({ deps: fixture.deps }));
+  const host = article("empty-host");
+  await fixture.entryRepo.save(host);
+  const bound = await call("widgets_bind_region", { regionKey: "footer" }) as { area: { id: string; version: number } };
+  const cases = [
+    ["widgets_remove_embed", { hostEntryId: "gone", baseVersion: 1, placementId: "p" }, `WIDGETS_EMBED_HOST_NOT_FOUND: host entry 'gone' was not found in workspace '${WORKSPACE_ID}' (it must be the id of an existing, non-trashed post, page, or content entry)`],
+    ["widgets_remove_embed", { hostEntryId: bound.area.id, baseVersion: bound.area.version, placementId: "p" }, `WIDGETS_EMBED_HOST_UNSUPPORTED: host '${bound.area.id}' is a widget_area entry, which can never host a widgetEmbed node`],
+    ["widgets_remove_embed", { hostEntryId: host.id, baseVersion: 1, placementId: "missing-slot" }, "WIDGETS_EMBED_PLACEMENT_NOT_FOUND: no widget embed with placementId 'missing-slot' was found in host 'empty-host'"],
+  ] as const;
+  for (const [tool, input, message] of cases) {
+    const err = await rejection(call(tool, input));
+    assert.ok(err instanceof ToolInputError);
+    assert.equal(err.message, message);
+  }
+  const shape = await rejection(call("widgets_reorder_embeds", { hostEntryId: host.id, baseVersion: 1, orderedWidgetEntryIds: [""] }));
+  assert.ok(shape instanceof ToolInputError);
+  assert.match(shape.message, /'orderedWidgetEntryIds' \(non-empty string array\) is required/);
+  assert.match(shape.message, /widgets_reorder_embeds/);
+  assert.deepEqual(await fixture.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: host.id }), host);
 });

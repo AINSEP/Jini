@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { onTestFinished, test, vi, type TestContext } from "vitest";
 
+import { PLUGIN_ENTITY_TYPE } from "../site/adapters/plugin.js";
+import { THEME_ENTITY_TYPE } from "../site/adapters/theme.js";
 import { createDirectoryTrashAdapter, unhideIfRemoveThrows } from "../adapters/directory.node.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -330,4 +332,54 @@ test("EXDEV keeps the existing message and its cause, and recovers the live tree
     && error.cause === cause);
   assert.equal(await readFile(join(liveParent, ID, "plugin.json"), "utf8"), "plugin-a");
   assert.equal(await pathExists(parkedDir), false);
+});
+
+test("an inside parking location or invalid live segment is rejected without moving bytes", async (t) => {
+  const { liveDir, liveParent, parkedDir } = await harness(t);
+  await makeLive(liveDir);
+  const nested = join(liveParent, "parking");
+  const inside = createDirectoryTrashAdapter({ entityType: ENTITY, locate: () => ({ liveParent, liveNames: [ID], parkedDir: nested }) });
+  await assert.rejects(inside.hide(markerArgs()), { message: `directory Trash parking path '${nested}' must be outside live parent '${liveParent}'` });
+  for (const name of ["", ".", "..", "nested/plugin"]) {
+    const invalid = createDirectoryTrashAdapter({ entityType: ENTITY, locate: () => ({ liveParent, liveNames: [name], parkedDir }) });
+    await assert.rejects(invalid.hide(markerArgs()), { message: `directory Trash live name '${name}' must be one path segment` });
+  }
+  assert.equal(await readFile(join(liveDir, "plugin.json"), "utf8"), "plugin-a");
+  assert.deepEqual(await readdir(liveParent), [ID]);
+});
+
+test("a symlink parked as a root does not change the external target or its mode", async (t) => {
+  const { adapter, liveDir, liveParent, parkedDir } = await harness(t);
+  const external = join(liveParent, "external");
+  await mkdir(external);
+  await writeFile(join(external, "plugin.json"), "independent");
+  await chmod(external, 0o555);
+  try {
+    await symlink(external, liveDir, "dir");
+    assert.deepEqual(await adapter.hide(markerArgs()), { ok: true, version: null });
+    assert.equal((await fsPromises.lstat(join(parkedDir, ID))).isSymbolicLink(), true);
+    assert.deepEqual(await adapter.unhide(markerArgs()), { ok: true, version: null });
+    assert.equal((await fsPromises.lstat(liveDir)).isSymbolicLink(), true);
+    assert.equal((await stat(external)).mode & 0o777, 0o555);
+    assert.equal(await readFile(join(external, "plugin.json"), "utf8"), "independent");
+  } finally {
+    await chmod(external, 0o755);
+  }
+});
+
+test("a non-directory parking ancestor is a filesystem error, not an absent item", async (t) => {
+  const { adapter, liveDir, parkedDir } = await harness(t);
+  await makeLive(liveDir);
+  await writeFile(dirname(parkedDir), "not a directory");
+  await assert.rejects(adapter.hide(markerArgs()), { code: "ENOTDIR" });
+  assert.equal(await readFile(join(liveDir, "plugin.json"), "utf8"), "plugin-a");
+});
+
+test("directory-backed kinds advertise the distinct persisted Trash IDs used by the host", () => {
+  const locate = () => { throw new Error("Resolving a kind should not open a live directory"); };
+  const adapterKinds = [
+    createDirectoryTrashAdapter({ entityType: PLUGIN_ENTITY_TYPE, locate }).entityType,
+    createDirectoryTrashAdapter({ entityType: THEME_ENTITY_TYPE, locate }).entityType,
+  ];
+  assert.deepEqual(adapterKinds, ["plugin", "theme"]);
 });

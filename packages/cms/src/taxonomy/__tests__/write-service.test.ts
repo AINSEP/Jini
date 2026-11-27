@@ -1055,6 +1055,18 @@ test("a taxonomy assignment by an agent records kind agent", async () => {
   assert.equal(events[0]?.actorId, "owner-1");
 });
 
+test("a taxonomy unassignment records its own trusted actor, not the assigning actor", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  const deps = Object.assign(baseDeps({ outbox }), { entryTerms: removableEntryTermsDeps() });
+  const content = { deps, contentType: "post", contentId: "post-1", termIds: ["term-1"] };
+  await assignTerms({ ...content, principalId: "assigner", actor: { id: "assigner", kind: "user" } });
+  assert.deepEqual(await unassignTerms({ ...content, principalId: "remover", actor: { id: "remover", kind: "agent" } }), { removedTermIds: ["term-1"] });
+  assert.deepEqual(events.map(({ name, actorId, actor }) => ({ name, actorId, actor })), [
+    { name: "taxonomy.terms_assigned", actorId: "assigner", actor: { id: "assigner", kind: "user" } },
+    { name: "taxonomy.terms_unassigned", actorId: "remover", actor: { id: "remover", kind: "agent" } },
+  ]);
+});
+
 test("a taxonomy assignment without a vouched actor records none rather than guessing a kind", async () => {
   const { events, outbox } = capturedTaxonomyOutbox();
   await assignTerms({ deps: baseDeps({ outbox }), principalId: "owner-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });

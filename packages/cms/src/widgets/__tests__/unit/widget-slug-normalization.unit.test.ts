@@ -67,3 +67,12 @@ test("an explicit id is authoritative and other marker types are untouched", asy
   const { stored } = await savePage(html);
   assert.equal(stored, html);
 });
+
+test("a resolvable slug is indexed without rewriting unresolved and unrelated siblings", async () => {
+  const missing = `<aside data-embed-config='{"type":"widget","slug":"missing"}'>Keep missing fallback</aside>`;
+  const unrelated = `<aside data-embed-config='{"type":"form","slug":"contact-form"}'>Keep form fallback</aside>`;
+  const { stored, refsRepo } = await savePage(`${missing}${SLUG_ONLY}${unrelated}`);
+  assert.equal(stored, `${missing}<section><div class="cta" data-embed-config='{"type":"widget","slug":"contact-form","id":"${WIDGET_ID}"}'><p>fallback</p></div></section>${unrelated}`);
+  const rows = await refsRepo.findBySource({ workspaceId: WS, sourceEntryId: PAGE });
+  assert.deepEqual(rows.map((row) => [row.targetKind, row.targetId]), [["entry", WIDGET_ID]]);
+});

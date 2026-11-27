@@ -7,7 +7,9 @@ import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { describe, expect, it } from "vitest";
 
 import { PublishContentApplyRowError } from "../../../publish/transfer/apply-errors.js";
-import { prepareTermSync, TERM_SYNC_PERMISSION, type TermSyncDeps, type TermSyncPorts } from "../publish-term-ids.js";
+import { prepareTermSync, readTermIds, TERM_SYNC_PERMISSION, withTermIds, type TermSyncDeps, type TermSyncPorts } from "../publish-term-ids.js";
+
+import { InMemoryContentLookup, InMemoryEntryTermRepo, InMemoryTaxonomyRepo, InMemoryTaxonomyRevisionRepo, InMemoryTermRepo } from "../../repo.memory.js";
 
 type Calls = string[];
 
@@ -87,4 +89,61 @@ describe("prepareTermSync", () => {
     await expect(prepareTermSync({ ports: undefined, deps: deps(), ...request, wanted: ["t-a"] }))
       .rejects.toThrow("publish-content: post 'post-1' carries term assignments, but this deps bag wires no taxonomy ports — wire ports.term.");
   });
+});
+
+it("packs sorted term identities without changing the caller's state or adding an empty field", async () => {
+  const { ports } = fixture({ current: ["t-z", "t-m", "t-a"] });
+  const termIds = await readTermIds({ ports, contentType: "post", contentId: "post-1" });
+  const state = { title: "Story" };
+  expect(withTermIds({ state, termIds })).toEqual({ title: "Story", termIds: ["t-a", "t-m", "t-z"] });
+  expect(state).toEqual({ title: "Story" });
+  expect(withTermIds({ state, termIds: await readTermIds({ ports: fixture().ports, contentType: "post", contentId: "post-1" }) })).toBe(state);
+});
+
+it("apply and revert swap the exact assignment sets and emit one scoped event per write", async () => {
+  const terms = new InMemoryTermRepo();
+  for (const id of ["old", "keep", "new"]) {
+    await terms.insert({ id, taxonomyId: "topics", parentId: null, status: "active", name: id, updatedAt: "1970-01-01T00:00:00.000Z", version: 1 });
+  }
+  const base = new InMemoryEntryTermRepo();
+  const entryTerms = Object.assign(base, {
+    listForContent: async ({ contentType, contentId }: { contentType: string; contentId: string }) => {
+      if (contentType !== "post" || contentId !== "post-1") throw new Error("Wrong assignment target");
+      const rows = [];
+      for (const termId of ["old", "keep", "new"]) {
+        if (await base.countByTerm({ termId })) rows.push({ termId, termName: termId, taxonomyName: "Topics" });
+      }
+      return rows;
+    },
+  });
+  const scope = { contentType: "post", contentId: "post-1" };
+  for (const termId of ["old", "keep"]) await entryTerms.upsert({ ...scope, termId, addedAt: "1970-01-01T00:00:00.000Z" });
+  const ports: TermSyncPorts = {
+    terms: Object.assign(terms, { findAnyById: terms.findByIdFull.bind(terms) }), entryTerms,
+    taxonomies: new InMemoryTaxonomyRepo(), revisions: new InMemoryTaxonomyRevisionRepo(), stampWatermark: () => {},
+    contentLookup: new InMemoryContentLookup({}, { seed: [{ ...scope, workspaceId: "ws-terms", kind: "post" }] }),
+    contentTypeTaxonomyPolicy: { taxonomiesFor: async () => null },
+  };
+  const events: { workspaceId: string; name: string }[] = [];
+  const outbox: OutboxPort = { enqueue: async ({ workspaceId, name }) => { events.push({ workspaceId, name }); },
+    claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} };
+  const sync = await prepareTermSync({ ports, ...request, wanted: ["keep", "new"],
+    deps: { ...deps({ authorize: async () => ({ allowed: true, reason: "grant" }) }), outbox } });
+  const read = () => readTermIds({ ports, ...scope });
+  expect(await read()).toEqual(["keep", "old"]);
+  await sync.apply();
+  expect(await read()).toEqual(["keep", "new"]);
+  await sync.revert();
+  expect(await read()).toEqual(["keep", "old"]);
+  expect(events).toEqual(["taxonomy.terms_assigned", "taxonomy.terms_unassigned", "taxonomy.terms_assigned", "taxonomy.terms_unassigned"]
+    .map(name => ({ workspaceId: "ws-terms", name })));
+});
+
+it("a missing added term blocks the destination write with its term identity", async () => {
+  const { ports, calls } = fixture();
+  const promise = prepareTermSync({ ports, deps: deps({ authorize: async () => ({ allowed: true, reason: "grant" }) }), ...request, wanted: ["unpublished"] });
+  const failure = await promise.catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(PublishContentApplyRowError);
+  expect(failure).toMatchObject({ rowOutcome: "blocked", message: "post 'post-1' is tagged with term 'unpublished', which is missing at this destination — publish or restore that term first" });
+  expect(calls).toEqual(["entryTerms.listForContent", "terms.findAnyById"]);
 });

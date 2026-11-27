@@ -66,6 +66,21 @@ describeEachDialect<ContentKernel>({ title: "trash sql kit", options: { tables: 
     const hits = await kernel.run((db) => loose(db).selectFrom("t_items").select("t_items.id").where((eb) => entryWhere({ eb, entry: widget, workspaceId: "w", entityId: "r1" })).execute());
     assert.deepEqual(hits, []);
   });
+
+  test("a joined snapshot omits undeclared fields and hides the child of a timestamp-trashed parent", async () => {
+    const kernel = make();
+    const joined = entry({ entityType: "term", table: "t_child", marker: STATUS,
+      display: { title: "t_ts.id", join: { table: "t_ts", on: ["t_ts.id", "t_child.parent_id"] } },
+      hiddenWithParent: { parentTable: "t_ts", parentIdColumn: "parent_id", parentPkColumn: "id", parentMarker: { kind: "timestamp", column: "deleted_at" } },
+    });
+    const localRegistry: TrashRegistry = new Map([["term", joined]]);
+    await kernel.execute(sql.raw("INSERT INTO t_ts VALUES ('parent-live', 'w', NULL), ('parent-trashed', 'w', '2026-10-09')"));
+    await kernel.execute(sql.raw("INSERT INTO t_child VALUES ('live', 'w', 'parent-live', 'active'), ('hidden', 'w', 'parent-trashed', 'active'), ('missing-parent', 'w', 'absent', 'active')"));
+    const snapshot = (entityId: string) => readLiveSnapshot({ entry: joined, workspaceId: "w", entityId }, { kernel, registry: localRegistry });
+    assert.deepEqual(await snapshot("live"), { title: "parent-live" });
+    assert.equal(await snapshot("hidden"), null);
+    assert.equal(await snapshot("missing-parent"), null);
+  });
 } });
 
 test("flat records use the registry's camelCase timestamp or exact status marker", () => {

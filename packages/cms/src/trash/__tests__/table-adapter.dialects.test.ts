@@ -68,6 +68,18 @@ describeEachDialect<Bundle>({ title: "table trash adapter", options: { tables: [
     assert.deepEqual(await formRow(kernel), { deleted_at: null, version: 5 });
   });
 
+  test("an adapter with no touch or version column changes only the configured trash marker", async () => {
+    const { kernel, adapter } = make();
+    const unversioned: TrashEntry = { entityType: "form", label: "Form", permission: "x.delete", table: "t_form", idColumn: "id", workspaceColumn: "workspace_id",
+      marker: { kind: "timestamp", column: "deleted_at" }, display: { title: "t_form.name" } };
+    await seedForm(kernel, null);
+    const read = () => kernel.query<{ deleted_at: string | null; updated_at: string | null; version: number }>(sql`SELECT deleted_at, updated_at, version FROM t_form WHERE id = 'f1'`).then((rows) => rows[0]);
+    assert.deepEqual(await adapter(unversioned).hide(args(99)), { ok: true, version: null });
+    assert.deepEqual(await read(), { deleted_at: AT, updated_at: null, version: 3 });
+    assert.deepEqual(await adapter(unversioned).unhide(args(99)), { ok: true, version: null });
+    assert.deepEqual(await read(), { deleted_at: null, updated_at: null, version: 3 });
+  });
+
   test("classification: missing is not-found; a stale version wins over already-in-state; a matching already-in-state is an unchanged no-op", async () => {
     const { kernel, adapter } = make();
     assert.deepEqual(await adapter(form).hide(args(3)), { ok: false, reason: "not-found" });
@@ -124,6 +136,32 @@ describeEachDialect<Bundle>({ title: "table trash adapter", options: { tables: [
     assert.equal(await count(kernel, "t_form"), 0);
     assert.deepEqual(await kernel.query<{ id: string }>(sql`SELECT id FROM t_sub`), [{ id: "other" }]);
     assert.deepEqual(await kernel.query<{ entity_id: string }>(sql`SELECT entity_id FROM trashed_items`), [{ entity_id: "other" }]);
+  });
+
+  test("restore refuses an obsolete version, and a versionless purge removes only the claimed trashed row", async () => {
+    const { kernel, adapter } = make();
+    await seedForm(kernel, AT);
+    assert.deepEqual(await adapter(form).unhide(args(2)), { ok: false, reason: "version-changed" });
+    assert.deepEqual(await formRow(kernel), { deleted_at: AT, version: 3 });
+    await kernel.execute(sql`INSERT INTO t_form VALUES ('f2', ${WS}, 'F2', ${AT}, NULL, 8)`);
+    const { versionColumn: _ignored, ...unversioned } = form;
+    assert.equal(await adapter(unversioned).purge({ workspaceId: WS, entityId: "f1", expectedVersion: null }), "purged");
+    assert.deepEqual(await kernel.query(sql`SELECT id, version FROM t_form`), [{ id: "f2", version: 8 }]);
+  });
+
+  test("two-hop purge removes only assignments joined through this parent's child IDs", async () => {
+    const { kernel, adapter } = make();
+    await seedForm(kernel, AT);
+    await kernel.execute(sql`INSERT INTO t_sub VALUES ('s1', 'f1'), ('s2', 'f1'), ('s3', 'f2')`);
+    await kernel.execute(sql`INSERT INTO t_kid VALUES ('assignment-a', 's1'), ('assignment-b', 's2'), ('assignment-c', 's3')`);
+    const withVia: TrashEntry = { ...form, purgeFirst: [
+      { table: "t_kid", via: { matchColumn: "menu_id", throughTable: "t_sub", throughIdColumn: "id", throughParentIdColumn: "form_id" } },
+      ...(form.purgeFirst ?? []),
+    ] };
+    assert.equal(await adapter(withVia).purge({ workspaceId: WS, entityId: "f1", expectedVersion: 3 }), "purged");
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM t_kid`), [{ id: "assignment-c" }]);
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM t_sub`), [{ id: "s3" }]);
+    assert.equal(await formRow(kernel), undefined);
   });
 
   test("a purge whose cascade fails rolls the whole transaction back", async () => {

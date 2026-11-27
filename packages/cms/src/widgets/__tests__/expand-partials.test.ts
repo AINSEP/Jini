@@ -20,6 +20,13 @@ describe("expandPartials", () => {
     expect(expandPartials({ html, theme: { partials, manifest: {} }, defaultSlots })).toBe("convention");
   });
 
+  it("accepts extensionless slot keys without consuming targetless markers", () => {
+    const variant = `<div data-embed-config='{"type":"partial","id":"nav","variant":"small"}'></div>`;
+    const targetless = `<aside data-embed-config='{"type":"partial","slug":"nav"}'>Authored fallback</aside>`;
+    const theme = { partials: { menu: '<nav>Full</nav>', "menu-small": '<nav>Small</nav>' }, manifest: { slots: { nav: { source: "menu" } } } };
+    expect(expandPartials({ html: nav + variant + targetless, theme, defaultSlots })).toBe("<nav>Full</nav><nav>Small</nav>" + targetless);
+  });
+
   it("retains undeclared fallback and unrelated markers", () => {
     const html = nav + `<div data-embed-config='{"type":"widget","id":"nav"}'>widget</div>`;
     expect(expandPartials({ html, theme: { partials: {}, manifest: { slots: {} } }, defaultSlots })).toBe(html);

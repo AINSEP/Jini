@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
 
 import { describeEachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import type { WorkspaceRecord } from "../create.js";
-import { type SqlWorkspaceRepo, workspaceRepoFor } from "../sql/repo.js";
+import { SqlWorkspaceRepo, workspaceRepoFor } from "../sql/index.js";
 import { createTables } from "./support/workspaces-table.fixture.js";
 
 /**
@@ -65,6 +66,22 @@ describeEachDialect<SqlWorkspaceRepo>(
       await repo.insert(ACME);
       await assert.rejects(repo.insert({ ...GLOBEX, slug: "acme" }));
       assert.equal((await repo.list()).length, 1);
+    });
+
+    test("a guarded write to a deleted workspace reports no current version and leaves other rows alone", async () => {
+      const repo = makeRepo();
+      assert.ok(repo instanceof SqlWorkspaceRepo);
+      await repo.insert(ACME);
+      await repo.insert(GLOBEX);
+      await repo.delete({ id: "ws-1" });
+
+      await assert.rejects(
+        repo.update({ ...ACME, name: "Stale rename", version: 2 }, { expectedVersion: 1 }),
+        (error: unknown) => error instanceof RecordVersionConflictError && error.recordKind === "workspace" &&
+          error.recordId === "ws-1" && error.expectedVersion === 1 && error.currentVersion === null,
+      );
+      assert.equal(await repo.findById({ id: "ws-1" }), null);
+      assert.deepEqual(await repo.findById({ id: "ws-2" }), GLOBEX);
     });
   },
 }, {});

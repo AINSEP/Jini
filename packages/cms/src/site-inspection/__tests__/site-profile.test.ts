@@ -71,3 +71,76 @@ test("a failing section is reported to the injected reporter with the profile la
   assert.deepEqual(reported, [{ label: "site-profile", section: "theme", error }]);
   assert.equal(profile.completeness, "partial");
 });
+
+test("pages counts all living content while returning only a body-free sample", async () => {
+  const current = { id: "page-1", title: "About", slug: "about", kind: "page", status: "published", bodyFormat: "html", updatedAt: "2026-11-10T00:00:00.000Z" };
+  const deps = makeDeps({ listPosts: async () => [
+    { ...current, id: "trashed", deletedAt: "2026-11-20T00:00:00.000Z" },
+    { ...current, bodyHtml: "<p>Unrequested body</p>" },
+    { ...current, id: "post-1", kind: "post", status: "draft", deletedAt: null },
+    { ...current, id: "page-2" },
+  ] });
+  const found = await buildSiteProfile({ deps, input: { principalId: PRINCIPAL_ID } }, { sections: ["pages"], pageLimit: 1 });
+  assert.deepEqual(found.sections.pages, {
+    status: "ok", truncated: true,
+    data: { total: 3, countsByKind: { page: 2, post: 1 }, countsByStatus: { published: 2, draft: 1 }, items: [current] },
+  });
+});
+
+test("page limits fall back on invalid values, clamp at the public ceiling and omit truncation when all fit", async () => {
+  const deps = makeDeps({ listPosts: async () => Array.from({ length: 201 }, (_, i) => ({
+    id: `post-${i}`, title: "Post", slug: `post-${i}`, kind: "post", status: "draft", bodyFormat: "doc", updatedAt: "now",
+  })) });
+  for (const [pageLimit, expected] of [[-1, 50], [1.5, 50], [500, 200]] as const) {
+    const found = await buildSiteProfile({ deps, input: { principalId: PRINCIPAL_ID } }, { sections: ["pages"], pageLimit });
+    assert.equal(found.sections.pages?.data?.items.length, expected);
+    assert.equal(found.sections.pages?.data?.items.at(-1)?.id, `post-${expected - 1}`);
+    assert.equal(found.sections.pages?.truncated, true);
+  }
+  const empty = await buildSiteProfile({ deps: makeDeps(), input: { principalId: PRINCIPAL_ID } }, { sections: ["pages"] });
+  assert.deepEqual(empty.sections.pages, { status: "ok", data: { total: 0, countsByKind: {}, countsByStatus: {}, items: [] } });
+});
+
+test("operators see only this workspace's plugin activations and counts for non-tombstoned content types", async () => {
+  const local = { id: "local", name: "Local", version: "4", source: "site", tier: "builtin", status: "ok" };
+  const foreign = { id: "foreign", name: "Foreign", version: "2", source: "host", status: "ready" };
+  const entry = { key: "article", label: "Article", status: "active", version: 3 };
+  const deps = makeDeps({
+    listPlugins: async () => [local, foreign],
+    listPluginActivations: async () => [
+      { pluginId: "local", workspaceId: "ws-site-profile", enabled: true },
+      { pluginId: "local", workspaceId: "other", enabled: false },
+      { pluginId: "foreign", workspaceId: "other", enabled: true },
+    ],
+    listContentTypes: async () => [
+      { ...entry, fields: [{ key: "headline" }, { key: "story" }], tombstonedAt: null },
+      { ...entry, key: "retired", fields: [], tombstonedAt: "2026-11-22T00:00:00.000Z" },
+    ],
+    readActiveThemeId: async () => null,
+  });
+  const found = await buildSiteProfile({ deps, input: { principalId: PRINCIPAL_ID } });
+  assert.deepEqual(found.sections.plugins, { status: "ok", data: [{ ...local, enabled: true }, { ...foreign, tier: null, enabled: false }] });
+  assert.deepEqual(found.sections.contentTypes, { status: "ok", data: [{ ...entry, fieldCount: 2 }] });
+  assert.deepEqual([found.sections.theme?.data?.activeThemeId, found.sections.theme?.data?.active, found.sections.theme?.data?.themeDisabled], [null, null, false]);
+});
+
+test("settings disclose only inventory keys and drop values strictly past the serialized cap", async () => {
+  const reads: string[] = [];
+  const allowed = ["title_template", "default_description", "default_og_image", "twitter_site", "default_robots_noindex", "default_robots_nofollow", "sitemap_enabled", "robots_rules"];
+  const deps = makeDeps({ readSetting: async ({ namespace, key }) => {
+    reads.push(`${namespace}:${key}`);
+    if (key === "default_description") return "a".repeat(1998);
+    if (key === "twitter_site") return "b".repeat(1999);
+    if (key === "sitemap_enabled") return false;
+    return null;
+  } });
+  const found = await buildSiteProfile({ deps, input: { principalId: PRINCIPAL_ID } }, { sections: ["settings"] });
+  assert.deepEqual(reads, allowed.map(key => `site.seo:${key}`));
+  assert.equal(found.sections.settings?.truncated, true);
+  assert.deepEqual(found.sections.settings?.data, allowed.map(key => ({
+    namespace: "site.seo", key,
+    configured: ["default_description", "twitter_site", "sitemap_enabled"].includes(key),
+    value: key === "default_description" ? "a".repeat(1998) : key === "sitemap_enabled" ? false : null,
+    ...(key === "twitter_site" ? { truncated: true } : {}),
+  })));
+});

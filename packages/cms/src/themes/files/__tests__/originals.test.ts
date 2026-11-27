@@ -158,3 +158,17 @@ test("reset uses site bytes before package bytes and falls back to the separate 
   assert.deepEqual(readFileSync(join(f.themeDir, f.relativePath)), Buffer.from("package"));
   assert.deepEqual(readFileSync(join(packaged.originalDir, f.relativePath)), Buffer.from("package"));
 });
+
+test("a file truncated after its same-size stat is still detected as modified", () => {
+  const f = fixture();
+  const file = write(f.themeDir, f.relativePath, Buffer.from("matching-prefix-different-length"));
+  write(f.originalDir, f.relativePath, Buffer.from("matching-prefix-different-length"));
+  const statPath = f.ports.statPath;
+  f.ports = { ...f.ports, statPath: (required, optional) => {
+    const metadata = statPath(required, optional);
+    if (required.target === file) writeFileSync(file, "matching-prefix");
+    return metadata;
+  } };
+  assert.equal(themeFileDiffersFromOriginal(f), true);
+  assert.equal(readFileSync(file, "utf8"), "matching-prefix");
+});

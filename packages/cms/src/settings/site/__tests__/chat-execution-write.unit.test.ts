@@ -44,3 +44,30 @@ test("the injected check's refusal is the tool's error", async () => {
   const f = fixture("Unknown model for this agent.");
   await assert.rejects(prepareChatExecutionWrite(f), /Unknown model for this agent\./);
 });
+
+test("blanking the model override repairs that axis without validating stale sibling values", async () => {
+  const f = fixture("The saved reasoning effort is stale.");
+  await f.deps.settingsRepo.saveUserValue({
+    scope: "user", workspaceId: "workspace", principalId: "person", settingId: "localCli.model",
+    valueJson: "removed-model", state: "set", defVersion: 1, updatedBy: "person", originPluginId: null, seq: 1, updatedAt: "2026-11-23T00:00:00.000Z",
+  });
+  assert.deepEqual(JSON.parse((await prepareChatExecutionWrite({ ...f, request: { ...f.request, value: "" } })) ?? "null"),
+    { previous: "removed-model", selection: { "localCli.model": "" } });
+  assert.deepEqual(f.calls, []);
+});
+
+test("clearing the model value validates the nonempty inherited workspace model", async () => {
+  const f = fixture(null);
+  await f.deps.settingsRepo.saveWorkspaceValue({
+    scope: "workspace", workspaceId: "workspace", principalId: null, settingId: "localCli.model",
+    valueJson: "inherited-model", state: "set", defVersion: 1, updatedBy: "person", originPluginId: null, seq: 1, updatedAt: "2026-11-23T00:00:00.000Z",
+  });
+  await f.deps.settingsRepo.saveUserValue({
+    scope: "user", workspaceId: "workspace", principalId: "person", settingId: "localCli.model",
+    valueJson: "my-model", state: "set", defVersion: 1, updatedBy: "person", originPluginId: null, seq: 2, updatedAt: "2026-11-23T00:00:00.000Z",
+  });
+  const { value: _value, ...request } = f.request;
+  assert.deepEqual(JSON.parse((await prepareChatExecutionWrite({ ...f, request: { ...request, toolId: "settings_clear_value" } })) ?? "null"),
+    { previous: ["fixture", "my-model", ""], selection: { agentId: "fixture", modelId: "inherited-model", effort: "" }, resolvedDefaultModel: null });
+  assert.deepEqual(f.calls, [{ agents: [agent], agentId: "fixture", modelId: "inherited-model", effort: "" }]);
+});

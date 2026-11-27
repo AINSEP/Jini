@@ -9,6 +9,7 @@ import {
   getLatestTransformDefinition,
   type MediaRecord,
 } from "../../../media/index.js";
+import { resolveMediaCaptionsTrack } from "../../../media/site/public-path.js";
 import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../payload-fields.js";
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
@@ -18,6 +19,7 @@ import { resolveGalleryWidgetMedia } from "../../media-embed-resolution.js";
 import { resolvePageWidgets } from "../../page-widget-resolution.js";
 import { type ResolveHtmlPageEmbedsDeps } from "../../resolver-contracts.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
+import { createGalleryWidgetResolver } from "../../resolvers/gallery.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { TaxonomyListPort, TermListPort } from "../../../taxonomy/index.js";
 import type { WidgetPlacementNode, WidgetResolveContext } from "../../types.js";
@@ -175,6 +177,27 @@ describe("media embed resolution", () => {
       componentId: "media-image",
       props: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", contentType: type, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null },
     });
+  });
+
+  it("adds the sibling WebVTT track to a video player and omits it when the caption asset is missing", async () => {
+    const sha256 = "b".repeat(64);
+    const host = hostPorts();
+    const resolved = await media([ref({ id: "video" }), ref({ id: "audio" })], deps({
+      host: { ...host, media: { ...host.media, resolveMediaCaptionsTrack } },
+      mediaRepo: new InMemoryMediaRepo({}, { initialRows: [
+        mediaRecord({ id: "video", captions: { assetId: "vtt", srclang: "pt-BR", label: "Português" } }),
+        mediaRecord({ id: "audio", captions: { assetId: "missing", srclang: "en" } }),
+        mediaRecord({ id: "vtt", slug: "cc-pt", source: { sha256 } }),
+      ] }),
+      mediaContentTypeStore: contentTypes({ "sha-video": "video/mp4", "sha-audio": "audio/mpeg", [sha256]: "text/vtt" }),
+    }));
+    expect(resolved.get("video")).toEqual({ componentId: "media-image", props: {
+      assetId: "video", slug: "video-slug", sha256: "sha-video", contentType: "video/mp4", alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null,
+      captionsTrack: { src: `/m/cc-pt/original.vtt?v=${"b".repeat(12)}`, srclang: "pt-BR", label: "Português" },
+    } });
+    expect(resolved.get("audio")).toEqual({ componentId: "media-image", props: {
+      assetId: "audio", slug: "audio-slug", sha256: "sha-audio", contentType: "audio/mpeg", alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null,
+    } });
   });
 
   it("keeps the image transform path for an image content type", async () => {
@@ -559,6 +582,27 @@ describe("region placements", () => {
 
   it("resolves a region whose widget_area payload is malformed to no widgets", async () => {
     expect(await resolveRegions([areaRow("area-1", [], { fieldsJson: { ext: {} } })], { sidebar: "area-1" })).toEqual({ sidebar: [] });
+  });
+
+  it("passes the page's diagnostic reporter to a gallery resolver while preserving the region output", async () => {
+    const galleryConfig = { layout: "grid", images: [{ mediaId: "cover" }] };
+    const gallery = widgetRow("gallery", galleryConfig, { fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: "gallery", config: galleryConfig, status: "active" } }) });
+    const bindingRepo = new InMemoryWidgetRegionBindingRepo([{ workspaceId: WS, regionKey: "sidebar", areaEntryId: "area", updatedAt: "2026-01-01T00:00:00.000Z" }]);
+    const entryRepo = await entryRepoWith([areaRow("area", [placement("p1", "gallery")]), gallery]);
+    const pageWarn = vi.fn();
+    const unregister = registerCoreResolver({ typeKey: "gallery", resolver: createGalleryWidgetResolver({
+      resolveMedia: async ({ refs, context }) => {
+        context.report?.warn({ message: "Gallery source unavailable" }, { meta: { workspaceId: context.workspaceId, ids: refs.map(({ id }) => id) } });
+        return new Map();
+      },
+    }) });
+    try {
+      const result = await resolvePageWidgets({ deps: { bindingRepo, entryRepo, report: { warn: pageWarn } }, input: { workspaceId: WS, resolvedRegions: ["sidebar"] } });
+      expect(result).toEqual({ regions: { sidebar: [{ componentId: "gallery", props: { config: galleryConfig, media: {} } }] }, inlineResolved: new Map() });
+      expect(pageWarn.mock.calls).toEqual([[{ message: "Gallery source unavailable" }, { meta: { workspaceId: WS, ids: ["cover"] } }]]);
+    } finally {
+      unregister();
+    }
   });
 });
 

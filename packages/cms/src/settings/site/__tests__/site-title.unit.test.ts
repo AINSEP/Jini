@@ -121,3 +121,15 @@ test("failures reach the injected reporter as fixed text plus workspace id and e
   assert.deepEqual(result, { pinnedWorkspaceIds: [], skippedWorkspaceIds: [], failedWorkspaceIds: ["ws-b"] });
   assert.equal(JSON.stringify([unregistered.failures, l.failures]).includes("hunter2"), false);
 });
+
+test("an explicit title wins while a workspace is pending and an unusable fallback name renders the legacy title", async () => {
+  const l = ledger(["ws-pending"]);
+  await ensureSiteTitleSettingDefinition(l, { systemPrincipalId: SYSTEM, legacySiteTitle: "Ledger default" });
+  await set({
+    deps: { repo: l.settingsRepo, clock, ids, principals, authorize: async () => ({ allowed: true, reason: "test" }) },
+    input: { namespace: "core.site", key: "title", workspaceId: "ws-pending", callerPrincipalId: "owner", scope: "workspace", value: "  Editorial title  " },
+  });
+  const deps = { ...resolveDeps(l, "   "), workspaceRepo: { findById: async () => null } };
+  assert.equal(await resolveSiteTitle(deps, { workspaceId: "ws-pending" }), "Editorial title");
+  assert.equal(await resolveSiteTitle(deps, { workspaceId: "ws-new" }), LEGACY);
+});
