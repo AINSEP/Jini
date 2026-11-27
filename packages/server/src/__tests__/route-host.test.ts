@@ -11,7 +11,7 @@ import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { mountRoutes } from '../mount-routes.js';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { defineJiniFeature } from '../feature.js';
-import { PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from '../route-host.js';
+import { nodeSessionTimer, PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from '../route-host.js';
 import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 const kernels: JiniKernel[] = [];
@@ -24,6 +24,21 @@ afterEach(async () => {
 
 const FIRST_ID = 'ERR-0000-0000-0000-0001';
 const SECOND_ID = 'ERR-0000-0000-0000-0002';
+
+it('expires a frontend session once at its deadline and never expires a cancelled session', () => {
+  vi.useFakeTimers();
+  const expired: string[] = [];
+  const cancelled = nodeSessionTimer({ delayMs: 15, callback: () => expired.push('closed') });
+  nodeSessionTimer({ delayMs: 25, callback: () => expired.push('idle') });
+  cancelled.cancel();
+  vi.advanceTimersByTime(24);
+  expect(expired).toEqual([]);
+  vi.advanceTimersByTime(1);
+  expect(expired).toEqual(['idle']);
+  vi.advanceTimersByTime(100);
+  expect(expired).toEqual(['idle']);
+  expect(vi.getTimerCount()).toBe(0);
+});
 
 /** A route context in reporter mode over a real reporter whose records and tracker reports the test can read. */
 function reporterModeContext(): { readonly context: RouteHostContext; readonly entries: ReturnType<typeof createRecordingReporter>['entries'] } {

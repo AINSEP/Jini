@@ -17,7 +17,10 @@ function fixture() {
   const files = new Map<string, ReturnType<ChildRegistryStorage<Row>["read"]>>();
   const instancePath = ({ registryDir, instanceId }: { registryDir: string; instanceId: string }) => path.join(registryDir, `${instanceId}.json`);
   const legacyPath = () => path.join(root, "legacy.json");
-  const writes = vi.fn(({ filePath, rows }: { filePath: string; rows: Row[] }) => { files.set(filePath, { state: "ok", rows }); });
+  const writes = vi.fn(({ filePath, rows }: { filePath: string; rows: Row[] }) => {
+    fs.writeFileSync(filePath, "placeholder");
+    files.set(filePath, { state: "ok", rows });
+  });
   const quarantine = vi.fn(() => true);
   const removeDeadFile = vi.fn();
   const processes = { isAlive: vi.fn((_input: { pid: number }) => false), isOrphan: vi.fn((_input: { pid: number }) => false), isLiveRow: vi.fn((_input: { row: Row }) => false), signal: vi.fn((_input: { pid: number; signal: NodeJS.Signals }) => {}) };
@@ -136,4 +139,27 @@ test("legacy orphans are reconciled but the shared file is never rewritten or re
   expect(f.processes.signal.mock.calls).toEqual([[{ pid: 30, signal: "SIGTERM" }]]);
   expect(f.files.get(f.legacyPath())).toEqual({ state: "ok", rows: [legacy] });
   expect(f.writes).not.toHaveBeenCalled(); expect(f.removeDeadFile).not.toHaveBeenCalled();
+});
+
+test("first child registration replaces a missing own record without changing sibling ownership", () => {
+  const f = fixture();
+  f.put("2-bb", [{ key: "worker", pid: 20 }]);
+  const own = f.instancePath({ registryDir: f.registryDir, instanceId: "1-aa" });
+  expect(f.registry.read({ registryDir: f.registryDir })).toEqual({ rows: [{ key: "worker", pid: 20 }], unreadable: [] });
+  f.registry.recordOpened({ registryDir: f.registryDir, row: { key: "worker", pid: 10 } });
+  expect(f.writes.mock.calls).toEqual([[{ filePath: own, rows: [{ key: "worker", pid: 10 }] }]]);
+  expect(f.quarantine.mock.calls).toEqual([]);
+  expect(new Set(f.registry.read({ registryDir: f.registryDir }).rows.map(row => row.pid))).toEqual(new Set([10, 20]));
+});
+
+test("close uses the supplied quarantine port and cannot discard unreadable data when it refuses", () => {
+  const f = fixture();
+  const own = f.put("1-aa", []);
+  const quarantine = vi.fn((_input: { filePath: string }) => false);
+  f.files.set(own, { state: "unreadable" });
+  f.registry.recordClosed({ registryDir: f.registryDir, key: "worker" }, { quarantine });
+  expect(quarantine.mock.calls).toEqual([[{ filePath: own }]]);
+  expect(f.quarantine.mock.calls).toEqual([]);
+  expect(f.writes.mock.calls).toEqual([]);
+  expect(f.registry.read({ registryDir: f.registryDir })).toEqual({ rows: [], unreadable: [own] });
 });

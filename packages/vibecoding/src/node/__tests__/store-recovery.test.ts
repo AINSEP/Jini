@@ -66,3 +66,41 @@ test('a corrupted selected object refuses reopen without overwriting working fil
   await expect(openFileTreeProject(input)).rejects.toMatchObject({ code: 'CORRUPT' });
   expect(await fs.readFile(join(input.root, 'safe.txt'), 'utf8')).toBe('safe');
 });
+
+test('a directory blocking a journaled file removal stops replay until the obstruction is gone', async () => {
+  const base = await fs.mkdtemp(join(tmpdir(), 'vibe-blocked-delete-')); roots.push(base);
+  const root = await fs.realpath(base).then(canonical => join(canonical, 'app'));
+  const stateDir = join(base, 'state');
+  const gone = join(root, 'gone.txt'), kept = join(root, 'kept.txt');
+  await fs.mkdir(root); await fs.mkdir(stateDir);
+  await fs.writeFile(gone, 'old'); await fs.writeFile(kept, 'before');
+  const limits = projectLimits({}), paths = createProjectPaths({ root, limits, policy: { allows: () => true } });
+  const input = { root, stateDir, paths, limits };
+  const store = createProjectStore(input);
+  const committed = await store.locked(async () => {
+    const scanned = await store.scan({ current: null });
+    const revisionId = await store.prepare({ files: scanned.files });
+    return store.select({ current: null, revisionId, captured: scanned.observed });
+  });
+  const interrupted = createProjectStore(input, { checkpoint: async ({ step }) => {
+    if (step === 'journal') {
+      await fs.rm(gone);
+      await fs.mkdir(gone);
+      await fs.writeFile(join(gone, 'external.txt'), 'externally owned');
+      throw new Error('interrupted after journal');
+    }
+  } });
+  await expect(interrupted.locked(async () => {
+    const revisionId = await interrupted.prepare({ files: new Map([['kept.txt', bytes('after')]]) });
+    return interrupted.select({ current: committed, revisionId });
+  })).rejects.toThrow('interrupted after journal');
+  await expect(store.locked(() => store.recover())).rejects.toMatchObject({ code: 'ERR_FS_EISDIR' });
+  expect(await fs.readFile(join(gone, 'external.txt'), 'utf8')).toBe('externally owned');
+  expect(await fs.readFile(kept, 'utf8')).toBe('before');
+  expect((await store.readCurrent())?.pending).toEqual({ from: committed.revision });
+
+  await fs.rm(gone, { recursive: true });
+  expect((await store.locked(() => store.recover()))?.pending).toBeNull();
+  expect(await fs.readFile(kept, 'utf8')).toBe('after');
+  await expect(fs.stat(gone)).rejects.toMatchObject({ code: 'ENOENT' });
+});

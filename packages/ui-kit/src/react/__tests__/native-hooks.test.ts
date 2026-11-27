@@ -29,6 +29,18 @@ describe('native status controls', () => {
   });
 });
 
+it('keeps a custom part and accessible name on the native icon button that dispatches the action', () => {
+  const onPress = vi.fn();
+  const props = { label: 'Refresh reports', onPress };
+  const view = render(h(nativeKit.IconButton, props));
+  const button = screen.getByRole('button', { name: 'Refresh reports' });
+  expect(button.getAttribute('data-jini-part')).toBe('kit.icon-button');
+  view.rerender(h(nativeKit.IconButton, { ...props, attrs: { 'data-jini-part': 'reports.refresh' } }));
+  expect(button.getAttribute('data-jini-part')).toBe('reports.refresh');
+  button.click();
+  expect(onPress.mock.calls).toEqual([[{}]]);
+});
+
 describe('native dialog', () => {
   // jsdom has no showModal/close; a browser does. Install them so the browser path runs.
   function withModalApi() {

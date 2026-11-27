@@ -1864,6 +1864,43 @@ describe('L039a preset option forwarding pins', () => {
   });
 });
 
+it('forwards the opt-in terminal loader without loading the PTY at boot', async () => {
+  const compose = vi.spyOn(KernelCompositionModule, 'composeJiniKernel');
+  const loadTerminalSpawnPty = vi.fn(async () => { throw new Error('PTY loaded at boot'); });
+  const resolveWorkspaceRoot = () => '/host/workspaces/terminal-fixture';
+  try {
+    const daemon = await createLocalNodeDaemon({
+      ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite, dataDir: makeTempDataDir(), packs: [],
+      env: {}, discoveryFile: false, loadTerminalSpawnPty, resolveWorkspaceRoot,
+    });
+    daemonsToStop.push(daemon);
+    expect(compose.mock.calls.map(([options]) => options.featureOptions?.terminal)).toEqual([
+      { loadSpawnPty: loadTerminalSpawnPty, resolveWorkspaceRoot },
+    ]);
+    expect(loadTerminalSpawnPty.mock.calls).toEqual([]);
+  } finally {
+    compose.mockRestore();
+  }
+});
+
+it('passes the host-selected auth env names to local kernel security', async () => {
+  const compose = vi.spyOn(KernelCompositionModule, 'composeJiniKernel');
+  try {
+    const daemon = await createLocalNodeDaemon({
+      ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite, packs: [makePingPack()], discoveryFile: false,
+      dataDir: makeTempDataDir(), env: {}, apiToken: { tokenEnvVar: 'HOST_TOKEN', disableEnvVar: 'HOST_DISABLE_AUTH' },
+    });
+    daemonsToStop.push(daemon);
+    // Loopback is exempt from the bearer check, so the observable contract here is the policy passed to the kernel.
+    expect(compose.mock.calls.map(([options]) => options.security)).toEqual([{
+      mode: 'jini-local', host: '127.0.0.1', apiToken: { tokenEnvVar: 'HOST_TOKEN', disableEnvVar: 'HOST_DISABLE_AUTH' },
+    }]);
+    expect((await fetch(`${daemon.url}/api/ping`)).status).toBe(200);
+  } finally {
+    compose.mockRestore();
+  }
+});
+
 it('handles rejected cleanup after a bind failure without discarding a rejection', async () => {
   const cleanupError = new Error('cleanup failed');
   const discarded: unknown[] = [];

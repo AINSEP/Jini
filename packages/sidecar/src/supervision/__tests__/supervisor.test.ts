@@ -563,3 +563,38 @@ test("ensureReady rejects a stale discovery result that completes after child re
   replacementReady = true; await h.tick(); await pending;
   assert.equal(h.supervisor.isReady(), true);
 });
+
+test("pre-aborted and unconfigured readiness requests do not launch a child", async () => {
+  const h = harness();
+  const controller = new AbortController();
+  const reason = new Error("request left before discovery");
+  controller.abort(reason);
+  await assert.rejects(h.supervisor.ensureReady({}, { signal: controller.signal }), error => error === reason);
+  await assert.rejects(h.supervisor.ensureReady({}), { message: "readiness port is not configured" });
+  assert.equal(h.supervisor.getState(), "stopped");
+  assert.equal(h.children.length, 0);
+  assert.equal(h.tasks.size, 0);
+});
+
+test("readiness retries a failed discovery read and reuses the ready child", async () => {
+  const reads: number[] = [];
+  const h = readyHarness({ probe: async ({ pid }) => {
+    reads.push(pid);
+    if (reads.length === 1) throw new Error("discovery file not fully published");
+    return true;
+  } });
+  try {
+    const work = h.supervisor.ensureReady({});
+    assert.deepEqual(reads, [100]);
+    await h.tick(249);
+    assert.equal(h.supervisor.isReady(), false);
+    assert.deepEqual(reads, [100]);
+    await h.tick(1);
+    await work;
+    assert.equal(h.supervisor.isReady(), true);
+    await h.supervisor.ensureReady({});
+    assert.deepEqual(reads, [100, 100]);
+    assert.equal(h.children.length, 1);
+    assert.equal(h.tasks.size, 0);
+  } finally { h.supervisor.shutdown(); }
+});

@@ -158,6 +158,21 @@ const base = (socketPath: string) => ({ socketPath, traceId, durationMs: expect.
 
 describe("trace vocabulary and details", () => {
 
+  it("summarizes a null input without interpreting it as an object with keys", async () => {
+    process.env.JINI_JSON_IPC_TRACE = "1";
+    const socketPath = join(root, "null-input.sock");
+    const handler = vi.fn(async (_required: { message: unknown }) => "accepted");
+    const server = await createJsonIpcServer({ handler, socketPath });
+    try {
+      await expect(requestJsonIpc({ socketPath, payload: { type: "PING", input: null } })).resolves.toBe("accepted");
+    } finally { await server.close(); }
+    expect(handler.mock.calls).toEqual([[{ message: { type: "PING", input: null } }]]);
+    expect(traces.find(trace => trace.event === "client.connect_start")?.message)
+      .toEqual({ type: "PING", hasInput: true, inputType: "object" });
+    expect(traces.find(trace => trace.event === "server.handler_start")?.message)
+      .toEqual({ type: "PING", hasInput: true, inputType: "object" });
+  });
+
   it("a successful round trip emits the full client+server sequence with summarised messages", async () => {
     process.env.JINI_JSON_IPC_TRACE = "yes";
     const socketPath = join(root, "ok.sock");

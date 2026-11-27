@@ -105,3 +105,52 @@ test("without a bootWork port the store closes at once", async () => {
 
   expect(closes).toBe(1);
 });
+
+test("beforeExit waits for daemon shutdown before closing the store without forcing exit", async () => {
+  const proc = new FakeProcess();
+  const daemon = deferred();
+  const order: string[] = [];
+  expect(closeStoreOnShutdown(
+    {
+      store: postgresStore(async () => { order.push("store closed"); }),
+      onShutdown: () => { order.push("daemon stopping"); return daemon.promise; },
+      logger: recordingLogger(),
+    },
+    { proc, stopServing: async () => { order.push("listener stopped"); } },
+  )).toBe(true);
+
+  proc.emit("beforeExit");
+  try {
+    await tick();
+    expect(order).toEqual(["daemon stopping", "listener stopped"]);
+    expect(proc.exits).toEqual([]);
+  } finally {
+    daemon.resolve();
+  }
+  await tick();
+  expect(order).toEqual(["daemon stopping", "listener stopped", "store closed"]);
+  expect(proc.exits).toEqual([]);
+});
+
+test("beforeExit reuses a signal-initiated shutdown without stopping the daemon or store twice", async () => {
+  const proc = new FakeProcess();
+  const daemon = deferred();
+  const order: string[] = [];
+  closeStoreOnShutdown({
+    store: postgresStore(async () => { order.push("store closed"); }),
+    onShutdown: () => { order.push("daemon stopping"); return daemon.promise; },
+    logger: recordingLogger(),
+  }, { proc });
+  proc.emit("SIGTERM");
+  proc.emit("beforeExit");
+  try {
+    await tick();
+    expect(order).toEqual(["daemon stopping"]);
+    expect(proc.exits).toEqual([]);
+  } finally {
+    daemon.resolve();
+  }
+  await tick();
+  expect(order).toEqual(["daemon stopping", "store closed"]);
+  expect(proc.exits).toEqual([0]);
+});

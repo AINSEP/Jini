@@ -12,8 +12,9 @@ const filesystem: ProjectFilesystemPort = {
 };
 
 /** Bind native effects without changing any project input, outcome or error contract. */
-export function openFileTreeProject(input: Omit<OpenFileTreeProjectInput, 'filesystem'>, options: OpenFileTreeProjectOptions = {}): ReturnType<typeof openProject> {
-  return openProject({ ...input, filesystem }, options);
+export function openFileTreeProject(input: Omit<OpenFileTreeProjectInput, 'filesystem'>, options: OpenFileTreeProjectOptions = {},
+  overrides: Partial<ProjectFilesystemPort> = {}): ReturnType<typeof openProject> {
+  return openProject({ ...input, filesystem: { ...filesystem, ...overrides } }, options);
 }
 /** Bind native containment for the existing path-policy checks. */
 export function createProjectPaths(input: Omit<Parameters<typeof createPaths>[0], 'filesystem'>, options = {}): ReturnType<typeof createPaths> {

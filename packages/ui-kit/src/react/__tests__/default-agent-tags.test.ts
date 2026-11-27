@@ -186,3 +186,37 @@ it('keeps composite semantic privacy ahead of opt-outs and undefined child overr
   expect(handle(item)).toBeNull();
   expect(item.getAttribute('data-agent-private')).toBe('');
 });
+
+it('derives compact, stable child addresses from long composite handles and opaque item ids', () => {
+  const base = 'workspace-navigation-'.repeat(5);
+  const items = [
+    { id: 'Reports / 2026', label: 'Reports', content: 'Report panel' },
+    { id: 'h-0123456789abcdef', label: 'Audit', content: 'Audit panel' },
+  ];
+  const props = { agentHandle: base, label: 'Sections', value: items[0]!.id, items, onValueChange: noop };
+  const view = render(h(Tabs, props));
+  const addresses = () => ['Reports', 'Audit'].map(name => handle(screen.getByRole('tab', { name })));
+  const initial = addresses();
+  expect(initial[0]).toMatch(/^h-[0-9a-f]{16}-h-[0-9a-f]{16}$/);
+  expect(initial[1]).toMatch(/^h-[0-9a-f]{16}-h-[0-9a-f]{16}$/);
+  expect(initial[0]).not.toBe(initial[1]);
+  expect(initial[1]).not.toMatch(/-h-0123456789abcdef$/);
+  view.rerender(h(Tabs, { ...props, value: items[1]!.id, items: [...items].reverse() }));
+  expect(addresses()).toEqual(initial);
+});
+
+it('keeps a private active tab from inheriting a legacy parent address', () => {
+  const inherited = { 'data-agent-element': 'legacy-sections', 'data-agent-label': 'Public sections' };
+  const attrs = { 'data-agent-private': '', 'data-agent-element': 'private-tab' };
+  const props = { label: 'Sections', attrs: inherited, onValueChange: noop, items: [
+    { id: 'open', label: 'Open', content: 'Public panel' },
+    { id: 'closed', label: 'Closed', content: 'Private panel', attrs },
+  ] };
+  const view = render(h(nativeKit.Tabs, { ...props, value: 'open' }));
+  expect(handle(screen.getByRole('tab', { name: 'Open' }))).toBe('legacy-sections');
+  view.rerender(h(nativeKit.Tabs, { ...props, value: 'closed' }));
+  const selected = screen.getByRole('tab', { name: 'Closed', selected: true });
+  expect(handle(selected)).toBeNull();
+  expect(selected.getAttribute('data-agent-label')).toBeNull();
+  expect(selected.getAttribute('data-agent-private')).toBe('');
+});

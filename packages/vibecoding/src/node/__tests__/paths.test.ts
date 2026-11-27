@@ -24,6 +24,11 @@ test('enforces path length and depth while preserving Unicode filename spelling'
   expect(() => canonicalPath({ relativePath: 'a/b/c', maxDepth: 2 })).toThrow(/depth/);
   expect(canonicalPath({ relativePath: 'e\u0301.ts', maxDepth: 32 })).toBe('e\u0301.ts');
 });
+test('an empty path cannot address the whole project root', () => {
+  expect(() => canonicalPath({ relativePath: '', maxDepth: 32 })).toThrow(
+    'use a relative slash-separated path of at most 200 characters',
+  );
+});
 test.each([['A.ts', 'a.ts'], ['é.ts', 'e\u0301.ts'], ['Src/a', 'src/b'], ['a', 'a/b']])(
   'refuses candidate collision %j / %j', (left, right) => {
     expect(() => assertCandidatePaths({ paths: [left, right] })).toThrow(/collision/);

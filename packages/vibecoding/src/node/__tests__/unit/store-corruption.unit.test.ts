@@ -17,7 +17,8 @@ async function fixture() {
   const limits = projectLimits({ limits: { maxFiles: 2, maxFileBytes: 16, maxTreeBytes: 20 } });
   const paths = createProjectPaths({ root, limits, policy: { allows: () => true } });
   const store = createProjectStore({ root, stateDir, paths, limits });
-  const current = JSON.parse(await fs.readFile(join(stateDir, 'current.json'), 'utf8'));
+  const current = await store.readCurrent();
+  if (!current) throw new Error('fixture did not select a project revision');
   return { root, stateDir, store, current };
 }
 
@@ -81,4 +82,64 @@ it('refuses a generation overflow without replacing the current pointer', async 
   const before = await fs.readFile(join(stateDir, 'current.json'), 'utf8');
   await expect(store.select({ current: { ...current, generation: Number.MAX_SAFE_INTEGER }, revisionId: current.revision })).rejects.toMatchObject({ code: 'LIMIT', message: 'generation exhausted' });
   expect(await fs.readFile(join(stateDir, 'current.json'), 'utf8')).toBe(before);
+});
+
+it('refuses to replace an unmanaged file during preflight for a new selection', async () => {
+  const { root, stateDir, store } = await fixture();
+  const pathname = join(root, 'local.txt');
+  await fs.writeFile(pathname, 'local notes');
+  const revisionId = await store.prepare({ files: new Map([['local.txt', Buffer.from('incoming')]]) });
+  const pointer = join(stateDir, 'current.json');
+  const before = await fs.readFile(pointer, 'utf8');
+  await expect(store.preflight({ current: null, revisionId })).rejects.toMatchObject({
+    code: 'INVALID_CHANGE', message: 'unmanaged file blocks local.txt',
+  });
+  expect(await fs.readFile(pathname, 'utf8')).toBe('local notes');
+  expect(await fs.readFile(pointer, 'utf8')).toBe(before);
+});
+
+it('retains the native I/O failure when a file blocks the object directory', async () => {
+  const { root, stateDir, store, current } = await fixture();
+  const manifest = await store.manifest({ revisionId: current.revision });
+  const directory = join(stateDir, 'objects');
+  await fs.rename(directory, join(stateDir, 'objects-saved'));
+  await fs.writeFile(directory, 'unexpected directory replacement');
+  const bytes = Buffer.from('new');
+  const files = new Map([['new.txt', bytes]]);
+  await expect(store.object({ file: manifest.files[0]! })).rejects.toMatchObject({ code: 'ENOTDIR' });
+  await expect(store.prepare({ files })).rejects.toMatchObject({ code: 'ENOTDIR' });
+  expect(await fs.readFile(directory, 'utf8')).toBe('unexpected directory replacement');
+  expect(await fs.readFile(join(root, 'safe.txt'), 'utf8')).toBe('safe');
+});
+
+it('recovery preserves a corrupt manifest error instead of treating the selected revision as absent', async () => {
+  const { root, stateDir, store, current } = await fixture();
+  await fs.writeFile(join(stateDir, 'manifests', `${current.revision}.json`), '{"version":1,"files":[]}');
+  await expect(store.recover()).rejects.toMatchObject({ code: 'CORRUPT', message: 'manifest digest mismatch' });
+  expect(await fs.readFile(join(root, 'safe.txt'), 'utf8')).toBe('safe');
+});
+
+it('collection reports a blocked object directory instead of silently assuming there are no objects', async () => {
+  const { stateDir, store, current } = await fixture();
+  const directory = join(stateDir, 'objects');
+  await fs.rename(directory, join(stateDir, 'objects-saved'));
+  await fs.writeFile(directory, 'not a directory');
+  await expect(store.collect({ revisions: new Set([current.revision]) })).rejects.toMatchObject({ code: 'ENOTDIR' });
+  expect(await fs.readFile(directory, 'utf8')).toBe('not a directory');
+});
+
+it('refreshes durable fingerprints after a same-byte touch without adding history or changing revision', async () => {
+  const { root, stateDir, current, store } = await fixture();
+  const filePath = join(root, 'safe.txt');
+  // Reopening runs the real capture path, which owns the fingerprint refresh.
+  await fs.utimes(filePath, new Date('2020-01-01T00:00:00Z'), new Date('2020-01-02T00:00:00Z'));
+  const reopened = await openFileTreeProject({ root, stateDir, policy: { allows: () => true } });
+  const stat = await fs.stat(filePath);
+  expect(stat.mtimeMs).not.toBe(current.observed['safe.txt']?.mtimeMs);
+  expect(await store.recover()).toEqual({
+    ...current, observed: { 'safe.txt': { size: 4, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs } },
+  });
+  expect(await reopened.getRevision()).toEqual({ revisionId: current.revision, generation: current.generation });
+  expect(reopened.history.entries()).toEqual([]);
+  expect(await reopened.target.readPart({ id: 'safe.txt' })).toBe('safe');
 });

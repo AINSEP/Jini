@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { jsonResponse, readJsonBody, type ServerRoute } from '@jini-ai/core/contracts/server';
+import { createRecordingReporter } from '@jini-ai/core/errors/testing';
 import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
 import { mountRoutes } from '../mount-routes.js';
 
@@ -132,5 +133,50 @@ describe('mountRoutes', () => {
   it('refuses an app it cannot add a handler to, saying what it needs', () => {
     expect(() => { mountRoutes({ app: {}, routes: [] }); }).toThrow(new TypeError('mountRoutes needs an app with a use(handler) method (the preset\'s Express app); it was given something else.'));
     expect(() => { mountRoutes({ app: null, routes: [] }); }).toThrow(TypeError);
+  });
+
+  it.each([42, { use: 'not callable' }])('rejects an incompatible layer target (%j)', app => {
+    expect(() => mountRoutes({ app, routes: [] })).toThrow(
+      new TypeError("mountRoutes needs an app with a use(handler) method (the preset's Express app); it was given something else."),
+    );
+  });
+
+  it('serves a mounted route on a Node host that has no Express locals', async () => {
+    type Layer = (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: (error?: unknown) => void) => void;
+    let layer: Layer = (_req, res) => { res.statusCode = 503; res.end('route not installed'); };
+    mountRoutes({ app: { use(handler: Layer) { layer = handler; } }, routes: [{
+      method: 'GET', path: '/plain', handler: ({ locals }) =>
+        jsonResponse({ status: 200, body: { from: locals ?? 'without-locals' } }),
+    }] });
+    const server = createServer((req, res) => layer(req, res, () => { res.statusCode = 404; res.end(); }));
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/plain`);
+    expect([response.status, await from(response)]).toEqual([200, {}]);
+  });
+
+  it('reports a mounted streaming route failure after the first bytes reach the client', async () => {
+    const id = 'ERR-AAAA-BBBB-CCCC-0001';
+    const { reporter, entries, reports } = createRecordingReporter({ ids: [id], iso: '2026-01-01T00:00:00.000Z' });
+    const app = express();
+    let producer!: ReadableStreamDefaultController<Uint8Array>;
+    mountRoutes({ app, routes: [{
+      method: 'GET', path: '/stream', handler: () => new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          producer = controller;
+          controller.enqueue(new TextEncoder().encode('partial'));
+        },
+      })),
+    }] }, { reporter });
+    const response = await fetch(`${await listen(app)}/stream`);
+    expect(response.status).toBe(200);
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('partial');
+    producer.error(new Error('stream producer failed'));
+    await expect(reader.read()).rejects.toThrow('terminated');
+    expect(entries).toEqual([expect.objectContaining({ meta: expect.objectContaining({
+      errorId: id, step: 'Write response', diagnostic: expect.stringContaining('stream producer failed'),
+    }) })]);
+    expect(reports.map(report => report.context.incidentId)).toEqual([id]);
   });
 });

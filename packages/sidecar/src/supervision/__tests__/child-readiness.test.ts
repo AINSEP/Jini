@@ -93,3 +93,18 @@ test("late error and exit cannot replace readiness or arm a second callback", as
   expect(await work).toBe(result); expect(f.onReady).toHaveBeenCalledTimes(1); expect(f.describeFailure).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
 });
+
+test("preserves diagnostics and a UTF-8 readiness value split across native byte chunks", async () => {
+  const f = fixture();
+  const work = f.start();
+  const prefix = Buffer.from("workspace=東京 READY\n");
+  const split = Buffer.byteLength("workspace=") + 1;
+  f.child.stderr!.write("config loaded\n");
+  f.child.stdout!.write(prefix.subarray(0, split));
+  expect(f.onReady.mock.calls).toEqual([]);
+  f.child.stdout!.write(prefix.subarray(split));
+  await expect(work).resolves.toEqual({ ready: { port: 4000 }, pid: 42 });
+  expect(f.onReady.mock.calls).toEqual([[{
+    ready: { port: 4000 }, pid: 42, text: "config loaded\nworkspace=東京 READY\n",
+  }]]);
+});

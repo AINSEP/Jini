@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
+import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { test } from "vitest";
 
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { SearchDocumentSource } from "../../ports.js";
-import { memberSearchAudiences } from "../access.js";
+import { createCmsSearchAccessPort, memberSearchAudiences } from "../access.js";
 import {
   CMS_SEARCH_EVENTS, cmsSearchRevision, cmsSearchVisibility, createCmsSearchDocumentSources, isRowLive,
   type CmsSearchDatabase, type CmsSearchIsLiveAt, type CmsSearchPostRow, type CmsSearchResolveMemberAccess,
@@ -119,4 +121,86 @@ test("load: a row the host rule calls not live is a tombstone, and a row of the 
   assert.equal((await deadPages.load({ siteId: "s", workspaceId: WS, documentId: "p1", occurredAtMs: T0 })).document, null);
   const missing = await pages.load({ siteId: "s", workspaceId: WS, documentId: "p1", occurredAtMs: T0 });
   assert.deepEqual([missing.document, missing.revision], [null, T0 * 1000 + 999]);
+});
+
+async function withPosts(rows: CmsSearchPostRow[], check: (kernel: ReturnType<typeof sqliteKernel<CmsSearchDatabase>>) => Promise<void>) {
+  const db = new Database(":memory:");
+  try {
+    db.exec(`CREATE TABLE posts (
+      id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, kind TEXT NOT NULL,
+      slug TEXT NOT NULL, status TEXT NOT NULL, updated_at TEXT NOT NULL,
+      version INTEGER NOT NULL, publish_at TEXT, deleted_at TEXT, member_access_json TEXT
+    )`);
+    const kernel = sqliteKernel<CmsSearchDatabase>({ source: db });
+    await kernel.run(handle => handle.insertInto("posts").values(rows).execute());
+    await check(kernel);
+  } finally {
+    db.close();
+  }
+}
+
+test("scan paginates only currently published posts in the requested workspace", async () => {
+  await withPosts([
+    row({ id: "30-last", slug: "last" }),
+    row({ id: "11-scheduled", publish_at: iso(T0 + 1) }),
+    row({ id: "20-now", slug: "today", publish_at: iso(T0), updated_at: iso(T0 - 10) }),
+    row({ id: "12-trashed", deleted_at: iso(T0 - 1) }),
+    row({ id: "13-other-workspace", workspace_id: "ws-other" }),
+    row({ id: "14-draft", status: "draft" }),
+    row({ id: "10-first", slug: "first" }),
+    row({ id: "15-page", kind: "page" }),
+  ], async kernel => {
+    const [posts] = createCmsSearchDocumentSources({
+      kernel, now: () => T0, isLiveAt, resolveMemberAccess,
+      postPublicPath: ({ slug }) => `/blog/${slug}`,
+      toSearchText: ({ row: host }) => ({ title: `Article ${host.id}`, bodyText: `Text for ${host.slug}` }),
+    }) as [SearchDocumentSource, SearchDocumentSource];
+    const input = { siteId: "s", workspaceId: WS, limit: 2 };
+    const expected = (documentId: string, slug: string) => {
+      const key = { siteId: "s", workspaceId: WS, collection: "post", documentId };
+      const revision = T0 * 1000 + 3;
+      return { key, revision, document: {
+        key, revision, url: `/blog/${slug}`, title: `Article ${documentId}`, body: `Text for ${slug}`,
+        visibility: { kind: "public" },
+      } };
+    };
+    assert.deepEqual(await posts.scan(input), {
+      records: [expected("10-first", "first"), expected("20-now", "today")], nextCursor: "20-now",
+    });
+    assert.deepEqual(await posts.scan(input, { cursor: "20-now" }), { records: [expected("30-last", "last")] });
+    assert.deepEqual(await posts.scan(input, { cursor: "30-last" }), { records: [] });
+  });
+});
+
+test("live CMS access matches audiences without accepting stale or mis-scoped keys", async () => {
+  await withPosts([
+    row({ id: "public" }),
+    row({ id: "gold", member_access_json: '{"visibility":"tiers","tierIds":["silver","gold"]}' }),
+    row({ id: "paid", member_access_json: '{"visibility":"paid"}' }),
+    row({ id: "bad-gate", member_access_json: "{not json" }),
+    row({ id: "page", kind: "page" }),
+    row({ id: "wrong-workspace", workspace_id: "ws-other" }),
+    row({ id: "wrong-site" }),
+    row({ id: "draft", status: "draft" }),
+    row({ id: "trashed", deleted_at: iso(T0 - 1) }),
+    row({ id: "scheduled", publish_at: iso(T0 + 1) }),
+    row({ id: "article", kind: "article" }),
+  ], async kernel => {
+    const rules = { kernel, now: () => T0, isLiveAt, resolveMemberAccess };
+    const port = createCmsSearchAccessPort(rules);
+    const key = (documentId: string, collection = "post", siteId = "s") =>
+      ({ siteId, workspaceId: WS, documentId, collection });
+    const keys = [
+      key("public"), key("gold"), key("paid"), key("bad-gate"), key("page", "page"),
+      key("wrong-workspace"), key("wrong-site", "post", "other-site"), key("page"),
+      key("draft"), key("trashed"), key("scheduled"), key("missing"), key("article", "article"),
+    ];
+    assert.deepEqual(await port.visibleKeys({ siteId: "s", keys, audiences: ["members", "tier:gold"] }),
+      new Set(["s/ws-search/post/public", "s/ws-search/post/gold", "s/ws-search/page/page"]));
+    assert.deepEqual(await port.visibleKeys({ siteId: "s", keys, audiences: [] }),
+      new Set(["s/ws-search/post/public", "s/ws-search/page/page"]));
+    const pagesOnly = createCmsSearchAccessPort(rules, { collections: ["page"] });
+    assert.deepEqual(await pagesOnly.visibleKeys({ siteId: "s", keys, audiences: ["paid"] }),
+      new Set(["s/ws-search/page/page"]));
+  });
 });

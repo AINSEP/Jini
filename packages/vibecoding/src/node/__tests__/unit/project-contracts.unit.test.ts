@@ -2,6 +2,8 @@ import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import { FsFilePathError } from '@jini-ai/core/filesystem';
+import { withFileLock } from '@jini-ai/platform/fs';
 import { openFileTreeProject } from '../filesystem.js';
 import { ProjectError } from '../../index.js';
 import type { ProjectValidator } from '../../../core/project.js';
@@ -11,12 +13,15 @@ import { createVibecodingSession } from '../../../core/session.js';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
 
-async function fixture({ validator, options = {} }: { validator?: ProjectValidator; options?: OpenFileTreeProjectOptions } = {}) {
+async function fixture({ validator, options = {}, filesystem }: {
+  validator?: ProjectValidator; options?: OpenFileTreeProjectOptions;
+  filesystem?: Parameters<typeof openFileTreeProject>[2];
+} = {}) {
   const base = await fs.mkdtemp(join(tmpdir(), 'jini-project-contract-')); roots.push(base);
   const root = join(base, 'app'), stateDir = join(base, 'state');
   await fs.mkdir(root); await fs.writeFile(join(root, 'index.txt'), 'before');
   const input = { root, stateDir, policy: { allows: () => true }, ...(validator ? { validator } : {}) };
-  return { input, project: await openFileTreeProject(input, options) };
+  return { input, project: await openFileTreeProject(input, options, filesystem) };
 }
 
 it.each([0, -1, 0.5, Infinity, Number.MAX_SAFE_INTEGER + 1])('refuses invalid history limit %s before opening a project', async historyLimit => {
@@ -160,4 +165,40 @@ it('project-session failures clear stale cached bytes and recover on the next re
   expect([...session.getSnapshot().partContent]).toEqual([]);
   await session.refresh();
   expect(session.getSnapshot()).toMatchObject({ status: 'ready', lastError: undefined, parts: [{ id: 'index.txt' }] });
+});
+
+it.each([
+  { failure: new FsFilePathError({ message: 'guarded path refused' }), code: 'INVALID_PATH', message: 'guarded path refused' },
+  { failure: Object.assign(new Error('lock directory is read-only'), { code: 'EROFS' }), code: 'STORAGE', message: 'project storage operation failed' },
+])('normalizes $code failures at the filesystem boundary and allows retry', async ({ failure, code, message }) => {
+  let refuse = false;
+  const { project, input } = await fixture({ filesystem: {
+    withFileLock: async (required, optional) => {
+      if (refuse) throw failure;
+      return withFileLock(required, optional);
+    },
+  } });
+  const revision = await project.getRevision();
+  refuse = true;
+  await expect(project.capture()).rejects.toMatchObject({ code, message, cause: failure });
+  refuse = false;
+  expect(await project.getRevision()).toEqual(revision);
+  expect(await project.target.readPart({ id: 'index.txt' })).toBe('before');
+  expect(await fs.readFile(join(input.root, 'index.txt'), 'utf8')).toBe('before');
+});
+
+it('distinguishes a corrupt retained snapshot from an expired snapshot without replacing live files', async () => {
+  const { project, input } = await fixture();
+  const snapshot = await project.snapshot();
+  await project.target.replacePart({ id: 'index.txt', content: 'latest' });
+  const current = await project.getRevision();
+  expect(current.revisionId).not.toBe(snapshot.revisionId);
+  const previous = join(input.stateDir, 'manifests', `${snapshot.revisionId}.json`);
+  await fs.writeFile(previous, '{');
+  await expect(project.restore({ snapshot })).rejects.toMatchObject({
+    code: 'CORRUPT', message: 'invalid project metadata JSON',
+  });
+  expect(await project.getRevision()).toEqual(current);
+  expect(await project.target.readPart({ id: 'index.txt' })).toBe('latest');
+  expect(await fs.readFile(join(input.root, 'index.txt'), 'utf8')).toBe('latest');
 });

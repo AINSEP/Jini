@@ -93,3 +93,39 @@ test("default POSIX escalation uses the negative pid group", async () => {
   await vi.advanceTimersByTimeAsync(100); expect(kill).toHaveBeenCalledWith(-42, "SIGKILL");
   f.child.emit("exit", null, "SIGKILL"); await work;
 });
+
+test.each([
+  { platform: "win32", phase: "windows-tree" },
+  { platform: "linux", phase: "force" },
+] as const)("missing pid prevents a $phase signal and is retained as the timeout cause", async ({ platform, phase }) => {
+  vi.useFakeTimers();
+  const f = fixture(platform);
+  f.child.pid = undefined;
+  const work = f.start();
+  const failure = expect(work).rejects.toMatchObject({ message: "stop:timeout", cause: { message: "stop:missing-pid" } });
+  await vi.advanceTimersByTimeAsync(100);
+  expect(f.describeFailure.mock.calls).toEqual([[{ type: "missing-pid", phase }]]);
+  expect(f.killTree.mock.calls).toEqual([]);
+  expect(f.forceGroup.mock.calls).toEqual([]);
+  expect(f.child.kill.mock.calls).toEqual(platform === "win32" ? [] : [["SIGTERM"]]);
+  await vi.advanceTimersByTimeAsync(100);
+  await failure;
+  expect(f.describeFailure.mock.calls).toEqual([
+    [{ type: "missing-pid", phase }], [{ type: "timeout", pid: undefined, graceMs: 100 }],
+  ]);
+  expect(f.child.listenerCount("exit")).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a Windows child without stdin gets exactly one tree stop even if exit never arrives", async () => {
+  vi.useFakeTimers();
+  const f = fixture("win32");
+  const work = f.start();
+  const failure = expect(work).rejects.toThrow("stop:timeout");
+  expect(f.killTree.mock.calls).toEqual([[{ pid: 42 }]]);
+  await vi.advanceTimersByTimeAsync(200);
+  await failure;
+  expect(f.killTree.mock.calls).toEqual([[{ pid: 42 }]]);
+  expect(f.child.kill.mock.calls).toEqual([]);
+  expect(f.child.listenerCount("exit")).toBe(0);
+});

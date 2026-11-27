@@ -111,4 +111,38 @@ describe("native inherited IPC", () => {
       release("ready"); expect(await first).toBe("ready");
     } finally { client.dispose({}); server.dispose({}); }
   });
+
+  it("a synchronous native send failure frees capacity for a second request without leaking diagnostics", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const parent = new Peer(); const child = new Peer(); parent.other = child; child.other = parent;
+    const send = vi.spyOn(parent, "send").mockImplementationOnce(() => { throw "native private details"; });
+    const client = createNodeIpcChannel({ peer: parent }, { maxPending: 1 });
+    const server = createNodeIpcChannel({ peer: child }, { handle: async payload => {
+      if (payload !== "retry") throw new Error("unexpected request");
+      return "accepted";
+    } });
+    try {
+      await expect(client.request({ payload: "first" })).rejects.toMatchObject({ message: "IPC send failed" });
+      expect(vi.getTimerCount()).toBe(0);
+      await expect(client.request({ payload: "retry" })).resolves.toBe("accepted");
+      expect(parent.sent).toEqual([expect.objectContaining({ kind: "request", payload: "retry" })]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { client.dispose({}); server.dispose({}); send.mockRestore(); vi.useRealTimers(); }
+  });
+
+  it("a native send callback error closes the channel and rejects outstanding work", async () => {
+    const parent = new Peer();
+    const send = vi.spyOn(parent, "send").mockImplementationOnce((_message, callback) => {
+      queueMicrotask(() => callback(new Error("native pipe closed")));
+      return false;
+    });
+    const client = createNodeIpcChannel({ peer: parent });
+    try {
+      await expect(client.request({ payload: "first" })).rejects.toMatchObject({ message: "IPC disconnected" });
+      await expect(client.request({ payload: "later" })).rejects.toMatchObject({ message: "IPC disconnected" });
+      expect(send.mock.calls.map(([message]) => message)).toEqual([expect.objectContaining({ kind: "request", payload: "first" })]);
+      expect(parent.listenerCount("message")).toBe(0);
+      expect(parent.listenerCount("disconnect")).toBe(0);
+    } finally { client.dispose({}); send.mockRestore(); }
+  });
 });

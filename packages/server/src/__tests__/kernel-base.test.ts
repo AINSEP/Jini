@@ -220,6 +220,22 @@ describe('createJiniKernelBase aiTrace option', () => {
       await plain.close();
     }
   });
+
+  it('releases an active run trace when the kernel closes without inventing a terminal outcome', async () => {
+    const { createRecordingAiTraceSink } = await import('@jini-ai/core/contracts/ai-trace');
+    const sink = createRecordingAiTraceSink();
+    const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, aiTrace: {
+      sink, capture: 'off', now: () => 1234,
+    } });
+    try {
+      const { run } = await base.lifecycle.start({ contextRef: 'active-chat' }, { agentId: 'codex' });
+      expect(sink.events.map(event => event.kind)).toEqual(['run_started']);
+      await base.close();
+      // A retained in-memory lifecycle can still receive a terminal event; its closed owner must not trace it.
+      await base.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+      expect(sink.events.map(event => event.kind)).toEqual(['run_started']);
+    } finally { await base.close(); }
+  });
 });
 
 describe('createJiniKernelBase osPorts (K5: the host binds every OS-facing port)', () => {

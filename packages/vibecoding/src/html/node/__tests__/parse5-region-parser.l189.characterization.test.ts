@@ -3,7 +3,7 @@
 import { defaultTreeAdapter, html as parse5Html, parseFragment, type DefaultTreeAdapterTypes } from "parse5";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { createParse5RegionParser } from "../parse5-region-parser.js";
+import { createParse5RegionParser, scanHtmlRegions } from "../parse5-region-parser.js";
 
 // Real parse5 handles ordinary fixtures; only location-defense cases replace its tree output.
 vi.mock("parse5", async (importOriginal) => {
@@ -164,4 +164,24 @@ describe("L189 — region analysis characterization", () => {
       });
     },
   );
+
+  test("keeps distinct unlocated regions visible for diagnosis without treating their sentinel offsets as a clone", () => {
+    const fragment = defaultTreeAdapter.createDocumentFragment();
+    const html = '<div data-agent-element="summary"></div><aside data-agent-element="notes"></aside>';
+    for (const [tag, handle] of [["div", "summary"], ["aside", "notes"]] as const) {
+      defaultTreeAdapter.appendChild(fragment, defaultTreeAdapter.createElement(tag, parse5Html.NS.HTML, [
+        { name: "data-agent-element", value: handle },
+      ]));
+    }
+    vi.mocked(parseFragment).mockReturnValueOnce(fragment);
+    const scan = scanHtmlRegions({ html });
+    expect(scan.regions.map(region => [region.handle, region.tag, region.start, region.end])).toEqual([
+      ["summary", "div", -1, -1], ["notes", "aside", -1, -1],
+    ]);
+    expect(scan.regions.map(region => region.problem)).toEqual([
+      expect.stringContaining('region ("summary") could not be located'),
+      expect.stringContaining('region ("notes") could not be located'),
+    ]);
+    expect(scan.documentProblem).toBeUndefined();
+  });
 });
