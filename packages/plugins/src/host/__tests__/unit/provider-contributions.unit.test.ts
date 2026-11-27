@@ -137,6 +137,20 @@ describe('generation retirement and provider resources', () => {
     await lease!.dispose({}); await lease!.dispose({}); await host.dispose({});
     expect(lease!.isCurrent({})).toBe(false); expect(dispose).toHaveBeenCalledTimes(1);
   });
+  it('refuses an unknown contract, a factory result without dispose, and any initialize after shutdown', async () => {
+    const registry = createPluginContributionRegistry({});
+    const results: unknown[] = [null, { port: 'ok' }];
+    const factory = vi.fn(() => results.shift() as PluginProviderResource);
+    publish({ registry, factory });
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] });
+    await expect(host.initialize({ ...declaration, contract: 'missing', input: {} })).rejects.toThrow("unknown provider contract 'missing'");
+    expect(factory).not.toHaveBeenCalled();
+    await expect(host.initialize({ ...declaration, input: {} })).rejects.toThrow('provider factory must return { port, dispose }');
+    await expect(host.initialize({ ...declaration, input: {} })).rejects.toThrow('provider factory must return { port, dispose }');
+    await host.dispose({});
+    await expect(host.initialize({ ...declaration, input: {} })).rejects.toThrow('provider host is closed');
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
   it('hands a contract\'s domain context to the factory; host options win only for their own keys', async () => {
     const registry = createPluginContributionRegistry({});
     const factory = vi.fn(() => ({ port: 'ok', dispose() {} }));

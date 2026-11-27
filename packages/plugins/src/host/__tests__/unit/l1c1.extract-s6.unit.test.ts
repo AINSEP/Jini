@@ -36,6 +36,15 @@ test("admin DTO: missing tier falls back to tier-3; full quarantine and conflict
   assert.equal("providerSettings" in out, false);
 });
 
+test("admin DTO: providerSettings appears only when a declared provider has at least one setting", () => {
+  const withProviders = (providers: unknown[]) => ({ ...discovery, manifest: { contributes: { providers } } } as unknown as PluginDiscoveryRecord);
+  const configurable = toAdminPluginResponse({ discovery: withProviders([{ id: "a" }, { id: "b", settings: [{ key: "region" }] }]), activation: null });
+  assert.equal(configurable.providerSettings, true);
+  assert.equal(JSON.stringify(Object.keys(configurable).slice(-1)), '["providerSettings"]');
+  assert.equal("providerSettings" in toAdminPluginResponse({ discovery: withProviders([{ id: "a", settings: [] }, { id: "b" }]), activation: null }), false);
+  assert.equal("providerSettings" in toAdminPluginResponse({ discovery: { ...discovery, manifest: {} } as unknown as PluginDiscoveryRecord, activation: null }), false);
+});
+
 function fileEntry(entryPath: string, bytes: Uint8Array): PluginArchiveEntry {
   return { kind: "file", entryPath, declaredSize: bytes.byteLength, openReadStream: async function* () { yield bytes; } };
 }

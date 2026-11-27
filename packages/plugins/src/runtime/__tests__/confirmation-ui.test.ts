@@ -48,3 +48,19 @@ test("site plugin uninstall spec routes back to plugins_uninstall and names what
   assert.ok(spec.description?.includes("Trash for 60 days"));
   assert.equal(spec.danger, true);
 });
+
+test("a scoped enable discloses the plugin's own access row with its previous state, revision and extra resources", () => {
+  const scope = { personId: "owner", siteId: "site-1" } as never;
+  const full = describeEnableApproval({ subject: {
+    family: "site-runtime", pluginId: "shop", label: "Shop", previousEnabled: false, adds: ["content.read"], revision: "r7",
+    resources: [{ id: "table:orders", label: "Orders", previous: null, proposed: { read: true }, revision: null } as never],
+  }, scope });
+  assert.deepEqual(full.access?.resources, [
+    { id: "plugin:site-runtime:shop", label: "Shop", scope, previous: { enabled: false }, proposed: { enabled: true, family: "site-runtime", capabilities: ["content.read"] }, revision: "r7" },
+    { id: "table:orders", label: "Orders", previous: null, proposed: { read: true }, revision: null, scope },
+  ]);
+  const bare = describeEnableApproval({ subject: { family: "agent-plugin", pluginId: "bare" }, scope });
+  assert.deepEqual(bare.access?.resources, [
+    { id: "plugin:agent-plugin:bare", label: "bare", scope, previous: { enabled: null }, proposed: { enabled: true, family: "agent-plugin", capabilities: [] }, revision: null },
+  ]);
+});
