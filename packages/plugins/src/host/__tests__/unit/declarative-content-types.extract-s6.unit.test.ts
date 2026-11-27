@@ -93,6 +93,57 @@ describe('createDeclarativeContentTypes with a second host', () => {
     expect(rules.parse({ value: tooMany }).errors.map((e) => e.message)).toEqual(["'contentTypes' declares more than 20 content types"]);
   });
 
+  it('reports non-boolean flags, bad field names, too many queryable fields, duplicate fields and duplicate keys', () => {
+    const rules = createDeclarativeContentTypes({ cms: secondCms, reservedKeys: [] }, {});
+    const letters = (i: number) => `x${'abcdefghijklmnopqrstuvwxyz'[i]}`;
+    const queryable = Array.from({ length: 21 }, (_, i) => ({ name: letters(i), kind: 'text', queryable: true }));
+    const { decls, errors } = rules.parse({ value: [
+      { key: 'xflag', label: 'Flag', fields: [{ name: 'xbody', kind: 'text', required: 'yes', queryable: 1 }] },
+      { key: 'xname', label: 'Name', fields: [{ name: 'Bad', kind: 'text' }, { kind: 'text' }] },
+      { key: 'xmany', label: 'Many', fields: queryable },
+      { key: 'xdup', label: 'Dup', fields: [{ name: 'xbody', kind: 'text' }, { name: 'xbody', kind: 'json' }, { name: 'xbody', kind: 'text' }] },
+      decl('xtwin'),
+      decl('xtwin'),
+    ] });
+    expect(errors.map((e) => [e.code, e.message])).toEqual([
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xflag' field 'xbody' 'required' must be a boolean"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xflag' field 'xbody' 'queryable' must be a boolean"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xname' field name 'Bad' must match x + 1-8 lowercase letters"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xname' field name 'undefined' must match x + 1-8 lowercase letters"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xmany' declares 21 queryable fields; at most 20 are allowed"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type 'xdup' declares field 'xbody' more than once"],
+      ['CONTENT_TYPE_DECL_INVALID', "content type key 'xtwin' is declared more than once"],
+    ]);
+    // Exactly the bound is fine: 20 queryable fields parse cleanly.
+    expect(rules.parse({ value: [{ key: 'xedge', label: 'Edge', fields: queryable.slice(0, 20) }] }).errors).toEqual([]);
+    expect(decls.map((d) => d.key)).toEqual(['xtwin', 'xtwin']);
+  });
+
+  it('treats an absent list as no declarations and refuses non-array lists and non-object entries', () => {
+    const rules = createDeclarativeContentTypes({ cms: secondCms, reservedKeys: [] }, {});
+    expect(rules.parse({ value: undefined })).toEqual({ decls: [], errors: [] });
+    expect(rules.parse({ value: null })).toEqual({ decls: [], errors: [] });
+    expect(rules.parse({ value: { key: 'xone' } }).errors.map((e) => e.message)).toEqual(["'contentTypes' must be an array"]);
+    const { decls, errors } = rules.parse({ value: ['xnope', { key: 'xbad', label: 'Bad', fields: [7] }] });
+    expect(decls).toEqual([]);
+    expect(errors.map((e) => e.message)).toEqual(['contentTypes[0] must be an object', "content type 'xbad' field 0 must be an object"]);
+  });
+
+  it('applies the code-surface rule to tier-1 only: a tier-2 manifest gets just the declaration result', () => {
+    const rules = createDeclarativeContentTypes({ cms: secondCms, reservedKeys: [] }, {});
+    const result = rules.validateManifest({ manifest: { tier: 'tier-2', hooks: ['h'], contentTypes: [decl('xok')] } });
+    expect(result.errors).toEqual([]);
+    expect(result.decls.map((d) => d.key)).toEqual(['xok']);
+  });
+
+  it('plans a conflict when an existing type lacks a declared field', async () => {
+    const rules = createDeclarativeContentTypes({ cms: secondCms, reservedKeys: [] }, {});
+    const s = store([record('xold', [{ name: 'xother', kind: 'text', required: false, queryable: false }])]);
+    const plan = await rules.plan({ ports: s.ports, workspaceId: 'ws', decls: rules.parse({ value: [decl('xold')] }).decls });
+    expect(plan).toEqual({ items: [], conflicts: ["content type 'xold' already exists without field 'xbody'"] });
+    expect(s.writes).toEqual([]);
+  });
+
   it('plans read-only, keeps owner-added fields, skips tombstones, and a conflict writes nothing', async () => {
     const rules = createDeclarativeContentTypes({ cms: secondCms, reservedKeys: [] }, {});
     const s = store([
