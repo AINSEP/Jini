@@ -109,3 +109,7 @@ describe('loopback HTTP readiness over real TLS', () => {
     expect(paths).toEqual(['/readyz']);
   });
 });
+
+it('never treats a non-HTTP loopback URL with an explicit port as ready', async () => {
+  expect(await probeLoopbackHttp({ url: 'ftp://127.0.0.1:43299/readyz' })).toBe(false);
+});

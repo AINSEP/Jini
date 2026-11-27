@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { onTestFinished, test } from 'vitest';
+import { onTestFinished, test, vi } from 'vitest';
 import { measureStorageTree, nodeStorageTreeFs, type StorageTreeDirectory, type StorageTreeFs, type StorageTreeStats } from '../measure-tree.js';
 
 async function tempTree(): Promise<string> {
@@ -346,4 +346,41 @@ test.skipIf(process.platform !== 'linux')('on Linux, child metadata comes from t
   };
   const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: racing });
   assert.equal(result.targets.uploads!.bytes, 10);
+});
+
+test.each([
+  { code: 'ENOENT', bytes: 0, unknown: false },
+  { code: 'EIO', bytes: null, unknown: true },
+])('a $code during directory listing is accounted for and still closes the handle', async ({ code, bytes, unknown }) => {
+  const root = await tempTree();
+  let closed = 0;
+  const result = await measureStorageTree({ root, targets: [] }, {
+    fs: {
+      lstat: nodeStorageTreeFs.lstat,
+      openDirectory: async target => {
+        const directory = await nodeStorageTreeFs.openDirectory(target);
+        return { ...directory, list: async () => { throw Object.assign(new Error('directory read failed'), { code }); },
+          close: async () => { await directory.close(); closed++; } };
+      },
+    },
+  });
+  assert.deepEqual(result.total, { bytes, knownBytes: 0, files: 0, unknownPaths: unknown ? [root] : [], skippedSymlinks: [] });
+  assert.equal(closed, 1);
+});
+
+test('the Node adapter closes a newly opened descriptor when metadata inspection fails', async () => {
+  const root = await tempTree();
+  const handle = await fs.open(root, 'r');
+  const failure = Object.assign(new Error('descriptor metadata unavailable'), { code: 'EIO' });
+  const stat = vi.spyOn(handle, 'stat').mockRejectedValueOnce(failure);
+  const open = vi.spyOn(fs, 'open').mockResolvedValueOnce(handle);
+  try {
+    await assert.rejects(nodeStorageTreeFs.openDirectory(root), error => error === failure);
+    assert.deepEqual(stat.mock.calls, [[]]);
+    assert.equal(handle.fd, -1);
+  } finally {
+    open.mockRestore();
+    stat.mockRestore();
+    if (handle.fd !== -1) await handle.close();
+  }
 });

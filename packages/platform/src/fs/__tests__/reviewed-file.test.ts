@@ -1,4 +1,7 @@
 import { constants } from "node:fs";
+import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { readReviewedFile, type ReviewedFileSystem } from "../reviewed-file.js";
 
@@ -44,4 +47,60 @@ describe("reviewed file reads", () => {
     const f = fixture(); f.ids.nlink = 2n; f.file.nlink = 2;
     expect(await readReviewedFile({ file: f.file }, { fileSystem: f.fs })).toEqual(Buffer.from("page"));
   });
+});
+
+it("rejects a short descriptor read even when the reviewed metadata still matches", async () => {
+  const f = fixture();
+  f.handle.readFile.mockResolvedValue(Buffer.from("pag"));
+  expect(await readReviewedFile({ file: f.file }, { fileSystem: f.fs })).toBeNull();
+  expect(f.handle.close).toHaveBeenCalledOnce();
+});
+
+it("returns no bytes if the reviewed path disappears before open", async () => {
+  const f = fixture();
+  f.fs.open = async () => { throw Object.assign(new Error("file removed"), { code: "ENOENT" }); };
+  expect(await readReviewedFile({ file: f.file }, { fileSystem: f.fs })).toBeNull();
+  expect(f.handle.readFile).not.toHaveBeenCalled();
+});
+
+it("closes the reviewed descriptor while propagating a read error unchanged", async () => {
+  const f = fixture();
+  const failure = Object.assign(new Error("device read failed"), { code: "EIO" });
+  f.handle.readFile.mockRejectedValue(failure);
+  await expect(readReviewedFile({ file: f.file }, { fileSystem: f.fs })).rejects.toBe(failure);
+  expect(f.handle.close).toHaveBeenCalledOnce();
+});
+
+it.each(["root itself", "sibling", "missing ancestor", "non-directory ancestor", "changed size", "changed mtime"])(
+  "refuses a reviewed file with %s before reading its contents",
+  async reason => {
+    const f = fixture();
+    if (reason === "root itself") f.file.absPath = f.file.root;
+    if (reason === "sibling") f.file.absPath = "/site-other/themes/a";
+    if (reason === "missing ancestor") f.fs.lstat = async () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); };
+    if (reason === "non-directory ancestor") f.fs.lstat = async () => ({ ...f.ids, isSymbolicLink: () => false, isDirectory: () => false });
+    if (reason === "changed size") f.file.bytes = 5;
+    if (reason === "changed mtime") f.file.mtimeMs = 3;
+    expect(await readReviewedFile({ file: f.file }, { fileSystem: f.fs })).toBeNull();
+    expect(f.handle.readFile).not.toHaveBeenCalled();
+    expect(f.handle.close).toHaveBeenCalledOnce();
+  },
+);
+
+it("reopens a real reviewed file with the default filesystem and refuses it after the bytes change", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "reviewed-file-"));
+  try {
+    const root = await realpath(dir);
+    const absPath = join(root, "original");
+    await writeFile(absPath, Buffer.from([1, 255, 2]));
+    const stat = await lstat(absPath);
+    const exact = await lstat(absPath, { bigint: true });
+    const file = { root, absPath, bytes: stat.size, mtimeMs: stat.mtimeMs, nlink: stat.nlink,
+      identity: exact.ino === 0n ? null : `${exact.dev}:${exact.ino}` };
+    expect(await readReviewedFile({ file })).toEqual(Buffer.from([1, 255, 2]));
+    await writeFile(absPath, Buffer.from([7, 6, 5, 4]));
+    expect(await readReviewedFile({ file })).toBeNull();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

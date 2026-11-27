@@ -2906,3 +2906,21 @@ describe("managed download engine — refactor pins", () => {
     }
   });
 });
+
+it("preserves a held same-process download lock when both timestamps are unusable", async () => {
+  const basePath = join(tmpRoot("live-lock-no-clock"), "downloads");
+  const bucket = "updates", fileName = "installer.bin";
+  await inspectManagedDownload({ basePath, bucket, fileName });
+  const path = lockPath(basePath, bucket, fileName);
+  const record = JSON.stringify({ pid: process.pid, createdAt: "unavailable", processStartedAt: "unknown" });
+  writeFileSync(path, record);
+  const fetchImpl = vi.fn(async () => { throw new Error("contended download must not reach the network"); });
+  await expect(managedDownload({
+    basePath, bucket, fileName, fetch: fetchImpl,
+    payload: { checksum: { algorithm: "sha256", value: sha256("fixture") }, url: "https://example.test/installer.bin" },
+  })).rejects.toMatchObject({
+    code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, message: "download target is locked: updates/installer.bin",
+  });
+  expect(fetchImpl.mock.calls).toEqual([]);
+  expect(readFileSync(path, "utf8")).toBe(record);
+});

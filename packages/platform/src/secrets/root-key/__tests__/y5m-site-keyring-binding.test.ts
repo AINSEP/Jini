@@ -91,3 +91,20 @@ it('translates only the real underlying unusable-key identity', async () => {
     else await expect(deriving).rejects.toBe(impostor);
   }
 });
+
+it('explains invalid material without echoing it and shows recovery warnings only where promised', async () => {
+  const f = fixture();
+  const env = (raw: string) => new f.bound.EnvOrFileKeyring({ sources: [{ kind: 'env' }] }, { env: () => ({ KEY: raw }) });
+  const sign = { workspaceId: 'work', subscriptionId: 'sub', version: 1 };
+  await expect(env('private-invalid-key').deriveSigningSecret(sign)).rejects.toMatchObject({
+    name: 'UnusableSiteKeyError', source: 'env', reason: 'not-hex', message: 'KEY: not hex',
+  });
+  await expect(env('aa').deriveSigningSecret(sign)).rejects.toMatchObject({
+    name: 'UnusableSiteKeyError', source: 'env', reason: 'too-short', message: 'KEY: short 2 sealed with this value',
+  });
+  const file = { kind: 'file', path: '/keys/site.hex' };
+  const bound = bindSiteKeyrings({ ...f.required, readSourceMaterial: () => ({ raw: '' }) });
+  await expect(new bound.EnvOrFileKeyring({ sources: [file] }).deriveSigningSecret(sign)).rejects.toMatchObject({
+    name: 'UnusableSiteKeyError', source: 'file', reason: 'empty', message: 'the site key file at /keys/site.hex: empty sealed with this file',
+  });
+});

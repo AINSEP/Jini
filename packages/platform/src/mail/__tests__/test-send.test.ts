@@ -154,3 +154,68 @@ test("planMailTestSend: the host's placeholder sender is the fallback handed to 
   assert.deepEqual((await planMailTestSend({ deps, principalId: "owner" })).approval.from, { email: "no-reply@mail.local", name: "Host" });
   assert.deepEqual(fallbacks, [{ email: "no-reply@mail.local", name: "Host" }]);
 });
+
+test.each([
+  { mode: { mode: "capture" } as const, messageId: "captured:local-1",
+    outcome: { outcome: "captured", where: "capture", providerMessageId: "captured:local-1" } },
+  { mode: { mode: "redirect", to: "qa@example.com" } as const, messageId: "smtp-1",
+    outcome: { outcome: "redirected", redirectedTo: "qa@example.com", providerMessageId: "smtp-1" } },
+])("reports $mode.mode without calling it ordinary acceptance", async ({ mode, messageId, outcome }) => {
+  const mailer = mailerWith(ok(messageId));
+  const deps = depsWith({ mailer, mailTestMode: async () => mode });
+  const prepared = await planMailTestSend({ deps, principalId: "owner" });
+  assert.deepEqual(await runMailTestSend({ deps, principalId: "owner", plan: prepared, ref: "mode-test" }, { now: () => T0 }),
+    { to: "owner@example.com", from: "site@example.com", driver: "smtp", at: "2026-10-22T10:00:00.000Z", ...outcome });
+  const [sent] = mailer.sent as Array<{ options: { mailTestApproval: MailTestSendPlan["approval"] } }>;
+  assert.deepEqual(sent?.options.mailTestApproval, { providerId: null, driver: "smtp", from: { email: "site@example.com", name: "Site" },
+    mode: mode.mode, effectiveRecipient: mode.mode === "redirect" ? "qa@example.com" : "owner@example.com" });
+});
+
+test("an approval that no longer matches the provider refuses delivery and a freshly prepared retry can send", async () => {
+  let provider = "first";
+  const mailer = mailerWith(ok());
+  const limiterCalls: unknown[] = [];
+  const deps = depsWith({ mailer, mailTestRequests: new Map(), mailTestProvider: async () => provider,
+    mailTestSendLimiter: { tryTake: required => { limiterCalls.push(required); return { ok: true }; } } });
+  const input = { deps, principalId: "owner", ref: "same-request" };
+  const stale = await planMailTestSend(input);
+  provider = "second";
+  await assert.rejects(runMailTestSend({ ...input, plan: stale }), {
+    name: "ToolInputError", message: "Mail configuration changed since approval. Prepare a new test-send approval; nothing was sent.",
+  });
+  assert.deepEqual(mailer.sent, []);
+  assert.deepEqual(limiterCalls, []);
+  const fresh = await planMailTestSend(input);
+  const sent = await runMailTestSend({ ...input, plan: fresh }, { now: () => T0 });
+  assert.deepEqual(await runMailTestSend({ ...input, plan: fresh }), sent);
+  assert.equal(sent.outcome, "accepted");
+  assert.equal(mailer.sent.length, 1);
+  assert.deepEqual(limiterCalls, [{ principalId: "owner", to: "owner@example.com" }]);
+});
+
+test("the full request cache drops the oldest outcome but retains replay of newer requests", async () => {
+  const mailer = mailerWith(ok());
+  const completed = Promise.resolve({ to: "owner@example.com", from: "site@example.com", driver: "smtp", at: "2026-10-22T10:00:00.000Z",
+    outcome: "accepted", providerMessageId: "earlier" } as const);
+  const requests = new Map<string, ReturnType<typeof runMailTestSend>>();
+  for (let i = 0; i < 4096; i++) requests.set(`owner:ref-${i}`, completed);
+  const deps = depsWith({ mailer, mailTestRequests: requests });
+  const input = { deps, principalId: "owner", plan: plan() };
+  const sent = await runMailTestSend({ ...input, ref: "newest" }, { now: () => T0 });
+  assert.equal(requests.size, 4096);
+  assert.equal(requests.has("owner:ref-0"), false);
+  assert.deepEqual(await runMailTestSend({ ...input, ref: "ref-1" }), await completed);
+  assert.deepEqual(await runMailTestSend({ ...input, ref: "newest" }), sent);
+  assert.equal(mailer.sent.length, 1);
+});
+
+test("an uncertain provider outcome is not retryable and exposes only fixed recovery copy", async () => {
+  const mailer = mailerWith({ ok: false, unknown: true, retryable: true, errorCode: "MAIL_PROVIDER_UNAVAILABLE",
+    message: "Untrusted provider diagnostic", retryAfterMs: 750 });
+  const deps = depsWith({ mailer });
+  assert.deepEqual(await runMailTestSend({ deps, principalId: "owner", plan: plan(), ref: "uncertain" }, { now: () => T0 }), {
+    to: "owner@example.com", from: "site@example.com", driver: "smtp", at: "2026-10-22T10:00:00.000Z",
+    outcome: "unknown", errorCode: "MAIL_PROVIDER_UNAVAILABLE", message: "The configured mail provider is unavailable. Check its configuration.",
+    retryable: false, retryAfterMs: 750,
+  });
+});

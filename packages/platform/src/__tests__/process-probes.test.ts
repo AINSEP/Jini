@@ -281,3 +281,30 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
   });
 });
 
+
+it('enumeration treats a malformed PowerShell response as unavailable even when the command exits successfully', async () => {
+  const run = vi.fn(async () => ({ code: 0, error: null, ok: true, stderr: '', stdout: '[{"ProcessId":101,' }));
+  await expect(listProcessSnapshots({ platform: 'win32', run }, { commandLines: false, timeoutMs: 400 })).resolves.toEqual([]);
+  expect(run).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(POWERSHELL_PATH), [
+    '-NoProfile', '-NonInteractive', '-Command',
+    "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name | ConvertTo-Json -Compress",
+  ], { encoding: 'utf8', timeout: 400, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+});
+
+it('does not interpret preamble text as footprint rows when top omits the PID/MEM header', async () => {
+  const run = async () => ({ ok: true, stdout: 'Processes: 123 total\n81 17M\n34 2G\n', stderr: '', code: 0, error: null });
+  const result = await sampleProcessPrivateMemory({ pids: [81, 34], platform: 'darwin', run });
+  expect(result).toEqual({ metric: 'physical-footprint', readings: [{ pid: 81, bytes: null }, { pid: 34, bytes: null }] });
+});
+
+it('rejects invalid Windows sample limits before a probe and keeps a valid bounded PID sample', async () => {
+  const run = vi.fn(async () => ({ code: 0, error: null, ok: true, stderr: '',
+    stdout: '[{"IDProcess":0,"WorkingSetPrivate":23},{"IDProcess":"89","WorkingSetPrivate":"2048"}]' }));
+  for (const maxPids of [0, -1, 0.5, Number.NaN]) {
+    await expect(sampleProcessPrivateMemory({ pids: [], platform: 'win32', run }, { maxPids })).rejects.toThrow(new RangeError('process sample exceeds PID limit'));
+  }
+  expect(run.mock.calls).toEqual([]);
+  await expect(sampleProcessPrivateMemory({ pids: [89], platform: 'win32', run }, { maxPids: 1 })).resolves.toEqual({
+    metric: 'private-working-set', readings: [{ pid: 89, bytes: 2048 }],
+  });
+});

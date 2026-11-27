@@ -63,3 +63,36 @@ test("mailUseReadinessDepsFrom builds the gate deps only with an origin registry
   const gate = mailUseReadinessDepsFrom({ ...base, originRegistry: gateDeps.originRegistry, newsletterCampaignRepo: {} }).newsletterLaunchGate!;
   assert.deepEqual([await gate.isSendingEnabled("ws"), gate.consentCapability, gate.originRegistry, gate.mailer], [false, null, gateDeps.originRegistry, base.mailer]);
 });
+
+test("delivery evidence stays separate from readiness and survives an unrelated projection failure", async () => {
+  const activityCalls: unknown[] = [];
+  const rows = await byUse(deps({
+    mailSenderIdentity: { resolve: async ({ workspaceId, fallback }) => {
+      assert.equal(workspaceId, "ws");
+      assert.deepEqual(fallback, { email: "no-reply@site.local" });
+      return { email: "hello@site.test" };
+    } },
+    mailActivity: { list: async (required, optional) => {
+      activityCalls.push([required, optional]);
+      if (optional?.use === "form_notification") throw new Error("Activity disk unavailable");
+      assert.equal(optional?.use, "sign_in");
+      return [{ cursorKey: "activity-1", idempotencyKey: "members:link:1", recipient: "user@example.test",
+        lane: "transactional", providerId: "smtp", use: "sign_in", outcome: "bounced", providerMessageId: "msg-1",
+        errorCode: null, message: null, createdAt: "2026-10-21T09:00:00.000Z", updatedAt: "2026-10-21T10:00:00.000Z" }];
+    } },
+    mailPurposeGate: async ({ capabilityName }) => capabilityName !== "forms",
+  }));
+  assert.deepEqual(activityCalls, [[{ workspaceId: "ws", limit: 1 }, { use: "sign_in" }], [{ workspaceId: "ws", limit: 1 }, { use: "form_notification" }]]);
+  assert.deepEqual([rows.sign_in!.state, rows.sign_in!.evidence], ["ready", { outcome: "bounced", at: "2026-10-21T10:00:00.000Z" }]);
+  assert.deepEqual([rows.form_notifications!.state, rows.form_notifications!.reasons, rows.form_notifications!.evidence],
+    ["blocked", ["durable_outbox_not_ready"], null]);
+});
+
+test("unexpected sender failures produce unknown, not a configuration diagnosis", async () => {
+  const rows = await byUse(deps({
+    mailSenderIdentity: { resolve: async () => { throw new Error("Sender backend unavailable"); } },
+    mailActivity: { list: async () => [] },
+  }));
+  assert.deepEqual([rows.sign_in!.state, rows.sign_in!.reasons, rows.sign_in!.sender, rows.sign_in!.evidence],
+    ["unknown", ["check_failed"], null, null]);
+});

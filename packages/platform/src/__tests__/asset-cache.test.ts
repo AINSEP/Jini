@@ -523,3 +523,11 @@ describe('createAssetCache', () => {
     expect(out.buf.byteLength).toBe(4);
   });
 });
+
+it.each([
+  'https://[not-an-ip]/hero.png',
+  'https://cdn.example.com/download?file=hero.png',
+  'https://cdn.example.com/download#hero.png',
+])('does not treat an image suffix in %s as sufficient for cache eligibility', raw => {
+  expect(isCacheableExternalUrl({ raw })).toBe(false);
+});

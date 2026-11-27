@@ -396,3 +396,17 @@ test("effectiveProviderId follows a setting change made after the first resoluti
   host.setting.value = { transactional: "console", bulk: "console" };
   assert.equal(await resolved.effectiveProviderId?.({ lane: "transactional" }), "console");
 });
+
+test("unreadable sender settings make DNS requirements unavailable without a provider read", async () => {
+  const host = fixture();
+  const requirements = vi.fn(async (): Promise<ProviderResult<DomainRequirement>> => {
+    throw new Error("No domain operation may run without a configured sender");
+  });
+  domainProvider({ provider: host.provider, requirements });
+  const readSenderEmail = vi.fn(async () => { throw new Error("sender settings temporarily unavailable"); });
+  const resolved = host.create({ readSenderEmail });
+  await resolved.ready;
+  assert.equal(await resolved.domainRequirements({ workspaceId: WS }), null);
+  assert.deepEqual(readSenderEmail.mock.calls, [[]]);
+  assert.deepEqual(requirements.mock.calls, []);
+});

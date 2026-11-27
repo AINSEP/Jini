@@ -152,3 +152,10 @@ test("send sanitizer removes active data URLs, navigation, forms and linked styl
   assert.match(safe, /data:image\/png;base64,AAAA/);
   assert.match(safe, /name="viewport"/); assert.match(safe, /<style>/); assert.match(safe, /<p>kept<\/p>/);
 });
+
+test("an inline SVG tooltip never supplies the email subject", () => {
+  const svg = '<svg><title>Only a tooltip</title><text>Logo</text></svg>';
+  assert.deepEqual(readTemplateDeclarations({ html: svg }), { subject: "", fields: [] });
+  assert.deepEqual(readTemplateDeclarations({ html: `<title>Order received</title>${svg}` }),
+    { subject: "Order received", fields: [] });
+});

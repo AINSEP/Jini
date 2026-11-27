@@ -149,3 +149,24 @@ it.each([
     for (const detail of ['sample-share-code', 'sample-query', 'sample-password', '/private']) expect(text).not.toContain(detail);
   }
 });
+
+it('keeps the caller rejection if both timeout and caller are already aborted when fetch rejects', async () => {
+  const timeout = new AbortController();
+  const caller = new AbortController();
+  const reason = new Error('caller cancelled during response cleanup');
+  const timeoutSignal = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+  try {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, options) => {
+      caller.abort(reason);
+      expect(options?.signal?.reason).toBe(reason);
+      timeout.abort(new DOMException('deadline reached', 'TimeoutError'));
+      throw reason;
+    });
+    const operation = fetchWithTimeout({ url: 'https://example.test/slow', timeoutMs: 431, fetch }, { init: { signal: caller.signal } });
+    await expect(operation).rejects.toBe(reason);
+    expect(timeoutSignal).toHaveBeenCalledExactlyOnceWith(431);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('https://example.test/slow', { signal: expect.any(AbortSignal) });
+  } finally {
+    timeoutSignal.mockRestore();
+  }
+});

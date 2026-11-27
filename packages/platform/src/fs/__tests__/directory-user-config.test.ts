@@ -164,3 +164,13 @@ describe("validateDirectoryUserConfig", () => {
     expect(validateDirectoryUserConfig({ value: {} })).toEqual({});
   });
 });
+
+it("reports the configured canonical default roots once and separates environment extras from saved settings", () => {
+  const saved = P("/persisted"), override = P("/override"), builtIn = P("/builtin");
+  const w = world({ policy: { sourceRoots: [builtIn, builtIn] }, env: { P_ROOTS: " /override , , /override " } });
+  w.json(CONFIG, { siteRoots: [saved] });
+  expect(w.config.defaultRoots({})).toEqual([builtIn]);
+  expect(w.config.extraRoots({})).toEqual([override]);
+  expect(w.config.roots({})).toEqual([P(`${HOME}/Documents/Product`), builtIn, override]);
+  expect(w.files.get(CONFIG)).toEqual({ state: "ok", value: { siteRoots: [saved] } });
+});

@@ -98,3 +98,26 @@ test("release by the owning token removes the lease under the lock", () => {
   lock.release({ token: "first" });
   expect(removals()).toBe(1); expect(locks()).toBe(1);
 });
+
+test("release rechecks under exclusion and leaves a successor's claim intact", () => {
+  const successor = { ...record, pid: 11, token: 'successor', port: 4444 };
+  let durable = storedRecord(record);
+  let lockAcquisitions = 0;
+  const file: DurableJsonFile = {
+    read: () => durable, tempPath: () => 'unused', quarantine: () => false,
+    write: ({ value }) => { durable = storedRecord(value); },
+    withLock: ({ critical }) => { lockAcquisitions++; durable = storedRecord(successor); return critical(); },
+  };
+  const lock = createDirectoryRunningLock({ file, isAlive: () => true, remove: () => { durable = { state: 'missing' }; } });
+  lock.release({ token: record.token });
+  expect(lockAcquisitions).toBe(1);
+  expect(lock.peek({})).toEqual(successor);
+});
+
+test("releasing an owned lease refuses a corrupted address instead of deleting it", () => {
+  const corrupt = storedRecord({ ...record, port: 'invalid' });
+  const { lock, stored, removals } = fixture({ stored: corrupt });
+  expect(() => lock.release({ token: record.token })).toThrow(INVALID);
+  expect(stored()).toBe(corrupt);
+  expect(removals()).toBe(0);
+});

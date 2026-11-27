@@ -2,12 +2,12 @@ import { expect, it, vi } from "vitest";
 import { buildWebRegistrations, contributeWebTools } from "../tool-registrations.js";
 import type { WebFetchResult } from "../web-page.js";
 
-function fixture() {
+function fixture(screenshot?: WebFetchResult['screenshot']) {
   const budget = { used: 0 };
   const ports = { budget, client: "base" };
   const page: WebFetchResult = { requestedUrl: "https://example.test", finalUrl: "https://example.test", status: 200,
     contentType: "text/plain", format: "text", content: "prefix ".repeat(100) + "needle", truncated: false,
-    links: [], linksTruncated: false, images: [], imagesTruncated: false, stylesheets: [], meta: {}, fetchedAt: "stamp", untrusted: true, untrustedNotice: "Untrusted" };
+    links: [], linksTruncated: false, images: [], imagesTruncated: false, stylesheets: [], meta: {}, fetchedAt: "stamp", untrusted: true, untrustedNotice: "Untrusted", ...(screenshot ? { screenshot } : {}) };
   const fetchPage = vi.fn(async ({ input, ports }: { input: { maxChars: number }; ports: { budget: { used: number }; client: string } }) => {
     ports.budget.used++;
     return { ...page, content: page.content.slice(0, input.maxChars), truncated: page.content.length > input.maxChars };
@@ -41,4 +41,21 @@ it("find can see a match beyond the output window", async () => {
   const tool = buildWebRegistrations({ routeDeps: { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "granted" }) }, ports: f.ports, host: f.host })[0]!;
   const result = await tool.handler({ ...f.ctx, input: { ...f.ctx.input, find: "needle" } });
   expect(result).toMatchObject({ matchCount: 1, matches: [{ offset: 700, snippet: "needle" }] });
+});
+
+it('emits screenshot bytes once as image content and keeps truncation in the accompanying text facts', async () => {
+  const f = fixture({ mimeType: 'image/jpeg', data: 'aW1hZ2U=' });
+  const routes = { workspaceId: 'ws', authorize: async () => ({ allowed: true, reason: 'granted' }) };
+  const tool = buildWebRegistrations({ routeDeps: routes, ports: f.ports, host: f.host })[0]!;
+  const reply = await tool.handler(f.ctx) as { content: [{ type: 'text'; text: string }, { type: 'image'; mimeType: string; data: string }] };
+  expect(reply.content).toHaveLength(2);
+  const [text, image] = reply.content;
+  expect(text.type).toBe('text');
+  expect(JSON.parse(text.text)).toEqual({
+    requestedUrl: 'https://example.test', finalUrl: 'https://example.test', status: 200,
+    contentType: 'text/plain', format: 'text', content: 'prefix pre', truncated: true, links: [],
+    linksTruncated: false, images: [], imagesTruncated: false, stylesheets: [], meta: {},
+    fetchedAt: 'stamp', untrusted: true, untrustedNotice: 'Untrusted',
+  });
+  expect(image).toEqual({ type: 'image', mimeType: 'image/jpeg', data: 'aW1hZ2U=' });
 });

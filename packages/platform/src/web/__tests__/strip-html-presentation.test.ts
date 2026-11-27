@@ -23,3 +23,8 @@ test("handles fragments, missing hrefs, malformed markup and repeated style regi
   const html = '<!-- keep --><div class=x data-consent=necessary hidden>ok</div>';
   expect(stripHtmlPresentation({ html })).toBe(html);
 });
+
+test("a repeated formatting node removes its source-range once without dropping adjacent content", () => {
+  const html = '<b style="color:red">one<div>two</b>three</div><link rel="icon" href="/icon">';
+  expect(stripHtmlPresentation({ html })).toBe('<b >one<div>two</b>three</div><link rel="icon" href="/icon">');
+});

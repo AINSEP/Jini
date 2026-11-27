@@ -127,3 +127,13 @@ test.each(["duplicate", "version", "extra-field", "format"])("rejects an authent
   if (mode === "format") doc.format = "other";
   await rejected(doc);
 });
+
+test.each([
+  { id: '' }, { ownerKey: 7 }, { label: '' }, { meta: [] }, { payload: 'invalid' }, { isDefault: 1 },
+])("refuses an authenticated owner backup with an invalid entry field %j", async patch => {
+  const doc = publishedV1();
+  doc.entries[0] = { ...entryView(first), ...patch };
+  await expect(readLegacyOwnerBackup({ envelope: await seal(doc), passphrase: "recovery" })).rejects.toMatchObject({
+    name: "OwnerStoreBackupError", code: "invalid-backup", message: "Owner store backup: invalid-backup",
+  });
+});

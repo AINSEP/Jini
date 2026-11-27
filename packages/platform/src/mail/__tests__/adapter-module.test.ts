@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, test, vi } from "vitest";
-import type { HttpClientPort } from "@jini-ai/core/primitives";
+import { toPluginHttpClient } from "../plugin-abi.js";
+import type { HttpClientPort, HttpRequest } from "@jini-ai/core/primitives";
 import { createMailAdapterContext, type MailProviderModule, type MailerSendRequired } from "../index.js";
 
 const credential = Object.freeze({ token: "test-sending-key" });
@@ -124,4 +125,16 @@ describe("mail module create context", () => {
     const context = createMailAdapterContext(input, { now, settings: { region: 42 } });
     assert.throws(() => provider.create(context), /Invalid provider setting/);
   });
+});
+
+test("the positional plugin HTTP ABI passes the request and redirect policy to the guarded client", async () => {
+  const request: HttpRequest = {
+    method: "POST", url: "https://mail.example.test/status", headers: { "content-type": "text/plain" },
+    body: "provider request", idleTimeoutMs: 400, signal: new AbortController().signal,
+  };
+  const response = { status: 307, headers: { location: "/another-endpoint" }, bodyText: "" };
+  const send = vi.fn<HttpClientPort["send"]>(async () => response);
+  const client = toPluginHttpClient({ httpClient: { send } });
+  assert.equal(await client.send(request, { redirect: "manual" }), response);
+  assert.deepEqual(send.mock.calls, [[{ request }, { redirect: "manual" }]]);
 });

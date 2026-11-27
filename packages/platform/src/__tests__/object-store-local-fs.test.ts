@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -120,5 +120,67 @@ describe('createLocalFsObjectStore', () => {
     if (created.status !== 'ok') return;
     await created.value.put({ key: 'k', bytes: bytes('v') });
     expect(readFileSync(join(rootDir, 'k'), 'utf8')).toBe('v');
+  });
+});
+
+describe('local staged writes', () => {
+  const sha256 = '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824';
+  const chunks = async function* () { yield bytes('he'); yield bytes('llo'); };
+
+  let rootDir: string;
+  beforeEach(() => { rootDir = mkdtempSync(join(tmpdir(), 'jini-staged-object-')); });
+  afterEach(() => { rmSync(rootDir, { recursive: true, force: true }); });
+
+  it('does not replace the previous object until all chunks pass verification', async () => {
+    const store = createLocalFsObjectStore({ rootDir });
+    const writer = await store.resolveStagedWriter?.({});
+    if (!writer) throw new Error('Local store did not supply a staged writer');
+    await store.put({ key: 'file', bytes: bytes('old') });
+    const signal = new AbortController().signal;
+    await writer({ key: 'file', byteLength: 5, sha256, openChunks: async function* (input, options) {
+      expect(input).toEqual({});
+      expect(options).toEqual({ signal });
+      yield bytes('he');
+      expect(await store.get({ key: 'file' })).toEqual(bytes('old'));
+      yield bytes('llo');
+    } }, { signal });
+    expect(await store.get({ key: 'file' })).toEqual(bytes('hello'));
+    expect(await store.head({ key: 'file' })).toEqual({ size: 5 });
+    expect(readdirSync(rootDir)).toEqual(['file']);
+  });
+
+  it.each([
+    { byteLength: 4, digest: sha256, message: 'staged object length mismatch' },
+    { byteLength: 6, digest: sha256, message: 'staged object verification failed' },
+    { byteLength: 5, digest: 'a'.repeat(64), message: 'staged object verification failed' },
+  ])('does not replace the old object or leave staging debris on a failed length/digest check ($byteLength, $digest)', async ({ byteLength, digest, message }) => {
+    const store = createLocalFsObjectStore({ rootDir });
+    const writer = await store.resolveStagedWriter?.({});
+    if (!writer) throw new Error('Local store did not supply a staged writer');
+    await store.put({ key: 'file', bytes: bytes('old') });
+    await expect(writer({ key: 'file', byteLength, sha256: digest, openChunks: chunks })).rejects.toThrow(message);
+    expect(await store.get({ key: 'file' })).toEqual(bytes('old'));
+    expect(readdirSync(rootDir)).toEqual(['file']);
+  });
+
+  it.each(['before opening', 'between chunks', 'after the last chunk'])('aborts %s without publishing or retaining staging bytes', async phase => {
+    const store = createLocalFsObjectStore({ rootDir });
+    const writer = await store.resolveStagedWriter?.({});
+    if (!writer) throw new Error('Local store did not supply a staged writer');
+    const controller = new AbortController();
+    const reason = new Error('upload cancelled');
+    let opened = 0;
+    if (phase === 'before opening') controller.abort(reason);
+    const openChunks = async function* () {
+      opened++;
+      yield bytes('he');
+      if (phase === 'between chunks') controller.abort(reason);
+      yield bytes('llo');
+      if (phase === 'after the last chunk') controller.abort(reason);
+    };
+    await expect(writer({ key: 'file', byteLength: 5, sha256, openChunks }, { signal: controller.signal })).rejects.toBe(reason);
+    expect(opened).toBe(phase === 'before opening' ? 0 : 1);
+    expect(await store.get({ key: 'file' })).toBeNull();
+    expect(readdirSync(rootDir)).toEqual([]);
   });
 });

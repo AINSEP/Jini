@@ -149,3 +149,72 @@ describe("withOwnedTempRoot", () => {
     expect(existsSync(root) || existsSync(root + OWNED_TEMP_ROOT_MARKER_SUFFIX)).toBe(false);
   });
 });
+
+it.each(["EBUSY", "EPERM", "EACCES"])("keeps the root and provenance on a transient %s sweep failure, then removes both", async code => {
+  const root = await plant({ name: PREFIX + uuid(3), pid: DEAD });
+  const readOnlyDuringSweep = {
+    ...fsp,
+    rm: (async (path: Parameters<typeof fsp.rm>[0], options?: Parameters<typeof fsp.rm>[1]) => {
+      if (path === root) throw Object.assign(new Error("open handle"), { code });
+      return fsp.rm(path, options);
+    }) as typeof fsp.rm,
+  };
+  expect(outcomeOf(await sweep({ fs: readOnlyDuringSweep }), root)).toEqual({ path: root, outcome: "kept", reason: "busy" });
+  expect(await fsp.readFile(join(root, "data.bin"), "utf8")).toBe("x");
+  expect(await fsp.readFile(root + OWNED_TEMP_ROOT_MARKER_SUFFIX, "utf8")).toBe("{}");
+  expect(outcomeOf(await sweep(), root)).toEqual({ path: root, outcome: "removed", reason: "dead-owner" });
+  expect(existsSync(root + OWNED_TEMP_ROOT_MARKER_SUFFIX)).toBe(false);
+});
+
+it("propagates a non-retryable sweep error without advancing to removal", async () => {
+  const root = await plant({ name: PREFIX + uuid(4), pid: DEAD });
+  const error = Object.assign(new Error("read failed"), { code: "EIO" });
+  await expect(sweep({ fs: { ...fsp, lstat: path => path === root ? Promise.reject(error) : fsp.lstat(path) } })).rejects.toBe(error);
+  expect(await fsp.readFile(join(root, "data.bin"), "utf8")).toBe("x");
+  expect(await fsp.readFile(root + OWNED_TEMP_ROOT_MARKER_SUFFIX, "utf8")).toBe("{}");
+});
+
+it("leaves an orphan marker in place if a root appears before the lock-owned recheck", async () => {
+  const root = await plant({ name: PREFIX + uuid(1), root: false });
+  const acquiring: OwnedTempRootLock = ({ lockPath, run }, options) => probed({
+    lockPath, run: async () => {
+      await fsp.mkdir(root);
+      await fsp.writeFile(join(root, "data.bin"), "new owner's bytes");
+      return run();
+    },
+  }, options);
+  expect(outcomeOf(await sweep({ lock: acquiring }), root)).toEqual({ path: root, outcome: "kept", reason: "changed" });
+  expect(await fsp.readFile(root + OWNED_TEMP_ROOT_MARKER_SUFFIX, "utf8")).toBe("{}");
+  expect(await fsp.readFile(join(root, "data.bin"), "utf8")).toBe("new owner's bytes");
+});
+
+it("reports but preserves an orphan marker that is not a regular file", async () => {
+  const root = await plant({ name: PREFIX + uuid(2), root: false, marker: false });
+  const invalidMarker = root + OWNED_TEMP_ROOT_MARKER_SUFFIX;
+  await fsp.mkdir(invalidMarker);
+  const result = await sweep({ lock: () => { throw new Error("Invalid marker must stop before acquisition"); } });
+  expect(outcomeOf(result, root)).toEqual({ path: root, outcome: "kept", reason: "not-a-directory" });
+  expect((await fsp.lstat(invalidMarker)).isDirectory()).toBe(true);
+});
+
+it("does not remove a young orphan marker even when there is no active lock", async () => {
+  const root = await plant({ name: PREFIX + uuid(3), root: false });
+  const marker = root + OWNED_TEMP_ROOT_MARKER_SUFFIX;
+  const info = await fsp.lstat(marker);
+  expect(outcomeOf(await sweep({ clock: { nowMs: () => info.mtimeMs + 49 },
+    lock: () => { throw new Error("Young markers must not acquire a lock"); } }, { olderThanMs: 50 }), root))
+    .toEqual({ path: root, outcome: "kept", reason: "young" });
+  expect(await fsp.readFile(marker, "utf8")).toBe("{}");
+});
+
+it("treats a lock adapter's named timeout as contention, including one retry", async () => {
+  const root = await plant({ name: PREFIX + uuid(4) });
+  const calls: unknown[] = [];
+  const lock: OwnedTempRootLock = async ({ lockPath }, options) => {
+    calls.push([lockPath, options]);
+    throw Object.assign(new Error("holder still present"), { name: "FileLockTimeoutError" });
+  };
+  expect(outcomeOf(await sweep({ lock }), root)).toEqual({ path: root, outcome: "kept", reason: "owner-alive" });
+  expect(calls).toEqual(Array.from({ length: 2 }, () => [root + OWNED_TEMP_ROOT_LOCK_SUFFIX, { timeoutMs: 0, staleMs: Infinity }]));
+  expect(await fsp.readFile(join(root, "data.bin"), "utf8")).toBe("x");
+});

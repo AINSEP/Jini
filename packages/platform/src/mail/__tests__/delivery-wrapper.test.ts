@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { createMailPolicyWrapper, type MailPolicyWrapperDeps, type MailPolicyWrapperOptions } from "../delivery-wrapper.js";
 import type { MailerPort, MailSendLedgerPort, MailSuppressionRepoPort } from "../ports.js";
 import type { MailProviderModule } from "../provider.js";
@@ -182,4 +182,23 @@ test("settings and ledger faults propagate without observation or subsequent bat
   await assert.rejects(f.mailer.sendBatch({ messages: [MESSAGE, MESSAGE], ...DELIVERY }), err => err === error);
   assert.deepEqual(f.events, ["read", "suppression"]);
   assert.deepEqual(f.calls, []);
+});
+
+test("provider limiters without a custom clock refill according to elapsed wall time", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(12_000);
+  try {
+    const f = fixture();
+    const mailer = f.wrap({ providerId: "slow", provider: provider({ perSecond: 2, burst: 1 }), mailer: f.inner });
+    const send = (idempotencyKey: string) => mailer.send({ message: MESSAGE, ...DELIVERY, idempotencyKey });
+    assert.equal(await send("first"), OK);
+    vi.setSystemTime(12_250);
+    assert.deepEqual(await send("second"), { ok: false, retryable: true, errorCode: "MAIL_RATE_LIMITED",
+      message: "transactional lane is rate limited", retryAfterMs: 250 });
+    vi.setSystemTime(12_500);
+    assert.equal(await send("third"), OK);
+    assert.deepEqual(f.calls.map(call => call.options.idempotencyKey), ["first", "third"]);
+  } finally {
+    vi.useRealTimers();
+  }
 });

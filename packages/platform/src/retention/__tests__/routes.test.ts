@@ -39,3 +39,36 @@ it('a dry run during a live pass still returns measurement', async () => {
   expect(await dry).toMatchObject({ ok: true, value: { dryRun: true, policies: [{ status: 'measured', measurement: { bytes: 5 } }] } });
   await runner.stop();
 });
+
+it('authorizes and returns a read-only report without passing untrusted request input to measurement', async () => {
+  const calls: string[] = [];
+  const authorize = vi.fn(async () => { calls.push('authorize'); });
+  const measurement = { knownBytes: 23, bytes: null, unknownPaths: ['/locked'] };
+  const measure = vi.fn(async () => { calls.push('measure'); return measurement; });
+  const parsed = routes.report.parse({ body: { root: '/other' }, params: {}, query: { root: '/other' } });
+  expect(parsed).toEqual({ ok: true, value: {} });
+  if (!parsed.ok) throw new Error('parse failed');
+  expect(await routes.report.handle({ input: parsed.value, deps: { measure }, authorize }, {}))
+    .toEqual({ ok: true, value: measurement });
+  expect(calls).toEqual(['authorize', 'measure']);
+  expect(authorize).toHaveBeenCalledExactlyOnceWith({ permission: 'storage.manage' });
+  expect(measure).toHaveBeenCalledExactlyOnceWith({}, {});
+});
+
+it('passes an explicit live cleanup with only the validated requested classes', async () => {
+  const sweep = { freedBytes: 39 };
+  const runOnce = vi.fn(async () => sweep);
+  const parsed = routes.cleanup.parse({ params: {}, query: {}, body: { dryRun: false, classes: ['cache', 'old-copy'] } });
+  if (!parsed.ok) throw new Error('parse failed');
+  expect(await routes.cleanup.handle({ input: parsed.value, deps: { runOnce, copy }, authorize: vi.fn() }, {})).toEqual({ ok: true, value: sweep });
+  expect(runOnce).toHaveBeenCalledExactlyOnceWith({ dryRun: false, classes: ['cache', 'old-copy'] }, {});
+});
+
+it('an omitted cleanup body still returns the dry-run report', async () => {
+  const runOnce = vi.fn(async () => ({ measured: 19, removed: 0 }));
+  const parsed = routes.cleanup.parse({ body: undefined, params: {}, query: {} });
+  if (!parsed.ok) throw new Error('parse failed');
+  expect(await routes.cleanup.handle({ input: parsed.value, deps: { runOnce, copy }, authorize: vi.fn() }, {}))
+    .toEqual({ ok: true, value: { measured: 19, removed: 0 } });
+  expect(runOnce.mock.calls).toEqual([[{ dryRun: true }, {}]]);
+});

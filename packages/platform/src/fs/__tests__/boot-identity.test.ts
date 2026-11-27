@@ -87,3 +87,25 @@ test("an unknown identity is also cached so failing OS calls are not retried", a
   expect(readBootIdentity({})).toBeUndefined();
   expect(native.execFileSync).toHaveBeenCalledTimes(1);
 });
+
+test("recorded boot evidence distinguishes an earlier boot from clock drift and unknown timestamps", async () => {
+  const { fromEarlierBoot, fromThisBoot } = await import("../boot-identity.js");
+  const boot = { id: "2000000", startedAtMs: 2_000_000 };
+  for (const { bootId, atMs, earlier, same } of [
+    { bootId: undefined, atMs: 1_399_999, earlier: true, same: false },
+    { bootId: undefined, atMs: 1_400_000, earlier: false, same: true },
+    { bootId: undefined, atMs: Number.NaN, earlier: false, same: false },
+    { bootId: "1400000", atMs: 0, earlier: false, same: true },
+    { bootId: "2600000", atMs: 0, earlier: false, same: true },
+    { bootId: "2600001", atMs: 0, earlier: false, same: false },
+    { bootId: "different-kernel-id", atMs: boot.startedAtMs, earlier: true, same: false },
+  ]) {
+    expect(fromEarlierBoot({ boot, bootId, atMs })).toBe(earlier);
+    expect(fromThisBoot({ boot, bootId, atMs })).toBe(same);
+  }
+  const kernel = { id: "kernel-boot-id", startedAtMs: 2_000_000 };
+  expect(fromThisBoot({ boot: kernel, bootId: "kernel-boot-id", atMs: Number.NaN })).toBe(true);
+  expect(fromThisBoot({ boot: kernel, bootId: "2000000", atMs: 2_000_000 })).toBe(false);
+  expect(fromEarlierBoot({ boot: undefined, bootId: "older", atMs: 0 })).toBe(false);
+  expect(fromThisBoot({ boot: undefined, bootId: "older", atMs: 0 })).toBe(false);
+});

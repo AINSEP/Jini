@@ -67,3 +67,28 @@ test("one unsupported row does not suppress healthy rows in the same vault scope
   assert.deepEqual(result.entries.map(row => row.id), ["key"]);
   assert.equal(result.notices.length, 1);
 }, 10000);
+
+test("archive omits disappeared and out-of-scope rows while retaining an unconfigured credential", async () => {
+  const source = fixture("source"), foreign = fixture("elsewhere");
+  await source.vault.put({ ...source.put, isDefault: false, payload: null });
+  await foreign.vault.put({ ...foreign.put, payload: null, id: "foreign" });
+  const own = (await source.repo.find({ workspaceId: "source", id: "key" }))!;
+  const other = (await foreign.repo.find({ workspaceId: "elsewhere", id: "foreign" }))!;
+  const queries: unknown[] = [];
+  const result = await captureVaultArchive({ vault: source.vault, queries: [source.scope], repo: {
+    list: async query => { queries.push(query); return [other, { ...own, id: "gone" }, own]; },
+  } });
+  assert.deepEqual(queries, [source.scope]);
+  assert.deepEqual(result, { entries: [{ id: "key", kind: "vendor", ownerKey: "host", binding: null, provider: "provider",
+    label: "Main", isDefault: false, meta: { credentialType: "vendor", worksFor: ["provider"] }, payload: null }],
+    notices: ["2 saved credential(s) could not be opened and were left out."] });
+});
+
+test("archive rejects an over-limit restore without preparing even the first entry", async () => {
+  const target = fixture("recipient");
+  const entry = { id: "key", kind: "personal-execution" as const, ownerKey: "host", binding: null, provider: "provider", label: "Key",
+    isDefault: false, meta: {}, payload: null };
+  const entries = Array.from({ length: 2001 }, (_, index) => ({ ...entry, id: `key-${index}` }));
+  await assert.rejects(prepareVaultArchiveRestore({ vault: target.vault, workspaceId: "recipient", entries }), { code: "invalid-record" });
+  assert.deepEqual(await target.repo.list(target.scope), []);
+});

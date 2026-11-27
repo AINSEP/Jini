@@ -2,12 +2,15 @@ import { describe, expect, test } from "vitest";
 import {
   createEmailTemplate,
   editEmailTemplate,
+  getEmailTemplate,
   EmailTemplateInputError,
   EmailTemplateNotFoundError,
   EmailTemplateVersionConflictError,
   listEmailTemplates,
+  previewEmailTemplate,
   readFieldValues,
   renameEmailTemplate,
+  renderEmailTemplateForSend,
   requireText,
   type EmailTemplateRecord,
   type EmailTemplateStore,
@@ -97,4 +100,115 @@ describe("email-template operations over a host store", () => {
     expect(() => requireText({ value: 3, key: "k", max: 1 })).toThrow(/k is required/);
     expect(() => requireText({ value: "ab", key: "k", max: 1 })).toThrow(/at most 1/);
   });
+
+  test.each([
+    { fields: undefined, declarations: [], greeting: "Hello," },
+    { fields: "name=Ada,code", declarations: [{ name: "name", sample: "Ada" }, { name: "code" }], greeting: "Hello {{name}}," },
+    { fields: [{ name: "name", sample: "Ada" }, { name: "code" }, "city=London"],
+      declarations: [{ name: "name", sample: "Ada" }, { name: "code" }, { name: "city", sample: "London" }], greeting: "Hello {{name}}," },
+  ])("creates a starter from fields $fields", async ({ fields, declarations, greeting }) => {
+    const { store } = memoryStore();
+    await createEmailTemplate({ store, input: { name: "Welcome & thanks", fields }, actorId: "operator" });
+    const record = await getEmailTemplate({ store, id: "t1" });
+    expect(record).toMatchObject({ name: "Welcome & thanks", subject: "Welcome & thanks", fields: declarations, version: 1 });
+    expect(record.html).toContain(`<p>${greeting}</p>`);
+    expect(record.html).toContain("<title>Welcome &amp; thanks</title>");
+  });
+
+  test.each([
+    { input: { fields: {} }, message: "fields must be a list of field names." },
+    { input: { fields: [null] }, message: "each field must be a name or {name, sample}." },
+    { input: { fields: [{ name: "first,last" }] }, message: "field names cannot contain commas or equals signs." },
+    { input: { fields: [{ name: "first=last" }] }, message: "field names cannot contain commas or equals signs." },
+    { input: { fields: [{ name: "name", sample: "Ada,Lovelace" }] }, message: "field samples cannot contain commas." },
+    { input: { html: 123 }, message: "html must be a string." },
+    { input: { subject: false }, message: "subject must be a string." },
+  ])("refuses $message before creating a row", async ({ input, message }) => {
+    const { store, rows } = memoryStore();
+    const operation = createEmailTemplate({ store, input: { name: "Welcome", ...input }, actorId: "operator" });
+    await expect(operation).rejects.toThrow(EmailTemplateInputError);
+    await expect(operation).rejects.toThrow(message);
+    expect(rows.size).toBe(0);
+  });
+
+  test("stale rename leaves both the saved name and HTML alone", async () => {
+    const { store } = memoryStore();
+    await createEmailTemplate({ store, input: { name: "Before", html: HTML }, actorId: "operator" });
+    const rename = renameEmailTemplate({ store, input: { id: "t1", name: "After", expectedVersion: 2 } });
+    await expect(rename).rejects.toThrow(EmailTemplateVersionConflictError);
+    await expect(rename).rejects.toThrow("is at version 1, not 2");
+    expect(await store.find({ id: "t1" })).toMatchObject({ name: "Before", html: HTML, version: 1 });
+  });
+
+  test("renders saved sample HTML only in admin preview and uses real values for delivery", async () => {
+    const { store } = memoryStore();
+    const html = HTML.replace("</body>", "<script>window.preview = true</script></body>");
+    await createEmailTemplate({ store, input: { name: "Welcome", html }, actorId: "operator" });
+    const admin = await previewEmailTemplate({ store, input: { id: "t1" } });
+    expect(admin).toMatchObject({ subject: "Hi Ada", mode: "admin", scriptsStripped: false, missingFields: ["code"], undeclaredFields: ["code"] });
+    expect(admin.html).toContain("<script>window.preview = true</script>");
+    expect(admin.text).toBeUndefined();
+
+    const sent = await previewEmailTemplate({ store, input: { html, mode: "sent", values: { name: "Grace", code: 42 } } });
+    expect(sent).toMatchObject({ subject: "Hi Grace", text: "Hello Grace 42", mode: "sent", scriptsStripped: true, missingFields: [], undeclaredFields: ["code"] });
+    expect(sent.html).not.toContain("window.preview");
+
+    const delivery = await renderEmailTemplateForSend({ store, id: "t1", values: { name: "Lin", code: "77" } });
+    expect(delivery).toMatchObject({ subject: "Hi Lin", text: "Hello Lin 77", missingFields: [] });
+    expect(delivery.html).toContain("<p>Hello Lin 77</p>");
+    expect(delivery.html).not.toContain("window.preview");
+  });
+
+  test.each([
+    { input: { mode: "raw" }, message: 'mode must be "admin" or "sent".' },
+    { input: { values: null }, message: "values must be an object of field name to text." },
+    { input: { values: [] }, message: "values must be an object of field name to text." },
+    { input: { values: 42 }, message: "values must be an object of field name to text." },
+    { input: { values: { name: { name: "Ada" } } }, message: "values.name must be text, a number or a boolean." },
+  ])("refuses preview input with $message", async ({ input, message }) => {
+    const { store } = memoryStore();
+    const preview = previewEmailTemplate({ store, input: { html: HTML, ...input } });
+    await expect(preview).rejects.toThrow(EmailTemplateInputError);
+    await expect(preview).rejects.toThrow(message);
+  });
+
+  test("a structurally invalid decoded cursor is rejected rather than paging from the start", async () => {
+    const { store } = memoryStore();
+    const cursor = Buffer.from('{"updatedAt":"2026-01-01T00:00:00.000Z","id":7}').toString("base64url");
+    const result = listEmailTemplates({ store, input: { cursor } });
+    await expect(result).rejects.toThrow(EmailTemplateInputError);
+    await expect(result).rejects.toThrow("cursor must be a nextCursor returned by email_template_list.");
+  });
+});
+
+test("a hidden first row does not make a live template on the next page unreachable", async () => {
+  const { store } = memoryStore();
+  const hiddenPosition = { id: "trashed", updatedAt: "2026-01-02T00:00:00.000Z" };
+  const visible = { id: "live", name: "Welcome", html: HTML, version: 2, updatedAt: "2026-01-01T00:00:00.000Z" };
+  const withHiddenRow: EmailTemplateStore = {
+    ...store,
+    listPage: async ({ limit, before }) => {
+      if (before === undefined) return [null, visible].slice(0, limit);
+      expect(before).toEqual(hiddenPosition);
+      return [visible].slice(0, limit);
+    },
+  };
+  const first = await listEmailTemplates({ store: withHiddenRow, input: { limit: 1 } });
+  if (first.templates.length !== 0) {
+    // Also permits a future implementation that fills the requested visible page without exposing holes.
+    expect(first.templates.map(template => template.id)).toEqual(["live"]);
+    return;
+  }
+  if (!first.nextCursor) throw new Error("A filtered page must not hide a later live template");
+  const next = await listEmailTemplates({ store: withHiddenRow, input: { limit: 1, cursor: first.nextCursor } });
+  expect(next.templates.map(template => template.id)).toEqual(["live"]);
+});
+
+test.each([0, 1.5, "1"])("refuses to edit with a malformed expected version %j", async expectedVersion => {
+  const { store } = memoryStore();
+  await createEmailTemplate({ store, input: { name: "Welcome", html: HTML }, actorId: "operator" });
+  const operation = editEmailTemplate({ store, input: { id: "t1", html: "<title>Changed</title>", expectedVersion }, actorId: "operator" });
+  await expect(operation).rejects.toThrow(EmailTemplateInputError);
+  await expect(operation).rejects.toThrow("expectedVersion must be the positive integer version a read returned.");
+  expect(await store.find({ id: "t1" })).toMatchObject({ html: HTML, version: 1 });
 });

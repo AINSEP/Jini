@@ -66,3 +66,13 @@ describe("operator-visible directory home", () => {
     expect(selectWorkspaceDirectory({ ...input, roots: ["/docs/Workspace/sites"] }, { report })).toBe(scratch.path);
   });
 });
+
+it('breaks equal-open-time duplicates by path and names the discovered unregistered directory', () => {
+  const report = vi.fn();
+  const registered = { id: 'registered', name: 'Blog', path: '/z-root/blog', createdBy: 'Web', lastOpened: null };
+  const input = { home: '/home', roots: ['/home', '/z-root', '/a-root'], fallback: '/repo/default',
+    selected: 'blog', entries: [registered], listDirectories: () => [],
+    isInitialized: ({ path }: { path: string }) => path === '/a-root/blog' };
+  expect(selectWorkspaceDirectory(input, { report })).toBe('/a-root/blog');
+  expect(report.mock.calls).toEqual([[{ message: 'More than one directory has this name. Using /a-root/blog (not registered); also found /z-root/blog (registered). Select a registry ID to choose another.' }]]);
+});

@@ -36,3 +36,25 @@ describe("configured site key sources", () => {
     }
   });
 });
+
+it('resolves local sources from configured metadata fields without reading an unrelated default file', () => {
+  const metadata = '/site/custom.json';
+  const reads: Array<[string, string]> = [];
+  const paths = createSiteKeySources({ envName: 'HOST_KEY', metadataFilename: 'custom.json',
+    fields: { siteId: 'identity', siteKeyId: 'keyIdentity', fingerprint: 'stamp' },
+    localSegments: ['keys'], sharedSegments: ['legacy.hex'], volumeSegments: ['volume.hex'], legacyVolumeSegments: ['old.hex'],
+    assertHomeIsolation: ({ homeDir }) => expect(homeDir).toBe('/home'),
+    fs: { existsSync: () => { throw new Error('source resolution does not open keys'); }, readFileSync: (path, encoding) => {
+      reads.push([path, encoding]);
+      if (path !== metadata) throw new Error('unexpected metadata path');
+      return '{"identity":"site-a","keyIdentity":"rotated","stamp":"e0e77a507412"}';
+    } },
+  });
+  expect(paths.siteKeySourcesForSiteDir({ siteDir: '/site', mode: 'local', env: {}, home: '/home', cwd: '/work' })).toEqual([
+    { kind: 'per-site-file', path: '/home/keys/rotated.hex' }, { kind: 'env' }, { kind: 'legacy-shared-file', path: '/home/legacy.hex' },
+  ]);
+  expect(paths.readSiteMetaId({ siteDir: '/site' })).toBe('site-a');
+  expect(paths.resolveSiteKeyFingerprint({ siteDir: '/site' })).toBe('e0e77a507412');
+  expect(paths.siteKeyEnvOnlySources()).toEqual([{ kind: 'env' }]);
+  expect(reads).toEqual([[metadata, 'utf8'], [metadata, 'utf8'], [metadata, 'utf8']]);
+});

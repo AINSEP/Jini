@@ -106,3 +106,12 @@ describe("legacy vault payload normalization", () => {
     expect(() => normalize({ row: record, plaintext: "{}" }, { context: { ...legacy, table: "publish_credential_sets", provider: "host" }, injected: { ...policy, legacyPublishCredential: () => undefined } })).toThrow(/VAULT_CATALOG_UNAVAILABLE/);
   });
 });
+
+it('does not consult the publish catalog for a legacy row with no provider', () => {
+  let lookups = 0;
+  const injected = { ...policy, legacyPublishCredential: () => { lookups++; return { vendorId: 'wrong', tokenField: 'token' }; } };
+  expect(() => normalize({ row: record, plaintext: '{"token":"fixture"}' },
+    { context: { ...legacy, table: 'publish_credential_sets', provider: null }, injected }))
+    .toThrow(new Error('legacy publish credential has no provider'));
+  expect(lookups).toBe(0);
+});

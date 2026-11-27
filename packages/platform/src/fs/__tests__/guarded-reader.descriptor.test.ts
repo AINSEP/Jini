@@ -184,3 +184,12 @@ it.each([NaN, Infinity, -1, 0.5])('refuses an invalid descriptor size %s before 
   expect(f.stream).not.toHaveBeenCalled();
   expect(f.close.mock.calls).toEqual([[71]]);
 });
+
+it('preserves the exact-mode refusal when closing the checked descriptor also fails', () => {
+  const f = fixture({ mode: 0o100640 });
+  f.close.mockImplementation(() => { throw new Error('close failed'); });
+  const read = () => f.make().read({ relativePath: 'file' });
+  expect(read).toThrow(new FsFilePathError({ message: "file 'file' does not have exact mode 600" }));
+  expect(f.close.mock.calls).toEqual([[71]]);
+  expect(f.read.mock.calls).toEqual([]);
+});

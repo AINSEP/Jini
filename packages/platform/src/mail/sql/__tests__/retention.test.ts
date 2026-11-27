@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { startMailRetention } from "../retention.js";
 import type { MailSqlKernel } from "../ledger.repo.js";
 
@@ -29,4 +29,27 @@ test("a failed pass reports only through the host's onError; without one it stay
     await startMailRetention({ db }, { every: () => () => {} })();
     assert.deepEqual(warned, []);
   } finally { console.warn = original; }
+});
+
+test("the default minute scheduler starts exactly one new pass and cancels future ticks on disposal", async () => {
+  vi.useFakeTimers();
+  let transactions = 0, writes = 0;
+  const db = { transaction: async (run: () => Promise<void>) => { transactions++; await run(); },
+    execute: async () => { writes++; } } as unknown as MailSqlKernel<unknown>;
+  const stop = startMailRetention({ db }, { now: () => 0 });
+  try {
+    await vi.advanceTimersByTimeAsync(59_999);
+    assert.equal(transactions, 1);
+    assert.equal(writes, 5);
+    await vi.advanceTimersByTimeAsync(1);
+    assert.equal(transactions, 2);
+    assert.equal(writes, 10);
+    await stop();
+    await vi.advanceTimersByTimeAsync(120_000);
+    assert.equal(transactions, 2);
+    assert.equal(vi.getTimerCount(), 0);
+  } finally {
+    await stop();
+    vi.useRealTimers();
+  }
 });

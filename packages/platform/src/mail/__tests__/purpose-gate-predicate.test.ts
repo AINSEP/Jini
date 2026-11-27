@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { isPurposeGateOpen, wrapMailerWithPurposeGate, type PurposeGateRequired } from "../purpose-scoped-mailer.js";
+import { createMailPurposeGateProbe } from "../purpose-gate-probe.js";
 import type { MailerPort } from "../ports.js";
 
 test("predicate and delivery share production readiness for notification, absent and unknown lanes", async () => {
@@ -45,4 +46,24 @@ test("missing source context uses unknown capability; readiness failures propaga
 test("invalid predicate modes fail closed before consulting readiness", () => {
   const required = { mode: "typo", options: { lane: "interactive", sourceContext: { module: "fixture" } }, readiness: { isReady: () => { throw new Error("must validate first"); } } } as unknown as PurposeGateRequired;
   assert.throws(() => isPurposeGateOpen(required), { name: "TypeError", message: 'mailer mode must be "production" or "local"' });
+});
+
+test("the readiness probe preserves capability name and lane and propagates readiness failures", async () => {
+  const checked: string[] = [];
+  const failure = new Error("outbox status unavailable");
+  const durableOutboxReady = ({ capabilityName }: { capabilityName: string }) => {
+    checked.push(capabilityName);
+    if (capabilityName === "unavailable") throw failure;
+    return capabilityName === "forms";
+  };
+  const production = createMailPurposeGateProbe({ mode: "production", durableOutboxReady });
+  const local = createMailPurposeGateProbe({ mode: "local", durableOutboxReady });
+  assert.deepEqual(checked, []);
+  assert.equal(await production({ capabilityName: "newsletters", lane: "interactive" }), true);
+  assert.equal(await local({ capabilityName: "newsletters", lane: "notification" }), true);
+  assert.deepEqual(checked, []);
+  assert.equal(await production({ capabilityName: "forms", lane: "notification" }), true);
+  assert.equal(await production({ capabilityName: "newsletters", lane: "notification" }), false);
+  await assert.rejects(production({ capabilityName: "unavailable", lane: "notification" }), error => error === failure);
+  assert.deepEqual(checked, ["forms", "newsletters", "unavailable"]);
 });
