@@ -72,4 +72,37 @@ describe('installed skill tools', () => {
     // A wrapper in buildDomainRegistrations may refuse the extra key before the handler does; either refusal is correct.
     await expect(registration!.handler({ input: { other: 1 } } as never)).rejects.toThrow();
   });
+
+  describe('unreadable folders and filesystem failures', () => {
+    it('reports a folder without SKILL.md, a SKILL.md that cannot be read, and a name with no tool id; ignores loose files', async () => {
+      const dirs = await site({ 'skills/empty/notes.txt': 'x', 'skills/loose.md': 'x', 'skills/symbols/SKILL.md': '---\nname: !!!\ndescription: d\n---\n' });
+      await fs.mkdir(path.join(dirs.workspaceRoot, 'dirmd', 'SKILL.md'), { recursive: true });
+      const { ports, reports } = fakePorts();
+      expect(await loadInstalledSkillToolSources({ ...dirs, ports })).toEqual([]);
+      expect(reports).toHaveLength(3);
+      expect(reports[0]).toMatch(/^\[skills\] 'dirmd': SKILL\.md could not be read \(EISDIR[^)]*\) — skipped$/);
+      expect(reports.slice(1)).toEqual([
+        "[skills] 'empty': no SKILL.md — skipped",
+        "[skills] 'symbols': frontmatter name '!!!' could not be turned into a valid tool id — skipped",
+      ]);
+    });
+
+    it('lists bundled files in sorted order, skipping links, and surfaces a non-missing walk failure', async () => {
+      const dirs = await site({ 'skills/review/SKILL.md': SKILL, 'skills/review/references/b.md': 'b', 'skills/review/references/nested/a.md': 'a' });
+      await fs.symlink(path.join(dirs.workspaceRoot, 'review', 'SKILL.md'), path.join(dirs.workspaceRoot, 'review', 'references', 'link.md'));
+      const [source] = await loadInstalledSkillToolSources({ ...dirs, ports: fakePorts().ports });
+      expect(source!.bundledFiles).toEqual([
+        { kind: 'references', path: 'skills/review/references/b.md' },
+        { kind: 'references', path: 'skills/review/references/nested/a.md' },
+      ]);
+      // `scripts` as a plain file is not "missing": the walk must not hide that.
+      await fs.writeFile(path.join(dirs.workspaceRoot, 'review', 'scripts'), 'not a folder');
+      await expect(loadInstalledSkillToolSources({ ...dirs, ports: fakePorts().ports })).rejects.toMatchObject({ code: 'ENOTDIR' });
+    });
+
+    it('a workspace root that is a file is an error, not an empty skill list', async () => {
+      const dirs = await site({ 'skills': 'a file where the folder should be' });
+      await expect(loadInstalledSkillToolSources({ ...dirs, ports: fakePorts().ports })).rejects.toMatchObject({ code: 'ENOTDIR' });
+    });
+  });
 });
