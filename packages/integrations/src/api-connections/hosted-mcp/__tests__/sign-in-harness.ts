@@ -40,7 +40,9 @@ export class FakeRepo {
   readonly rows = new Map<string, ExternalMcpServerRecord>();
   readonly ifVersionCalls: IfVersionInput[] = [];
   readonly runtimeCalls: RuntimeInput[] = [];
+  readonly leaseCalls: { name: string; input: unknown }[] = [];
   refuseIfVersion = 0;
+  leaseGranted = true;
   constructor(...records: ExternalMcpServerRecord[]) { for (const r of records) this.rows.set(r.serverId, r); }
   async findByServerId(key: { serverId: string }) { return this.rows.get(key.serverId) ?? null; }
   async updateIfVersion(input: IfVersionInput) {
@@ -60,7 +62,9 @@ export class FakeRepo {
   }
   asPort(): Repo {
     return { findByServerId: k => this.findByServerId(k), updateIfVersion: i => this.updateIfVersion(i),
-      updateOAuthRuntime: i => this.updateOAuthRuntime(i) } as Partial<Repo> as Repo;
+      updateOAuthRuntime: i => this.updateOAuthRuntime(i),
+      tryClaimOAuthRefreshLease: async i => { this.leaseCalls.push({ name: "claim", input: i }); return this.leaseGranted; },
+      releaseOAuthRefreshLease: async i => { this.leaseCalls.push({ name: "release", input: i }); } } as Partial<Repo> as Repo;
   }
 }
 
@@ -70,6 +74,8 @@ export interface Harness {
   readonly seals: ExternalMcpSealedOAuthPayload[];
   readonly flowCalls: { name: string; args: unknown[] }[];
   readonly devicesPut: [string, unknown][];
+  /** Every `log.postConnectFailed` input, in call order. */
+  readonly logged: { serverId: string; error: unknown }[];
 }
 
 /** Builds deps around `repo`. `flow` replaces individual flow operations; `store` individual store ops. */
@@ -77,6 +83,7 @@ export function makeHarness(repo: FakeRepo, over: { flow?: Record<string, (...ar
   const seals: ExternalMcpSealedOAuthPayload[] = [];
   const flowCalls: { name: string; args: unknown[] }[] = [];
   const devicesPut: [string, unknown][] = [];
+  const logged: { serverId: string; error: unknown }[] = [];
   const flow = new Proxy({}, { get: (_t, name: string) => (...args: unknown[]) => {
     flowCalls.push({ name, args });
     const impl = over.flow?.[name] as ((...a: unknown[]) => unknown) | undefined;
@@ -89,7 +96,7 @@ export function makeHarness(repo: FakeRepo, over: { flow?: Record<string, (...ar
     isOAuthError: (e: unknown): e is HostedMcpOAuthFailure => e instanceof FakeOAuthError,
     validation: (message, field) => new Error(`validation(${field}): ${message}`),
     isUnconfigured: e => e instanceof UnconfiguredError,
-    reauthRequired: ({ serverId, cause }) => new Error(`reauth:${serverId}`, { cause }),
+    reauthRequired: ({ serverId, label, cause }) => Object.assign(new Error(`reauth:${serverId}`, { cause }), { label }),
   };
   const store: Ports["store"] = {
     openPayload: async (_s, record) => (record.sealedOAuth ? JSON.parse(record.sealedOAuth.ciphertext) as ExternalMcpSealedOAuthPayload : {}),
@@ -106,9 +113,13 @@ export function makeHarness(repo: FakeRepo, over: { flow?: Record<string, (...ar
   const ports = {
     ...typed, flow,
     oauthMessages: { tag: "messages" },
+    signInLink: ({ callbackUrl, workspaceId, serverId }: { callbackUrl: string; workspaceId: string; serverId: string }) => `link:${workspaceId}/${serverId}?cb=${callbackUrl}`,
+    log: { postConnectFailed: (input: { serverId: string; error: unknown }) => { logged.push(input); } },
     discoveryPolicy: ({ guard }: { guard: unknown }) => ({ policyFor: guard }),
     copy: { actions: { noProvider: "act-provider", noClientId: "act-client", chooseGrant: "act-grant", noRegistration: "act-registration", restartDevice: "act-device", restartShared: "act-shared" },
-      noSupportedGrant: ({ serverId, offered }: { serverId: string; offered: readonly string[] }) => `no grant for ${serverId}: ${offered.join("|")}` },
+      noSupportedGrant: ({ serverId, offered }: { serverId: string; offered: readonly string[] }) => `no grant for ${serverId}: ${offered.join("|")}`,
+      noPublicOrigin: ({ serverId }: { serverId: string }) => `no public origin for ${serverId}`,
+      sharedLocalOnly: "shared-local-only", sharedUnavailable: "shared-unavailable", sharedOwnerOnly: "shared-owner-only" },
   } as unknown as Ports;
   const deps = {
     workspaceId: WS, repo: repo.asPort(), clock: { nowMs: () => NOW_MS },
@@ -117,7 +128,7 @@ export function makeHarness(repo: FakeRepo, over: { flow?: Record<string, (...ar
     devices: { put: async (id: string, a: unknown) => { devicesPut.push([id, a]); } },
     ports, ...over.extra,
   } as unknown as SignInDeps;
-  return { deps, repo, seals, flowCalls, devicesPut };
+  return { deps, repo, seals, flowCalls, devicesPut, logged };
 }
 
 /** A discovery result advertising an authorization-code server with dynamic registration. */
