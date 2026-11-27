@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
 import type { VaultRecord } from "@jini-ai/core/contracts/vault";
 import { ApiConnectionError } from "../../index.js";
 import { AUTHORIZATION, CB, configuredRow, makeSharedOwner, makeSignInService, ProviderError, TOKENS, type SharedRig, type SignInRig } from "./sign-in-service-harness.js";
@@ -25,9 +26,9 @@ async function connectShared(rig: SignInRig, owner: SharedRig): Promise<string> 
   return credentialOf(owner);
 }
 
-function sharedRig(_over: { grant?: string; token?: (key: string) => Promise<string>; inventory?: VaultRecord[]; flow?: Record<string, (...args: never[]) => unknown> } = {}) {
+function sharedRig(_over: { row?: Partial<ExternalMcpServerRecord>; grant?: string; token?: (key: string) => Promise<string>; inventory?: VaultRecord[]; flow?: Record<string, (...args: never[]) => unknown> } = {}) {
   const owner = makeSharedOwner(_over.inventory === undefined ? {} : { inventory: _over.inventory });
-  const rig = makeSignInService(configuredRow({ oauthGrant: _over.grant ?? "authorization_code" }), { shared: owner, flow: { ...flow, ..._over.flow }, ...(_over.token ? { token: _over.token } : {}) });
+  const rig = makeSignInService(configuredRow({ oauthGrant: _over.grant ?? "authorization_code", ..._over.row }), { shared: owner, flow: { ...flow, ..._over.flow }, ...(_over.token ? { token: _over.token } : {}) });
   return { owner, rig };
 }
 
@@ -47,6 +48,13 @@ describe("shared sign-in through the hosted MCP service", () => {
       authorizationEndpoint: "https://as.test/auth", resource: "https://r.test" });
     expect(owner.records.get(credentialId)).toMatchObject({ workspaceId: "owner-ws", status: "disconnected", revision: 1, generation: 0 });
     expect(rig.h.repo.rows.get("srv")?.oauthStatus).toBeNull();
+  });
+  it("takes the shared audience from the server URL when the row stores none, and omits it when there is no URL", async () => {
+    for (const [url, resource] of [["https://mcp.example.test/mcp", "https://mcp.example.test/mcp"], [null, undefined]] as const) {
+      const { owner, rig } = sharedRig({ row: { oauthEndpointsJson: null, url } });
+      await rig.service.beginConnect({ serverId: "srv", destination: "shared", redirectUri: CB, delivery: "hosted", actorId: OWNER });
+      expect(owner.contexts.get(credentialOf(owner))?.identity.resource).toBe(resource);
+    }
   });
   it("refuses a shared connect from anyone but the owner", async () => {
     const { owner, rig } = sharedRig();

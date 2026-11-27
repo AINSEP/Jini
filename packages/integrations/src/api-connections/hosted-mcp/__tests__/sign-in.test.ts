@@ -90,6 +90,18 @@ describe("completeAuthorizationCallback (site-local)", () => {
     expect(rig.h.logged).toEqual([{ serverId: "srv", error: hookError }]);
     expect((await rowOf(rig))?.oauthStatus).toBe("connected");
   });
+  it("succeeds without notifying when the host wired no post-connect hook", async () => {
+    const rig = makeSignInService(configuredRow(), { flow: { completeAuthorizationCode: async () => TOKENS }, onConnected: null });
+    await rig.service.completeAuthorizationCallback(input);
+    expect([(await rowOf(rig))?.oauthStatus, rig.connected, rig.h.logged]).toEqual(["connected", [], []]);
+  });
+  it("keeps the row for a failure that is not an OAuth error or names no provider code", async () => {
+    for (const failure of [new Error("socket hang up"), new ProviderError("OAUTH_PROVIDER_ERROR", undefined)]) {
+      const rig = makeSignInService(configuredRow({ oauthStatus: "pending" }), { flow: { completeAuthorizationCode: async () => { throw failure; } } });
+      await expect(rig.service.completeAuthorizationCallback(input)).rejects.toBe(failure);
+      expect([(await rowOf(rig))?.oauthStatus, rig.h.repo.runtimeCalls, rig.h.repo.ifVersionCalls]).toEqual(["pending", [], []]);
+    }
+  });
   it("disconnects the row when the provider rejects the client, and still surfaces that error", async () => {
     const rejected = new ProviderError("OAUTH_PROVIDER_ERROR", "invalid_client");
     const rig = makeSignInService(configuredRow({ oauthStatus: "pending" }), { flow: { completeAuthorizationCode: async () => { throw rejected; } } });
