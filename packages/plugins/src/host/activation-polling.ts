@@ -141,6 +141,9 @@ export function startPluginActivationPolling(
       if (record.workspaceId === deps.workspaceId && record.enabled) attachedIds.add(record.pluginId);
     }
   });
+  // Each tick reports a seeding failure; without this handler a readiness rejection before the
+  // first tick is an unhandled rejection, which Node's default mode turns into a process crash.
+  seeded.catch(() => undefined);
 
   const timer = setInterval(() => {
     if (stopped) return;

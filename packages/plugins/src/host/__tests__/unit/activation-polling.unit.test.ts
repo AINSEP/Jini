@@ -1,8 +1,8 @@
 // Moved from the host composition tests with the polling module; assertions unchanged (node:assert under vitest).
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { afterEach, test, vi } from "vitest";
 
-import { reconcilePluginActivationsOnce, type PluginActivationPollDeps } from "../../activation-polling.js";
+import { reconcilePluginActivationsOnce, startPluginActivationPolling, type PluginActivationPollDeps } from "../../activation-polling.js";
 import { InMemoryPluginActivationRepo } from "../../repo.memory.js";
 
 /**
@@ -175,4 +175,132 @@ test("a NEW failure for the same plugin is logged again, and a recovery is logge
   assert.match(warnings[1]!, /second problem/);
   assert.ok(attachedIds.has("flaky"), "a later attempt must still succeed: backoff never gives up");
   assert.equal(logs.filter(line => line.includes("'flaky'")).length, 1, logs.join("\n"));
+});
+
+// startPluginActivationPolling: the timer around the pass above, driven by fake timers.
+afterEach(() => { vi.useRealTimers(); });
+
+/** A repo whose listAll answers come from a queue, so a pass can be left pending mid-read. */
+function scriptedRepo(rows: ReturnType<typeof record>[]) {
+  const pending: Array<() => void> = [];
+  let hold = false;
+  let reads = 0;
+  return {
+    get reads() { return reads; },
+    holdNextRead() { hold = true; },
+    releaseHeld() { for (const release of pending.splice(0)) release(); },
+    rows,
+    repo: {
+      listAll: () => {
+        reads += 1;
+        if (!hold) return Promise.resolve([...rows]);
+        hold = false;
+        const snapshot = [...rows];
+        return new Promise<typeof rows>((resolve) => { pending.push(() => resolve(snapshot)); });
+      },
+    },
+  };
+}
+
+test("polling seeds from this workspace's enabled rows at readiness, so only later changes attach or detach", async () => {
+  vi.useFakeTimers();
+  const scripted = scriptedRepo([record("seeded", true), { ...record("elsewhere", true), workspaceId: "ws-2" }, record("off", false)]);
+  const calls: string[] = [];
+  const polling = startPluginActivationPolling({
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: scripted.repo, pluginRuntimeReady: Promise.resolve(),
+    onPluginEnabled: async (pluginId) => { calls.push(`on:${pluginId}`); },
+    onPluginDisabled: (pluginId) => { calls.push(`off:${pluginId}`); },
+  }, { intervalMs: 100 });
+  await vi.advanceTimersByTimeAsync(100);
+  assert.deepEqual(calls, [], "the seeded plugin is not re-attached and other workspaces are ignored");
+  assert.equal(scripted.reads, 2, "one seed read, then one pass read");
+
+  scripted.rows.splice(0, scripted.rows.length, record("fresh", true));
+  await vi.advanceTimersByTimeAsync(100);
+  assert.deepEqual(calls, ["on:fresh", "off:seeded"]);
+  polling.stop();
+});
+
+test("polling defaults to a 5 s interval and does nothing before the runtime is ready", async () => {
+  vi.useFakeTimers();
+  const scripted = scriptedRepo([record("word-count", true)]);
+  let ready!: () => void;
+  const calls: string[] = [];
+  const polling = startPluginActivationPolling({
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: scripted.repo,
+    pluginRuntimeReady: new Promise<void>((resolve) => { ready = resolve; }),
+    onPluginEnabled: async (pluginId) => { calls.push(pluginId); }, onPluginDisabled: () => assert.fail("nothing to detach"),
+  });
+  await vi.advanceTimersByTimeAsync(4_999);
+  assert.equal(scripted.reads, 0, "no tick before 5000 ms");
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(scripted.reads, 0, "the 5000 ms tick waits on readiness instead of reading");
+  ready();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(scripted.reads, 2, "readiness runs the seed read, then the tick that was waiting");
+  await vi.advanceTimersByTimeAsync(4_999);
+  assert.equal(scripted.reads, 2, "the next tick is a full interval later");
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(scripted.reads, 3, "second pass at 10000 ms");
+  assert.deepEqual(calls, [], "the seeded plugin is already attached");
+  polling.stop();
+});
+
+test("stop() ends the timer, and a pass already reading when stop() runs changes no hooks", async () => {
+  vi.useFakeTimers();
+  const scripted = scriptedRepo([]);
+  const calls: string[] = [];
+  const polling = startPluginActivationPolling({
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: scripted.repo, pluginRuntimeReady: Promise.resolve(),
+    onPluginEnabled: async (pluginId) => { calls.push(`on:${pluginId}`); },
+    onPluginDisabled: (pluginId) => { calls.push(`off:${pluginId}`); },
+  }, { intervalMs: 100 });
+  await vi.advanceTimersByTimeAsync(0);
+  scripted.rows.push(record("late", true));
+  scripted.holdNextRead();
+  await vi.advanceTimersByTimeAsync(100);
+  assert.equal(scripted.reads, 2, "the pass is waiting on its durable read");
+  polling.stop();
+  scripted.releaseHeld();
+  await vi.advanceTimersByTimeAsync(1_000);
+  assert.deepEqual(calls, [], "the settled pass must not attach after stop()");
+  assert.equal(scripted.reads, 2, "no further passes after stop()");
+});
+
+test("a pass in flight across stop() does not detach either", async () => {
+  vi.useFakeTimers();
+  const scripted = scriptedRepo([]);
+  const calls: string[] = [];
+  const polling = startPluginActivationPolling({
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: scripted.repo, pluginRuntimeReady: Promise.resolve(),
+    onPluginEnabled: async (pluginId) => { calls.push(`on:${pluginId}`); },
+    onPluginDisabled: (pluginId) => { calls.push(`off:${pluginId}`); },
+  }, { intervalMs: 100 });
+  await vi.advanceTimersByTimeAsync(0);
+  scripted.rows.push(record("kept", true));
+  await vi.advanceTimersByTimeAsync(100);
+  assert.deepEqual(calls, ["on:kept"]);
+  scripted.rows.splice(0);
+  scripted.holdNextRead();
+  await vi.advanceTimersByTimeAsync(100);
+  polling.stop();
+  scripted.releaseHeld();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.deepEqual(calls, ["on:kept"], "the held pass saw 'kept' gone but must not detach after stop()");
+});
+
+test("a failed readiness or read is logged as a poll failure on each tick, with the error in the bag", async () => {
+  vi.useFakeTimers();
+  const { warnings, logger } = recordingLogger();
+  const polling = startPluginActivationPolling({
+    logger, workspaceId: WORKSPACE, pluginActivationRepo: { listAll: () => Promise.resolve([]) },
+    pluginRuntimeReady: Promise.reject(new Error("runtime never came up")),
+    onPluginEnabled: async () => assert.fail("no attach"), onPluginDisabled: () => assert.fail("no detach"),
+  }, { intervalMs: 50 });
+  await vi.advanceTimersByTimeAsync(100);
+  assert.deepEqual(warnings, [
+    "[plugin-runtime] plugin activation poll failed: runtime never came up",
+    "[plugin-runtime] plugin activation poll failed: runtime never came up",
+  ]);
+  polling.stop();
 });
