@@ -20,3 +20,40 @@ it("shares one injected widget renderer with doc nodes and returns an empty regi
   const placeholder = renderer.renderWidgetIr({ ir: { componentId: "widget-placeholder", props: {} } });
   for (const componentId of ["toString", "constructor", "__proto__"]) expect(renderer.renderWidgetIr({ ir: { componentId, props: {} } })).toBe(placeholder);
 });
+
+it("renders region widgets in order, escaping the region key and text but retaining line breaks", () => {
+  const renderer = createContentHtmlRenderer({
+    docHost: {} as DocNodeHost,
+    widgetHost: {} as WidgetRenderHost,
+    taxonomyAttributes: { section: "data-taxonomy", list: "data-list", term: "data-term", label: "data-label" },
+    newMarkerToken: () => { throw new Error("unexpected marker allocation"); },
+  });
+  const ctx: SiteRenderContext = {
+    siteTitle: "Atlas", route: "home", posts: [], products: [], themeName: null, widgetInlineResolved: new Map(),
+    mediaTransformVersions: new Map(), mediaAssetMetadata: new Map(), assignedTerms: [],
+    widgetRegions: {
+      'bottom"wide': [{ componentId: "text", props: { body: "One & two\nThree <four>" } }, { componentId: "text", props: { body: "Last" } }],
+      other: [{ componentId: "text", props: { body: "Unrelated" } }],
+    },
+  };
+  expect(renderer.renderWidgetRegion({ ctx, regionKey: 'bottom"wide' })).toBe(
+    '<div class="widget-region widget-region--bottom&quot;wide"><div class="widget widget-text">One &amp; two<br/>Three &lt;four&gt;</div><div class="widget widget-text">Last</div></div>',
+  );
+});
+
+it("converts managed document nodes to live Page markers while retaining ordinary text", () => {
+  const newMarkerToken = vi.fn(() => "TOKEN");
+  const renderer = createContentHtmlRenderer({
+    docHost: {} as DocNodeHost,
+    widgetHost: {} as WidgetRenderHost,
+    taxonomyAttributes: { section: "data-taxonomy", list: "data-list", term: "data-term", label: "data-label" },
+    newMarkerToken,
+  });
+  expect(renderer.renderDocBodyAsPageHtml({
+    bodyJson: { type: "doc", content: [
+      { type: "paragraph", content: [{ type: "text", text: "A <live> embed" }] },
+      { type: "widgetEmbed", attrs: { widgetEntryId: "widget-7", cssClass: "live-widget" } },
+    ] },
+  })).toBe('<p>A &lt;live&gt; embed</p><div class="live-widget" data-embed-config=\'{"type":"widget","id":"widget-7"}\'></div>');
+  expect(newMarkerToken.mock.calls).toEqual([[{}]]);
+});

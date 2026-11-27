@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
+import { memberOidcLimitResponse, runMemberOidcPreflight } from "../oidc-shared.js";
 import { memberOidcStartRoute, type MemberOidcStartRouteDeps } from "../oidc-start.js";
 import { completeMemberOidcRouteOutcome, bindMemberOidcCallbackRoute, memberOidcCallbackRoute, type MemberOidcCallbackRouteDeps, type MemberOidcCallbackOutcome } from "../oidc-callback.js";
 
@@ -200,4 +201,46 @@ it("assembles a callback outcome without reading the session cookie or announcin
   const response = await binding.spec.handle({ raw: raw(), deps: binding.requestDeps({ request: {}, deps: binding.deps }) }, { signal });
   expect(response.headers.getSetCookie().at(-1)).toBe("member=raw");
   expect(calls.slice(-2)).toEqual(["session", "announce"]);
+});
+
+it("callback outcome forwards the bound email continuation without issuing a session", async () => {
+  const calls: unknown[] = [];
+  const linked = { kind: "email_verification_required" as const, continueByEmail: async () =>
+    ({ browserBinding: BINDING, location: "/signin#email-proof" }) };
+  const outcome = await completeMemberOidcRouteOutcome({
+    readContext: async () => ({ provider: "google" }), readBrowserBinding: () => "browser-bound",
+    complete: async (request) => { calls.push(request); return linked; },
+    sessionCookie: () => { throw new Error("no session should be issued"); },
+    announce: () => { throw new Error("not signed in"); },
+  });
+  expect(outcome).toBe(linked);
+  expect(calls).toEqual([{ context: { provider: "google" }, browserBinding: "browser-bound" }]);
+  const { deps } = callbackHarness(async () => outcome);
+  const response = await memberOidcCallbackRoute.handle({ raw: raw(), deps }, { signal });
+  expect(response.headers.get("location")).toBe("/signin#email-proof");
+  expect(response.headers.getSetCookie()).toEqual([
+    "callback=; Path=/api/members/v1/workspaces/ws-1/oidc/google/callback",
+    `proof=${BINDING}; Path=/api/members/v1/workspaces/ws-1/oidc/google/callback`,
+  ]);
+});
+
+it("OIDC preflight commits headers and observation before checking and returns the admitted handler result", async () => {
+  const order: string[] = [];
+  const result = Promise.resolve("handled");
+  const callbacks = {
+    writeHeaders: () => { order.push("headers"); }, observe: () => { order.push("observe"); },
+    check: () => { order.push("check"); return true; },
+    run: () => { order.push("run"); return result; },
+  };
+  expect(runMemberOidcPreflight(callbacks)).toBe(result);
+  expect(order).toEqual(["headers", "observe", "check", "run"]);
+});
+
+it("OIDC limiter replies with JSON and the decided cookies even without custom limit headers", async () => {
+  const cookies = ["callback=; Path=/callback", "proof=; Path=/proof"];
+  const response = memberOidcLimitResponse({ limited: { status: 429, body: { code: "LIMIT" } }, cookies });
+  expect(response.status).toBe(429);
+  expect(response.headers.getSetCookie()).toEqual(cookies);
+  expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+  expect(await response.json()).toEqual({ code: "LIMIT" });
 });

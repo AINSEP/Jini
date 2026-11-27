@@ -133,3 +133,13 @@ it("keeps the unlink preflight headers before its no-op observer and refuses bef
   binding.preflight({}, () => { order.push("raw"); });
   expect(order).toEqual(["headers", "check"]);
 });
+
+it("does not resolve a session or charge limits when unlink receives a nonempty body", async () => {
+  const ipLimiter = limiter();
+  const perMemberLimiter = limiter();
+  const { deps, calls } = harness({ ipLimiter, perMemberLimiter });
+  expect((await refusal(call(deps, raw({ providerId: "other" })))).response).toEqual(INVALID);
+  expect(calls).toEqual([]);
+  expect(ipLimiter.keys).toEqual([]);
+  expect(perMemberLimiter.keys).toEqual([]);
+});

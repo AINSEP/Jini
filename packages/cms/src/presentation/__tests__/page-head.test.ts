@@ -276,3 +276,24 @@ test("foldPageHead: awaits each contribution before reading the next handle", as
   assert.deepEqual(await pending, []);
   assert.deepEqual(calls, ['first start', 'first end', 'second read', 'second start']);
 });
+
+test("typed and untyped alternate links keep separate keys while repeated untyped links dedupe", async () => {
+  registerPageHeadContributor(hook(10, [
+    { kind: "link", rel: "alternate", href: "/old", priority: 100 },
+    { kind: "link", rel: "alternate", type: "application/rss+xml", href: "/feed", priority: 110 },
+    { kind: "link", rel: "alternate", href: "/current", priority: 120 },
+  ]));
+  assert.equal(serializeHeadElements({ elements: await foldPageHead(ctx) }),
+    '<link rel="alternate" href="/feed" type="application/rss+xml"/><link rel="alternate" href="/current"/>');
+});
+
+test("Open Graph tags dedupe by property without replacing same-named non-Open-Graph metadata", async () => {
+  registerPageHeadContributor(hook(10, [
+    { kind: "og", property: "og:title", content: "Old", priority: 80 },
+    { kind: "og", property: "og:image", content: "/cover.png", priority: 90 },
+    { kind: "meta", name: "og:title", content: "Separate namespace", priority: 100 },
+    { kind: "og", property: "og:title", content: "New", priority: 110 },
+  ]));
+  assert.equal(serializeHeadElements({ elements: await foldPageHead(ctx) }),
+    '<meta property="og:image" content="/cover.png"/><meta name="og:title" content="Separate namespace"/><meta property="og:title" content="New"/>');
+});

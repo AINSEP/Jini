@@ -86,3 +86,73 @@ test("preview preserves the original host bag for the renderer and template read
   await expect(tool!.handler(ctx)).rejects.toThrow("not authorized");
   expect(find).not.toHaveBeenCalled();
 });
+
+test("soft delete keeps the slug and updates only the scoped row's trash metadata", async () => {
+  const other = { ...row, workspaceId: "other", title: "Other site" };
+  const repo = new InMemoryPostRepo({}, { initialRows: [other, row] });
+  const change = { workspaceId: "site", id: "post", deletedAt: "2026-11-26T00:00:00.000Z", updatedAt: "2026-11-26T00:01:00.000Z", version: 2 };
+  await repo.softDelete({ ...change, workspaceId: "missing" });
+  expect(await repo.list({ workspaceId: "site" })).toEqual([row]);
+  await repo.softDelete(change);
+  expect(await repo.findBySlug({ workspaceId: "site", slug: "post" })).toEqual({
+    ...row, deletedAt: change.deletedAt, updatedAt: change.updatedAt, version: 2,
+  });
+  expect(await repo.findBySlug({ workspaceId: "other", slug: "post" })).toEqual(other);
+});
+
+test("hard delete drops the scoped post, autosave and revisions without touching another workspace", async () => {
+  const other = { ...row, workspaceId: "other", title: "Other site" };
+  const repo = new InMemoryPostRepo({}, { initialRows: [row, other] });
+  const snapshot = { baseVersion: 1, bodyFormat: "doc" as const, bodyJson: { type: "doc" }, title: "Parked", slug: "post", savedAt: row.updatedAt, savedByPrincipalId: "editor" };
+  for (const record of [row, other]) {
+    const { workspaceId, id } = record;
+    expect(await repo.writeAutosave({ workspaceId, id, snapshot })).toEqual({ applied: true });
+    await repo.appendRevision({ workspaceId, postId: id, seq: 1, op: "create", stateJson: record, actorId: "editor", recordedAt: row.updatedAt });
+  }
+  expect(await repo.readAutosave({ workspaceId: "site", id: "post" })).toEqual(snapshot);
+  expect(await repo.listRevisions({ workspaceId: "site", postId: "post" })).toMatchObject([{ seq: 1, stateJson: row }]);
+  await repo.hardDelete({ workspaceId: "site", id: "post" });
+  expect(await repo.findById({ workspaceId: "site", id: "post" })).toBeNull();
+  expect(await repo.readAutosave({ workspaceId: "site", id: "post" })).toBeNull();
+  expect(await repo.listRevisions({ workspaceId: "site", postId: "post" })).toEqual([]);
+  expect(await repo.findById({ workspaceId: "other", id: "post" })).toEqual(other);
+  expect(await repo.listRevisions({ workspaceId: "other", postId: "post" })).toMatchObject([{ seq: 1, stateJson: other }]);
+  expect(await repo.readAutosave({ workspaceId: "other", id: "post" })).toEqual(snapshot);
+  await repo.clearAutosave({ workspaceId: "other", id: "post" });
+  expect(await repo.readAutosave({ workspaceId: "other", id: "post" })).toBeNull();
+  expect(await repo.findById({ workspaceId: "other", id: "post" })).toEqual(other);
+});
+
+test("HTML listing filters format, trash, kind and site before using the date and id cursor", async () => {
+  const page: PostRecord = { ...row, kind: "page", bodyFormat: "html", bodyHtml: "<p>Page</p>" };
+  const repo = new InMemoryPostRepo({}, { initialRows: [
+    { ...page, id: "before-id" }, { ...page, id: "cursor" }, { ...page, id: "later-id" },
+    { ...page, id: "older", updatedAt: "2026-10-01T00:00:00.000Z" },
+    { ...page, id: "newer", updatedAt: "2026-11-26T00:00:00.000Z" },
+    { ...page, id: "doc", bodyFormat: "doc" }, { ...page, id: "no-html", bodyHtml: null },
+    { ...page, id: "trashed", deletedAt: page.updatedAt },
+    { ...page, id: "other-site", workspaceId: "other" }, { ...page, id: "post", kind: "post" },
+  ] });
+  expect((await repo.listHtmlByKind({ workspaceId: "site", kind: "page", limit: 8,
+    before: { updatedAt: page.updatedAt, id: "cursor" },
+  })).map(({ id }) => id)).toEqual(["later-id", "older"]);
+});
+
+test("revision history reads in version order and keeps recorded restore and delegation fields", async () => {
+  let nextId = 0;
+  const Repo = bindInMemoryPostRepo({ nowIso: () => row.updatedAt, newId: () => `revision-${++nextId}`, hashJsonText,
+    createEvidence: createMediaAccessEvidence });
+  const repo = new Repo({}, { initialRows: [row] });
+  const revision = { postId: "post", workspaceId: "site", stateJson: row, actorId: "writer", recordedAt: row.updatedAt };
+  const first = await repo.appendRevision({ ...revision, seq: 1, op: "create" });
+  await repo.appendRevision({ ...revision, seq: 3, op: "restore", restoredFrom: first.id, delegatedByWorkspaceId: "site",
+    delegatedById: "human", stateJson: { ...row, version: 3 } });
+  await repo.appendRevision({ ...revision, seq: 2, op: "update", stateJson: { ...row, version: 2 } });
+  const history = await repo.listRevisions({ workspaceId: "site", postId: "post" });
+  expect(history).toMatchObject([
+    { seq: 1, op: "create", restoredFrom: null, delegatedByWorkspaceId: null, delegatedById: null },
+    { seq: 2, op: "update", stateJson: { id: "post", version: 2 } },
+    { seq: 3, op: "restore", restoredFrom: "revision-1", delegatedByWorkspaceId: "site", delegatedById: "human",
+      stateJson: { id: "post", version: 3 } },
+  ]);
+});

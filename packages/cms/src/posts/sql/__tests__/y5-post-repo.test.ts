@@ -164,3 +164,82 @@ test("thinning approval decline never applies and the card keeps its exact warni
     toolId: "post_thin_revisions", errorCode: "POST", title: "Delete up to 1 old revision of this post?", details: [{ label: "Revisions in preview", value: "1" }],
     warning: "This cannot be undone. The newest revision and any revision that is published, restorable or needed for undo is kept, and thinning stops there.", confirmLabel: "Delete old revisions" });
 });
+
+test("SQL list and slug lookup keep a soft-deleted row scoped and reserve its address", async () => {
+  const f = await fixture();
+  try {
+    const other = { ...row, id: "other", workspaceId: "other", title: "Other site" };
+    await f.repo.save(other);
+    await f.repo.save(row);
+    expect(await f.repo.findBySlug({ workspaceId: "site", slug: "missing" })).toBeNull();
+    await f.repo.softDelete({ workspaceId: "site", id: "post", deletedAt: nowIso(), updatedAt: nowIso(), version: 2 });
+    expect(await f.repo.findBySlug({ workspaceId: "site", slug: "post" })).toMatchObject({
+      id: "post", workspaceId: "site", title: "Post", deletedAt: nowIso(), updatedAt: nowIso(), version: 2,
+    });
+    expect((await f.repo.list({ workspaceId: "site" })).map(post => [post.id, post.deletedAt])).toEqual([["post", nowIso()]]);
+    expect(await f.repo.findBySlug({ workspaceId: "other", slug: "post" })).toMatchObject({
+      id: "other", workspaceId: "other", title: "Other site", deletedAt: null, version: 1,
+    });
+    expect(f.search.remove).not.toHaveBeenCalled();
+  } finally { await f.kernel.close(); }
+});
+
+test("SQL hard delete removes only the scoped row, revision history and search projection", async () => {
+  const f = await fixture();
+  try {
+    await f.repo.save(row);
+    await f.repo.appendRevision({ workspaceId: "site", postId: "post", seq: 1, op: "create", stateJson: row, actorId: "human", recordedAt: row.updatedAt });
+    const snapshot = { baseVersion: 1, bodyFormat: "doc" as const, bodyJson: row.bodyJson,
+      title: "Waiting", slug: row.slug, savedAt: nowIso(), savedByPrincipalId: "human" };
+    expect(await f.repo.writeAutosave({ workspaceId: "site", id: "post", snapshot })).toEqual({ applied: true });
+    await f.repo.clearAutosave({ workspaceId: "other", id: "post" });
+    expect(await f.repo.readAutosave({ workspaceId: "site", id: "post" })).toEqual(snapshot);
+    await f.repo.clearAutosave({ workspaceId: "site", id: "post" });
+    expect(await f.repo.readAutosave({ workspaceId: "site", id: "post" })).toBeNull();
+    await f.repo.writeAutosave({ workspaceId: "site", id: "post", snapshot });
+    await f.repo.hardDelete({ workspaceId: "other", id: "post" });
+    expect(f.search.remove).not.toHaveBeenCalled();
+    expect(await f.repo.readAutosave({ workspaceId: "site", id: "post" })).toEqual(snapshot);
+    expect(await f.repo.listRevisions({ workspaceId: "site", postId: "post" })).toMatchObject([{ seq: 1, stateJson: row }]);
+    await f.repo.hardDelete({ workspaceId: "site", id: "post" });
+    expect(await f.repo.findById({ workspaceId: "site", id: "post" })).toBeNull();
+    expect(await f.repo.readAutosave({ workspaceId: "site", id: "post" })).toBeNull();
+    expect(await f.repo.listRevisions({ workspaceId: "site", postId: "post" })).toEqual([]);
+    expect(f.search.remove.mock.calls).toEqual([[{ kernel: f.kernel, postId: "post" }]]);
+  } finally { await f.kernel.close(); }
+});
+
+test("SQL repo caller transaction rolls back prior post and revision writes when a later step fails", async () => {
+  const f = await fixture();
+  try {
+    const failed = new Error("event storage failed");
+    await expect(f.repo.transaction({ fn: async () => {
+      await f.repo.save(row);
+      await f.repo.appendRevision({ workspaceId: "site", postId: "post", seq: 1, op: "create", stateJson: row, actorId: "human", recordedAt: row.updatedAt });
+      expect((await f.repo.findById({ workspaceId: "site", id: "post" }))?.title).toBe("Post");
+      throw failed;
+    } })).rejects.toBe(failed);
+    expect(await f.repo.findById({ workspaceId: "site", id: "post" })).toBeNull();
+    expect(await f.repo.listRevisions({ workspaceId: "site", postId: "post" })).toEqual([]);
+    expect(await f.repo.transaction({ fn: async () => {
+      await f.repo.save(row);
+      return "written";
+    } })).toBe("written");
+    expect((await f.repo.findById({ workspaceId: "site", id: "post" }))?.version).toBe(1);
+  } finally { await f.kernel.close(); }
+});
+
+test("legacy HTML SQL rows carry a doc placeholder without losing explicit presentation or plugin fields", () => {
+  const stored = toRow({ record: { ...row, kind: "page", bodyFormat: "html", bodyHtml: "<main>Authored page</main>",
+    ext: { publishing: { classification: "staff" } }, templateChoice: "", overridesThemePage: false,
+    featuredMediaId: "cover", author: "Editor", showAuthor: true, publishAt: "2027-01-01T00:00:00.000Z",
+    createdByPrincipalId: "author-7", createdByKind: "agent", createdAt: row.updatedAt } });
+  const decoded = toRecord({ row: { ...stored, body_json: null, autosave_json: null, show_author: 1,
+    overrides_theme_page: 0 } as Parameters<typeof toRecord>[0]["row"] });
+  expect(decoded).toMatchObject({
+    id: "post", kind: "page", bodyFormat: "html", bodyHtml: "<main>Authored page</main>", bodyJson: { type: "doc", content: [] },
+    ext: { publishing: { classification: "staff" } }, templateChoice: "", overridesThemePage: false,
+    author: "Editor", showAuthor: true, featuredMediaId: "cover", publishAt: "2027-01-01T00:00:00.000Z",
+    createdByPrincipalId: "author-7", createdByKind: "agent", createdAt: row.updatedAt,
+  });
+});

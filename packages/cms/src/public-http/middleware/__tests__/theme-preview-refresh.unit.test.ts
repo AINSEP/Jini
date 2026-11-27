@@ -45,3 +45,11 @@ test("reload: an allowed principal gets the refresh body; a failing refresh is r
   expect(await runThemePreviewReload({ principalId: "p", workspaceId: "w", authorize: allow, refresh: () => { throw boom; } })).toEqual({ kind: "failed", error: boom });
   await expect(runThemePreviewReload({ principalId: "p", workspaceId: "w", authorize: async () => { throw boom; }, refresh: () => 1 })).rejects.toBe(boom);
 });
+
+test("a zero-capacity preview cache never trusts the newly remembered revision", () => {
+  const cache = createPreviewRevisionCache({ limit: 0 });
+  cache.remember({ revision: "first" });
+  expect(cache.has({ revision: "first" })).toBe(false);
+  cache.remember({ revision: "second" });
+  expect(cache.has({ revision: "second" })).toBe(false);
+});

@@ -33,3 +33,33 @@ it("refuses durable disable, retains false JSON and redacts failures", async () 
   expect(await invokeLivePluginRoute({ ...input, ports: { ...ports, isActivated: async () => true } })).toEqual({ kind: "failed", status: 500, body: { code: "PLUGIN_ROUTE_FAILED" } });
   expect(ports.reportError).toHaveBeenCalledTimes(1);
 });
+
+it("checks durable activation again after yielding to a member handler", async () => {
+  const release: { handler?: () => void; entered?: () => void } = {};
+  const entered = new Promise<void>(resolve => { release.entered = resolve; });
+  const suspended = new Promise<void>(resolve => { release.handler = resolve; });
+  const handler = vi.fn<PluginContributionsSnapshot["routes"][number]["handler"]>(async () => {
+    release.entered!();
+    await suspended;
+    return { body: "stale result" };
+  });
+  const route = { access: "member", handler, method: "GET", path: "/read" } as const;
+  const snapshot = { pluginId: "catalog", sdk: {} as PluginContributionsSnapshot["sdk"], routes: [route], tools: [], widgets: [] };
+  let enabled = true;
+  const ports = {
+    isActivated: vi.fn(async ({ pluginId }: { pluginId: string }) => enabled && pluginId === "catalog"),
+    isLive: ({ snapshot: current }: { snapshot: PluginContributionsSnapshot }) => current === snapshot,
+    principalIdFor: vi.fn(() => "member-41"), reportError: vi.fn(),
+  };
+  const input = { body: null, params: { key: "p" }, query: { lang: "en" } };
+  const result = invokeLivePluginRoute({ workspaceId: "w", snapshot, route, ports, input });
+  // Ensure a regression that never enters the handler fails without hanging.
+  await Promise.race([entered, result]);
+  enabled = false;
+  release.handler!();
+  expect(await result).toEqual({ kind: "not-found", status: 404, body: { code: "NOT_FOUND" } });
+  expect(handler).toHaveBeenCalledExactlyOnceWith({ ...input, sdk: snapshot.sdk, pluginId: "catalog",
+    auth: { access: "member", workspaceId: "w", principalId: "member-41" } }, {});
+  expect(ports.isActivated.mock.calls).toEqual([[{ pluginId: "catalog" }], [{ pluginId: "catalog" }]]);
+  expect(ports.principalIdFor).toHaveBeenCalledExactlyOnceWith({ access: "member" });
+});

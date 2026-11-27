@@ -52,3 +52,25 @@ it('history reads the same after thinning', async () => {
   await h.apply();
   expect(h.rows().map(row => JSON.stringify(row))).toEqual(before.slice(1));
 });
+
+it('keeps the oldest unconfirmed revision and does not jump forward to confirmed history', async () => {
+  const h = setup();
+  const list = h.revisions.listOldest;
+  const read = vi.spyOn(h.revisions, 'listOldest').mockResolvedValueOnce([{ id: 'b', body: 'middle' }, { id: 'c', body: 'new' }]);
+  try {
+    expect(await h.preview()).toEqual({ ids: ['b', 'c'], count: 2, previewToken: 'opaque' });
+    expect(await h.apply()).toEqual({ deleted: [], kept: [{ id: 'a', reason: 'unconfirmed' }] });
+    expect((await list()).map(row => row.id)).toEqual(['a', 'b', 'c']);
+  } finally { read.mockRestore(); }
+});
+
+it('fails closed when a protection lookup rejects, and keeps the valid preview on unconfirmed apply', async () => {
+  const h = setup();
+  await h.preview();
+  await expect(h.engine.apply({ principal: 'alice', scope: h.scope, previewToken: 'opaque', confirm: false }, {}))
+    .rejects.toThrow('Confirm the revision preview first.');
+  h.protections.isPublished.mockRejectedValueOnce(new Error('publication lookup unavailable'));
+  expect(await h.apply()).toEqual({ deleted: [], kept: [{ id: 'a', reason: 'isPublished' }] });
+  expect(h.rows().map(row => row.id)).toEqual(['a', 'b', 'c']);
+  await expect(h.apply()).rejects.toThrow('The revision preview expired.');
+});

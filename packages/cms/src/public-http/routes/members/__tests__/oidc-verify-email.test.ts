@@ -162,3 +162,17 @@ it("binds proof preflight before the spec and lazily maps its signed-in outcome"
   expect(response.headers.getSetCookie()).toEqual([PROOF_CLEAR, SESSION]);
   expect(calls.slice(-3)).toEqual(["session", "announce", "member"]);
 });
+
+it("proof verification that needs another step cannot produce a session outcome", async () => {
+  const calls: unknown[] = [];
+  const outcome = await verifyMemberOidcRouteOutcome({
+    readContext: async () => ({ challenge: "challenge-key" }), readBrowserBinding: () => "bound",
+    verify: async (request) => { calls.push(request); return { kind: "email_verification_required" }; },
+    sessionCookie: () => { throw new Error("not signed in"); }, announce: () => { throw new Error("not signed in"); },
+    member: () => { throw new Error("not signed in"); },
+  });
+  expect(calls).toEqual([{ context: { challenge: "challenge-key" }, browserBinding: "bound" }]);
+  expect(outcome).toEqual({ kind: "email_verification_required" });
+  const { deps } = harness({ verify: async () => outcome });
+  await expectRefusal(await call(deps));
+});

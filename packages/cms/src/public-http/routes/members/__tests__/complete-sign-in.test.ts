@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { memberRequestLimitReply } from "../shared.js";
 import { memberCompleteSignInRoute, type MemberCompleteSignInRouteDeps, type MemberCompleteSignInResult } from "../complete-sign-in.js";
 
 /** @file The public member complete-sign-in spec: exactly one credential form (a non-empty link token, or a
@@ -97,4 +98,29 @@ describe("memberCompleteSignInRoute", () => {
     const failed = harness({ completeSignIn: async () => { throw boom; } });
     await expect(call(failed.deps, raw({ token: "t" }))).rejects.toBe(boom);
   });
+});
+
+it("completes a valid link when the host has no user-agent without inventing a value", async () => {
+  const { deps, inputs } = harness();
+  const response = await call(deps, raw({ token: "t" }, { clientAddress: "203.0.113.9" }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ member: { id: "m-1" } });
+  expect(inputs).toEqual([{ workspaceId: "ws-1", token: "t", userAgent: undefined, ip: "203.0.113.9" }]);
+});
+
+it("reports the longest denied member limit while using normalized email and exact identity keys", async () => {
+  const ipLimiter = limiter();
+  const emailLimiter = limiter({ allowed: false, retryAfterSeconds: 3 });
+  const identity = limiter({ allowed: false, retryAfterSeconds: 11 });
+  expect(await memberRequestLimitReply({ clientAddress: "203.0.113.9", ipLimiter, email: " Ada@Example.test ",
+    emailLimiter, identity: { limiter: identity, key: "member-a" } })).toEqual({
+    status: 429, headers: { "Retry-After": "11" },
+    body: { error: "too many member authentication requests", code: "RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: 11 } },
+  });
+  expect(ipLimiter.keys).toEqual(["203.0.113.9"]);
+  expect(emailLimiter.keys).toEqual(["ada@example.test"]);
+  expect(identity.keys).toEqual(["member-a"]);
+  const empty = limiter();
+  expect(await memberRequestLimitReply({ clientAddress: "203.0.113.9", ipLimiter, emailLimiter: empty })).toBeUndefined();
+  expect(empty.keys).toEqual(["<empty>"]);
 });

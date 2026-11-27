@@ -23,3 +23,18 @@ test("inherited sources answer GET/HEAD for their own theme only; malformed path
   expect(inheritedTemplateSource({ themes, themeDir: "/t/a", url: "/templates/page.liquid", method: "POST" })).toBeUndefined();
   expect(inheritedTemplateSource({ themes, themeDir: "/t/a", url: "/%E0", method: "GET" })).toBeUndefined();
 });
+
+test("malformed request revisions are rejected before consulting the trusted preview cache", () => {
+  const seen: string[] = [];
+  const trust = ({ revision }: { revision: string }) => { seen.push(revision); return true; };
+  for (const revision of ["", "../preview", "r".repeat(101)]) {
+    expect(trustedPreviewRevision({ requestedRevision: revision, localsRevision: null }, { isAuthenticatedPreviewRevision: trust })).toBeUndefined();
+  }
+  expect(seen).toEqual([]);
+  expect(trustedPreviewRevision({ requestedRevision: "cache-missing", localsRevision: undefined }, {})).toBeUndefined();
+  const maxLength = "r".repeat(100);
+  expect(trustedPreviewRevision({ requestedRevision: maxLength, localsRevision: undefined }, { isAuthenticatedPreviewRevision: trust })).toBe(maxLength);
+  expect(seen).toEqual([maxLength]);
+  expect(isRewritableCssPath({ relativePath: "themes/header.js" })).toBe(false);
+  expect(isRewritableCssPath({ relativePath: "themes\\.private\\style.css" })).toBe(false);
+});

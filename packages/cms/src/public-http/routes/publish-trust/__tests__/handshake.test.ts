@@ -170,3 +170,12 @@ describe("publish-trust handshake specs", () => {
     expect(asChallengeResponse({ body: { ...GOOD_BODY, capabilities: "x" } })).toBeNull();
   });
 });
+
+it("rejects malformed response fields independently even when the other fields match the contract", () => {
+  for (const invalid of [
+    { ...GOOD_BODY, nonce: 1 }, { ...GOOD_BODY, sourceInstallationId: null },
+    { ...GOOD_BODY, generation: "1" }, { ...GOOD_BODY, capabilities: "publish_content.apply" },
+    { ...GOOD_BODY, signatureB64u: null },
+  ]) expect(asChallengeResponse({ body: invalid })).toBeNull();
+  expect(asChallengeResponse({ body: GOOD_BODY })).toEqual(GOOD_BODY);
+});

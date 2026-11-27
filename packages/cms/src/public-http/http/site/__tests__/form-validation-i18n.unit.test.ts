@@ -35,3 +35,21 @@ test("every locale row carries four templates, a fallback field name, and the bo
     assert.ok(row[5].includes("{label}") && row[5].includes("{max}"), locale);
   }
 });
+
+test("translated copy preserves the source locale's exact placeholders and every phrase is nonempty", () => {
+  const placeholders = (message: string) => (message.match(/\{[^{}]+\}/g) ?? []).sort();
+  const fallback = formValidationCopy({ locale: "en" });
+  for (const [locale, row] of Object.entries(FORM_VALIDATION_COPY)) {
+    assert.deepEqual(row.map(placeholders), fallback.map(placeholders), locale);
+    for (const phrase of row) assert.notEqual(phrase.trim(), "", locale);
+  }
+});
+
+test("unknown locale names that match Object prototype keys still get the English validation copy", () => {
+  for (const locale of ["constructor", "__proto__"]) {
+    assert.deepEqual(formValidationCopy({ locale }), [
+      "Please enter {label}.", "Please select {label}.", "Please shorten {label}.", "Please check {label}.",
+      "this field", "Please keep {label} to {max} characters or fewer.",
+    ]);
+  }
+});

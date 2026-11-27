@@ -20,3 +20,15 @@ test("the www alias redirects onto the canonical origin; other hosts, dev seeds 
   expect(at("www.example.test", { ...canonical, source: "dev-capability" })).toBeUndefined();
   expect(at("www.localhost", { ...canonical, host: "localhost" })).toBeUndefined();
 });
+
+test("the bare alias preserves a www canonical port, while IP and localhost aliases never redirect", () => {
+  const redirect = (host: string | undefined, canonicalHost: string) => canonicalSiteHostRedirectLocation({
+    host, origin: { ...canonical, host: canonicalHost }, originalUrl: "/doc?q=1", toAbsoluteUrl,
+  });
+  expect(redirect("example.test:8443", "www.example.test:8443")).toBe("https://www.example.test:8443/doc?q=1");
+  expect(redirect("example.test", "www.example.test:8443")).toBeUndefined();
+  expect(redirect(undefined, "www.example.test:8443")).toBeUndefined();
+  expect(redirect("www.site.localhost", "site.localhost")).toBeUndefined();
+  expect(redirect("www.127.0.0.1", "127.0.0.1")).toBeUndefined();
+  expect(redirect("www.[::1]", "[::1]")).toBeUndefined();
+});

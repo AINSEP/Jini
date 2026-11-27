@@ -25,3 +25,10 @@ test("markup without a form has no locale and an unlabelled control keeps an und
   expect(formLocale).toBeUndefined();
   expect(controls.get("pick")).toEqual({ label: undefined, type: undefined, maxLength: undefined });
 });
+
+test("an unmatched explicit label falls back to nested wrapping text and empty aria is not an override", () => {
+  const html = '<form><label for="different">Not used</label><label>Choose &amp; say <span><select id="topic" name="topic" aria-label=""><option>Internal option</option></select></span> today</label></form>';
+  const result = inspectFormLabels({ formHtml: html, fields: ["topic"] });
+  expect(result.formLocale).toBeUndefined();
+  expect(Object.fromEntries(result.controls)).toEqual({ topic: { label: "Choose & say  today", type: undefined, maxLength: undefined } });
+});

@@ -274,3 +274,9 @@ test("document detection consumes alternating leading whitespace and comments on
     assert.equal(isFullHtmlDocument({ html }), false);
   }
 });
+
+test("a malformed theme title with no closing tag does not remove the rest of the head", () => {
+  const html = '<head><title>Unfinished<meta name="theme" content="light"></head><body>Kept</body>';
+  assert.equal(injectExtraHeadIntoStaticPage({ html, extraHead: '<title>Fold</title>' }),
+    '<head><title>Unfinished<meta name="theme" content="light"><title>Fold</title></head><body>Kept</body>');
+});
