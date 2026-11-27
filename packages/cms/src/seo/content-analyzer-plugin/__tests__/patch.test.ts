@@ -44,3 +44,16 @@ it("built output imports no plugin SDK module: the host binds definePlugin and t
   const specifiers = Array.from(output.matchAll(/from\s+["']([^"']+)["']/g), match => match[1]);
   expect(specifiers).toEqual(["@jini-ai/cms/seo/content-analysis"]);
 });
+
+it("scores an authored description instead of reporting the length check skipped", async () => {
+  const { filter } = registerFilter({ beforeSaveHook: "site.before-save" });
+  const patch = await filter({
+    workspaceId: "w", ext: {}, title: "How to prepare a safe and tidy workbench", bodyJson: null,
+    metaDescription: "Short",
+  }, { workspaceId: "w", pluginId: "analyzer" }) as Record<string, unknown>;
+  const report = JSON.parse(String(patch.report));
+  expect(report.checks.find((check: { id: string }) => check.id === "meta-description-length")).toEqual({
+    id: "meta-description-length", status: "warn", params: { length: 5, min: 50, max: 160 },
+  });
+  expect(patch.summary).toEqual(expect.stringContaining("The meta description is 5 characters; aim for 50-160."));
+});

@@ -11,6 +11,7 @@ import {
   getSeoSettings,
   isDefaultRobotsNoindexExplicitlySet,
   setSeoSettings,
+  type SeoSettingsPatch,
   type SeoSettingsWriteDeps,
 } from "../settings.js";
 
@@ -117,4 +118,58 @@ test("a refused patch writes nothing (all-or-nothing)", async () => {
   );
   assert.deepEqual(recorded.writes, []);
   assert.equal((await getSeoSettings(deps, { workspaceId: WORKSPACE })).sitemapEnabled, true);
+});
+
+test("invalid setting wire shapes and over-limit inputs leave the settings ledger untouched", async () => {
+  const { deps, recorded } = await makeDeps();
+  const validRule = { userAgent: "IndexBot", allow: ["/news"], disallow: ["/drafts"] };
+  const cases = [
+    [{ titleTemplate: "%s" + "x".repeat(499) }, "titleTemplate must be at most 500 characters"],
+    [{ defaultDescription: 42 }, "defaultDescription must be a string"],
+    [{ defaultDescription: "x".repeat(501) }, "defaultDescription must be at most 500 characters"],
+    [{ defaultOgImage: "x".repeat(2049) }, "defaultOgImage must be at most 2048 characters"],
+    [{ twitterSite: "x".repeat(101) }, "twitterSite must be at most 100 characters"],
+    [{ defaultRobots: false }, "defaultRobots requires boolean noindex/nofollow"],
+    [{ defaultRobots: null }, "defaultRobots requires boolean noindex/nofollow"],
+    [{ defaultRobots: { noindex: "false", nofollow: true } }, "defaultRobots requires boolean noindex/nofollow"],
+    [{ defaultRobots: { noindex: false, nofollow: 1 } }, "defaultRobots requires boolean noindex/nofollow"],
+    [{ sitemapEnabled: "false" }, "sitemapEnabled must be a boolean"],
+    [{ robotsRules: validRule }, "robotsRules must be an array"],
+    [{ robotsRules: Array.from({ length: 51 }, () => validRule) }, "robotsRules may contain at most 50 rules"],
+    [{ robotsRules: [validRule, null, validRule] }, "each robots rule requires a non-empty userAgent"],
+    [{ robotsRules: [{ ...validRule, userAgent: 42 }] }, "each robots rule requires a non-empty userAgent"],
+    [{ robotsRules: [{ ...validRule, userAgent: "  " }] }, "each robots rule requires a non-empty userAgent"],
+    [{ robotsRules: [{ ...validRule, allow: "/news" }] }, "robots rule 'allow' must be an array"],
+    [{ robotsRules: [{ ...validRule, disallow: Array.from({ length: 101 }, () => "/draft") }] }, "robots rule 'disallow' may contain at most 100 entries"],
+  ] as const;
+  for (const [patch, message] of cases) {
+    await assert.rejects(
+      setSeoSettings(deps, { workspaceId: WORKSPACE, callerPrincipalId: "editor", patch: { titleTemplate: "%s | Pending", ...patch } as unknown as SeoSettingsPatch }),
+      (error: unknown) => error instanceof SeoSettingsValidationError && error.message === message,
+      message,
+    );
+  }
+  assert.deepEqual(recorded.writes, []);
+  const settings = await getSeoSettings(deps, { workspaceId: WORKSPACE });
+  assert.equal(settings.titleTemplate, "%s");
+  assert.deepEqual(settings.robotsRules, []);
+  assert.deepEqual(recorded.invalidations, []);
+});
+
+test("exact SEO limits are accepted and robots paths survive ledger readback", async () => {
+  const { deps, recorded } = await makeDeps();
+  const titleTemplate = "%s" + "x".repeat(498);
+  const defaultDescription = "x".repeat(500);
+  const robotsRules = [
+    ...Array.from({ length: 49 }, (_, i) => ({ userAgent: `Bot-${i}` })),
+    { userAgent: "NewsBot", disallow: Array.from({ length: 100 }, (_, i) => `/draft-${i}`) },
+  ];
+  await setSeoSettings(deps, {
+    workspaceId: WORKSPACE, callerPrincipalId: "editor", patch: { titleTemplate, defaultDescription, robotsRules },
+  });
+  const settings = await getSeoSettings(deps, { workspaceId: WORKSPACE });
+  assert.equal(settings.titleTemplate, titleTemplate);
+  assert.equal(settings.defaultDescription, defaultDescription);
+  assert.deepEqual(settings.robotsRules, robotsRules);
+  assert.deepEqual(recorded.invalidations, [WORKSPACE]);
 });

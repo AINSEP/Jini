@@ -15,3 +15,15 @@ test("publish plans omit absent filters and execute carries the confirmed overwr
   await api.connectPublishDestination();
   expect(request).toHaveBeenLastCalledWith({ path: "/workspaces/ws/publish-content/destination/connect" }, { init: { method: "POST", body: "{}" } });
 });
+
+test("peer listing uses the workspace collection and returns the destination metadata without writing", async () => {
+  const peers = [{ id: "staging", label: "Staging", baseUrl: "https://staging.example", remoteWorkspaceId: "remote", masked: null, hasCredential: false }];
+  const request = vi.fn(async (input: { path: string }, options?: { init: { method: string; body?: string } }): Promise<unknown> => {
+    expect(input).toEqual({ path: "/workspaces/editor/publish-content/peers" });
+    expect(options).toBeUndefined();
+    return { peers };
+  });
+  const api = createPublishContentApi({ workspaceId: "editor", request: <T,>(input: { path: string }, options?: { init: { method: string; body?: string } }) => request(input, options) as Promise<T> });
+  await expect(api.listPublishContentPeers()).resolves.toEqual({ peers });
+  expect(request).toHaveBeenCalledExactlyOnceWith({ path: "/workspaces/editor/publish-content/peers" }, undefined);
+});

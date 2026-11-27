@@ -6,7 +6,7 @@ import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from 
 import { InMemoryOutbox } from "../../__tests__/support/events.fixture.js";
 import { redirectMatcher } from "../../matcher.js";
 import { InMemoryRedirectRepo } from "../../repo.memory.js";
-import { createRedirect, type RedirectsWriteDeps } from "../../redirects.js";
+import { createRedirect, updateRedirect, type RedirectsWriteDeps } from "../../redirects.js";
 import { RedirectConflictError, RedirectLoopError, RedirectTargetNotAllowedError, RedirectValidationError } from "../../types.js";
 import { contributeRedirectPublish, redirectNaturalKey, type RedirectRepoPublishConfig } from "../publish-content.js";
 
@@ -109,4 +109,28 @@ test("a redirect mapped to packed state and applied elsewhere yields the same re
   const after = await target.repo.list({ workspaceId: WORKSPACE_ID });
   assert.deepEqual(after.map((r) => r.id).sort(), copied.map((r) => r.id).sort());
   assert.equal(after.find((r) => r.fromPattern === "/x")?.toTarget, "/z");
+});
+
+test("legacy packed state without status reactivates the same disabled rule and valid misses return null", async () => {
+  const config = captureConfig();
+  const ports = makeDeps();
+  const id = "exact:/retired";
+  assert.equal(await config.find({ ports, workspaceId: WORKSPACE_ID, id }), null);
+  const { record } = await createRedirect({ deps: ports, input: {
+    workspaceId: WORKSPACE_ID, matchType: "exact", fromPattern: "/retired", toTarget: "/old", statusCode: 301, actorId: "owner",
+  } });
+  const { record: disabled } = await updateRedirect({ deps: ports, input: {
+    workspaceId: WORKSPACE_ID, id: record.id, status: "disabled", actorId: "owner",
+  } });
+  const existing = await config.find({ ports, workspaceId: WORKSPACE_ID, id });
+  assert.equal(existing?.id, disabled.id);
+  assert.equal(existing?.status, "disabled");
+  const state = { matchType: "exact", fromPattern: "/retired", toTarget: "/new", statusCode: 302, override: false, priority: 0 };
+  const entity = { entityType: "redirect", id, schemaVersion: 1, hashVersion: 1, contentHash: "test", requiredBlobs: [], state };
+  assert.equal(await config.validate({ ports, workspaceId: WORKSPACE_ID, existing, entity }), null);
+  assert.deepEqual(await config.write({ ports, workspaceId: WORKSPACE_ID, id, state, existing, principalId: "publisher" }),
+    { changeSetId: record.id });
+  const rows = await ports.repo.list({ workspaceId: WORKSPACE_ID });
+  assert.deepEqual(rows.map(row => [row.id, row.status, row.toTarget, row.statusCode, row.version]),
+    [[record.id, "active", "/new", 302, disabled.version + 1]]);
 });

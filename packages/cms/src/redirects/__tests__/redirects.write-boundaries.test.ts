@@ -464,3 +464,14 @@ test("restoring a wildcard redirect at capacity leaves it in Trash", async () =>
   assert.equal(await isTrashed(wildcard.id), true);
   assert.deepEqual(await pendingEvents(deps), []);
 });
+
+test("an empty import is refused without changing an existing redirect", async () => {
+  const repo = new InMemoryRedirectRepo();
+  const existing = record({ id: "only", fromPattern: "/legacy", toTarget: "/current" });
+  await repo.insertRedirect(existing);
+  const deps = makeDeps(repo);
+  await assert.rejects(importRedirects({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID, rules: [] } }),
+    (error: unknown) => error instanceof RedirectValidationError && error.message === "import batch size must be 1-500 (got 0)");
+  assert.deepEqual(await repo.list({ workspaceId: WORKSPACE_ID }), [existing]);
+  assert.deepEqual(repo.listRevisionsForTests({ redirectId: "only" }), []);
+});

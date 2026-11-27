@@ -137,3 +137,14 @@ test("analyzeEntry deducts 20 per issue for an empty title and missing descripti
   assert.deepEqual(analysis.issues.map(i => i.code), ["missing_title", "missing_description"]);
   assert.equal(analysis.score, 60);
 });
+
+test("an authored Twitter image wins over OG while a missing Twitter override inherits OG", async () => {
+  const ogImage = "https://cdn.example/open-graph.webp";
+  const twitterImage = "https://cdn.example/twitter.png";
+  const authored = fakeDeps({ overrides: { ogImage, twitterImage } });
+  const inherited = fakeDeps({ overrides: { ogImage } });
+  const first = await getEntryMeta({ deps: authored.deps, input });
+  const second = await getEntryMeta({ deps: inherited.deps, input });
+  assert.deepEqual([first.openGraph.image, first.twitter.image], [ogImage, twitterImage]);
+  assert.deepEqual([second.openGraph.image, second.twitter.image], [ogImage, ogImage]);
+});

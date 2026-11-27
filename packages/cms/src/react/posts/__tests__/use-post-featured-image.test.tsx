@@ -41,3 +41,20 @@ it("falls from rendition to original to unavailable, resetting for a new id", ()
   expect(result.current.previewUrl).toBe("/rendition/second");
   expect(result.current.previewFailed).toBe(false);
 });
+
+it("cancel closes the picker without replacing the image and a host without renditions uses the original", () => {
+  const onChange = vi.fn();
+  const { result, rerender } = renderHook(({ value }: { value: string | null }) =>
+    usePostFeaturedImage({ value, onChange, deps: { port: deps.port } }), { initialProps: { value: null } });
+  expect(result.current.previewUrl).toBeNull();
+  rerender({ value: "existing" });
+  expect(result.current.previewUrl).toBe("/original/existing");
+  act(() => result.current.openPicker());
+  expect(result.current.pickerOpen).toBe(true);
+  act(() => result.current.closePicker());
+  expect(result.current.pickerOpen).toBe(false);
+  expect(result.current.previewUrl).toBe("/original/existing");
+  expect(onChange).not.toHaveBeenCalled();
+  act(() => result.current.onPreviewError());
+  expect(result.current.previewFailed).toBe(true);
+});

@@ -9,7 +9,8 @@ import {
   type VerifiedOrigin,
 } from "@jini-ai/core/contracts/server/verified-origin";
 import { ensureSeoSettingDefinitions } from "./support/legacy-api.fixture.js";
-import { buildFeed, renderRssXml } from "./support/legacy-api.fixture.js";
+import { buildFeed, renderRssXml, seoDeps } from "./support/legacy-api.fixture.js";
+import { buildFeed as buildFeedFromPorts } from "../feed.js";
 
 function post(overrides: Partial<PostRecord> = {}): PostRecord {
   return { id: "live", workspaceId: "feed-ws", title: "Live", slug: "live", kind: "post", status: "published", version: 1,
@@ -105,3 +106,18 @@ test("an item's pubDate is the post's go-live time (publishAt), not updatedAt â€
 });
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+test("the feed orders by updated time, preserves ties, and ignores pages", async () => {
+  const d = await deps([
+    post({ id: "old", slug: "older", title: "Old", updatedAt: "2026-09-30T12:00:00.000Z" }),
+    post({ id: "a", slug: "first-tie", title: "First tie", publishAt: "2026-09-01T12:00:00.000Z" }),
+    post({ id: "page", slug: "page", title: "Page", kind: "page", updatedAt: "2026-10-10T12:00:00.000Z" }),
+    post({ id: "b", slug: "second-tie", title: "Second tie" }),
+    post({ id: "latest", slug: "latest", title: "Latest", updatedAt: "2026-10-02T12:00:00.000Z" }),
+  ]);
+  const feed = await buildFeedFromPorts({
+    deps: { ...seoDeps(d), runtimeMode: "production", clock: { nowIso: () => "2026-10-15T00:00:00.000Z" } },
+    input: { workspaceId: "feed-ws", siteTitle: "News" },
+  });
+  assert.deepEqual(feed.items.map(({ link }) => link), ["/latest", "/first-tie", "/second-tie", "/older"]);
+});

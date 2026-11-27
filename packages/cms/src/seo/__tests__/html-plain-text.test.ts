@@ -34,3 +34,11 @@ describe("extractPlainTextFromHtml", () => {
     });
   }
 });
+
+it("keeps out-of-range numeric references intact next to valid scalar boundary characters", () => {
+  const enormous = "9".repeat(400);
+  const html = `Lead &#xD7FF; &#xD800; &#xDFFF; &#xE000; &#X10FFFF; &#X110000; &#${enormous}; end`;
+  expect(extractPlainTextFromHtml({ html })).toBe(
+    `Lead \uD7FF &#xD800; &#xDFFF; \uE000 \u{10FFFF} &#X110000; &#${enormous}; end`,
+  );
+});

@@ -26,10 +26,10 @@ const COUNTS = { all: 5, images: 3, videos: 2, trash: 0 };
 
 /** A port whose every answer the test releases by hand, and which records each request. */
 function deferredPort() {
-  const waiting: Array<{ view: MediaGridView; page: MediaGridPageRequest; resolve: (page: MediaGridPage) => void }> = [];
+  const waiting: Array<{ view: MediaGridView; page: MediaGridPageRequest; resolve: (page: MediaGridPage) => void; reject: (failure: unknown) => void }> = [];
   const port: MediaGridPort = {
     listMediaGrid: (view, page = {}) => {
-      return new Promise<MediaGridPage>((resolve) => waiting.push({ view, page, resolve }));
+      return new Promise<MediaGridPage>((resolve, reject) => waiting.push({ view, page, resolve, reject }));
     },
   };
   return { port, waiting };
@@ -86,6 +86,55 @@ describe("media grid cursor paging", () => {
     expect(result.current.items?.map((item) => item.id)).toEqual(["v1"]);
     expect(result.current.counts).toEqual(COUNTS);
     expect(result.current.hasMore).toBe(false);
+  });
+
+  it("skips a deep-link lookup for a loaded asset and fetches a different asset by its exact ID", async () => {
+    const { port, waiting } = deferredPort();
+    const { result, rerender } = renderHook(({ itemId }) => useGridPages({ useCallback, useState, port, tab: "images", orderBy: "alphabetical", listKey: ["media"], useFetchQuery }, { itemId }), { wrapper, initialProps: { itemId: "loaded" } });
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    await act(async () => waiting[0]!.resolve(answer(["other", "loaded"], "next-page")));
+    await waitFor(() => expect(result.current.items?.map(({ id }) => id)).toEqual(["other", "loaded"]));
+    expect(result.current.exactItem).toBeNull();
+    expect(waiting.map(({ view, page }) => ({ view, page }))).toEqual([
+      { view: { tab: "images", orderBy: "alphabetical" }, page: { limit: 50 } },
+    ]);
+
+    rerender({ itemId: "deep-linked" });
+    await waitFor(() => expect(waiting).toHaveLength(2));
+    expect(waiting[1]!.page).toEqual({ itemId: "deep-linked" });
+    await act(async () => waiting[1]!.resolve(answer(["deep-linked"], null)));
+    await waitFor(() => expect(result.current.exactItem?.id).toBe("deep-linked"));
+    expect(result.current.items?.map(({ id }) => id)).toEqual(["other", "loaded"]);
+  });
+
+  it.each([
+    { reason: new Error("cursor temporarily unavailable"), message: "cursor temporarily unavailable" },
+    { reason: { status: 503 }, message: "more media could not be loaded" },
+  ])("keeps loaded rows after '$message' and retries the same cursor", async ({ reason, message }) => {
+    const { port, waiting } = deferredPort();
+    const { result } = renderHook(() => useGridPages({ useCallback, useState, port, tab: "images", orderBy: "alphabetical", listKey: ["media"], useFetchQuery }), { wrapper });
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    await act(async () => waiting[0]!.resolve(answer(["first"], "opaque-cursor")));
+    await waitFor(() => expect(result.current.items?.map(({ id }) => id)).toEqual(["first"]));
+
+    let next!: Promise<void>;
+    act(() => { next = result.current.loadMore(); });
+    expect(result.current.loadingMore).toBe(true);
+    expect(waiting).toHaveLength(2);
+    expect(waiting[1]!.page).toEqual({ limit: 50, cursor: "opaque-cursor" });
+    await act(async () => { waiting[1]!.reject(reason); await next; });
+    expect(result.current.loadMoreError?.message).toBe(message);
+    expect(result.current.loadingMore).toBe(false);
+    expect(result.current.hasMore).toBe(true);
+    expect(result.current.items?.map(({ id }) => id)).toEqual(["first"]);
+
+    act(() => { next = result.current.retryLoadMore(); });
+    expect(waiting).toHaveLength(3);
+    expect(waiting[2]!.page).toEqual({ limit: 50, cursor: "opaque-cursor" });
+    await act(async () => { waiting[2]!.resolve(answer(["first", "second"], null)); await next; });
+    expect(result.current.loadMoreError).toBeNull();
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.items?.map(({ id }) => id)).toEqual(["first", "second"]);
   });
 
 });

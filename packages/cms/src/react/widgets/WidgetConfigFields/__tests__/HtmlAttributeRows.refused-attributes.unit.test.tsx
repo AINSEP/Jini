@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { HtmlAttributeRows, type HtmlAttributeRow, type HtmlAttributeRowsProps } from "../HtmlAttributeRows.js";
@@ -38,4 +38,48 @@ test("a row the injected policy refuses is flagged; an allowed row is not (M-byp
   expect(onChange).toHaveBeenLastCalledWith("data-x=card onclick=steal");
   fireEvent.click(screen.getByRole("button", { name: "Remove onclick" }));
   expect(onChange).toHaveBeenLastCalledWith("data-kui=card");
+});
+
+const useEditableRows: HtmlAttributeRowsProps["useRows"] = ({ value, onChange, htmlAttributesToRows: parse, rowsToHtmlAttributes: serialize, isDroppedAttributeRow: dropped }) => {
+  const [rows, setRows] = useState(() => parse({ text: value }));
+  const save = (next: HtmlAttributeRow[]) => {
+    setRows(next);
+    onChange(serialize({ rows: next }));
+  };
+  return {
+    rows, dropped: rows.map(dropped),
+    addRow: () => save([...rows, { name: "", value: "" }]),
+    removeRow: ({ index }) => save(rows.filter((_, i) => i !== index)),
+    setRow: ({ index, patch }) => save(rows.map((row, i) => i === index ? { ...row, ...patch } : row)),
+  };
+};
+
+function EditableAttributes() {
+  const [value, onChange] = useState("data-kui=card");
+  return <>
+    <HtmlAttributeRows value={value} onChange={onChange} t={(key) => `FR ${key}`} agentHandle="widget-style" useRows={useEditableRows}
+      htmlAttributesToRows={htmlAttributesToRows} rowsToHtmlAttributes={rowsToHtmlAttributes} isDroppedAttributeRow={isDroppedAttributeRow} {...kit} />
+    <output aria-label="Stored attributes">{value}</output>
+  </>;
+}
+
+test("adds an agent-addressable blank row and removes it using a localized positional label", () => {
+  render(<EditableAttributes />);
+  const add = screen.getByRole("button", { name: "FR Add attribute" });
+  expect(add).toHaveAttribute("data-agent-element", "widget-style-attribute-add");
+  fireEvent.click(add);
+  expect(screen.getByRole("textbox", { name: "FR Attribute name 2" })).toHaveValue("");
+  const remove = screen.getByRole("button", { name: "FR Remove 2" });
+  fireEvent.click(remove);
+  expect(screen.queryByRole("textbox", { name: "FR Attribute name 2" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Stored attributes")).toHaveTextContent("data-kui=card");
+});
+
+test("keeps edited attribute value whitespace while updating only the named row", () => {
+  render(<EditableAttributes />);
+  fireEvent.click(screen.getByRole("button", { name: "FR Add attribute" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "FR Attribute name 2" }), { target: { value: " data-note " } });
+  fireEvent.change(screen.getByRole("textbox", { name: "FR Attribute value 2" }), { target: { value: " padded " } });
+  expect(screen.getByRole("textbox", { name: "FR Attribute value 2" })).toHaveValue(" padded ");
+  expect(screen.getByLabelText("Stored attributes").textContent).toBe("data-kui=card data-note= padded ");
 });

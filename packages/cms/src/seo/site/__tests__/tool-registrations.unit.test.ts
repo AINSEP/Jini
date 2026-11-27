@@ -5,6 +5,7 @@ import { NEUTRAL_HOST_READ_VOCABULARY, type ToolExecutionContext, type ToolMetad
 import type { PrincipalRepoPort } from "@jini-ai/core/contracts/site/user-management";
 import { ensureSettingDefinitions, getEffective, InMemorySettingsRepo, set } from "@jini-ai/core/settings";
 
+import { InMemoryEventBus, InMemoryOutbox } from "../../../redirects/__tests__/support/events.fixture.js";
 import { seoDerivedRisk } from "../../tool-registrations.js";
 import { ensureSeoSettingDefinitions } from "../settings.js";
 import { buildSeoRegistrations, contributeSeoTools, type SeoToolDeps, type SeoToolHostPolicy } from "../tool-registrations.js";
@@ -68,4 +69,43 @@ test("the host metadata is applied and seo_get_settings reads through the inject
   assert.equal(result.settings.titleTemplate, "%s");
   assert.equal(result.settings.sitemapEnabled, true);
   assert.equal(reads.length, 8);
+});
+
+test("the contributor’s settings writer uses the host ledger and requests workspace sitemap invalidation", async () => {
+  const base = await makeRouteDeps();
+  const invalidations: Parameters<SeoToolDeps["sitemapService"]["requestSitemapInvalidation"]>[0][] = [];
+  const deps: SeoToolDeps = {
+    ...base,
+    outbox: new InMemoryOutbox(),
+    bus: new InMemoryEventBus(),
+    sitemapService: { ...base.sitemapService, requestSitemapInvalidation: async (request) => { invalidations.push(request); } },
+  };
+  const writes: Parameters<typeof set>[0]["input"][] = [];
+  const hostPolicy = policy([]);
+  const registrations = contributeSeoTools({
+    ...hostPolicy,
+    settingsLedger: { ...hostPolicy.settingsLedger, set: (args) => { writes.push(args.input); return set(args); } },
+  }).build(deps, undefined);
+  const write = registrations.find((item) => item.descriptor.id === "seo_set_settings");
+  const read = registrations.find((item) => item.descriptor.id === "seo_get_settings");
+  assert.ok(write && read);
+  const context: ToolExecutionContext = {
+    executionId: "exec", principal: { id: "editor" }, run: { id: "run" },
+    input: { sitemapEnabled: false }, signal: new AbortController().signal,
+  };
+  await write.handler(context);
+  assert.deepEqual(writes, [{
+    namespace: "site.seo", key: "sitemap_enabled", scope: "workspace", value: false,
+    workspaceId: WORKSPACE, authWorkspaceId: WORKSPACE, callerPrincipalId: "editor", requiredPermissionOverride: "admin.seo.manage",
+  }]);
+  const result = await read.handler({ ...context, input: {} }) as { settings: { sitemapEnabled: boolean } };
+  assert.equal(result.settings.sitemapEnabled, false);
+  assert.equal(invalidations.length, 1);
+  const invalidation = invalidations[0]!;
+  assert.deepEqual(invalidation.input, { workspaceId: WORKSPACE });
+  assert.equal(invalidation.deps.outbox, deps.outbox);
+  assert.equal(invalidation.deps.bus, deps.bus);
+  assert.equal(invalidation.deps.clock, deps.clock);
+  assert.equal(invalidation.deps.idGen, deps.idGen);
+  assert.equal(invalidation.deps.dispatch, deps.seoDeps.dispatch);
 });

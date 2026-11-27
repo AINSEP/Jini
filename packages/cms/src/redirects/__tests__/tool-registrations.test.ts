@@ -259,3 +259,12 @@ test("redirects_list refuses an off-enum status, source or matchType naming the 
   await handler(deps, "redirects_list")(ctx({ status: "disabled", source: "import", matchType: "regex" }));
   assert.equal(listed, 1);
 });
+
+test("redirects_import refuses missing, non-array, empty, and oversized rules before writing", async () => {
+  const { deps, redirectRepo } = makeFixture();
+  const rule = { matchType: "exact", fromPattern: "/legacy", toTarget: "/current", statusCode: 301 };
+  for (const input of [{}, { rules: rule }, { rules: [] }, { rules: Array.from({ length: 501 }, () => rule) }]) {
+    assert.equal(await rejectionMessage(handler(deps, "redirects_import")(ctx(input))), "'rules' (array of 1-500 items) is required");
+  }
+  assert.deepEqual(await redirectRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});

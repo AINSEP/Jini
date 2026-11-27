@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { getEntryMeta, type GetEntryMetaDeps } from "../seo.js";
 import { buildHeadElements } from "../page-head.js";
+import { withContentImageSource, withCoverReadDeps, withCoverSeoDefaults } from "../cover-image.js";
+import { createSeoPageHeadHook } from "../site/page-head-contributor.js";
+import { buildPostRecord, InMemoryPostRepo } from "./support/post.fixture.js";
 import type { SeoPostRecord } from "../ports.js";
 import type { MediaRecord } from "../../media/types.js";
 import { InMemoryTransformDefinitionRepo } from "../../media/repo.memory.js";
@@ -128,4 +131,143 @@ test("available assets advertise output metadata; deleting the asset omits URL a
   assert.equal("imageSource" in meta.openGraph, false);
   assert.equal(meta.openGraph.imageWidth, undefined);
   assert.equal(meta.openGraph.imageType, undefined);
+});
+
+test("cover projection skips refused, missing and trashed references, deduplicates reads and preserves the stored post", async () => {
+  const ports = deps({ featured: false });
+  const raw = buildPostRecord({
+    id: "post", workspaceId: "w", title: "Workshop",
+    bodyJson: { type: "doc", content: [
+      { type: "image", attrs: { assetId: "video", alt: "Wrong kind" } },
+      { type: "image", attrs: { assetId: "lost", alt: "Deleted" } },
+      { type: "image", attrs: { assetId: "removed", alt: "Trashed" } },
+      { type: "image", attrs: { assetId: "cover", alt: "Tools on a pegboard" } },
+      { type: "image", attrs: { assetId: "cover", alt: "Second appearance" } },
+    ] },
+  });
+  const repo = new InMemoryPostRepo([raw]);
+  ports.postRepo = repo;
+  const checked: [string, string][] = [];
+  const lookedUp: [string, string][] = [];
+  ports.media.featuredImage.resolveFeaturedImageRef = async ({ workspaceId, ref }) => {
+    checked.push([workspaceId, ref]);
+    return ref === "video" ? { ok: false, reason: "wrong-type" } : { ok: true };
+  };
+  ports.media.featuredImage.findMediaByIdOrSlug = async ({ workspaceId, idOrSlug }) => {
+    lookedUp.push([workspaceId, idOrSlug]);
+    if (idOrSlug === "removed") return { ...asset, id: "removed-id", status: "trashed" };
+    if (idOrSlug === "cover") return { ...asset, width: 640, height: 480 };
+    return null;
+  };
+  const result = await withCoverReadDeps({ deps: ports, workspaceId: "w", entryId: "post" });
+  assert.deepEqual(checked, [["w", "video"], ["w", "lost"], ["w", "removed"], ["w", "cover"]]);
+  assert.deepEqual(lookedUp, [["w", "lost"], ["w", "removed"], ["w", "cover"]]);
+  assert.deepEqual(result.cover, { mediaId: "asset", width: 640, height: 480, alt: "Tools on a pegboard", bodyOccurrence: 3 });
+  assert.deepEqual(result.rawPost, raw);
+  assert.deepEqual(await result.deps.postRepo.findById({ workspaceId: "w", id: "post" }), { ...raw, featuredMediaId: "asset" });
+  assert.deepEqual(await repo.findById({ workspaceId: "w", id: "post" }), raw);
+  assert.equal(result.deps.postRepo.extractPlainText({ html: "<p>Tools</p>" }), " Tools ");
+  assert.equal(result.deps.postRepo.isTrashed({ post: { ...raw, deletedAt: now } }), true);
+});
+
+test("a missing entry keeps the original read ports and no cover", async () => {
+  const ports = deps();
+  ports.postRepo = new InMemoryPostRepo();
+  const result = await withCoverReadDeps({ deps: ports, workspaceId: "w", entryId: "missing" });
+  assert.equal(result.deps, ports);
+  assert.equal(result.cover, null);
+  assert.equal(result.rawPost, null);
+});
+
+test("external cover projection fills only missing OG overrides and tolerates invalid stored JSON", () => {
+  const cover = { url: "https://cdn.example/body.png", alt: "Body cover", width: null, height: null };
+  const bare = buildPostRecord();
+  const featured = { ...bare, featuredMediaId: "explicit-asset" };
+  assert.equal(withCoverSeoDefaults({ post: featured, cover }), featured);
+  assert.equal(withCoverSeoDefaults({ post: bare, cover: null }), bare);
+  for (const seoExtJson of [undefined, "null", "[]", "7", "{"]) {
+    const projected = withCoverSeoDefaults({ post: { ...bare, seoExtJson }, cover });
+    assert.equal(projected.seoExtJson, '{"ogImage":"https://cdn.example/body.png"}');
+  }
+  const authored = { ...bare, seoExtJson: '{"title":"By hand","ogImage":"https://cdn.example/own.png"}' };
+  assert.deepEqual(withCoverSeoDefaults({ post: authored, cover }), authored);
+});
+
+test("admin provenance removes the transient override flag without relabelling a stored override", async () => {
+  const img = "https://cdn.example/body.png";
+  const raw = buildPostRecord({ id: "post", workspaceId: "w" });
+  const meta = await getEntryMeta({
+    deps: deps({ overrides: { ogImage: img }, featured: false }), input: { workspaceId: "w", entryId: "post" },
+  });
+  assert.equal(meta.openGraph.imageOverridden, true);
+  const relabelled = withContentImageSource({ meta, rawPost: raw });
+  assert.equal(relabelled.openGraph.image, img);
+  assert.equal(relabelled.openGraph.imageSource, "content");
+  assert.equal("imageOverridden" in relabelled.openGraph, false);
+  assert.equal(withContentImageSource({ meta, rawPost: null }), meta);
+  assert.equal(withContentImageSource({ meta: relabelled, rawPost: raw }), relabelled);
+  assert.equal(withContentImageSource({ meta, rawPost: { ...raw, seoExtJson: JSON.stringify({ ogImage: img }) } }), meta);
+});
+
+function entryHead(input: { bodyUrl?: string; authoredUrl?: string }) {
+  const ports = deps({ featured: false });
+  const raw = buildPostRecord({
+    id: "post", workspaceId: "w", title: "Workshop", slug: "workshop",
+    bodyJson: { type: "doc", content: input.bodyUrl ? [{ type: "image", attrs: { src: input.bodyUrl } }] : [] },
+    seoExtJson: input.authoredUrl ? JSON.stringify({ ogImage: input.authoredUrl }) : undefined,
+  });
+  ports.postRepo = new InMemoryPostRepo([raw]);
+  ports.settings = { ...ports.settings, getSeoSettings: async () => ({
+    titleTemplate: "%s", defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: true, robotsRules: [],
+  }) };
+  return createSeoPageHeadHook({ deps: ports, rootSlug: "home", siteTitle: async () => undefined }).handle({
+    workspaceId: "w", route: "/workshop", canonicalUrl: "/workshop", siteTitle: "Site",
+    entry: { id: "post", type: "post", slug: "workshop", title: "Workshop", status: "published", updatedAt: now, ext: {},
+      ancestors: [{ title: "Home", url: "/" }, { title: "Workshop", url: "/workshop" }] },
+  });
+}
+
+test("page head puts the resolved authored image on the article but never on breadcrumbs", async () => {
+  const url = "https://cdn.example/authored.png";
+  const elements = await entryHead({ bodyUrl: "https://cdn.example/body.png", authoredUrl: url });
+  assert.deepEqual(elements.find(e => e.kind === "og" && e.property === "og:image"),
+    { kind: "og", property: "og:image", content: url, priority: 143 });
+  assert.deepEqual(elements.filter(e => e.kind === "jsonld").map(e => e.data), [
+    { "@context": "https://schema.org", "@type": "Article", headline: "Workshop", image: url },
+    { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "/" },
+      { "@type": "ListItem", position: 2, name: "Workshop", item: "/workshop" },
+    ] },
+  ]);
+});
+
+test("a body-only external image is emitted for OG, not JSON-LD", async () => {
+  const bodyUrl = "https://cdn.example/body.png";
+  const elements = await entryHead({ bodyUrl });
+  assert.deepEqual(elements.find(e => e.kind === "og" && e.property === "og:image"),
+    { kind: "og", property: "og:image", content: bodyUrl, priority: 143 });
+  assert.deepEqual(elements.find(e => e.kind === "jsonld" && e.data["@type"] === "Article"),
+    { kind: "jsonld", priority: 900, data: { "@context": "https://schema.org", "@type": "Article", headline: "Workshop" } });
+});
+
+test("an explicitly authored OG URL stays in JSON-LD even when it equals the external body image", async () => {
+  const bodyUrl = "https://cdn.example/body.png";
+  const elements = await entryHead({ bodyUrl, authoredUrl: bodyUrl });
+  assert.deepEqual(elements.find(e => e.kind === "jsonld" && e.data["@type"] === "Article"),
+    { kind: "jsonld", priority: 900, data: { "@context": "https://schema.org", "@type": "Article", headline: "Workshop", image: bodyUrl } });
+});
+
+test("no cover or override emits no OG image and leaves the article schema intact", async () => {
+  const elements = await entryHead({});
+  assert.equal(elements.find(e => e.kind === "og" && e.property === "og:image"), undefined);
+  assert.deepEqual(elements.find(e => e.kind === "jsonld" && e.data["@type"] === "Article"),
+    { kind: "jsonld", priority: 900, data: { "@context": "https://schema.org", "@type": "Article", headline: "Workshop" } });
+});
+
+test("a transient external body cover does not leak into the Twitter image tag", async () => {
+  const bodyUrl = "https://cdn.example/body.png";
+  const elements = await entryHead({ bodyUrl });
+  assert.deepEqual(elements.find(e => e.kind === "og" && e.property === "og:image"),
+    { kind: "og", property: "og:image", content: bodyUrl, priority: 143 });
+  assert.equal(elements.find(e => e.kind === "meta" && e.name === "twitter:image"), undefined);
 });
