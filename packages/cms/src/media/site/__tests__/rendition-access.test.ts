@@ -34,3 +34,23 @@ it("failed reference-index reads are retried and an unreferenced asset does not 
   expect(readRetiredSlugs.mock.calls).toEqual([[{ workspaceId, mediaId: "asset" }], [{ workspaceId, mediaId: "asset" }]]);
   expect(readEntitlement.mock.calls).toEqual([]);
 });
+
+it("a gated entry's placed widget gates the media its saved config shows; trashed, inactive and malformed widgets gate nothing", async () => {
+  const { buildWidgetInstanceFieldsJson } = await import("../../../widgets/payload-fields.js");
+  const workspaceId = "west";
+  const mediaRecord = (id: string): MediaRecord => ({ id, slug: `${id}-slug`, title: id, workspaceId, status: "active", source: { sha256: "a".repeat(64) },
+    alt: "", caption: "", credit: "", createdAt: "2026-11-19", updatedAt: "2026-11-19", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null });
+  const widget = (id: string, mediaId: string, status: "active" | "inactive", deletedAt: string | null = null) => ({ id, slug: `${id}-slug`, deletedAt,
+    fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: "gallery", config: { items: [{ mediaId }] }, status } }) });
+  const placed = ["live", "trashed", "inactive", "broken"].map(slug => ({ type: "widgetEmbed", attrs: { widgetEntryId: `${slug}-slug` } }));
+  const entry: PostRecord = { id: "p", workspaceId, title: "", slug: "p", kind: "post", bodyFormat: "doc", bodyHtml: null,
+    bodyJson: { type: "doc", content: placed }, status: "published", memberAccessJson: "members", updatedAt: "now", version: 1 };
+  const readWidgetRows = vi.fn(async () => [widget("live", "shown", "active"), widget("trashed", "binned", "active", "2026-11-20"),
+    widget("inactive", "paused", "inactive"), { id: "broken", slug: "broken-slug", fieldsJson: "not a payload" }]);
+  const readEntitlement = vi.fn(async () => () => false);
+  const access = createRenditionAccess({ workspaceId, cache: new Map(), nowMs: () => 0, readEntries: async () => [entry], readWidgetRows,
+    findMedia: async ({ idOrSlug }) => mediaRecord(idOrSlug), readRetiredSlugs: async () => [], isGated: ({ entry }) => entry.memberAccessJson === "members" });
+  expect(await access.decide({ idOrSlug: "shown", readEntitlement })).toEqual({ gated: true, allowed: false, record: mediaRecord("shown") });
+  for (const idOrSlug of ["binned", "paused"]) expect(await access.decide({ idOrSlug, readEntitlement })).toEqual({ gated: false, allowed: true, record: mediaRecord(idOrSlug) });
+  expect(readWidgetRows.mock.calls).toEqual([[{ workspaceId }]]);
+});
