@@ -1,12 +1,12 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createToolRegistry, ToolInputError, type ToolRegistration } from "@jini-ai/core";
 import { createNodeSkillFilesystem } from "../../install/index.js";
 import { resolveSkillLayout, type SkillLifecycleEvent, type SkillSiteHost } from "../layout.js";
 import { buildRegistrations, contributeSkillsInstallTools, derivedRisk, SKILLS_INSTALL_TOOL_ID } from "../install-tool.js";
-import { installSkill, listManagedSkills } from "../install-service.js";
+import { installSkill, listManagedSkills, setSkillEnabled } from "../install-service.js";
 import { buildSkillToolRegistrations, loadInstalledSkillToolSources, registerInstalledSkillTools } from "../tool-registrations.js";
 
 /**
@@ -21,7 +21,7 @@ const GITHUB_URL = "https://github.com/acme/skills";
 const md = (name: string) => `---\nname: ${name}\ndescription: Respond to outages.\n---\nAlways check ownership.\n`;
 
 const made: string[] = [];
-afterEach(async () => { for (const dir of made.splice(0)) await rm(dir, { recursive: true, force: true }); });
+afterEach(async () => { vi.unstubAllGlobals(); for (const dir of made.splice(0)) await rm(dir, { recursive: true, force: true }); });
 
 /** api.github.com for one repo holding one SKILL.md, recording every URL it was asked for. */
 function githubFetch(markdown: string, urls: string[] = []): typeof fetch {
@@ -129,6 +129,18 @@ describe("skills_install over the site host", () => {
     expect(site.events).toEqual([]);
   });
 
+  it("fetches GitHub through the global fetch when the host injects no skillFetch", async () => {
+    const site = await siteFixture();
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", githubFetch(md("incident-response"), urls));
+    await expect(installTool(site).handler(execution({ githubUrl: GITHUB_URL }))).resolves.toMatchObject({ installed: true, skill: { toolId: "skill_incident_response" } });
+    expect(urls).toEqual([
+      "https://api.github.com/repos/acme/skills/commits/HEAD",
+      `https://api.github.com/repos/acme/skills/git/trees/${COMMIT}?recursive=1`,
+      `https://api.github.com/repos/acme/skills/git/blobs/${BLOB}`,
+    ]);
+  });
+
   it("contributes skills_install as its own domain with its mutating risk", () => {
     const contributor = contributeSkillsInstallTools();
     expect(contributor.domain).toBe("skills-install");
@@ -145,6 +157,21 @@ describe("installSkill and the installed-skill registry", () => {
       { fetchImpl: githubFetch(md("notes")) });
     expect(skill).toMatchObject({ toolId: "skill_notes", name: "notes", enabled: true });
     expect((await listManagedSkills({ ...site, workspaceId: WORKSPACE_ID })).map(managed => managed.toolId)).toEqual(["skill_notes"]);
+  });
+
+  it("turning an installed skill off persists through the real installer, leaves no temporary state file and is reported", async () => {
+    const site = await siteFixture();
+    await installSkill({ workspaceId: WORKSPACE_ID, githubUrl: GITHUB_URL, skillLayout: site.skillLayout, siteBinding: site.siteBinding },
+      { fetchImpl: githubFetch(md("notes")) });
+    await setSkillEnabled({ ...site, workspaceId: WORKSPACE_ID, toolId: "skill_notes", enabled: false });
+    expect((await listManagedSkills({ ...site, workspaceId: WORKSPACE_ID })).map(skill => [skill.toolId, skill.enabled])).toEqual([["skill_notes", false]]);
+    expect(await loadInstalledSkillToolSources({ ...site, workspaceId: WORKSPACE_ID })).toEqual([]);
+    const skillDir = path.join(site.skillLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).root, "notes");
+    expect((await readdir(skillDir)).filter(name => name.endsWith(".tmp"))).toEqual([]);
+    expect(site.events).toEqual([
+      { kind: "installed", workspaceId: WORKSPACE_ID, toolId: "skill_notes" },
+      { kind: "enabled-changed", workspaceId: WORKSPACE_ID, toolId: "skill_notes", enabled: false },
+    ]);
   });
 
   it("registers each installed skill directly on a registry that cannot list", async () => {

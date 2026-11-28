@@ -73,6 +73,41 @@ describe('installed skill tools', () => {
     await expect(registration!.handler({ input: { other: 1 } } as never)).rejects.toThrow();
   });
 
+  describe('handler output without a reader, or with a refusing reader', () => {
+    const base = { id: 'skill_code_review', skillName: 'Code Review', description: 'Use when reviewing a diff.', markdown: SKILL,
+      bundledFiles: [{ kind: 'references' as const, path: 'skills/review/references/guide.md' }] };
+
+    it('returns the cached SKILL.md with no files or note when there is no reader and no input', async () => {
+      const [registration] = buildSkillToolRegistrations({ sources: [base], host });
+      await expect(registration!.handler({ input: undefined } as never)).resolves.toEqual({
+        skillName: 'Code Review', guidance: SKILL, files: [],
+        bundledFiles: [{ kind: 'references', root: 'root', path: 'skills/review/references/guide.md' }],
+      });
+    });
+
+    it('refuses a file request with a note when the source has no supporting-file reader', async () => {
+      const [registration] = buildSkillToolRegistrations({ sources: [base], host });
+      await expect(registration!.handler({ input: { file: 'references/guide.md' } } as never)).resolves.toMatchObject({
+        guidance: SKILL, files: [],
+        note: 'File request refused: no supporting-file reader is available. Valid supporting files: (none).',
+      });
+    });
+
+    it("keeps the cached instructions and the reader's note when the reader refuses the file with no text", async () => {
+      const calls: unknown[] = [];
+      const readFile = async (input: Record<string, never>, options?: { readonly file?: string }) => {
+        calls.push([input, options]);
+        return { text: '', files: ['references/guide.md'], note: 'File request refused: outside the skill.' };
+      };
+      const [registration] = buildSkillToolRegistrations({ sources: [{ ...base, readFile }], host });
+      await expect(registration!.handler({ input: { file: '../secret.md' } } as never)).resolves.toEqual({
+        skillName: 'Code Review', guidance: SKILL, files: ['references/guide.md'], note: 'File request refused: outside the skill.',
+        bundledFiles: [{ kind: 'references', root: 'root', path: 'skills/review/references/guide.md' }],
+      });
+      expect(calls).toEqual([[{}, { file: '../secret.md' }]]);
+    });
+  });
+
   describe('unreadable folders and filesystem failures', () => {
     it('reports a folder without SKILL.md, a SKILL.md that cannot be read, and a name with no tool id; ignores loose files', async () => {
       const dirs = await site({ 'skills/empty/notes.txt': 'x', 'skills/loose.md': 'x', 'skills/symbols/SKILL.md': '---\nname: !!!\ndescription: d\n---\n' });
