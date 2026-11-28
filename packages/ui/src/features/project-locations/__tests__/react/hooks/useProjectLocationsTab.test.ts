@@ -48,6 +48,24 @@ describe('useProjectLocationsTab — load failure', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.result.status).toBe('load-error');
   });
+
+  it('words a non-Error rejection as its string form, alongside an Error rejection worded by its message', async () => {
+    const reasons: unknown[] = ['host offline', new Error('disk gone')];
+    const messages: string[] = [];
+    for (const reason of reasons) {
+      const port: ProjectLocationsPort = {
+        fetchLocations: () => Promise.reject(reason),
+        openFolderDialog: () => Promise.resolve(null),
+        saveLocations: () => Promise.reject(new Error('n/a')),
+      };
+      const { result, unmount } = renderHook(() => useProjectLocationsTab({ port }));
+      await waitFor(() => expect(result.current.result.status).toBe('load-error'));
+      const current = result.current.result;
+      messages.push(current.status === 'load-error' ? current.message : `unexpected ${current.status}`);
+      unmount();
+    }
+    expect(messages).toEqual(['host offline', 'disk gone']);
+  });
 });
 
 describe('useProjectLocationsTab — save (via addFolder)', () => {

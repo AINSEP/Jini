@@ -645,6 +645,19 @@ describe('useMediaProvidersTab — per-provider port', () => {
     expect(result.current.providers.b).toBeUndefined();
   });
 
+  it("an edited base URL travels in the provider's patch beside its kept model, without server markers", async () => {
+    const { port, calls, stored } = recordingRowsPort({ seed: { a: { apiKeyConfigured: true, model: 'm-a' } } });
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.updateProvider('a', { baseUrl: 'https://media.example/v2' });
+    await waitFor(() => expect(result.current.pendingProviderIds.has('a')).toBe(true));
+    result.current.saveChanges();
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    expect(calls).toEqual([['batch', { removes: [], patches: [{ providerId: 'a', fields: { baseUrl: 'https://media.example/v2', model: 'm-a' } }] }]]);
+    expect(stored().a).toEqual({ apiKeyConfigured: true, model: 'm-a', baseUrl: 'https://media.example/v2' });
+  });
+
   it('an edit that empties a provider is not sent as a deletion', async () => {
     const seed: MediaProviderMap = { a: { apiKeyConfigured: true, apiKeyTail: '1111' } };
     const { port, calls, stored } = recordingRowsPort({ seed });

@@ -20,6 +20,24 @@ describe('SelectContent overlay-container hook', () => {
     );
     expect(container.querySelector('[role="listbox"]')).not.toBeNull();
   });
+
+  it('portals the open menu straight under document.body when the host has no overlay container', () => {
+    const { container } = render(
+      <Select open>
+        <SelectTrigger>
+          <SelectValue placeholder="Pick" />
+        </SelectTrigger>
+        <SelectContent useOverlayContainerHook={() => null}>
+          <SelectItem value="a">Option A</SelectItem>
+        </SelectContent>
+      </Select>,
+    );
+    const listbox = document.querySelector('[role="listbox"]');
+    expect(listbox).not.toBeNull();
+    // Portalled out of the rendering host into the page body, not left inline.
+    expect(container.contains(listbox)).toBe(false);
+    expect(document.body.contains(listbox)).toBe(true);
+  });
 });
 
 describe('agent-handle hook injection', () => {
