@@ -99,3 +99,14 @@ it("an abort or unavailable transaction refuses recording before page access or 
   expect(write.mock.calls).toEqual([]);
   expect(await changeSets.listByWorkspace({ workspaceId: "w" })).toEqual([]);
 });
+
+it("a page that disappeared before the edit is refused as a concurrent edit and records no undo", async () => {
+  const { deps, target, changeSets, findById } = recordingFixture();
+  const missing = { ...target, pageId: "gone" };
+  await expect(recordAssistantPageHtmlWrite({
+    deps, target: missing, expectedVersion: 7, operation: "pages_write_html", signal: new AbortController().signal,
+    write: async () => ({ changed: true, value: "written", version: 8 }),
+  })).rejects.toThrow(new PageConcurrentEditError("page 'gone' was edited elsewhere since this turn started — re-read and retry"));
+  expect(findById.mock.calls).toEqual([[{ workspaceId: "w", id: "gone" }]]);
+  expect(await changeSets.listByWorkspace({ workspaceId: "w" })).toEqual([]);
+});
