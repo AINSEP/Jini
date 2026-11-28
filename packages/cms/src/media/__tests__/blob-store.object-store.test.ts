@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { ObjectStore, ObjectStorePutOptions } from "@jini-ai/core/object-store";
+import type { ObjectStore, ObjectStorePutOptions, StagedObjectWriter } from "@jini-ai/core/object-store";
 
 import { computeBlobStorageKey } from "../blob-key.js";
 import { blobStoreFromObjectStore } from "../blob-store.object-store.js";
@@ -65,4 +65,21 @@ test("store faults propagate (never read as absence)", async () => {
   const blobs = blobStoreFromObjectStore({ store: failing });
   await assert.rejects(blobs.exists({ storageKey: "k" }), /HTTP 503/);
   await assert.rejects(blobs.sizeOf!({ storageKey: "k" }), /HTTP 503/);
+});
+
+test("a staged writer exists only when the store resolves one, and then writes under the content-addressed key", async () => {
+  const { store } = fakeObjectStore();
+  assert.equal(await blobStoreFromObjectStore({ store }).resolveStagedWriter?.({}), undefined, "a store without staged writes offers none");
+  const signal = new AbortController().signal;
+  const resolverCalls: unknown[] = [];
+  const declining: ObjectStore = { ...store, async resolveStagedWriter(input, options) { resolverCalls.push([input, options]); return undefined; } };
+  assert.equal(await blobStoreFromObjectStore({ store: declining }).resolveStagedWriter?.({}, { signal }), undefined, "a store that declines staged writes offers none");
+  assert.deepEqual(resolverCalls, [[{}, { signal }]]);
+  const writes: Array<Parameters<StagedObjectWriter>> = [];
+  const staging: ObjectStore = { ...store, async resolveStagedWriter() { return async (input, options) => { writes.push([input, options]); }; } };
+  const writer = await blobStoreFromObjectStore({ store: staging }).resolveStagedWriter?.({});
+  assert.ok(writer);
+  const openChunks = async function* () { yield bytes; };
+  assert.deepEqual(await writer({ workspaceId, sha256, byteLength: 3, openChunks }, { signal }), { storageKey: computeBlobStorageKey({ workspaceId, sha256 }) });
+  assert.deepEqual(writes, [[{ key: computeBlobStorageKey({ workspaceId, sha256 }), byteLength: 3, sha256, openChunks }, { signal }]]);
 });

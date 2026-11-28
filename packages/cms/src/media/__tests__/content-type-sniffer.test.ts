@@ -233,3 +233,11 @@ test("G7-9: a WebVTT file (optionally BOM-prefixed) sniffs as text/vtt; a lookal
   assert.equal(sniffContentType({ bytes: enc("1\n00:00:00,000 --> 00:00:01,000\nSRT\n") }), "application/octet-stream");
   assert.equal(sniffContentType({ bytes: enc("WEBVTT\n<script>alert(1)</script>") }), "text/vtt");
 });
+
+test("sniffContentType: an untagged MPEG frame with a reserved version or reserved layer is not audio", () => {
+  // 0xEB: valid sync, version bits 01 (reserved). 0xF9: MPEG-1 version, layer bits 00 (reserved).
+  assert.equal(sniffContentType({ bytes: bytesOf([0xff, 0xeb, 0x90, 0x00]) }), "application/octet-stream");
+  assert.equal(sniffContentType({ bytes: bytesOf([0xff, 0xf9, 0x90, 0x00]) }), "application/octet-stream");
+  // Same bitrate/sample-rate byte with a legal version and layer is audio, so only the reserved bits decide.
+  assert.equal(sniffContentType({ bytes: bytesOf([0xff, 0xfb, 0x90, 0x00]) }), "audio/mpeg");
+});

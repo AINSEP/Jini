@@ -491,3 +491,17 @@ test('provider configuration is checked before create or update persists it', as
   await assert.rejects(updateFormDefinitionCore({ deps: writeDeps, input: { workspaceId: WORKSPACE_ID, actor: ACTOR, formId: definition.id, patch: { provider: { id: 'remote', config: { url: 'invalid' } } } } }), /Enter the public form link/);
   assert.deepEqual((await deps.repo.findById({ workspaceId: WORKSPACE_ID, id: definition.id }) as HtmlFormDefinitionRecord)?.provider, { id: 'remote', config: { url: 'https://forms.example.test/accepted' } });
 });
+
+test('a provider configuration that throws a non-Error while being inspected is refused as a provider field error and nothing persists', async () => {
+  const deps = makeDeps();
+  // An in-process host can hand over a proxy or getter-backed object; its fault is not an Error.
+  const hostileConfig = new Proxy({}, { ownKeys: () => { throw 'config unreadable'; } });
+  const input = { workspaceId: WORKSPACE_ID, actor: ACTOR, name: 'Contact', slug: 'contact', fields: [{ id: 'name', label: 'Name', type: 'text' as const, required: true }] };
+  await assert.rejects(createFormDefinitionCore({ deps, input: { ...input, provider: { id: 'remote', config: hostileConfig } } }), (error: unknown) => {
+    assert.ok(error instanceof FormFieldValidationError);
+    assert.equal(error.message, 'Invalid form provider');
+    assert.deepEqual(error.fieldErrors, [{ field: 'provider', reason: 'must contain only public form configuration' }]);
+    return true;
+  });
+  assert.deepEqual(await deps.repo.list({ workspaceId: WORKSPACE_ID }), []);
+});
