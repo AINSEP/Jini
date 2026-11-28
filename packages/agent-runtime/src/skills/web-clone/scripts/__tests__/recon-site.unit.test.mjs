@@ -223,6 +223,21 @@ describe("collectSignals", () => {
     expect(signals.palette.buttons.map((b) => b.text)).toEqual(["Docs", "Go"]);
   });
 
+  it("reads each @font-face src reference exactly as the documented independent-quote url() regex captures it", async () => {
+    // recon-site documents its scanner as /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi; that regex is the oracle.
+    const oracle = (src) => [...src.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi)].map((match) => match[1]);
+    const srcs = [
+      "url('/a.woff)", "url(/a.woff')", "url('/a.woff' )", "url( ')", "url(')", "url('')", "url(  )", "url()",
+      "url('/a.woff' x)", "url(/a.woff", "url('/a.woff", "url(/a'b)", "url(", "url(  ", "url(\"/a.woff\"  ) url(/b.woff)",
+    ];
+    const document = fakeDocument({ styleSheets: [{ href: "https://s.test/f.css",
+      cssRules: srcs.map((src, index) => new FakeFontFaceRule({ src, "font-family": `F${index}` }, `@font-face{font-family:F${index}}`)) }] });
+    const env = browserEnv({ document, extra: { getComputedStyle: reconStyle, CSSFontFaceRule: FakeFontFaceRule, performance: { getEntriesByType: () => [] } } });
+    const { fontFaces } = await collectSignals({ page: createFakePage({ env }) });
+    expect(fontFaces.map((face) => face.srcUrls)).toEqual(srcs.map(oracle));
+    expect(fontFaces.map((face) => face.srcUrls).flat().length).toBeGreaterThan(4);
+  });
+
   it("falls back cleanly on an empty page and reads framework globals from window", async () => {
     const empty = await collectSignals({ page: createFakePage({ env: sparseEnv() }) });
     expect(empty).toMatchObject({ title: "", lang: "", bodyTextChars: 0, h1: [], metaDescription: "", fonts: [], cssVariables: [], fontFaces: [] });

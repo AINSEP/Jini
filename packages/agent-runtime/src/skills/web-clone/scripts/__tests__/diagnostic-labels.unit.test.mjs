@@ -26,6 +26,8 @@ describe("diagnostic labels", () => {
   it("prints a host without userinfo, path or query, and generated asset ids", () => {
     expect(hostLabel({ url: "https://user:SECRETPASS@s.test:8443/private?token=SECRETQUERY" })).toBe("s.test:8443");
     expect(hostLabel({ url: "not a url" })).toBe("(invalid url)");
+    expect(hostLabel({ url: "file:///srv/site/index.html" })).toBe("(no host)");
+    expect(hostLabel({ url: "mailto:owner@s.test" })).toBe("(no host)");
     expect(assetId({ index: 0 })).toBe("asset-1");
     expect(assetId({ index: 9 })).toBe("asset-10");
   });
