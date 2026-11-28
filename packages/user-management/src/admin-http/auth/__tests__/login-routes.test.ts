@@ -1,8 +1,9 @@
+import { requireAuthRequest } from '../auth-request.js';
 import { describe, it, expect, vi } from 'vitest';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
 import type { RouteInputContext } from '@jini-ai/core/contracts/server';
 import { AuthInvalidCredentialsError, IdentityValidationError, MFA_PROOF_REFUSED_MESSAGE, MfaProofRefusedError } from '../../../core/types.js';
-import { passwordLoginRoute, mfaLoginRoute, logoutRoute, type PasswordLoginRouteDeps, type MfaLoginRouteDeps } from '../index.js';
+import { passwordLoginRoute, mfaLoginRoute, logoutRoute, currentUserRoute, createPasswordStatusRoute, localBootSessionRoute, type PasswordLoginRouteDeps, type MfaLoginRouteDeps } from '../index.js';
 import { fakeAuthRequest } from './fake-auth-request.js';
 
 const raw = (body: unknown): RouteInputContext => ({ body, query: {}, params: {} });
@@ -23,6 +24,18 @@ describe('every owner-auth parser is total (thrown-only refusals)', () => {
   // `{"toString":1}` is valid JSON whose String() conversion throws; parsing must still be total.
   it.each([undefined, null, 'text', 7, { username: 'a' }, JSON.parse('{"username":{"toString":1},"password":{"toString":1}}')])('login, mfa and logout parse %j as ok', body => {
     for (const route of [passwordLoginRoute, mfaLoginRoute, logoutRoute]) expect(route.parse(raw(body)).ok).toBe(true);
+  });
+});
+describe('input-free owner-auth routes and the mount guard', () => {
+  it('me, password status and local boot session parse any request, body or not, to an empty input', () => {
+    for (const body of [undefined, { username: 'a', password: 'p' }, 'text']) {
+      for (const route of [currentUserRoute, createPasswordStatusRoute(), localBootSessionRoute]) expect(route.parse(raw(body))).toEqual({ ok: true, value: {} });
+    }
+  });
+  it('a route mounted without an authenticate port fails as a wiring fault, not a caller refusal', async () => {
+    expect(() => requireAuthRequest({ context: undefined })).toThrow('owner-auth route mounted without an authenticate port');
+    await expect(currentUserRoute.handle({ input: {}, deps: { workspaceId: 'w', findUserByPrincipalId: async () => null, effectivePermissions: async () => [],
+      callerMayManageUserTrash: async () => false, canPublishToLive: () => false } })).rejects.toThrow('owner-auth route mounted without an authenticate port');
   });
 });
 describe('POST /auth/login (U-AUTH-1)', () => {
