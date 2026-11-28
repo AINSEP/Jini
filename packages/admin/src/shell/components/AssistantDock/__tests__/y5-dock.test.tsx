@@ -278,3 +278,78 @@ test("execution binding forwards persisted mode changes with host failure copy a
   expect(useLedgerHook.mock.calls[0]?.[0].io.current).toBe(overridePort);
   expect(persistWrite).toHaveBeenCalledWith({ write, failureLog: "mode save failed" });
 });
+
+const localCliConfig: ExecutionConfig = { ...config, mode: "local-cli" };
+const useLocalCliExecution: typeof input.hooks.useExecutionConfig = (required) => ({ ...input.hooks.useExecutionConfig(required), executionConfig: localCliConfig, executionConfigRef: { current: localCliConfig } });
+
+test("in Local CLI mode the runtime switches follow the selected agent in the picker's placeholder list", () => {
+  const visible = vi.fn(visibleAssistantRuntimePreferences);
+  const selected = { id: "agent", name: "Agent", supportsSubagents: true, supportsClaudeInChrome: false };
+  const placeholder = [{ id: "other", name: "Other", supportsSubagents: false, supportsClaudeInChrome: true }, selected];
+  const { result } = renderHook(() => useAssistantDockState({ ...input,
+    hooks: { ...input.hooks, useExecutionConfig: useLocalCliExecution, useAgentsPlaceholder: () => placeholder },
+    deps: { ...input.deps, visibleAssistantRuntimePreferences: visible },
+  }));
+  expect(visible).toHaveBeenCalledWith({ agent: selected });
+  expect(result.current.runtime.visible).toEqual({ preferSubagents: true, useClaudeInChrome: false, replyLength: true });
+});
+
+test("in Local CLI mode, before the placeholder list exists, no agent-specific switch is shown", () => {
+  const visible = vi.fn(visibleAssistantRuntimePreferences);
+  const { result } = renderHook(() => useAssistantDockState({ ...input,
+    hooks: { ...input.hooks, useExecutionConfig: useLocalCliExecution, useAgentsPlaceholder: () => undefined },
+    deps: { ...input.deps, visibleAssistantRuntimePreferences: visible },
+  }));
+  expect(visible).toHaveBeenCalledWith({ agent: undefined });
+  expect(result.current.runtime.visible).toEqual({ preferSubagents: false, useClaudeInChrome: false, replyLength: true });
+});
+
+test("agent permissions translate through the dock's chrome translator and open the chat settings dialog", () => {
+  const show = vi.fn();
+  const useDockAgentPermissions = vi.fn(input.hooks.useDockAgentPermissions);
+  renderHook(() => useAssistantDockState({ ...input, hooks: { ...input.hooks, useDockAgentPermissions,
+    useChrome: () => ({ locale: "en", t: ({ key }) => `tr:${key}`, chatI18n: { locale: "en", t: key => key } }),
+    useChatSettingsDialog: () => ({ open: false, show, close: vi.fn() }),
+  } }));
+  const permissionsInput = useDockAgentPermissions.mock.calls[0]![0];
+  expect(permissionsInput.t("Allow file edits")).toBe("tr:Allow file edits");
+  expect(permissionsInput.openSettings).toBe(show);
+});
+
+test("message changes publish the latest messages to the injected bus", () => {
+  const publishMessages = vi.fn();
+  const useMessages = vi.fn(input.hooks.useMessages);
+  renderHook(() => useAssistantDockState({ ...input, hooks: { ...input.hooks, useMessages }, deps: { ...input.deps, publishMessages } }));
+  const messages = [{ id: "m1", role: "assistant" as const, content: "done" }];
+  useMessages.mock.calls[0]![0].publishMessages(messages);
+  expect(publishMessages).toHaveBeenCalledExactlyOnceWith(messages);
+});
+
+test("without a principal or deep-link ports the deep link gets an empty principal, the host defaults and inert notify/openDock", () => {
+  const deepLink = vi.fn();
+  renderHook(() => useAssistantDockState({ ...input, props: { query: null, useConversationDeepLink: deepLink } }));
+  const linkInput = deepLink.mock.calls[0]![0];
+  expect(linkInput.principalId).toBe("");
+  expect(linkInput.lookupConversation).toBe(input.deps.lookupOwnedConversation);
+  expect(linkInput.replaceQuery).toBe(input.deps.replaceBrowserQuery);
+  expect(linkInput.notify({ key: "This conversation is no longer available." })).toBeUndefined();
+  expect(linkInput.openDock()).toBeUndefined();
+});
+
+test("supplied deep-link ports replace every host default", () => {
+  const deepLink = vi.fn();
+  const ports = { lookupConversation: vi.fn(async () => false), replaceQuery: vi.fn(), notify: vi.fn(), openDock: vi.fn() };
+  renderHook(() => useAssistantDockState({ ...input, props: { query: null, principalId: "owner", useConversationDeepLink: deepLink, deepLinkPorts: ports } }));
+  expect(deepLink).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ principalId: "owner", ...ports }));
+});
+
+test("the pane shows a translated page-activation error and gives the settings dialog the dock translator", () => {
+  const { result } = renderHook(() => useAssistantDockState(input));
+  const dialog = vi.fn((_props: ComponentProps<typeof paneInput.kit.ChatSettingsDialog>) => null);
+  const PaneView = bindDockChatPane({ ...paneInput, kit: { ...paneInput.kit, ChatSettingsDialog: dialog } });
+  render(<PaneView dock={{ ...result.current, ChatPaneView: () => null, pageActivationError: "The page could not start", t: ({ key }) => `tr:${key}` }} />);
+  expect(screen.getByRole("alert").textContent).toBe("tr:The page could not start");
+  const dialogT = dialog.mock.calls[0]![0].t;
+  expect(dialogT).toBeTypeOf("function");
+  expect(dialogT?.("Close")).toBe("tr:Close");
+});

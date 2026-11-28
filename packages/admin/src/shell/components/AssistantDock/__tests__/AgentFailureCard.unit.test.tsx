@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from "react";
+import { createElement, useContext, type ReactNode } from "react";
 import { act, fireEvent, render, renderHook, screen } from "../../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 import { formatUserFacingError } from "@jini-ai/core";
 import { isAbortError } from "@jini-ai/core/text";
 
-import type { ChatPaneRuntimeAccess, ChatTransport, KitChatTranslator } from "../../../../react/kit.js";
+import type { ChatMessage, ChatPaneRuntimeAccess, ChatTransport, KitChatTranslator } from "../../../../react/kit.js";
 import { AgentFailureCard } from "../AgentFailureCard.js";
 import { FailureSurfaceContext, hasAgentFailureNotice, useAgentFailureCard, useAgentFailureSurface, type FailureSurfaceActions } from "../AgentFailureCard.hooks.js";
 import { GENERIC_AGENT_FAILURE, type AgentFailureHint } from "../agent-failure.js";
@@ -118,6 +118,43 @@ describe("useAgentFailureSurface", () => {
     hook.result.current.actions.switchAgent({ agentId: "up" });
     expect(onExecutionModeChange).toHaveBeenCalledWith("local");
     expect(onSelectionChange).toHaveBeenCalledWith({ agentId: "up" });
+  });
+});
+
+describe("useAgentFailureSurface initial history", () => {
+  it("projects each restored assistant turn into the failure card shape and leaves user turns as they were", () => {
+    const user: ChatMessage = { id: "u1", role: "user", content: "hi" };
+    const failed: ChatMessage = { id: "a1", role: "assistant", content: "", agentId: "codex", runStatus: "failed",
+      events: [{ kind: "raw", line: "Error: quota exceeded" }] };
+    const transport: ChatTransport = { async startRun() { return { runId: "r" }; }, async reattachRun() {}, async stopRun() {}, async fetchRunStatus() { return "failed"; } };
+    const runtimeAccess: ChatPaneRuntimeAccess = { listAgents: async () => [], rescanAgents: async () => [], daemonOnline: async () => true };
+    const { result } = renderHook(() => useAgentFailureSurface({ transport, runtimeAccess, initialMessages: [user, failed], onSelectionChange: vi.fn(), onExecutionModeChange: vi.fn(), isAbortError }));
+    const [projectedUser, projectedFailed] = result.current.initialMessages ?? [];
+    expect(projectedUser).toBe(user);
+    expect(projectedFailed?.events).toEqual([
+      { kind: "raw", line: "Error: quota exceeded" },
+      { kind: "ext", name: "agent_failure", data: { reason: "Error: quota exceeded", details: "Error: quota exceeded", agentId: "codex" } },
+    ]);
+  });
+});
+
+describe("FailureSurfaceContext default", () => {
+  it("outside a surface lists no agents, ignores a switch, and the card offers no switch even for a hinted failure", () => {
+    const { result } = renderHook(() => useContext(FailureSurfaceContext));
+    expect(result.current.agents).toEqual([]);
+    expect(result.current.switchAgent({ agentId: "antigravity" })).toBeUndefined();
+    const card = renderHook(() => useAgentFailureCard({ events: [geminiFailure], runStreaming: false, runSucceeded: false, useTHook }));
+    expect(card.result.current?.hint).toBe(`«${GEMINI_INELIGIBLE_HINT.hint}»`);
+    expect(card.result.current?.switchLabel).toBeUndefined();
+    expect(card.result.current?.switchAgent).toBeUndefined();
+  });
+});
+
+describe("useAgentFailureCard persisted data", () => {
+  it("re-derives a non-generic failure from its reason when the persisted details are empty", () => {
+    const events = [{ reason: "Error: quota exceeded", details: "", agentId: "codex" }];
+    const { result } = renderHook(() => useAgentFailureCard({ events, runStreaming: false, runSucceeded: false, useTHook }));
+    expect(result.current).toMatchObject({ reason: "Error: quota exceeded", details: "Error: quota exceeded", agentId: "codex" });
   });
 });
 
