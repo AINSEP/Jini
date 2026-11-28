@@ -116,6 +116,17 @@ describe('plugin reload rollback pin', () => {
     warn.mockRestore();
   });
 
+  it('a sealed update that widens capabilities is not reloaded until the owner approves, and the approved version keeps running', async () => {
+    const { runtime, source, repo, loads } = await sealedTwiceHost(() => false);
+    const draft = JSON.parse((await source.read({ id: ID, path: 'jini.plugin.json' }, {})).content) as { capabilities: string[] };
+    await source.write({ id: ID, path: 'jini.plugin.json', content: JSON.stringify({ ...draft, capabilities: [...draft.capabilities, 'content.read'] }) }, {});
+    expect(await source.seal({ id: ID }, {})).toMatchObject({ installed: true, reloaded: false, reloadError: 'approval' });
+    expect(loads).toEqual([]);
+    expect(runtime.pluginLoadedVersion({ id: ID })).toBe('0.1.0');
+    expect(await repo.getActivation({ workspaceId: WS as never, pluginId: ID })).toMatchObject({ version: '0.1.0', enabled: true });
+    await runtime.dispose({}, {});
+  });
+
   it('a successful reload moves every enabled workspace to the new version and reports the local reload', async () => {
     const { runtime, source, repo } = await sealedTwiceHost(() => false);
     await repo.save({ pluginId: ID, workspaceId: 'ws-b' as never, version: '0.1.0', enabled: true, updatedAt: '2026-11-09T00:00:00.000Z' });

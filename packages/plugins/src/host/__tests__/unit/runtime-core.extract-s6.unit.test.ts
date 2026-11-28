@@ -157,6 +157,37 @@ describe('createPluginRuntimeCore (second host via @jini-ai/plugins/host/node)',
     await runtime.dispose({}, {});
   });
 
+  it('installs a sealed package inside the host lookup install-identity guard under its publisher id, and installs nothing when the guard refuses', async () => {
+    // A draft without publisher metadata is guarded as `unknown/<id>`; one naming a publisher in the host namespace uses that id.
+    for (const { publisher, refuse, expectedId } of [
+      { publisher: 'vendor/acme-draft', refuse: false, expectedId: 'vendor/acme-draft' },
+      { publisher: undefined, refuse: true, expectedId: 'unknown/acme-draft' },
+    ]) {
+      const installDir = await mkdtemp(path.join(os.tmpdir(), 'acme-identity-'));
+      dirs.push(installDir, `${installDir}-runtime`, `${installDir}-trash`);
+      const host = secondHost(() => {});
+      const candidates: unknown[] = [];
+      const lookup: PluginRuntimeLookup = { ...host.lookup, withInstallIdentity: async ({ candidate, run }) => {
+        candidates.push(candidate);
+        if (refuse) throw new Error('identity held elsewhere');
+        return run();
+      } };
+      const runtime = createPluginRuntimeCore({ ...host.required, pluginSourcePolicy: { ...host.policy, localInstallEnabled: () => true } }, { installDir, lookup: () => lookup });
+      const source = runtime.pluginSource!;
+      await source.create({ id: 'acme-draft', name: 'Acme Draft', description: 'identity guard' }, {});
+      if (publisher !== undefined) {
+        const draft = JSON.parse((await source.read({ id: 'acme-draft', path: 'jini.plugin.json' }, {})).content) as Record<string, unknown>;
+        await source.write({ id: 'acme-draft', path: 'jini.plugin.json', content: JSON.stringify({ ...draft, extensions: { acme: { id: publisher } } }) }, {});
+      }
+      const sealed = source.seal({ id: 'acme-draft' }, {});
+      if (refuse) await expect(sealed).rejects.toThrow('identity held elsewhere');
+      else expect(await sealed).toMatchObject({ installed: true, plugin: { id: 'acme-draft', version: '0.1.0', publisherId: publisher } });
+      expect(candidates).toEqual([{ id: expectedId, localId: 'acme-draft', family: 'site-runtime' }]);
+      expect((await runtime.discoverPlugins()).some((record) => record.id === 'acme-draft')).toBe(!refuse);
+      await runtime.dispose({}, {});
+    }
+  });
+
   it('logs a boot re-attach failure with fixed words and the class only', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
