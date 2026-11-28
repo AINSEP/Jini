@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { createSimpleWebAuthnPasskeys } from '../passkey-adapter.js';
 
@@ -16,11 +16,17 @@ function authenticator() {
   const credId = Buffer.from('credential-0001');
   const rpIdHash = createHash('sha256').update(site.rpId).digest();
   const clientData = ({ type, challenge }: { type: string; challenge: string }) => Buffer.from(JSON.stringify({ type, challenge, origin: site.origin, crossOrigin: false }));
-  const attest = ({ challenge }: { challenge: string }) => {
+  /** `selfSignWith` switches to a "packed" self attestation (ES256, alg -7) signed by that key. */
+  const attest = ({ challenge, selfSignWith }: { challenge: string; selfSignWith?: KeyObject }) => {
     const authData = Buffer.concat([rpIdHash, Buffer.from([0x45, 0, 0, 0, 0]), Buffer.alloc(16), Buffer.from([0, credId.length]), credId, coseKey]);
-    const attestationObject = Buffer.concat([Buffer.from([0xa3]), cborText('fmt'), cborText('none'), cborText('attStmt'), Buffer.from([0xa0]), cborText('authData'), cborBytes(authData)]);
+    const data = clientData({ type: 'webauthn.create', challenge });
+    const statement = selfSignWith
+      ? Buffer.concat([cborText('packed'), cborText('attStmt'), Buffer.from([0xa2]), cborText('alg'), Buffer.from([0x26]), cborText('sig'),
+        cborBytes(sign('sha256', Buffer.concat([authData, createHash('sha256').update(data).digest()]), selfSignWith))])
+      : Buffer.concat([cborText('none'), cborText('attStmt'), Buffer.from([0xa0])]);
+    const attestationObject = Buffer.concat([Buffer.from([0xa3]), cborText('fmt'), statement, cborText('authData'), cborBytes(authData)]);
     return { id: b64(credId), rawId: b64(credId), type: 'public-key', clientExtensionResults: {},
-      response: { clientDataJSON: b64(clientData({ type: 'webauthn.create', challenge })), attestationObject: b64(attestationObject), transports: [] } };
+      response: { clientDataJSON: b64(data), attestationObject: b64(attestationObject), transports: [] } };
   };
   const assertWith = ({ challenge, counter }: { challenge: string; counter: number }) => {
     const authData = Buffer.concat([rpIdHash, Buffer.from([0x05]), Buffer.from([0, 0, 0, counter])]);
@@ -29,7 +35,7 @@ function authenticator() {
     return { id: b64(credId), rawId: b64(credId), type: 'public-key', clientExtensionResults: {},
       response: { clientDataJSON: b64(data), authenticatorData: b64(authData), signature: b64(signature) } };
   };
-  return { credId: b64(credId), coseKey: b64(coseKey), attest, assertWith };
+  return { credId: b64(credId), coseKey: b64(coseKey), privateKey, attest, assertWith };
 }
 
 test('registration options name the site, hash the scope into the user id, and exclude saved credentials', async () => {
@@ -75,4 +81,14 @@ test('an assertion signed by a different key is not verified', async () => {
   const impostor = authenticator();
   await expect(passkeys.authenticate({ site, challenge: 'c1', response: impostor.assertWith({ challenge: 'c1', counter: 2 }),
     credential: { ...scope, id: saved.credId, publicKey: saved.coseKey, counter: 0, rpId: site.rpId } })).rejects.toThrow('Passkey assertion was not verified');
+});
+
+test('a packed self attestation registers only when signed by the credential key itself', async () => {
+  const passkeys = createSimpleWebAuthnPasskeys({});
+  const device = authenticator();
+  const { challenge } = await passkeys.registration({ site, scope, credentials: [] });
+  const selfSigned = device.attest({ challenge: String(challenge), selfSignWith: device.privateKey });
+  expect(await passkeys.register({ site, response: selfSigned, challenge: String(challenge) })).toEqual({ id: device.credId, publicKey: device.coseKey, counter: 0 });
+  const forged = device.attest({ challenge: String(challenge), selfSignWith: authenticator().privateKey });
+  await expect(passkeys.register({ site, response: forged, challenge: String(challenge) })).rejects.toThrow('Passkey registration was not verified');
 });

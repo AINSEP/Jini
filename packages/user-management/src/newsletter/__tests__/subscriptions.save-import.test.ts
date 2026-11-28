@@ -72,6 +72,17 @@ it("importSubscriptions reports an unexpected row failure as INTERNAL_ERROR and 
   expect(out.created).toHaveLength(1);
 });
 
+it("importSubscriptions reports a hole in a sparse batch as that row's failure and imports the rest", async () => {
+  const { deps, subscriptionRepo } = setup();
+  const subscribers = new Array<{ subscriberId: string; source: "import" }>(3);
+  subscribers[0] = { subscriberId: "ana", source: "import" };
+  subscribers[2] = { subscriberId: "bo", source: "import" };
+  const out = await importSubscriptions({ deps, input: { workspaceId: "w", listId: "news", subscribers } });
+  expect(out.failed).toEqual([{ index: 1, code: "INTERNAL_ERROR", message: "Newsletter import has no subscriber at index 1" }]);
+  expect(out.created.map(row => row.subscriberId)).toEqual(["ana", "bo"]);
+  expect((await subscriptionRepo.list({ workspaceId: "w", listId: "news" })).items.map(row => row.subscriberId).sort()).toEqual(["ana", "bo"]);
+});
+
 it("importSubscriptions refuses an empty or oversized batch and an archived list before any row", async () => {
   const { deps, subscriptionRepo } = setup();
   const save = vi.spyOn(subscriptionRepo, "save");

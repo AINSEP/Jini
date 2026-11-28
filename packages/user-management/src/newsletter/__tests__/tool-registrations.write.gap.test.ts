@@ -1,7 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { NewsletterToolDeps } from "../tool-registrations.js";
+import type { ToolExecutionContext } from "@jini-ai/core";
+import type { SendPipelineDeps } from "../send-pipeline.js";
+import { buildNewsletterRegistrations, type NewsletterToolDeps } from "../tool-registrations.js";
 import { resendPendingSubscriptionConfirmation } from "../tool-registrations.write.js";
-import { call, campaignRow, listRow, newsletterHarness, now, subscriptionRow } from "./tool-registrations.harness.js";
+import { call, campaignRow, listRow, newsletterHarness, now, subscriptionRow, toolOf } from "./tool-registrations.harness.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -30,6 +32,13 @@ it("newsletter_create_campaign writes an agent-created draft with a null prehead
   await expect(call({ deps, id: "newsletter_create_campaign", input: { subject: "No list" } })).rejects.toThrow();
 });
 
+it("newsletter_create_campaign stores a string preheader as given", async () => {
+  const { deps } = wired({ lists: [listRow("list-1")] });
+  const out = await call({ deps, id: "newsletter_create_campaign", input: { subject: "Hello", preheader: "Read me first", fromName: "Team", fromEmail: "team@example.test", replyTo: "r@example.test", listId: "list-1" } }) as { campaign: { preheader: string | null } };
+  expect(out.campaign.preheader).toBe("Read me first");
+  expect((await deps.newsletterCampaignRepo.findById({ workspaceId: "ws-1", id: "new-id" }))?.preheader).toBe("Read me first");
+});
+
 it("newsletter_update_campaign replaces only the string fields given and refuses an unknown campaign", async () => {
   const { deps } = wired({ lists: [listRow("list-1"), listRow("list-2")], campaigns: [campaignRow("c1", { replyTo: "old@example.test" })] });
   const out = await call({ deps, id: "newsletter_update_campaign", input: { campaignId: "c1", subject: 5, fromName: "New", fromEmail: "new@example.test", replyTo: "new-r@example.test", listId: "list-2", preheader: "Pre" } }) as { campaign: Record<string, unknown> };
@@ -49,6 +58,25 @@ it("newsletter_cancel_campaign cancels a draft; newsletter_pause_campaign hands 
   await expect(call({ deps, id: "newsletter_pause_campaign", input: { campaignId: "c1" } })).rejects.toThrow();
   expect(authorize).toHaveBeenLastCalledWith(expect.objectContaining({ permission: "admin.newsletter.campaign.send" }));
   expect(built).toHaveBeenCalledWith(expect.objectContaining({ deps }));
+});
+
+/** The real send-pipeline deps over the harness repos; pausing reads only the campaign repo and the clock. */
+function sendPipelineDeps(d: NewsletterToolDeps, isSendingEnabled: (workspaceId: string) => Promise<boolean>): SendPipelineDeps {
+  return { campaignRepo: d.newsletterCampaignRepo, subscriptionRepo: d.newsletterSubscriptionRepo, audienceSnapshotRepo: d.newsletterAudienceSnapshotRepo,
+    sendRepo: d.newsletterSendRepo, subscriberDirectory: d.newsletterSubscriberDirectory, hooks: d.newsletterHooks, mailer: d.mailer,
+    launchGateDeps: { isSendingEnabled, consentCapability: null, originRegistry: d.originRegistry, mailer: d.mailer, orFallback: async ({ fallback }) => fallback },
+    outbox: d.outbox, bus: d.bus, clock: d.clock, ids: d.idGen, processOutbox: async () => 0, isMailRateLimited: () => false, reportError: () => undefined };
+}
+
+it("newsletter_pause_campaign pauses a sending campaign through the send pipeline and returns its view", async () => {
+  const { deps } = wired({ campaigns: [campaignRow("c1", { status: "sending", updatedAt: "2026-11-01T00:00:00.000Z" })] });
+  const built = vi.fn(({ deps: d, isSendingEnabled }: { deps: NewsletterToolDeps; isSendingEnabled: (workspaceId: string) => Promise<boolean> }) => sendPipelineDeps(d, isSendingEnabled));
+  deps.buildSendPipelineDeps = built;
+  const out = await call({ deps, id: "newsletter_pause_campaign", input: { campaignId: "c1" } }) as { campaign: { id: string; status: string; subject: string } };
+  expect(out.campaign).toMatchObject({ id: "c1", status: "paused", subject: "Subject c1" });
+  expect(await deps.newsletterCampaignRepo.findById({ workspaceId: "ws-1", id: "c1" })).toMatchObject({ status: "paused", updatedAt: now });
+  expect(built).toHaveBeenCalledTimes(1);
+  await expect(call({ deps, id: "newsletter_pause_campaign", input: { campaignId: "missing" } })).rejects.toThrow(/^NEWSLETTER_CAMPAIGN_NOT_FOUND: campaign missing was not found/);
 });
 
 it("newsletter_create_list and newsletter_archive_list manage list rows", async () => {
@@ -94,6 +122,18 @@ it("newsletter_resend_confirmation re-checks the driver after the abort check", 
   const drivers = ["smtp", "memory"];
   deps.mailer = { ...deps.mailer, capabilities: () => ({ driver: drivers.shift() ?? "smtp", supportsIdempotencyKey: true, supportsWebhookFeedback: false, maxBatchSize: 1, supportsAttachments: false }) };
   expect(await call({ deps, id: "newsletter_resend_confirmation", input: { subscriptionId: "s1" } })).toEqual(mailOff);
+});
+
+it("newsletter_resend_confirmation is abandoned when the call is already aborted, before any lookup or mail", async () => {
+  const { deps, send } = wired({ subscriptions: [subscriptionRow("s1", { status: "pending" })] });
+  const findById = vi.spyOn(deps.newsletterSubscriptionRepo, "findById");
+  const controller = new AbortController();
+  controller.abort();
+  const ctx: ToolExecutionContext = { executionId: "exec", principal: { id: "actor-1" }, run: { id: "run" }, signal: controller.signal, input: { subscriptionId: "s1" } };
+  const out = await toolOf({ registrations: buildNewsletterRegistrations(deps), id: "newsletter_resend_confirmation" }).handler(ctx);
+  expect(out).toEqual({ confirmed: false, reason: "abandoned", delivered: false, mailDeliveryAvailable: true });
+  expect(findById).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
 });
 
 it("newsletter_resend_confirmation mails a pending subscriber and acknowledges everything else identically", async () => {

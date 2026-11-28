@@ -134,6 +134,18 @@ test('recovery kit rotation needs the existing factor, and explicit host recover
 });
 
 
+test('recovery kit rotation for an enrolled owner is refused when the host wired no authenticator service', async () => {
+  const f = await fixture(); await f.enroll();
+  let hashes: string[] = [];
+  const deps = {auth:f.deps.auth,seededOwnerPrincipalId:f.scope.principalId,codes:{
+    replace: async (s:{hashes:string[]}) => { hashes=s.hashes; }, clear:async()=>{hashes=[];}, contains:async()=>false,
+  }};
+  await expect(issueRecoveryCodes({deps,input:{...f.scope,password:'old',code:'123456'}}))
+    .rejects.toThrow('Authenticator verification is unavailable. Reopen the owner security settings and try again.');
+  expect(hashes).toEqual([]);
+  expect(await f.deps.store.factor(f.scope)).not.toBeNull();
+});
+
 test('legacy password login cannot create a surviving session after concurrent first-factor activation', async () => {
   const f = await fixture();
   const enrollment = await beginOwnerEnrollment({ deps: f.deps,
