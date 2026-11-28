@@ -38,3 +38,12 @@ it('uses injected hooks', async () => {
   expect(useT).toHaveBeenCalled();
   expect(useConversationListView).toHaveBeenCalled();
 });
+
+it('an untitled chat is named Untitled on its select and pin controls, and is unselected while the host has no selection', () => {
+  const onTogglePin = vi.fn();
+  render(<ConversationList hooks={defaultConversationListHooks} conversations={[{ id: 'u', title: null }]} activeConversationId={null} onSelect={vi.fn()} onCreate={vi.fn()} onTogglePin={onTogglePin} selectable onSelectionChange={vi.fn()} />);
+  fireEvent.click(screen.getByTestId('conversation-trigger'));
+  expect(screen.getByRole('checkbox', { name: 'Select Untitled' }).getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(screen.getByRole('button', { name: 'Pin Untitled' }));
+  expect(onTogglePin).toHaveBeenCalledExactlyOnceWith({ id: 'u', pinned: true });
+});
