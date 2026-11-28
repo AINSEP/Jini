@@ -327,3 +327,111 @@ it('refused begin never enters the page driver', async () => {
   unclaimed.close();
   bridge.close();
 });
+
+function pageBridgeHarness(options: Parameters<typeof createFrontendSessionBridge>[1], send: (url: string | URL | Request, init?: RequestInit) => Promise<Response>) {
+  const sources: EventTarget[] = [];
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: vi.fn(send) as typeof fetch,
+    openStream: () => {
+      const source = new EventTarget(); sources.push(source);
+      return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
+    },
+  }, options);
+  const frame = (data: unknown) => sources[0]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
+  frame({ type: 'attached', sessionId: 'session', bindToken: 'token' });
+  return { bridge, frame };
+}
+
+it('a claim that throws is reported to the host and never enters the page driver', async () => {
+  const claimFailure = new Error('claim store offline');
+  const execute = vi.fn(async () => 'clicked');
+  const onError = vi.fn();
+  const bodies: unknown[] = [];
+  const { bridge } = pageBridgeHarness({ page: { capabilityIds: ['page.click'], execute }, onError,
+    runInvocations: { begin: async () => { throw claimFailure; } } },
+  async (_url, init) => { bodies.push(JSON.parse(String(init!.body))); return new Response('{"settled":true}'); });
+  await bridge.ready;
+  bridge.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: { handle: 'save' } } });
+  await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+  expect(onError).toHaveBeenCalledWith(claimFailure);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(execute).not.toHaveBeenCalled();
+  expect(bodies, 'An unclaimed invocation has nothing to acknowledge').toEqual([]);
+  bridge.close();
+});
+
+it('the page driver receives the host-prepared input instead of the relayed envelope', async () => {
+  const execute = vi.fn(async (_args: { capabilityId: string; input: Record<string, unknown> }) => 'clicked');
+  const prepared: unknown[] = [];
+  const bodies: unknown[] = [];
+  const { bridge, frame } = pageBridgeHarness({ page: { capabilityIds: ['page.click'], execute },
+    preparePageInput: ({ action }) => { prepared.push(action.input); return { handle: 'checked-save' }; } },
+  async (_url, init) => { bodies.push(JSON.parse(String(init!.body))); return new Response('{"settled":true}'); });
+  await bridge.ready;
+  frame({ type: 'invocation', invocationId: 'invocation-1', capabilityId: 'page.click', input: { handle: 'save', envelope: 7 } });
+  await vi.waitFor(() => expect(bodies).toHaveLength(1));
+  expect(prepared).toEqual([{ handle: 'save', envelope: 7 }]);
+  expect(execute).toHaveBeenCalledOnce();
+  expect(execute.mock.calls[0]![0]).toEqual({ capabilityId: 'page.click', input: { handle: 'checked-save' } });
+  expect(bodies).toEqual([{ invocationId: 'invocation-1', ok: true, output: 'clicked' }]);
+  bridge.close();
+});
+
+it('a cancel that lands while the approval decision is being reported leaves the page untouched', async () => {
+  const execute = vi.fn(async () => 'clicked');
+  const onError = vi.fn();
+  const bodies: Array<Record<string, unknown>> = [];
+  let releaseDecision!: () => void;
+  const { bridge, frame } = pageBridgeHarness({ page: { capabilityIds: ['page.click'], execute }, onError,
+    pageApproval: { isDirect: () => false, request: async () => ({ confirmed: true }) } },
+  async (_url, init) => {
+    const body = JSON.parse(String(init!.body)) as Record<string, unknown>;
+    bodies.push(body);
+    if (JSON.stringify(body).includes('execution-started')) await new Promise<void>(resolve => { releaseDecision = resolve; });
+    return new Response('{"settled":true}');
+  });
+  await bridge.ready;
+  frame({ type: 'invocation', invocationId: 'invocation-1', capabilityId: 'page.click', input: { handle: 'delete' } });
+  await vi.waitFor(() => expect(bodies).toHaveLength(2));
+  expect(JSON.stringify(bodies[1])).toContain('approved');
+  frame({ type: 'cancelled', invocationId: 'invocation-1' });
+  releaseDecision();
+  await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+  expect((onError.mock.calls[0]![0] as Error).name).toBe('AbortError');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(execute, 'An approved action cancelled before it ran is never executed').not.toHaveBeenCalled();
+  expect(bodies, 'No success is reported for work that did not run').toHaveLength(2);
+  bridge.close();
+});
+
+it('a reopen that throws rejects the rebind and retires run work claimed while detached', async () => {
+  const sources: EventTarget[] = [];
+  const reopenFailure = new Error('stream refused');
+  let opens = 0;
+  let claimSignal: AbortSignal | undefined;
+  let allowClaim!: (begun: boolean) => void;
+  const execute = vi.fn(async () => 'clicked');
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: vi.fn(async () => new Response('{"settled":true}')) as typeof fetch,
+    openStream: () => {
+      opens += 1;
+      if (opens > 1) throw reopenFailure;
+      const source = new EventTarget(); sources.push(source);
+      return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
+    },
+  }, { page: { capabilityIds: ['page.click'], execute }, onError: () => {}, runInvocations: { begin: ({ signal }) => {
+    claimSignal = signal; return new Promise<boolean>(resolve => { allowClaim = resolve; });
+  } } });
+  sources[0]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type: 'attached', sessionId: 'session', bindToken: 'token' }) }));
+  await bridge.ready;
+  sources[0]!.dispatchEvent(new Event('error'));
+  bridge.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: {} } });
+  await vi.waitFor(() => expect(claimSignal).toBeDefined());
+  expect(claimSignal!.aborted).toBe(false);
+  await expect(bridge.rebind({}, {})).rejects.toBe(reopenFailure);
+  expect(opens).toBe(2);
+  expect(claimSignal!.aborted, 'The failed reopen invalidates the session, so the claim is retired').toBe(true);
+  allowClaim(true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(execute).not.toHaveBeenCalled();
+  expect(bridge.bindToken()).toBeUndefined();
+  bridge.close();
+});

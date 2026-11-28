@@ -143,6 +143,18 @@ describe('createEmbedSendAgentControl', () => {
     dispose();
   });
 
+  it('hands the host busy sentence to the bridge it installs, refusing an overlapping send with it', async () => {
+    const f = fixture();
+    const agentControl = control(f.root, true, { busyMessage: 'Still answering.' })!;
+    const actions: unknown[] = [];
+    const dispose = agentControl.bridgeAccess!.subscribe(action => { actions.push(action); });
+    void f.send('first');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(await f.send('second')).toBe('Still answering.');
+    expect(actions).toEqual([{ invocationId: 'example-invocation', capabilityId: 'chat.send_message', input: { prompt: 'first' } }]);
+    dispose();
+  });
+
   it('unmounting rejects a send still in flight; late responses are no-ops', async () => {
     const f = fixture();
     const agentControl = control(f.root, true, { unmountedMessage: 'Pane went away.' })!;
