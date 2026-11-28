@@ -12,9 +12,10 @@ import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { trashMedia, uploadMedia } from "../media-service.js";
 import {
   decideMediaOriginalForAsset, decideMediaOriginalReply, inlineOriginalType, lookupMediaOriginalBlob,
-  SVG_CONTENT_SECURITY_POLICY, type MediaOriginalType,
+  sanitizeOriginalBytes, SVG_CONTENT_SECURITY_POLICY, type MediaOriginalType,
 } from "../original-response.js";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
+import { MediaValidationError } from "../types.js";
 
 const BYTES = new TextEncoder().encode("0123456789ABCDEFGHIJ"); // 20 bytes, indices 0-19
 const PNG: MediaOriginalType = { safe: "image/png", disposition: null };
@@ -142,4 +143,49 @@ test("document downloads refuse a known oversized object before reading its cont
     new Error("document exceeds size limit"));
   assert.deepEqual(sizeQueries, [{ storageKey: found.blob.storageKey }]);
   assert.equal(reads, 0);
+});
+
+test("a legacy unsanitized SVG blob is sanitized before serving; other sniffed types pass through untouched", async () => {
+  const deps = makeDeps();
+  const { media } = await upload(deps, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), "a.png");
+  const raw = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="steal()"><script>steal()</script><rect width="4" height="4"/></svg>');
+  const legacy = await deps.blobStore.put({ workspaceId: "ws", sha256: "legacy-svg", bytes: raw });
+  const reply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media, blob: legacy, rangeHeader: undefined });
+  const served = text(reply.body);
+  assert.equal(reply.headers.find(([name]) => name === "Content-Security-Policy")?.[1], SVG_CONTENT_SECURITY_POLICY);
+  assert.match(served, /<rect/);
+  assert.doesNotMatch(served, /script|onload|steal/);
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+  assert.equal(await sanitizeOriginalBytes({ sniffed: "image/png", sourceBytes: png }), png);
+});
+
+test("document downloads refuse oversized bytes read from a store that cannot report a size", async () => {
+  const deps = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: "ws", kind: "document", bytes: Buffer.from("Notes"),
+    filename: "planning.txt", contentType: "text/plain", createdByPrincipal: "u" } });
+  const found = await lookupMediaOriginalBlob({ deps: { mediaRepo: deps.mediaRepo, assetBlobRepo: deps.blobRepo }, params: { workspaceId: "ws", mediaId: media.id } });
+  assert.equal(found.outcome, "ok");
+  if (found.outcome !== "ok") return;
+  const limit = 50 * 1024 * 1024;
+  const reads: unknown[] = [];
+  const unexpected = async (): Promise<never> => { throw new Error("unexpected blob store call"); };
+  const sizeless = { put: unexpected, putIfAbsent: unexpected, exists: unexpected, remove: unexpected, findReferences: unexpected,
+    get: async (input: { storageKey: string }) => { reads.push(input); return new Uint8Array(limit + 1); } };
+  await assert.rejects(decideMediaOriginalForAsset({ deps: { blobStore: sizeless, parseRangeHeader }, media: found.media, blob: found.blob, rangeHeader: undefined }),
+    new Error("document exceeds size limit"));
+  assert.deepEqual(reads, [{ storageKey: found.blob.storageKey }]);
+  const unknownSize = Object.assign(sizeless, { sizeOf: async () => null, get: async () => new Uint8Array(limit) });
+  const atLimit = await decideMediaOriginalForAsset({ deps: { blobStore: unknownSize, parseRangeHeader }, media: found.media, blob: found.blob, rangeHeader: undefined });
+  assert.deepEqual([atLimit.status, atLimit.body?.byteLength], [200, limit]);
+});
+
+test("a document record without an original filename is refused instead of guessing its type", async () => {
+  const deps = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: "ws", kind: "document", bytes: Buffer.from("Notes"),
+    filename: "planning.txt", contentType: "text/plain", createdByPrincipal: "u" } });
+  const found = await lookupMediaOriginalBlob({ deps: { mediaRepo: deps.mediaRepo, assetBlobRepo: deps.blobRepo }, params: { workspaceId: "ws", mediaId: media.id } });
+  assert.equal(found.outcome, "ok");
+  if (found.outcome !== "ok") return;
+  await assert.rejects(decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media: { ...found.media, originalFilename: null }, blob: found.blob, rangeHeader: undefined }),
+    (error: Error) => error instanceof MediaValidationError && error.message === "document filename must be a plain filename of at most 255 characters");
 });
