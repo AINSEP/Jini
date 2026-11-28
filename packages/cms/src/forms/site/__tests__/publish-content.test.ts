@@ -69,3 +69,28 @@ test('a slug held in destination Trash is blocked at precheck and remains trashe
   assert.equal(await handler.precheck({ entity }), "form 'contact' is in the trash at this destination — restore it before publishing over it, or publishing would resurrect it as live content");
   assert.deepEqual(await repo.findAnyById({ workspaceId: 'ws', id: 'dest' }), trashed);
 });
+
+test('an HTML-mode form carries its markup to the write port only when the markup is a string; other modes never carry it', async () => {
+  const calls: unknown[] = [];
+  const definition = { id: 'created', workspaceId: 'ws', slug: 'signup', name: 'Signup', fields: [field], notify: { enabled: false, recipients: [] },
+    status: 'active' as const, createdAt: 'now', updatedAt: 'now', version: 1 };
+  const contributor = contributeFormPublish({ createRepoPublishHandler, gatewayDeps, tableKey: 'forms', permission: 'admin.forms.manage', executeCommand,
+    createFormDefinition: async ({ input }) => { calls.push(input); return { definition }; },
+    updateFormDefinition: async () => assert.fail('no destination row exists'),
+    setFormDefinitionStatus: async () => assert.fail('the created status already matches'),
+  });
+  const handler = contributor.build({ workspaceId: 'ws', clock: { nowMs: () => 0 }, idGen: { newId: () => 'id' }, ports: { form: { repo: new InMemoryFormDefinitionRepo() } },
+    changeSets: new InMemoryChangeSetRepo(), authorize: async () => ({ allowed: true, reason: 'fixture' }),
+    outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } });
+  const base = { name: 'Signup', slug: 'signup', fields: [field], status: 'active' };
+  for (const state of [{ ...base, mode: 'html', html: '<form data-x></form>' }, { ...base, mode: 'html', html: null }, { ...base, mode: 'builder', html: '<form></form>' }]) {
+    await handler.apply({ entity: { entityType: 'form', id: 'signup', schemaVersion: 1, hashVersion: 1, contentHash: 'h', requiredBlobs: [], state },
+      expectedVersion: undefined, principalId: 'owner', idempotencyKey: `publish-${calls.length}` });
+  }
+  const sent = { workspaceId: 'ws', actor: { id: 'owner', kind: 'user' }, name: 'Signup', slug: 'signup', fields: [field] };
+  assert.deepEqual(calls, [
+    { ...sent, mode: 'html', html: '<form data-x></form>' },
+    { ...sent, mode: 'html' },
+    { ...sent, mode: 'builder' },
+  ]);
+});
