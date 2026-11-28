@@ -35,6 +35,46 @@ describe('parseApiConnectionsFile', () => {
     expect(reasonOf(file([entry(), entry()]))).toBe("connections[1].id 'account' is declared twice");
     expect(reasonOf(file([entry({ budgets: [{ scope: 'galaxy', perMinute: 1 }] })]))).toBe('connections[0].budgets[0].scope must be "instance" or "connection"');
   });
+
+  it('keeps a desktop-only client with redirect origins and the bounded host lists', () => {
+    const desktop = { clientIdEnv: 'ACME_SHOP_DESKTOP_CLIENT_ID', redirectOrigins: ['http://127.0.0.1:8123', 'https://app.example'] };
+    const parsed = parseApiConnectionsFile({ raw: file([entry({ clients: { desktop }, scopeSets: ['read.v1', 'Write_2'], apiOrigins: ['https://api.example'], byoClient: true })]), clientNamespace });
+    expect(parsed).toEqual({ ok: true, descriptors: [{
+      id: 'account', module: 'hooks.mjs', clients: { desktop }, budgets: [{ scope: 'instance', ...HOST_BUDGET_MAXIMUM }],
+      scopeSets: ['read.v1', 'Write_2'], apiOrigins: ['https://api.example'], byoClient: true, descriptor: { extra: 1 },
+    }] });
+  });
+
+  it('names the first invalid field of a declaration', () => {
+    const cases: ReadonlyArray<readonly [unknown, string]> = [
+      ['not-an-entry', 'connections[0] must be an object'],
+      [entry({ id: 'Bad_Id' }), 'connections[0].id must be a lowercase hyphenated id'],
+      [entry({ id: 'a'.repeat(65) }), 'connections[0].id must be a lowercase hyphenated id'],
+      [entry({ module: '/abs/hooks.mjs' }), 'connections[0].module must be a relative path ending in .mjs'],
+      [entry({ module: 'hooks.js' }), 'connections[0].module must be a relative path ending in .mjs'],
+      [entry({ clients: [] }), 'connections[0].clients must be an object'],
+      [entry({ clients: { web: 'ACME_X_CLIENT_ID' } }), 'connections[0].clients.web must be an object'],
+      [entry({ clients: { web, desktop: 7 } }), 'connections[0].clients.desktop must be an object'],
+      [entry({ clients: { web: { ...web, redirectOrigins: ['https://app.example/path'] } } }), 'connections[0].clients.web.redirectOrigins must be a list of origins'],
+      [entry({ clients: { web: { ...web, redirectOrigins: 'https://app.example' } } }), 'connections[0].clients.web.redirectOrigins must be a list of origins'],
+      [entry({ clients: { web: { ...web, redirectOrigins: Array.from({ length: 33 }, (_, i) => `https://h${i}.example`) } } }), 'connections[0].clients.web.redirectOrigins must be a list of origins'],
+      [entry({ scopeSets: ['.hidden'] }), 'connections[0].scopeSets must be at most 16 short ids'],
+      [entry({ scopeSets: Array.from({ length: 17 }, (_, i) => `s${i}`) }), 'connections[0].scopeSets must be at most 16 short ids'],
+      [entry({ apiOrigins: ['http://api.example'] }), 'connections[0].apiOrigins must be at most 8 https:// origins'],
+      [entry({ apiOrigins: [42] }), 'connections[0].apiOrigins must be at most 8 https:// origins'],
+      [entry({ byoClient: 'yes' }), 'connections[0].byoClient must be true or false'],
+    ];
+    for (const [value, reason] of cases) expect(reasonOf(file([value]))).toBe(reason);
+  });
+
+  it('refuses a file without schemaVersion 1 or with too many connections', () => {
+    expect(reasonOf('[]')).toBe('schemaVersion must be 1');
+    expect(reasonOf(JSON.stringify({ schemaVersion: 2, connections: [] }))).toBe('schemaVersion must be 1');
+    expect(reasonOf(JSON.stringify({ schemaVersion: 1, connections: {} }))).toBe('connections must be an array of at most 8');
+    const nine = Array.from({ length: 9 }, (_, i) => entry({ id: `c${i}` }));
+    expect(reasonOf(file(nine))).toBe('connections must be an array of at most 8');
+    expect(parseApiConnectionsFile({ raw: file(nine.slice(0, 8)), clientNamespace }).ok).toBe(true);
+  });
 });
 
 describe('client namespace and hooks module', () => {
