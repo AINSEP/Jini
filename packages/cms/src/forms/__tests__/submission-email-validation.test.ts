@@ -113,3 +113,16 @@ test("15b the guard also format-checks an email answer visible only through the 
   });
   assert.doesNotThrow(() => assertSubmissionEmails({ definition, body: Object.create({ email: "ada@example.com" }) as Record<string, unknown> }));
 });
+
+test("15b the guard itself leaves a non-active form or a tripped honeypot to the caller's own response", () => {
+  const definition: FormDefinitionRecord = {
+    id: "f1", workspaceId: "w1", name: "Contact", slug: "contact", version: 1, status: "active",
+    fields: [{ id: "email", label: "Email", type: "email", required: false }],
+    notify: { enabled: false, recipients: [] }, createdAt: "2026-10-07T00:00:00Z", updatedAt: "2026-10-07T00:00:00Z",
+  };
+  // An inherited answer is invisible to the payload validator, so only this guard can refuse it.
+  const bodyWith = (hp: string) => Object.assign(Object.create({ email: "not-an-email" }) as Record<string, unknown>, { _hp: hp });
+  assert.equal(assertSubmissionEmails({ definition: { ...definition, status: "disabled" }, body: bodyWith("") }), undefined);
+  assert.equal(assertSubmissionEmails({ definition, body: bodyWith("bot") }), undefined);
+  assert.throws(() => assertSubmissionEmails({ definition, body: bodyWith("  ") }), FormSubmissionValidationError);
+});
