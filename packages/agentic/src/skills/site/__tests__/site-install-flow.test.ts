@@ -213,6 +213,20 @@ describe("installSkill and the installed-skill registry", () => {
     expect(registry.list({}).map(tool => tool.id)).toContain("skill_notes");
   });
 
+  it("a registry whose host removed the installed refresh is refused by name on re-registration, not re-wired", async () => {
+    const site = await siteFixture();
+    const registry = createToolRegistry({});
+    const ctx = { workspaceId: WORKSPACE_ID, skillLayout: site.skillLayout, siteBinding: site.siteBinding,
+      withExtensionApprovalPolicy: ({ registration }: { registration: ToolRegistration }) => registration };
+    const liveRegistry = registry as typeof registry & { refreshInstalledSkills?: () => Promise<boolean> };
+    await registerInstalledSkillTools({ registry: liveRegistry, ctx });
+    expect(typeof liveRegistry.refreshInstalledSkills).toBe("function");
+    // The refresh hook is an optional property of the host's own registry, so the host may drop it.
+    delete liveRegistry.refreshInstalledSkills;
+    await expect(registerInstalledSkillTools({ registry: liveRegistry, ctx })).rejects.toThrow(new Error("Skill registry has no refresh operation"));
+    expect(liveRegistry.refreshInstalledSkills).toBeUndefined();
+  });
+
   it("buildSkillToolRegistrations serves each source's guidance with bundled files rooted at the site", async () => {
     const site = await siteFixture();
     const skillDir = path.join(site.skillLayout.forWorkspace({ workspaceId: WORKSPACE_ID }).root, "notes");

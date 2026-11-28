@@ -476,6 +476,26 @@ describe('TAG-A: inactive or disabled controls never receive effects', () => {
     await makeDriver().click({ handle: 'background' }); expect(background).toHaveBeenCalledOnce();
   });
 
+  it('in a browser whose CSS.supports reports no :modal support, guards with aria-modal dialogs alone', async () => {
+    // jsdom ships no window.CSS; this minimal stand-in plays a browser that has CSS.supports but
+    // predates the :modal selector. jsdom itself rejects ':modal', so querying it would throw.
+    const view = document.defaultView!;
+    const asked: string[] = [];
+    Object.defineProperty(view, 'CSS', { configurable: true, value: { supports: (condition: string) => { asked.push(condition); return false; } } });
+    try {
+      mount('<button data-agent-element="background">Background</button><div role="dialog" aria-modal="true"><button data-agent-element="modal">Confirm</button></div>');
+      const background = vi.fn(); const modal = vi.fn();
+      root.querySelector('[data-agent-element="background"]')!.addEventListener('click', background);
+      root.querySelector('[data-agent-element="modal"]')!.addEventListener('click', modal);
+      await expect(makeDriver().click({ handle: 'background' })).rejects.toThrow('"background" is behind the active modal');
+      await makeDriver().click({ handle: 'modal' });
+      expect(background).not.toHaveBeenCalled(); expect(modal).toHaveBeenCalledOnce();
+      expect(asked).toEqual(['selector(:modal)', 'selector(:modal)']);
+    } finally {
+      Reflect.deleteProperty(view, 'CSS');
+    }
+  });
+
   it('rechecks eligibility immediately before an effect when a target becomes inactive', async () => {
     mount('<input data-agent-element="target" value="original">');
     const driver = makeDriver(); expect(await driver.describeField({ handle: 'target' })).toMatchObject({ type: 'text' });
