@@ -81,6 +81,71 @@ test("archive: oversized upload is refused before the reader runs; foreign reade
     error instanceof PluginInstallError && error.message === "ZIP could not be read safely.");
 });
 
+const MIB = 1024 * 1024;
+/** A file entry that streams `chunks` (reusing one buffer) while claiming `declaredSize`. */
+function streamedEntry(entryPath: string, chunk: Uint8Array, repeat: number, declaredSize: number | undefined): PluginArchiveEntry {
+  return { kind: "file", entryPath, declaredSize, openReadStream: async function* () { for (let i = 0; i < repeat; i++) yield chunk; } };
+}
+async function refusal(entries: PluginArchiveEntry[]): Promise<{ code: string; message: string }> {
+  const error = await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf(entries, { n: 0 }) }).then(() => null, (caught: unknown) => caught);
+  assert.ok(error instanceof PluginInstallError);
+  return { code: (error as PluginInstallError & { code: string }).code, message: error.message };
+}
+
+test("archive: a path through a file and a file over a directory are both refused", async () => {
+  assert.deepEqual(await refusal([fileEntry("a", new Uint8Array([1])), fileEntry("a/b", new Uint8Array([2]))]),
+    { code: "PLUGIN_PACKAGE_UNSAFE", message: "ZIP path crosses a file." });
+  assert.deepEqual(await refusal([fileEntry("a/b", new Uint8Array([1])), fileEntry("a", new Uint8Array([2]))]),
+    { code: "PLUGIN_PACKAGE_UNSAFE", message: "ZIP file replaces a directory." });
+  // A directory entry over an existing subtree is fine: only a FILE may not replace one.
+  const files = await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf([fileEntry("a/b", new Uint8Array([1])), { kind: "directory", entryPath: "a/" }], { n: 0 }) });
+  assert.deepEqual([...files.keys()], ["a/b"]);
+});
+
+test("archive: entry count and distinct path prefixes are each capped at 4096", async () => {
+  const dirs = (n: number): PluginArchiveEntry[] => Array.from({ length: n }, (_, i) => ({ kind: "directory", entryPath: `d${i}/` }));
+  assert.equal((await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf(dirs(4096), { n: 0 }) })).size, 0);
+  assert.deepEqual(await refusal(dirs(4097)), { code: "PLUGIN_PACKAGE_TOO_LARGE", message: "ZIP has too many entries." });
+  // One entry, 4097 nested prefixes: the prefix cap trips although the entry cap does not.
+  const deep = Array.from({ length: 4097 }, () => "a").join("/");
+  assert.deepEqual(await refusal([fileEntry(deep, new Uint8Array([1]))]), { code: "PLUGIN_PACKAGE_TOO_LARGE", message: "ZIP has too many files and directories." });
+  const deepest = Array.from({ length: 4096 }, () => "a").join("/");
+  assert.deepEqual([...(await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf([fileEntry(deepest, new Uint8Array([1]))], { n: 0 }) })).keys()], [deepest]);
+});
+
+test("archive: a file without a declared size is kept with the bytes actually streamed", async () => {
+  const files = await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf([streamedEntry("x.js", new Uint8Array([7, 8]), 3, undefined)], { n: 0 }) });
+  assert.deepEqual([...files.get("x.js")!], [7, 8, 7, 8, 7, 8]);
+});
+
+test("archive: insane or oversized declared sizes are refused before the file is opened", async () => {
+  const opened: string[] = [];
+  const declared = (declaredSize: number): PluginArchiveEntry => ({ kind: "file", entryPath: "big.bin", declaredSize,
+    openReadStream: async function* () { opened.push("big.bin"); yield new Uint8Array(); } });
+  for (const size of [-1, 1.5, Number.NaN, 16 * MIB + 1]) {
+    assert.deepEqual(await refusal([declared(size)]), { code: "PLUGIN_PACKAGE_TOO_LARGE", message: "ZIP exceeds the file or expanded size limit." });
+  }
+  assert.deepEqual(opened, []);
+  const exact = await readPluginArchive({ archive: new Uint8Array(1), reader: readerOf([streamedEntry("max.bin", new Uint8Array(MIB), 16, 16 * MIB)], { n: 0 }) });
+  assert.equal(exact.get("max.bin")!.byteLength, 16 * MIB);
+});
+
+test("archive: a declared size that would push the expanded total past 64 MiB is refused", async () => {
+  const chunk = new Uint8Array(MIB);
+  const full = [0, 1, 2].map((i) => streamedEntry(`f${i}.bin`, chunk, 16, 16 * MIB));
+  // 48 MiB + 1 byte already streamed; a further 16 MiB claim crosses the 64 MiB cap.
+  let lastOpened = false;
+  const last: PluginArchiveEntry = { kind: "file", entryPath: "last.bin", declaredSize: 16 * MIB, openReadStream: async function* () { lastOpened = true; yield chunk; } };
+  assert.deepEqual(await refusal([...full, streamedEntry("one.bin", new Uint8Array([1]), 1, 1), last]),
+    { code: "PLUGIN_PACKAGE_TOO_LARGE", message: "ZIP exceeds the file or expanded size limit." });
+  assert.equal(lastOpened, false);
+});
+
+test("archive: streamed bytes are counted, so a file that lies about its size is refused past 16 MiB", async () => {
+  assert.deepEqual(await refusal([streamedEntry("liar.bin", new Uint8Array(MIB), 17, 1)]),
+    { code: "PLUGIN_PACKAGE_TOO_LARGE", message: "ZIP exceeds the file or expanded size limit." });
+});
+
 const request: Tier2Request = { kind: "probe", plugin: { pluginId: "t2", entryPath: "/plugins/t2/dist/plugin.js", packageRoot: "/plugins/t2", capabilities: [], hooks: [] } };
 const binding = { pluginSdkBinding, createInvocationCoreDeps };
 
