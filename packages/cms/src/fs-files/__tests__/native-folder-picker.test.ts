@@ -94,3 +94,18 @@ test("kdialog cancel is benign but a Windows nonzero result is a chooser failure
     { code: 1, message: "exec failed" });
   assert.deepEqual(windows.calls.map(call => call.file), ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"]);
 });
+
+test("a macOS chooser failure with no stderr is a real failure, not a cancel", async () => {
+  const failure = { code: 1 };
+  const mac = createNativeFolderPicker({ platform: "darwin", env: {} }, { exists: everyFileExists, execFile: fakeExec({ failure }).execFile });
+  await assert.rejects(mac.pick(), (error: Error & { code?: number }) => error.message === "exec failed" && error.code === 1);
+});
+
+test("with the real default probe and runner, an unsupported or headless platform has no chooser and never spawns", async () => {
+  for (const platform of ["freebsd", "linux"]) {
+    assert.equal(folderChooserCommand({ platform, env: {} }), null, platform);
+    const picker = createNativeFolderPicker({ platform, env: {} });
+    assert.equal(picker.available, false, platform);
+    await assert.rejects(picker.pick(), new Error("no native folder chooser on this machine"));
+  }
+});
