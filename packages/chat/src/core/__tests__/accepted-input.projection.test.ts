@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptedInputEvent, acceptedInputsFromMessages, acceptedInputUserEvent, projectAcceptedInputEvents, projectAcceptedInputMessages } from '../accepted-input.js';
+import { acceptedInputEvent, acceptedInputsFromMessages, acceptedInputUserEvent, foldersFromReceipts, projectAcceptedInputEvents, projectAcceptedInputMessages, withFolderReceipt } from '../accepted-input.js';
 import type { ChatMessage } from '../messages.js';
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
@@ -95,5 +95,46 @@ describe('acceptedInputEvent — malformed mid-run message events (F3)', () => {
     ['object text', { kind: 'ext', name: 'user_message', data: { id: 'm1', text: { value: 'hi' } } }],
   ])('refuses %s', (_label, event) => {
     expect(acceptedInputEvent({ event: event as unknown as AgentEvent })).toBeNull();
+  });
+});
+
+it('drops an ordinary user row whose id an earlier mid-run receipt already showed', () => {
+  const messages: ChatMessage[] = [
+    { id: 'run', role: 'assistant', content: '', events: [accepted('plain-1', 'hello')] },
+    { id: 'plain-1', role: 'user', content: 'hello' },
+    { id: 'plain-2', role: 'user', content: 'next' },
+  ];
+  expect(projectAcceptedInputMessages({ messages }).map(message => message.id)).toEqual(['run', 'plain-2']);
+});
+
+describe('folder receipts', () => {
+  const redaction = { secretRedacted: true } as NonNullable<ChatMessage['secretRedaction']>;
+  const attachment = { path: 'uploads/a.png', name: 'a.png' } as unknown as NonNullable<ChatMessage['attachments']>[number];
+
+  it('leaves non-user rows, folderless rows and rows that already carry a receipt unchanged', () => {
+    const assistant: ChatMessage = { id: 'a', role: 'assistant', content: 'x', folders: ['/w'] };
+    const plain: ChatMessage = { id: 'u', role: 'user', content: 'x', folders: [] };
+    const receipted: ChatMessage = { id: 'r', role: 'user', content: 'x', folders: ['/w'], events: [accepted('r', 'x')] };
+    for (const message of [assistant, plain, receipted]) expect(withFolderReceipt({ message })).toBe(message);
+  });
+
+  it('adds one accepted receipt carrying the folders, and the redaction and attachments only when present', () => {
+    const full = withFolderReceipt({ message: { id: 'u1', role: 'user', content: 'see', folders: ['/w/a'], secretRedaction: redaction, attachments: [attachment], events: [unrelated] } });
+    expect(full.events?.[0]).toEqual(unrelated);
+    expect(acceptedInputEvent({ event: full.events![1]! })?.data).toEqual({ id: 'u1', text: 'see', folders: ['/w/a'], secretRedaction: redaction, attachments: [attachment] });
+    const bare = withFolderReceipt({ message: { id: 'u2', role: 'user', content: 'see', folders: ['/w/b'] } });
+    expect(bare.events).toHaveLength(1);
+    expect(acceptedInputEvent({ event: bare.events![0]! })?.data).toEqual({ id: 'u2', text: 'see', folders: ['/w/b'] });
+    expect(Object.keys(acceptedInputEvent({ event: bare.events![0]! })!.data).sort()).toEqual(['folders', 'id', 'text']);
+  });
+
+  it('reads string folder paths back from receipts, skipping non-receipts, non-objects and non-string paths', () => {
+    expect(foldersFromReceipts({ events: 'not-a-list' })).toEqual([]);
+    expect(foldersFromReceipts({ events: [
+      null, 7, 'text', unrelated,
+      { kind: 'ext', name: 'user_message', data: { id: 'one', text: 'a', folders: ['/w/a', 3, '/w/b'] } },
+      { kind: 'ext', name: 'user_message', data: { id: 'two', text: 'b' } },
+      { kind: 'ext', name: 'user_message', data: { id: 'three', text: 'c', folders: ['/w/c'] } },
+    ] })).toEqual(['/w/a', '/w/b', '/w/c']);
   });
 });
