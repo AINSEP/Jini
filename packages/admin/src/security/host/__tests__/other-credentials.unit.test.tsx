@@ -154,4 +154,37 @@ describe("other credential stores", () => {
     expect(hook.result.current.groups?.find((g) => g.store.id === "external-mcp")?.rows[0]?.valueFact).toBe("fr:env(DOCS_KEY)");
     expect(hook.result.current.t("unknown error")).toBe("fr:unknown error");
   });
+
+  it("shows the masked tail when no hint is saved and a blank tail when the server sends no mask, for both single-key stores", async () => {
+    const hook = await loaded();
+    hook.state.assistant.masked = undefined as unknown as string;
+    act(() => hook.result.current.setDraftToken({ key: "site-assistant:site-assistant", value: "key-aa" }));
+    await act(async () => { await hook.result.current.replace(row(hook, "site-assistant:site-assistant")); });
+    expect(row(hook, "site-assistant:site-assistant").valueFact).toBe("tail()");
+
+    hook.state.byok.masked = "••••b2";
+    hook.port.setAdminByokCredential.mockImplementationOnce(async () => ({ data: hook.state.byok }));
+    act(() => hook.result.current.setDraftToken({ key: "admin-byok:admin-byok", value: "key-bb" }));
+    await act(async () => { await hook.result.current.replace(row(hook, "admin-byok:admin-byok")); });
+    expect(row(hook, "admin-byok:admin-byok").valueFact).toBe("tail(b2)");
+  });
+
+  it("keeps a replace's saving state while the operator keeps typing, and keeps a typed token when a remove fails", async () => {
+    const hook = await loaded();
+    let release!: () => void;
+    hook.port.patchMediaProvider.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(hook.state.media); }));
+    act(() => hook.result.current.setDraftToken({ key: "media-provider:cloud", value: "key-c1" }));
+    let pending!: Promise<void>;
+    act(() => { pending = hook.result.current.replace(row(hook, "media-provider:cloud")); });
+    await waitFor(() => expect(row(hook, "media-provider:cloud").saving).toBe(true));
+    act(() => hook.result.current.setDraftToken({ key: "media-provider:cloud", value: "key-c2" }));
+    expect(row(hook, "media-provider:cloud")).toMatchObject({ token: "key-c2", saving: true });
+    await act(async () => { release(); await pending; });
+
+    act(() => hook.result.current.setDraftToken({ key: "media-provider:bare", value: "typed-1" }));
+    hook.port.removeMediaProvider.mockRejectedValueOnce(new Error("locked"));
+    await act(async () => { await hook.result.current.remove(row(hook, "media-provider:bare")); });
+    expect(row(hook, "media-provider:bare")).toMatchObject({ token: "typed-1", saving: false, error: "save(tr(locked|t(unknown error)))" });
+  });
 });
+
