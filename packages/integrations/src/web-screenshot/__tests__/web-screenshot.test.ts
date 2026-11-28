@@ -11,6 +11,7 @@ import {
   UNTRUSTED_NOTICE,
   VIEWPORT_PRESETS,
   type EncodeTiles,
+  type OpenOwnSite,
   type WebScreenshotEvent,
   type WebScreenshotPorts,
 } from "../web-screenshot.js";
@@ -150,4 +151,142 @@ test("a queued call that outlives its deadline is refused as busy without starti
   finishFirst();
   await expect(first).resolves.toBeDefined();
   expect(() => createWebScreenshotService({ ports }, { maxQueueWaitMs: 60_001 })).toThrow(/maxQueueWaitMs must be an integer from 0 to 60000/);
+});
+
+test("refuses malformed theme ids, urls and option types with their own exact reasons", () => {
+  const refused = (input: Record<string, unknown>) => () => readWebScreenshotInput({ input });
+  expect(refused({ sitePath: "/", themeId: 7 })).toThrow(/themeId must be an installed theme's id/);
+  expect(refused({ sitePath: "/", themeId: "-starts-with-dash" })).toThrow(/themeId must be an installed theme's id/);
+  expect(refused({ url: 42 })).toThrow(/url must be an absolute http\(s\) URL of at most 2048 characters/);
+  expect(refused({ url: "" })).toThrow(/url must be an absolute http\(s\) URL of at most 2048 characters/);
+  expect(refused({ url: `https://example.com/${"a".repeat(2048)}` })).toThrow(/at most 2048 characters/);
+  expect(refused({ url: "not a url" })).toThrow(/url must be an absolute http\(s\) URL, e\.g\. https:\/\/example\.com\/about/);
+  expect(refused({ url: "https://example.com", dismissCookieBanners: "yes" })).toThrow(/dismissCookieBanners must be a boolean/);
+  expect(refused({ url: "https://example.com", fullPage: "true" })).toThrow(/fullPage must be a boolean/);
+  expect(readWebScreenshotInput({ input: { url: "https://example.com", dismissCookieBanners: false } }).dismissCookieBanners).toBe(false);
+});
+
+test("an own-site themed capture opens the site with that theme, forwards the banner flag and signal, and saves every tile", async () => {
+  const opened: unknown[] = [];
+  const saved: (readonly { relPath: string; bytes: Buffer }[])[] = [];
+  const { service, requests } = harness({ capture: async () => shot({ finalUrl: "https://elsewhere.example/landing", note: "banner dismissed" }) });
+  const controller = new AbortController();
+  const ports: { openOwnSite: OpenOwnSite } = { openOwnSite: async (_required, options) => { opened.push(options); return { origin: "http://127.0.0.1:4555", close: async () => {} }; } };
+  const input = readWebScreenshotInput({ input: { sitePath: "/shop", themeId: "night", dismissCookieBanners: true } });
+  const result = await service.screenshot({ input, openOwnSite: ports.openOwnSite,
+    saveCaptureFiles: async ({ files }) => { saved.push(files); return files.map((file) => `.captures/${file.relPath}`); } }, { signal: controller.signal });
+  expect(opened).toEqual([{ themeId: "night" }]);
+  expect(requests[0]).toMatchObject({ url: "http://127.0.0.1:4555/shop", dismissCookieBanners: true, allowedOrigins: ["http://127.0.0.1:4555"] });
+  const facts = JSON.parse((result.content[0] as { text: string }).text);
+  const paths = captureRelativePaths({ capturedAtMs: AT_MS, input, count: 2 });
+  expect(facts).toMatchObject({ sitePath: "/shop", finalPath: "https://elsewhere.example/landing", themeId: "night", note: "banner dismissed", savedFiles: paths.map((p) => `.captures/${p}`) });
+  expect(saved).toEqual([[{ relPath: paths[0], bytes: Buffer.from("tile-1") }, { relPath: paths[1], bytes: Buffer.from("tile-2") }]]);
+});
+
+test("the capture port receives the caller's signal only when one is given", async () => {
+  const options: unknown[] = [];
+  const ports: WebScreenshotPorts = { capture: { capture: async (_request, opts) => { options.push(opts); return shot(); }, close: async () => {} }, encodeTiles: twoTiles, nowMs: () => AT_MS };
+  const service = createWebScreenshotService({ ports });
+  const input = readWebScreenshotInput({ input: { url: "https://example.com" } });
+  const controller = new AbortController();
+  await service.screenshot({ input }, { signal: controller.signal });
+  await service.screenshot({ input });
+  expect(options).toEqual([{ signal: controller.signal }, {}]);
+});
+
+test("an own-site request without a site opener is refused before any capture", async () => {
+  const { service, requests } = harness({ capture: async () => shot() });
+  await expect(service.screenshot({ input: readWebScreenshotInput({ input: { sitePath: "/" } }) })).rejects.toThrow(/cannot render this site's own pages here; pass a public url instead/);
+  expect(requests).toEqual([]);
+});
+
+test("an opener origin that the site path does not resolve back to is refused before any capture", async () => {
+  const { service, requests } = harness({ capture: async () => shot() });
+  const input = readWebScreenshotInput({ input: { sitePath: "/about" } });
+  await expect(service.screenshot({ input, openOwnSite: async () => ({ origin: "http://127.0.0.1:80", close: async () => {} }) })).rejects.toThrow(/sitePath must stay on this site/);
+  expect(requests).toEqual([]);
+});
+
+test("a final URL that cannot be parsed is reported as given", async () => {
+  const { service } = harness({ capture: async () => shot({ finalUrl: "not a url" }) });
+  const result = await service.screenshot({ input: readWebScreenshotInput({ input: { sitePath: "/" } }), openOwnSite: async () => ({ origin: "http://127.0.0.1:4555", close: async () => {} }) });
+  expect(JSON.parse((result.content[0] as { text: string }).text).finalPath).toBe("not a url");
+});
+
+test("a save failure without an error code still explains itself, and a page with no tiles reports zero width", async () => {
+  const { service } = harness({ capture: async () => shot(), encodeTiles: async () => [] });
+  const result = await service.screenshot({ input: readWebScreenshotInput({ input: { url: "https://example.com" } }), saveCaptureFiles: async () => { throw new Error("denied"); } });
+  const facts = JSON.parse((result.content[0] as { text: string }).text);
+  expect(facts).toMatchObject({ width: 0, height: 0, images: [], savedFiles: [], saveError: "the capture could not be saved to disk (write failed); the images above are still valid." });
+  expect(result.content).toHaveLength(1);
+});
+
+test("a generic capture failure and a loaded-but-unsettled timeout get their own messages and outcomes", async () => {
+  const failing = (error: PageCaptureError) => harness({ capture: async () => { throw error; } });
+  const input = readWebScreenshotInput({ input: { url: "https://example.com/x" } });
+  const generic = failing(new PageCaptureError({ kind: "failed", message: "net::ERR_NAME_NOT_RESOLVED" }));
+  await expect(generic.service.screenshot({ input })).rejects.toThrow("could not load https://example.com (net::ERR_NAME_NOT_RESOLVED). Check the address and that the site is up.");
+  expect(generic.events.map((event) => event.outcome)).toEqual(["failed"]);
+  const slow = failing(new PageCaptureError({ kind: "timeout", message: "x", limitMs: 30_000, loaded: true }));
+  await expect(slow.service.screenshot({ input })).rejects.toThrow("https://example.com did not finish rendering within 30 seconds.");
+});
+
+test("an unexpected capture error propagates unchanged and the own-site server is still closed", async () => {
+  const boom = new TypeError("port crashed");
+  let closed = 0;
+  const { service, events } = harness({ capture: async () => { throw boom; } });
+  await expect(service.screenshot({ input: readWebScreenshotInput({ input: { sitePath: "/" } }), openOwnSite: async () => ({ origin: "http://127.0.0.1:4555", close: async () => { closed += 1; } }) })).rejects.toBe(boom);
+  expect(closed).toBe(1);
+  expect(events).toEqual([]);
+});
+
+function blockingPorts(extra: Partial<WebScreenshotPorts> = {}) {
+  let finishFirst!: () => void;
+  const events: WebScreenshotEvent[] = [];
+  let calls = 0;
+  const ports: WebScreenshotPorts = {
+    capture: { capture: async () => { calls += 1; if (calls === 1) await new Promise<void>((resolve) => { finishFirst = resolve; }); return shot(); }, close: async () => {} },
+    encodeTiles: twoTiles, nowMs: () => AT_MS, observe: (event) => events.push(event), ...extra,
+  };
+  return { ports, events, calls: () => calls, finish: () => finishFirst() };
+}
+
+test("a queued own-site call that times out is observed as busy for the own site", async () => {
+  const timeouts: Array<() => void> = [];
+  const { ports, events, finish } = blockingPorts({ scheduleQueueTimeout: ({ onTimeout }) => { timeouts.push(onTimeout); return () => {}; } });
+  const service = createWebScreenshotService({ ports }, { maxQueueWaitMs: 500 });
+  const first = service.screenshot({ input: readWebScreenshotInput({ input: { url: "https://example.com" } }) });
+  const second = service.screenshot({ input: readWebScreenshotInput({ input: { sitePath: "/" } }), openOwnSite: async () => ({ origin: "http://127.0.0.1:4555", close: async () => {} }) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  timeouts[1]?.();
+  await expect(second).rejects.toThrow(/waited 500 ms/);
+  expect(events).toEqual([{ target: "site", origin: "own-site", viewport: "desktop", outcome: "busy", durationMs: 0 }]);
+  finish();
+  await first;
+});
+
+test("a queued call stopped by its caller rejects with the abort reason, cancels its timer and never captures", async () => {
+  const cancelled: number[] = [];
+  const { ports, calls, finish } = blockingPorts({ scheduleQueueTimeout: () => () => { cancelled.push(1); } });
+  const service = createWebScreenshotService({ ports });
+  const input = readWebScreenshotInput({ input: { url: "https://example.com" } });
+  const first = service.screenshot({ input });
+  const controller = new AbortController();
+  const second = service.screenshot({ input }, { signal: controller.signal });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const reason = new Error("stopped by user");
+  controller.abort(reason);
+  await expect(second).rejects.toBe(reason);
+  expect(calls()).toBe(1);
+  expect(cancelled.length).toBe(2);
+  finish();
+  await first;
+});
+
+test("a queue timer that cannot be scheduled fails the call without capturing", async () => {
+  const failure = new Error("no timers");
+  const { ports, calls } = blockingPorts({ scheduleQueueTimeout: () => { throw failure; } });
+  const service = createWebScreenshotService({ ports });
+  await expect(service.screenshot({ input: readWebScreenshotInput({ input: { url: "https://example.com" } }) })).rejects.toBe(failure);
+  expect(calls()).toBe(0);
 });
