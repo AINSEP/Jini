@@ -137,4 +137,34 @@ describe.each(["sqlite", "postgres"] as const)("webhook sql adapters [%s]", (dia
     assert.deepEqual([released?.status, released?.attempts], ["pending", 0]);
     assert.deepEqual((await deliveries.listBySubscription({ workspaceId: "ws", subscriptionId: "sub", limit: 5 })).map((row) => row.id), ["d2", "d1"]);
   });
+  test("a subscription to a different exact topic does not match, and an envelope saved later replaces the row's payload", async () => {
+    const { subscriptions, deliveries } = await make();
+    await subscriptions.insert({ ...subscription, id: "pages", topics: ["page.created", "post.updated"] });
+    await subscriptions.insert({ ...subscription, id: "posts", topics: ["page.created", "post.created"] });
+    assert.deepEqual((await subscriptions.findMatching({ workspaceId: "ws", topic: "post.created" })).map((row) => row.id), ["posts"]);
+
+    const first: WebhookEventEnvelope = { deliveryId: "d1", eventId: "evt-d1", topic: "post.created", workspaceId: "ws", occurredAt: T0, data: { id: "p1" } };
+    const replaced: WebhookEventEnvelope = { ...first, data: { id: "p1", title: "Edited" } };
+    await deliveries.enqueue({ record: delivery("d1") }, { envelope: first });
+    await deliveries.save({ deliveryId: "d1", envelope: replaced });
+    assert.deepEqual(await deliveries.find({ deliveryId: "d1" }), replaced);
+    await deliveries.save({ deliveryId: "missing", envelope: replaced });
+    assert.equal(await deliveries.find({ deliveryId: "missing" }), null, "saving an envelope never creates a delivery row");
+  });
+  test("an unfenced failure re-enters pending without a dead stamp, a dead outcome without one keeps the stored stamp, and an unknown delivery reads as null", async () => {
+    const { deliveries } = await make();
+    await deliveries.enqueue({ record: delivery("d1") });
+    await deliveries.enqueue({ record: { ...delivery("d2"), deadAt: "2026-11-21T00:00:00.000Z" } });
+    await deliveries.claimPending({ batchSize: 5, nowIso: T0 });
+    await deliveries.markFailed({ workspaceId: "ws", id: "d1", error: "timeout", responseStatus: null, nextStatus: "failed", nextAttemptAt: "2026-11-22T00:05:00.000Z" });
+    const retried = await deliveries.findById({ workspaceId: "ws", id: "d1" });
+    assert.deepEqual([retried?.status, retried?.lastError, retried?.lastResponseStatus, retried?.nextAttemptAt, retried?.deadAt], ["pending", "timeout", null, "2026-11-22T00:05:00.000Z", null]);
+    await deliveries.markFailed({ workspaceId: "ws", id: "d2", error: "gone", responseStatus: 410, nextStatus: "dead", nextAttemptAt: T0 });
+    const dead = await deliveries.findById({ workspaceId: "ws", id: "d2" });
+    assert.deepEqual([dead?.status, dead?.deadAt], ["dead", "2026-11-21T00:00:00.000Z"]);
+    await deliveries.markDelivered({ workspaceId: "ws", id: "d1", responseStatus: 204, deliveredAtIso: "2026-11-22T00:06:00.000Z" });
+    const delivered = await deliveries.findById({ workspaceId: "ws", id: "d1" });
+    assert.deepEqual([delivered?.status, delivered?.lastError, delivered?.lastResponseStatus, delivered?.deliveredAt], ["delivered", null, 204, "2026-11-22T00:06:00.000Z"]);
+    assert.equal(await deliveries.findById({ workspaceId: "ws", id: "nope" }), null);
+  });
 });

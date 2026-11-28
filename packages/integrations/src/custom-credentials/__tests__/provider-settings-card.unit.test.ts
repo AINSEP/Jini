@@ -110,6 +110,14 @@ describe('buildProviderSettingsForm: secret fields', () => {
   });
 });
 
+describe('buildProviderSettingsForm: secret fields required by a public choice', () => {
+  it('carries requiredWhen onto a required secret and allows its blank, leaving the decision to the shared save rule', () => {
+    const [control] = form({ fields: [field({ name: 'smtpPassword', label: 'SMTP password', secret: true, required: true, requiredWhen: { field: 'transport', equals: 'smtp' } } as never)] }).fields;
+    expect(control).toEqual({ kind: 'string', name: 'smtpPassword', label: 'SMTP password', secret: true, required: true,
+      requiredWhen: { field: 'transport', equals: 'smtp' }, allowBlank: true });
+  });
+});
+
 describe('buildProviderSettingsForm: card copy', () => {
   it('uses neutral fallbacks when the provider declares no card', () => {
     const result = form({});

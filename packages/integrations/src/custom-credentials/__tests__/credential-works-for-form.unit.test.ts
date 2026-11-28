@@ -57,3 +57,13 @@ test("the Base URL field's hint is the host-injected text, not package copy", ()
   const field = buildCreateForm({ prefill: {}, providers, app, categories, suggestWorksFor, baseUrlHint }).fields.find(field => field.name === "baseUrl");
   expect(field?.hint).toBe(baseUrlHint);
 });
+
+test("a prefilled label and base URL start in their fields, and without a prefill neither field carries a value", () => {
+  const fieldsFor = (prefill: CreateCredentialPrefill) => buildCreateForm({ prefill, providers, app, categories, suggestWorksFor, baseUrlHint }).fields;
+  const prefilled = fieldsFor({ label: "Registrar", baseUrl: "https://api.registrar.example" });
+  expect(prefilled.find(field => field.name === "label")).toMatchObject({ kind: "string", required: true, value: "Registrar" });
+  expect(prefilled.find(field => field.name === "baseUrl")).toEqual({ kind: "string", name: "baseUrl", label: "Base URL", hint: baseUrlHint, required: true, value: "https://api.registrar.example" });
+  const blank = fieldsFor({});
+  expect(blank.find(field => field.name === "baseUrl")).toEqual({ kind: "string", name: "baseUrl", label: "Base URL", hint: baseUrlHint, required: true });
+  expect("value" in (blank.find(field => field.name === "label") ?? {})).toBe(false);
+});
