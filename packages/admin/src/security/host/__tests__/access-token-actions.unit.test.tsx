@@ -36,7 +36,7 @@ const sourceCredential = (over: Partial<AdminSourceControlCredentialSummary> = {
 const categories = [{ id: "all" as const, label: "All" }, { id: "hosting" as const, label: "Hosting" }];
 const providerCopy = { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" };
 
-function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; publish?: AdminPublishCredentialSummary[]; source?: AdminSourceControlCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom"; pendingSourceProviders?: Promise<Array<{ id: string; label: string }>> } = {}) {
+function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; publish?: AdminPublishCredentialSummary[]; source?: AdminSourceControlCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom"; pendingSourceProviders?: Promise<Array<{ id: string; label: string }>>; useFetchQuery?: AccessTokensArgs["hooks"]["useFetchQuery"] } = {}) {
   const port: AccessTokensArgs["port"] = {
     publish: {
       list: vi.fn(async () => ({ credentials: options.publish ?? [publishCredential()], executionMode: "hosted-api-only" as const })),
@@ -83,7 +83,7 @@ function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCr
     classifyAccessTokenSubmitError: () => ({ kind: "generic" }),
   };
   const useContentRefreshSubscription = ({ onRefresh }: { resource: string; onRefresh: () => void }) => { if (options.onRefresh) options.onRefresh.current = onRefresh; };
-  const hook = renderHook(() => useAccessTokens({ port, locale: "en", t: (key) => `t(${key})`, deps, hooks: { useFetchQuery, useSettlementGeneration, useContentRefreshSubscription } }));
+  const hook = renderHook(() => useAccessTokens({ port, locale: "en", t: (key) => `t(${key})`, deps, hooks: { useFetchQuery: options.useFetchQuery ?? useFetchQuery, useSettlementGeneration, useContentRefreshSubscription } }));
   return { port, deps, ready, ...hook };
 }
 
@@ -673,5 +673,26 @@ describe("access-token custom saves on an inventory that is not loaded", () => {
     await act(async () => { release(answer); await pending; });
     expect(hook.port.custom.update).toHaveBeenCalledWith({ id: "cus-1", input: { label: "Example API v2", connection: { token: "tok-a" } } });
     expect(rows(hook).map((row) => row.id)).toEqual(["pub-1"]);
+  });
+});
+
+describe("access-token stores seeded from a host query binding", () => {
+  it("keeps every store unseeded while the binding reports a settled status without data, and seeds each once its data arrives", async () => {
+    // The injected binding's contract is `{ data: T | undefined; status: string }`: a host binding may
+    // report a non-loading, non-error status (here "idle") before any data exists.
+    const answers = new Map<string, { data: unknown; status: string; error: unknown }>();
+    const useHostQuery = (<T,>({ key }: { key: readonly string[]; fetch: () => Promise<T> }) =>
+      (answers.get(key[1]!) ?? { data: undefined, status: "idle", error: null }) as { data: T | undefined; status: string; error: unknown });
+    const hook = setup({ useFetchQuery: useHostQuery });
+    expect(hook.result.current.groups).toBeUndefined();
+    expect(hook.result.current.loadError).toBeNull();
+    answers.set("publish-credentials", { data: { credentials: [publishCredential()] }, status: "success", error: null });
+    answers.set("source-control-credentials", { data: { credentials: [sourceCredential()] }, status: "success", error: null });
+    hook.rerender();
+    // The custom store is still unseeded, so no row list exists yet.
+    expect(hook.result.current.groups).toBeUndefined();
+    answers.set("custom-credentials", { data: { credentials: [customCredential()] }, status: "success", error: null });
+    hook.rerender();
+    await waitFor(() => expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-1", "src-1"]));
   });
 });
