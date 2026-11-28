@@ -222,3 +222,46 @@ it("a successful replace resolves the persisted record's URL and reports its new
   } });
   expect(deps.storage.resolvePublicUrls).toHaveBeenCalledWith({ assets: [saved] }, {});
 });
+
+it("a missing or trashed replacement target is refused before any source is read", async () => {
+  for (const found of [null, { ...media, status: "trash" as const }]) {
+    const { deps, ctx, handler } = fixture();
+    deps.replacement.findById.mockResolvedValue(found as never);
+    await expect(handler("media_replace_file")(ctx({ mediaId: "asset", url: "https://request.example/image" })))
+      .rejects.toThrow("Media was not found or is in Trash; restore it before replacing its file.");
+    expect(deps.source.fetchRemote).not.toHaveBeenCalled();
+    expect(deps.replacement.replace).not.toHaveBeenCalled();
+  }
+});
+
+it("a replaced asset with no public URL reports a null URL", async () => {
+  const { deps, ctx, handler } = fixture();
+  deps.storage.resolvePublicUrls.mockResolvedValue(new Map());
+  expect(await handler("media_replace_file")(ctx({ mediaId: "asset", url: "https://submitted.example/picture" })))
+    .toMatchObject({ media: { id: "asset", publicUrl: null } });
+});
+
+it("an editorial title names the local upload, and URL and local imports both report the upload to the tracker", async () => {
+  const { deps, ctx } = fixture();
+  const tracker = { capture: vi.fn(async () => {}) };
+  const tracked = { ...deps, tracker };
+  const registrations = buildMediaImportRegistrations({ deps: tracked, catalog });
+  const handler = (id: string) => registrations.find(({ descriptor }) => descriptor.id === id)!.handler;
+  await handler("media_import_local_file")(ctx({ root: "site", path: "nested/image.png", title: "Spring launch: hero" }));
+  expect(deps.storage.upload).toHaveBeenCalledWith({ input: expect.objectContaining({ filename: "Spring launch: hero.imported" }) }, {});
+  await handler("media_import_from_url")(ctx({ url: "https://request.example/image" }));
+  expect(tracker.capture.mock.calls).toEqual([
+    [{ name: "media_uploaded", userId: "agent" }, { properties: expect.objectContaining({ kind: "image", source: "assistant" }) }],
+    [{ name: "media_uploaded", userId: "agent" }, { properties: expect.objectContaining({ kind: "image", source: "assistant" }) }],
+  ]);
+});
+
+it("an over-limit local file whose stream ends before its checked length is refused and nothing is staged", async () => {
+  const { deps, ctx, handler } = fixture();
+  deps.storage.canUploadStagedVideo.mockResolvedValue(true);
+  deps.source.withLocalStream.mockImplementation(async ({ consume }) =>
+    consume({ length: deps.source.ordinaryMaxBytes + 1, chunks: (async function* () { yield bytes; })() }));
+  await expect(handler("media_import_local_file")(ctx({ root: "site", path: "clip.mov" }))).rejects.toThrow("Local file ended before its checked length.");
+  expect(deps.source.withStagedFile).not.toHaveBeenCalled();
+  expect(deps.storage.upload).not.toHaveBeenCalled();
+});
