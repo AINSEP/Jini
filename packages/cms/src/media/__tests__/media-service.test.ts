@@ -1179,3 +1179,44 @@ test("staged video refuses mismatches, invalid lengths, unsupported storage and 
   assert.deepEqual(await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID }), []);
   assert.deepEqual(await deps.blobRepo.list({ workspaceId: WORKSPACE_ID }), []);
 });
+
+// --- Gap fill (cloud A3-4) ---
+
+// Mutation: drop `?? passthrough` (the original object would then be journaled as a rendition of itself).
+test("a purge whose blob row is already gone takes the original key from the passthrough rendition, else journals every rendition", async () => {
+  for (const keepPassthrough of [true, false]) {
+    const { deps } = makeDeps();
+    const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom(`orphan-${keepPassthrough}`), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+    const [passthrough] = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id });
+    assert.equal(passthrough?.transformName, 'original');
+    assert.equal(passthrough?.sha256, media.source.sha256);
+    const renditionRepo = new InMemoryAssetRenditionRepo({});
+    if (keepPassthrough) await renditionRepo.save(passthrough!);
+    await renditionRepo.save({ id: 'thumb', workspaceId: WORKSPACE_ID, assetId: media.id, transformName: 'thumb', version: 1, storageKey: 'exact-thumb', createdAt: 'now' });
+    await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+    const journaled: MediaCleanupJournalInput[] = [];
+    // An empty blob repo stands in for a destination whose asset_blobs row was already removed.
+    await purgeMedia({ deps: { ...deps, renditionRepo, blobRepo: new InMemoryAssetBlobRepo({}),
+      cleanupJournal: async (input: MediaCleanupJournalInput) => { journaled.push(input); } }, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+    assert.deepEqual(journaled, [{ workspaceId: WORKSPACE_ID, mediaId: media.id, sha256: media.source.sha256,
+      storageKeys: keepPassthrough ? [passthrough!.storageKey, 'exact-thumb'] : ['exact-thumb'],
+      renditions: [], unverifiedRenditionKeys: ['exact-thumb'] }]);
+    assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }), null);
+  }
+});
+
+// Mutation: always pass `{ signal: optional.signal }` to the staged writer (a signal-less upload would forward `{ signal: undefined }`).
+test("a staged video uploaded without a signal hands the writer an empty options object", async () => {
+  const { deps } = makeDeps();
+  const { bytes, ...input } = stagedFixture();
+  const options: unknown[] = [];
+  const blobStore = Object.assign(deps.blobStore, { resolveStagedWriter: async () =>
+    async ({ workspaceId, sha256 }: { workspaceId: string; sha256: string }, opts: unknown = 'missing') => {
+      options.push(opts);
+      return deps.blobStore.put({ workspaceId, sha256, bytes });
+    } });
+  const { media } = await uploadStagedVideo({ deps: { ...deps, blobStore }, input });
+  assert.deepEqual(options, [{}]);
+  assert.equal(Object.keys(options[0] as object).length, 0);
+  assert.equal(media.source.sha256, input.staged.sha256);
+});
