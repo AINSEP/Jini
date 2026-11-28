@@ -133,7 +133,7 @@ it("a provider already found without a key is not re-checked for its next model,
   expect(await registration.handler(ctx({ prompt: "!!! ???" }))).toMatchObject({ model: "plugin-third", media: { publicUrl: null } });
   // "plugin" is looked up once (for plugin-first), never again for plugin-second.
   expect(deps.providers.readSavedCredential.mock.calls.map(([input]) => input.providerId)).toEqual(["plugin", "other", "other"]);
-  expect(deps.storage.upload.mock.calls[0]?.[0].input.filename).toBe("generated-image.png");
+  expect(deps.storage.upload).toHaveBeenCalledWith({ input: expect.objectContaining({ filename: "generated-image.png" }) }, {});
   expect(tracker.capture).toHaveBeenCalledWith({ name: "media_uploaded", userId: "agent" }, { properties: expect.objectContaining({ kind: "image", source: "assistant" }) });
 });
 

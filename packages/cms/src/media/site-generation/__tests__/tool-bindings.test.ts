@@ -3,7 +3,7 @@ import type { ToolExecutionContext } from "@jini-ai/core";
 import { bindMediaGenerationTools } from "../tool-registrations.js";
 
 function fixture() {
-  const saved = vi.fn(async () => ({ apiKey: "saved", baseUrl: null, model: null }));
+  const saved = vi.fn(async (): Promise<{ apiKey: string; baseUrl: string | null; model: string | null } | null> => ({ apiKey: "saved", baseUrl: null, model: null }));
   const env = vi.fn(() => ({ apiKey: "env" }));
   const generate = vi.fn(async () => ({ bytes: Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]), providerId: "provider", usedStubFallback: false }));
   const input: Parameters<typeof bindMediaGenerationTools>[0] = {
@@ -62,7 +62,7 @@ test("an omitted model reads saved selections through the bound credential repo,
     const binding = bindMediaGenerationTools({ ...f.input, getMediaProviderCredentials, readEnvironment });
     f.saved.mockResolvedValue(null as never);
     const repo = { marker: "credential-repo" };
-    const deps = { ...f.deps, mediaProviderCredentialRepo: repo, ...(hostEnv ? { env: hostEnv } : {}) } as typeof f.deps;
+    const deps = { ...f.deps, mediaProviderCredentialRepo: repo, ...(hostEnv ? { env: hostEnv } : {}) } as unknown as typeof f.deps;
     const [tool] = binding.buildMediaGenerationRegistrations(deps, f);
     await tool!.handler({ ...f.ctx, input: { prompt: "Picture" } });
     expect(getMediaProviderCredentials.mock.calls).toEqual([[{ deps: { repo }, workspaceId: "site" }]]);
