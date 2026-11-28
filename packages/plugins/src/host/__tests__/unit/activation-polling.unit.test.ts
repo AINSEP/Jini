@@ -304,3 +304,48 @@ test("a failed readiness or read is logged as a poll failure on each tick, with 
   ]);
   polling.stop();
 });
+
+test("a pass that waited on readiness across stop() never reads or reconciles once readiness lands", async () => {
+  vi.useFakeTimers();
+  const scripted = scriptedRepo([record("kept", true)]);
+  let ready!: () => void;
+  const calls: string[] = [];
+  const polling = startPluginActivationPolling({
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: scripted.repo,
+    pluginRuntimeReady: new Promise<void>((resolve) => { ready = resolve; }),
+    onPluginEnabled: async (pluginId) => { calls.push(`on:${pluginId}`); },
+    onPluginDisabled: (pluginId) => { calls.push(`off:${pluginId}`); },
+  }, { intervalMs: 100 });
+  await vi.advanceTimersByTimeAsync(100);
+  assert.equal(scripted.reads, 0, "the tick is queued behind readiness");
+  polling.stop();
+  scripted.rows.splice(0, 1, record("late", true));
+  ready();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(scripted.reads, 1, "only the seed read runs; the queued pass sees stop() and does nothing");
+  assert.deepEqual(calls, []);
+});
+
+test("a failed plugin that is disabled and then re-enabled at the same version is retried at once, not after its old backoff", async () => {
+  const repo = new InMemoryPluginActivationRepo({ initialRows: [record("flaky", true)] });
+  let broken = true;
+  const attempts: string[] = [];
+  const deps: PluginActivationPollDeps = {
+    logger: silentLogger, workspaceId: WORKSPACE, pluginActivationRepo: repo,
+    onPluginEnabled: async (pluginId) => { attempts.push(pluginId); if (broken) throw new Error("load failed"); },
+    onPluginDisabled: () => assert.fail("never attached, so never detached"),
+  };
+  const attachedIds = new Set<string>();
+  const failures = new Map();
+  await reconcilePluginActivationsOnce({ deps, attachedIds, failures });
+  assert.deepEqual(attempts, ["flaky"]);
+  assert.equal(failures.has("flaky"), true);
+  await repo.save(record("flaky", false));
+  await reconcilePluginActivationsOnce({ deps, attachedIds, failures });
+  assert.equal(failures.has("flaky"), false, "the backoff of a plugin that is no longer enabled is forgotten");
+  broken = false;
+  await repo.save(record("flaky", true));
+  await reconcilePluginActivationsOnce({ deps, attachedIds, failures });
+  assert.deepEqual(attempts, ["flaky", "flaky"]);
+  assert.equal(attachedIds.has("flaky"), true);
+});
