@@ -85,6 +85,15 @@ describe('runtime activation edges', () => {
     await runtime.dispose({}, {});
   });
 
+  it('discovers the version an enabled row pins, while plain discovery reports the latest installed version', async () => {
+    const installDir = await tempDir('edge-install-');
+    for (const version of ['1.0.0', '1.1.0']) await mkdir(path.join(installDir, 'pinned', version), { recursive: true });
+    const { runtime } = host({ enabled: ['pinned'], runtime: { installDir } });
+    expect((await runtime.discoverPlugins()).map(({ id, version }) => `${id}@${version}`)).toEqual(['pinned@1.1.0']);
+    expect((await runtime.discoverActivePlugins()).map(({ id, version }) => `${id}@${version}`)).toEqual(['pinned@1.0.0']);
+    await runtime.dispose({}, {});
+  });
+
   describe('declared content types', () => {
     const declared = manifestOf('typed', { contentTypes: [{ key: 'article' }] });
     function typedHost(applyError?: Error) {
