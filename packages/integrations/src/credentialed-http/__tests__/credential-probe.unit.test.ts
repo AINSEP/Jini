@@ -158,6 +158,27 @@ test.each([
   assert.deepEqual(rig.audit.entries, []);
 });
 
+test.each(["42", "null", "[\"/user\"]"])("a non-string probe path from plugin JSON (%s) is refused before sending", async raw => {
+  const rig = await verificationRig();
+  const path: string = JSON.parse(raw);
+  await assert.rejects(verifyCustomCredential(rig, { path }), error => error instanceof CredentialedRequestValidationError
+    && error.message === "probe path must be relative to the saved base URL and remain on its origin");
+  assert.deepEqual(rig.client.requests, []);
+  assert.deepEqual(rig.audit.entries, []);
+});
+
+test.each(["ftp://api.example/v1/", "not a url", ""])("a stored base URL that no longer parses (%s) gets the same value-free refusal", async stored => {
+  const rig = await verificationRig();
+  const real = rig.deps.resolver;
+  const deps: CredentialedRequestDeps = { ...rig.deps, resolver: { describe: input => real.describe(input), resolve: async input => {
+    const resolved = await real.resolve(input);
+    return resolved && { ...resolved, baseUrl: stored };
+  } } };
+  await assert.rejects(verifyCustomCredential({ deps, input: rig.input }, { path: "/user" }), error => error instanceof CredentialedRequestValidationError
+    && error.message === "probe path must be relative to the saved base URL and remain on its origin" && error.cause === undefined);
+  assert.deepEqual(rig.client.requests, []);
+});
+
 test.each([401, 403])("verification preserves HTTP %i audit and diagnostic semantics through the shared probe", async status => {
   const rig = await verificationRig({ status, headers: { "x-echo": TOKEN }, bodyText: TOKEN });
   const mappedStatuses: number[] = [];
