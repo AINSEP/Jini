@@ -415,3 +415,51 @@ test("each writer holds the byte fence across write and publish", async () => {
     assert.equal(verified, true);
   });
 });
+
+test("a seed file whose bytes or shard disagree with its path is reported as a mismatch and never stored", async () => {
+  await withTempDir(async (dir) => {
+    const workspaceId = `ws-${randomUUID()}`;
+    const claimedSha = createHash("sha256").update("the bytes the path promises").digest("hex");
+    const tamperedKey = computeBlobStorageKey({ workspaceId, sha256: claimedSha });
+    await mkdir(dirname(join(dir, ...tamperedKey.split("/"))), { recursive: true });
+    await writeFile(join(dir, ...tamperedKey.split("/")), "different bytes");
+    const misShardedBytes = new TextEncoder().encode("right digest, wrong shard directory");
+    const misShardedSha = createHash("sha256").update(misShardedBytes).digest("hex");
+    const wrongShard = misShardedSha.startsWith("00") ? "01" : "00";
+    const misShardedPath = `ws/${workspaceId}/blobs/${wrongShard}/${misShardedSha}`;
+    await mkdir(dirname(join(dir, ...misShardedPath.split("/"))), { recursive: true });
+    await writeFile(join(dir, ...misShardedPath.split("/")), misShardedBytes);
+    const store = new InMemoryBlobStore();
+    const verified: string[] = [];
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey }) => { verified.push(storageKey); } });
+    assert.equal(result.status, "partial");
+    assert.equal(result.copied, 0);
+    assert.deepEqual([...result.failed].sort((a, b) => a.relativePath.localeCompare(b.relativePath)), [
+      { relativePath: misShardedPath, error: "Seed blob does not match its storage key and digest" },
+      { relativePath: tamperedKey, error: "Seed blob does not match its storage key and digest" },
+    ].sort((a, b) => a.relativePath.localeCompare(b.relativePath)));
+    assert.equal(await store.exists({ storageKey: tamperedKey }), false);
+    assert.equal(await store.exists({ storageKey: computeBlobStorageKey({ workspaceId, sha256: misShardedSha }) }), false);
+    assert.deepEqual(verified, []);
+  });
+});
+
+test("a store that writes under a different key than the fenced one is reported and never verified", async () => {
+  await withTempDir(async (dir) => {
+    const seeded = await writeSeedBlob(dir, { workspaceId: `ws-${randomUUID()}`, bytes: new TextEncoder().encode("fenced bytes") });
+    class MisKeyedStore extends InMemoryBlobStore {
+      override async putIfAbsent(input: PutBlobInput) {
+        const stored = await super.putIfAbsent(input);
+        return { ...stored, storageKey: `${stored.storageKey}-elsewhere` };
+      }
+    }
+    const verified: string[] = [];
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: new MisKeyedStore(), blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey }) => { verified.push(storageKey); } });
+    assert.equal(result.status, "partial");
+    assert.equal(result.copied, 0);
+    assert.deepEqual(result.failed, [{ relativePath: seeded.storageKey, error: "Stored blob key does not match the fenced key" }]);
+    assert.deepEqual(verified, []);
+  });
+});

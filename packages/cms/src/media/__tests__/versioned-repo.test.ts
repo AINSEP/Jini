@@ -314,3 +314,13 @@ test("unconditional and versioned writes preserve immutable creation fields", as
   assert.deepEqual(await repo.saveIfVersion({ record: { ...incoming, version: 3 }, ifVersion: 2 }), { applied: true });
   assert.deepEqual(await repo.findById({ workspaceId: WORKSPACE_ID, id: original.id }), { ...expected, version: 3 });
 });
+
+test("a retired slug whose asset no longer lives in that workspace resolves to nothing, never to the asset in another workspace", async () => {
+  const repo = new InMemoryVersionedMediaRepo({});
+  await repo.save(makeMedia({ slug: "old-slug" }));
+  await repo.save(makeMedia({ slug: "new-slug", version: 2, updatedAt: "2026-09-23T00:00:00.000Z" }));
+  await repo.save(makeMedia({ workspaceId: "workspace-2", slug: "new-slug", version: 3 }));
+  assert.deepEqual(await repo.listRetiredSlugs({ workspaceId: WORKSPACE_ID, mediaId: "media-1" }), ["old-slug"]);
+  assert.equal(await repo.findBySlug({ workspaceId: WORKSPACE_ID, slug: "old-slug" }), null);
+  assert.equal((await repo.findBySlug({ workspaceId: "workspace-2", slug: "new-slug" }))?.version, 3);
+});

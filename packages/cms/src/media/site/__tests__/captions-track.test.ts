@@ -35,3 +35,8 @@ test("no reference, a missing, trashed or non-WebVTT asset all resolve to no tra
     assert.equal(await resolveMediaCaptionsTrack({ deps: d, input: { workspaceId: WS, captions: { assetId, srclang: "en" } } }), null, assetId);
   }
 });
+
+test("a captions reference without a label resolves with a null label", async () => {
+  const track = await resolveMediaCaptionsTrack({ deps: await deps(), input: { workspaceId: WS, captions: { assetId: VTT, srclang: "en" } } });
+  assert.deepEqual(track, { src: `/m/cc-en/original.vtt?v=${"b".repeat(12)}`, srclang: "en", label: null });
+});

@@ -459,3 +459,19 @@ test("media_update_metadata passes description through to the record and returns
   assert.equal(result.media.description, "A brown dog asleep on a red sofa.");
   assert.equal((await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId }))?.description, "A brown dog asleep on a red sofa.");
 });
+
+test("media_upload_asset stores a string description and ignores a non-string one", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const upload = buildMediaRegistrations(deps, {}).find((r) => r.descriptor.id === "media_upload_asset");
+  assert.ok(upload, "media_upload_asset must be wired");
+  const described = (await upload.handler(executionContext({
+    dataBase64: PNG_BYTES.toString("base64"), filename: "dog.png", contentType: "image/png", description: "A dog asleep on a sofa.",
+  }))) as { media: { id: string } };
+  const numeric = (await upload.handler(executionContext({
+    dataBase64: Buffer.from([...PNG_BYTES, 1]).toString("base64"), filename: "cat.png", contentType: "image/png", description: 42,
+  }))) as { media: { id: string } };
+  assert.equal((await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: described.media.id }))?.description, "A dog asleep on a sofa.");
+  const numericRow = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: numeric.media.id });
+  assert.ok(numericRow);
+  assert.equal(Object.hasOwn(numericRow, "description"), false, "a non-string description is treated as omitted: no key is stored");
+});
