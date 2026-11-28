@@ -441,3 +441,64 @@ test("restoreImportedMedia refuses when the compare-and-set loses to a concurren
   await assert.rejects(restoreImportedMedia({ deps, prior }),
     { message: "Could not restore media 'source-asset-1': the live file changed during rollback. Restore the publish restore point." });
 });
+
+// --- Gap fill (cloud A3-4): stale basis before any write, legacy creator, slugless rows, journal on reuse. ---
+
+test("a stale compare-and-set basis is refused as a conflict before any write, ahead of a slug collision", async () => {
+  const deps = makeDeps();
+  // The destination already holds this id at version 2 and a different id holding the slug.
+  await deps.mediaRepo.save(makeRecord({ version: 2, slug: "moved-away" }));
+  await deps.mediaRepo.save(makeRecord({ id: "slug-holder" }));
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ baseVersion: 1 }) }),
+    { status: "conflict", reason: "expected version 1, found version 2" });
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ baseVersion: null }) }),
+    { status: "conflict", reason: "expected no existing row, found version 2" });
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ record: makeRecord({ id: "never-imported" }), baseVersion: 4 }) }),
+    { status: "conflict", reason: "expected version 4, but the row is gone" });
+  // Nothing was written: no blob row, and the existing row is untouched.
+  assert.deepEqual(await deps.assetBlobRepo.list({ workspaceId: WORKSPACE_ID }), []);
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.version, 2);
+});
+
+test("an update on a fresh basis keeps an honestly unknown legacy creator instead of stamping the importer", async () => {
+  const deps = makeDeps();
+  const legacy = { ...makeRecord({ createdAt: "2025-05-05T00:00:00.000Z" }) };
+  delete (legacy as { createdBy?: string | null }).createdBy;
+  await deps.mediaRepo.save(legacy);
+  // The repo itself also preserves the stored creator, so read what the import asked it to write.
+  const written: MediaRecord[] = [];
+  const saveIfVersion = deps.mediaRepo.saveIfVersion.bind(deps.mediaRepo);
+  deps.mediaRepo.saveIfVersion = async (args) => { written.push(args.record); return saveIfVersion(args); };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ record: makeRecord({ title: "Retitled", createdBy: "source-claim" }), baseVersion: 1 }) }),
+    { status: "imported", id: "source-asset-1", blobWritten: true });
+  assert.equal(written.length, 1);
+  assert.equal(written[0]?.createdBy, null);
+  const saved = await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" });
+  assert.equal(saved?.title, "Retitled");
+  assert.equal(saved?.createdAt, "2025-05-05T00:00:00.000Z");
+  assert.equal(saved?.version, 2);
+  assert.equal(saved?.updatedAt, "2026-09-18T00:00:00.000Z");
+});
+
+test("a slugless record skips the slug lookup and imports even when another row has an empty slug", async () => {
+  const deps = makeDeps();
+  let slugLookups = 0;
+  const findBySlug = deps.mediaRepo.findBySlug.bind(deps.mediaRepo);
+  deps.mediaRepo.findBySlug = async (args) => { slugLookups++; return findBySlug(args); };
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput({ record: makeRecord({ slug: "" }) }) }),
+    { status: "imported", id: "source-asset-1", blobWritten: true });
+  assert.equal(slugLookups, 0);
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }))?.slug, "");
+});
+
+test("reusing an existing blob clears its storage key from the GC journal", async () => {
+  const cleared: { workspaceId: string; storageKeys: readonly string[] }[] = [];
+  const deps = { ...makeDeps(), journalEligibility: { clearForKeys: async (args: { workspaceId: string; storageKeys: readonly string[] }) => {
+    cleared.push({ workspaceId: args.workspaceId, storageKeys: [...args.storageKeys] });
+  } } };
+  const { storageKey } = await deps.blobStore.put({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, bytes: HELLO_BYTES });
+  await deps.assetBlobRepo.save({ id: "kept", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey, status: "active",
+    createdAt: "2026-09-16", createdByPrincipal: "original-owner" });
+  assert.deepEqual(await importMediaEntity({ deps, input: importInput() }), { status: "imported", id: "source-asset-1", blobWritten: false });
+  assert.deepEqual(cleared, [{ workspaceId: WORKSPACE_ID, storageKeys: [storageKey] }]);
+});
