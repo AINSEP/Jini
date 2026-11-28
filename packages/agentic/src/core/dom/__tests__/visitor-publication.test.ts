@@ -72,6 +72,48 @@ it('native submit can acknowledge acceptance before its effect, and rechecks the
   root.querySelector('form')!.action = '/admin';
   await expect(effect!()).rejects.toThrow('no element published as "send" on this page'); expect(submitted).toBe(0);
 });
+it.each([
+  ['<button type="submit" data-agent-element="send">Send</button>'],
+  ['<input type="submit" value="Send" data-agent-element="send">'],
+])('a deferred native submit %s executed against the unchanged submitter submits exactly once', async (submitter) => {
+  const { root, driver, submitted, effect } = deferredSubmitSetup(submitter);
+  await driver.click({ handle: 'send' });
+  expect(submitted()).toBe(0);
+  await effect()!();
+  expect(submitted()).toBe(1);
+  expect(root.querySelector('[data-agent-element="send"]')!.isConnected).toBe(true);
+});
+it('a deferred native submit refuses when a same-handle submitter replaced the accepted one', async () => {
+  const { root, driver, submitted, effect } = deferredSubmitSetup();
+  await driver.click({ handle: 'send' });
+  const accepted = root.querySelector('button')!;
+  accepted.replaceWith(accepted.cloneNode(true));
+  await expect(effect()!()).rejects.toThrow(new Error('Submission target changed'));
+  expect(submitted()).toBe(0);
+});
+it('a published submitter refuses a form carrying a hidden field, whose labels list is null', async () => {
+  const root = document.createElement('main'); root.dataset.agentPublication = 'rev';
+  root.innerHTML = '<form action="/contact"><input type="hidden" name="ref" value="home"><button type="submit" data-agent-element="send">Send</button></form>';
+  document.body.append(root); roots.push(root);
+  expect(root.querySelector('input')!.labels).toBeNull();
+  let submitted = 0;
+  root.querySelector('form')!.addEventListener('submit', event => { event.preventDefault(); submitted++; });
+  const driver = createDomPageDriver({ root, pages: {} }, { publication: { revision: 'rev', elements: [
+    { handle: 'send', action: 'submit', target: { action: '/contact', method: 'get' } },
+  ] } });
+  await expect(driver.click({ handle: 'send' })).rejects.toThrow(new Error('Published action unavailable'));
+  expect(submitted).toBe(0);
+});
+function deferredSubmitSetup(submitter = '<button type="submit" data-agent-element="send">Send</button>') {
+  const root = document.createElement('main');
+  root.innerHTML = `<form action="/contact">${submitter}</form>`;
+  document.body.append(root); roots.push(root);
+  let effect: (() => Promise<void>) | undefined;
+  let submitted = 0;
+  root.querySelector('form')!.addEventListener('submit', event => { event.preventDefault(); submitted++; });
+  const driver = createDomPageDriver({ root, pages: {} }, { deferSubmit: ({ execute }) => { effect = execute; } });
+  return { root, driver, submitted: () => submitted, effect: () => effect };
+}
 it('published submitters cannot submit unmarked credential or payment controls', async () => {
   for (const field of ['<input type="password" name="password">', '<input autocomplete="cc-number" name="number">']) {
     const root = document.createElement('main'); root.dataset.agentPublication = 'rev';

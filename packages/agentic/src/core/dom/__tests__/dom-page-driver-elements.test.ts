@@ -117,6 +117,12 @@ describe('click across the activatable elements', () => {
     expect((root.querySelector('input') as HTMLInputElement).checked).toBe(true);
   });
 
+  it('fills the one labelled control in a wrapper that also holds a label with no control', async () => {
+    mount('<div data-agent-element="target"><label>Orphan caption</label><label>Name <input type="text" /></label></div>');
+    await makeDriver().fill({ handle: 'target', text: 'Ada' });
+    expect((root.querySelector('input') as HTMLInputElement).value).toBe('Ada');
+  });
+
   it('toggles a <details> through its <summary>', async () => {
     // Clicking the <details> element itself dispatches an event the platform ignores, so the
     // disclosure would never open while the caller was told the click landed.
