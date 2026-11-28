@@ -49,3 +49,22 @@ test('restores an option submitted by its text and clears stale control defaults
   assert.match(output, /<input name="file" type="file">/);
   assert.match(output, /<template><input name="note" value="template value"><\/template>/);
 });
+
+test('a text default fills its input, a text input without one is cleared, option text ignores comments, and named non-controls are left as authored', () => {
+  const fields: FieldDescriptor[] = [
+    { id: 'first', type: 'text', label: 'First name', required: false, default: 'Ada' },
+    { id: 'slot', type: 'select', label: 'Slot', required: false, default: 'Late' },
+    { id: 'last', type: 'text', label: 'Last name', required: false },
+  ];
+  const output = repopulateFormRetryHtml({ fields, html: '<fieldset name="first"><legend>Who</legend><input name="first" value="Old"></fieldset><select name="slot"><option>Early</option><option>Late<!-- shift --></option></select><input name="last" value="Stale">' });
+  const nodes = elements(output);
+  const input = nodes.find(node => node.tagName === 'input' && attr(node, 'name') === 'first');
+  assert.equal(attr(input!, 'value'), 'Ada');
+  const last = nodes.find(node => node.tagName === 'input' && attr(node, 'name') === 'last');
+  assert.deepEqual(last!.attrs, [{ name: 'name', value: 'last' }]);
+  const fieldset = nodes.find(node => node.tagName === 'fieldset');
+  assert.deepEqual(fieldset!.attrs, [{ name: 'name', value: 'first' }]);
+  assert.match(output, /<fieldset name="first"><legend>Who<\/legend>/);
+  const selected = nodes.filter(node => node.tagName === 'option' && attr(node, 'selected') !== undefined);
+  assert.deepEqual(selected.map(node => node.childNodes.map(child => 'value' in child ? child.value : '').join('')), ['Late']);
+});
