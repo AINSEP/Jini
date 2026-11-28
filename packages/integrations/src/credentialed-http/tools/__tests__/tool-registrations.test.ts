@@ -125,6 +125,18 @@ describe('credential make-request DELETE approval', () => {
     expect(f.operations.approval.askHuman).not.toHaveBeenCalled();
   });
 
+  it('is abandoned, and sends nothing, when the run ends while the confirmed request re-checks permission', async () => {
+    const { f, byId } = tools();
+    const ac = new AbortController();
+    let confirmed = false;
+    (f.operations.approval.askHuman as ReturnType<typeof import('vitest').vi.fn>).mockImplementationOnce(async () => { confirmed = true; return { confirmed: true }; });
+    const authorize = f.routeDeps.authorize;
+    f.routeDeps.authorize = async (required) => { if (confirmed) ac.abort(); return authorize(required); };
+    expect(await byId(ids.makeRequest)(ctx(del, ac.signal), { emitSurface })).toEqual({ executed: false, cancelled: false, reason: 'abandoned' });
+    expect(f.operations.approval.askHuman).toHaveBeenCalledTimes(1);
+    expect(f.credentialedRequest.request).not.toHaveBeenCalled();
+  });
+
   it('returns a setup failure from recovery without asking, and maps validation target errors', async () => {
     const { f, byId } = tools();
     const setup = { executed: false as const, credentialSetup: { hint: 'reconnect' } };

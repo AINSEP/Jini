@@ -36,6 +36,13 @@ describe('rotate (set token) card', () => {
     expect(f.sets.replace).toHaveBeenLastCalledWith(expect.objectContaining({ connection: { token: 'tok-b' } }));
   });
 
+  it('a replaced row without a token hint reports only the saved text', async () => {
+    const { f, seen, handlers } = save({ status: 'submit', values: { token: 'tok-b' } });
+    f.sets.replace.mockResolvedValueOnce({ ...row, tokenHint: null } as unknown as typeof row);
+    expect(await handlers.rotate(ctx({ label: 'Shop' }))).toEqual({ saved: true });
+    expect(seen.outcomes).toEqual([{ title: 'rotated Shop', state: 'success', message: 'text:saved', app: { appName: 'rotated', appVersion: '1' } }]);
+  });
+
   it('a row deleted while the form was open fails with a translated safe message and logs the summary', async () => {
     const { f, seen, handlers } = save({ status: 'submit', values: { token: 'tok-b' } });
     f.sets.describe.mockResolvedValueOnce(null);
@@ -114,6 +121,12 @@ describe('create card', () => {
     await handlers.create(ctx({}));
     expect(f.sets.create).toHaveBeenCalledWith(expect.objectContaining({ label: '', baseUrl: '', category: 'ops', worksFor: [], connection: { token: 'tok-c', username: 'u1' } }));
     expect(seen.outcomes[0]).toMatchObject({ message: 'text:saved' });
+  });
+
+  it('a submitted token that is not text is saved as an empty token, never coerced', async () => {
+    const { f, handlers } = save({ status: 'submit', values: { label: 'NoTok', baseUrl: 'https://api.new.test', token: 12345 } });
+    await handlers.create(ctx({}));
+    expect(f.sets.create).toHaveBeenCalledWith(expect.objectContaining({ label: 'NoTok', baseUrl: 'https://api.new.test', connection: { token: '' } }));
   });
 
   it('reads prefill hints, refusing invalid worksFor and non-free fields', async () => {
