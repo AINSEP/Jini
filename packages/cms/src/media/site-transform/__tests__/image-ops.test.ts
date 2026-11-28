@@ -161,3 +161,93 @@ test("rendering delegates to the injected codec with the same limits and metadat
   await assert.rejects(() => renderOutputs({ source, outputs: normalizeOutputs({ outputs: [{ path: "wide.png", format: "png", resize: { width: 8192, height: 8192, fit: "outside" } }] }), imageCodec }), /8192/);
   assert.deepEqual(calls, [["inspect", { source }, IMAGE_LIMITS]], "oversized predicted geometry must never encode");
 });
+
+type ImageCodecPort = import("@jini-ai/cms/media").ImageCodecPort;
+type FakeMeta = Awaited<ReturnType<ImageCodecPort["inspect"]>>;
+/** A strict fake codec: fixed source facts, a fixed encode result, every encode request recorded. */
+function fakeCodec({ meta, encoded }: { meta: { [K in keyof FakeMeta]?: FakeMeta[K] | undefined }; encoded?: { width: number; height: number } }) {
+  const encodes: Record<string, unknown>[] = [];
+  const imageCodec: ImageCodecPort = {
+    async inspect() { return { format: "png", width: 20, height: 10, hasAlpha: false, autoOrient: { width: 20, height: 10 }, ...meta } as FakeMeta; },
+    async encode(input) {
+      encodes.push(input as unknown as Record<string, unknown>);
+      const { width, height } = encoded ?? { width: input.resize?.width ?? 20, height: input.resize?.height ?? 10 };
+      return { bytes: Buffer.from(`px-${width}x${height}`), width, height };
+    },
+    async encodeTiles() { throw new Error("unexpected tile encode"); },
+  };
+  return { imageCodec, encodes };
+}
+const source = Buffer.from("fake source");
+
+test("a null output entry is validated as an empty object and refused for its missing path and format", () => {
+  assert.throws(() => normalizeOutputs({ outputs: [{ path: "ok.png", format: "png" }, null] }), (error: Error) =>
+    error instanceof ImageTransformError && error.message.startsWith("outputs[1]: ") && /"path"/.test(error.message) && /"format"/.test(error.message));
+});
+
+test("source facts the codec reports are capped: unknown or unsupported format, too many pixels", async () => {
+  const output = normalizeOutputs({ outputs: [{ path: "a.png", format: "png" }] });
+  const formatless = fakeCodec({ meta: { format: undefined } });
+  await assert.rejects(() => renderOutputs({ source, outputs: output, imageCodec: formatless.imageCodec }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "the source is not a supported image (it is undefined)");
+  await assert.rejects(() => inspectImage({ source, imageCodec: fakeCodec({ meta: { format: "pdf" } }).imageCodec }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "the source is not a supported image (it is pdf)");
+  const huge = fakeCodec({ meta: { width: 101, height: 100 } });
+  await assert.rejects(() => renderOutputs({ source, outputs: output, imageCodec: huge.imageCodec }, { limits: { maxInputPixels: 10_000 } }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "the source has more than 10000 pixels");
+  const exact = fakeCodec({ meta: { width: 100, height: 100, autoOrient: { width: 100, height: 100 } } });
+  assert.equal((await renderOutputs({ source, outputs: output, imageCodec: exact.imageCodec }, { limits: { maxInputPixels: 10_000 } })).length, 1);
+  assert.equal(formatless.encodes.length + huge.encodes.length, 0);
+});
+
+test("inspect reports a heif source as avif and every other format as itself", async () => {
+  const heif = fakeCodec({ meta: { format: "heif", hasAlpha: true, autoOrient: { width: 10, height: 20 } } });
+  assert.deepEqual(await inspectImage({ source, imageCodec: heif.imageCodec }), { format: "avif", width: 10, height: 20, hasAlpha: true, bytes: source.length });
+  assert.equal((await inspectImage({ source, imageCodec: fakeCodec({ meta: { format: "webp" } }).imageCodec })).format, "webp");
+});
+
+test("an encode larger than the per-side cap is refused after the codec answers", async () => {
+  const outputs = normalizeOutputs({ outputs: [{ path: "grown.png", format: "png" }] });
+  const grown = fakeCodec({ meta: {}, encoded: { width: 30, height: 31 } });
+  await assert.rejects(() => renderOutputs({ source, outputs, imageCodec: grown.imageCodec }, { limits: { maxDimension: 30 } }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "grown.png: output exceeds 30px per side");
+  const atCap = fakeCodec({ meta: {}, encoded: { width: 30, height: 30 } });
+  assert.deepEqual((await renderOutputs({ source, outputs, imageCodec: atCap.imageCodec }, { limits: { maxDimension: 30 } })).map(({ width, height }) => [width, height]), [[30, 30]]);
+});
+
+test("ico entries keep a cover fit, every other fit becomes contain", async () => {
+  const { imageCodec, encodes } = fakeCodec({ meta: {} });
+  const outputs = normalizeOutputs({ outputs: [
+    { path: "cover.ico", format: "ico", icoSizes: [16], resize: { fit: "cover", position: "top" } },
+    { path: "fill.ico", format: "ico", icoSizes: [32], resize: { fit: "fill" } },
+  ] });
+  await renderOutputs({ source, outputs, imageCodec });
+  assert.deepEqual(encodes.map(({ format, resize }) => [format, resize]), [
+    ["png", { fit: "cover", position: "top", width: 16, height: 16, withoutEnlargement: false }],
+    ["png", { fit: "contain", width: 32, height: 32, withoutEnlargement: false }],
+  ]);
+});
+
+test("a direct caller's ico output with no sizes is refused by name without encoding", async () => {
+  const { imageCodec, encodes } = fakeCodec({ meta: {} });
+  const outputs = [{ path: "empty.ico", format: "ico" as const, stripMetadata: true, icoSizes: [] }];
+  await assert.rejects(() => renderOutputs({ source, outputs, imageCodec }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "ICO image has no sizes to render");
+  assert.deepEqual(encodes, []);
+});
+
+test("a resize naming neither width nor height is refused before any encode", async () => {
+  const { imageCodec, encodes } = fakeCodec({ meta: {} });
+  const outputs = normalizeOutputs({ outputs: [{ path: "a.png", format: "png", resize: { fit: "inside" } }] });
+  await assert.rejects(() => renderOutputs({ source, outputs, imageCodec }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "resize needs width or height");
+  assert.deepEqual(encodes, []);
+});
+
+test("a codec failure during encode is refused naming the output it was rendering", async () => {
+  const { imageCodec } = fakeCodec({ meta: {} });
+  imageCodec.encode = async () => { throw new Error("unknown colour 'tealish'"); };
+  const outputs = normalizeOutputs({ outputs: [{ path: "tinted.png", format: "png", background: "tealish" }] });
+  await assert.rejects(() => renderOutputs({ source, outputs, imageCodec }), (error: Error) =>
+    error instanceof ImageTransformError && error.message === "tinted.png: unknown colour 'tealish'");
+});
