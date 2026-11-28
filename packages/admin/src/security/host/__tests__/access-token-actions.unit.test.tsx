@@ -11,6 +11,7 @@ import type { AdminSourceControlCredentialSummary } from "../../../source-contro
 import { accessTokenDuplicateNameMessage, accessTokenMakeDefaultErrorMessage, accessTokenRemoveErrorMessage, accessTokenSaveErrorMessage } from "../../security-i18n.js";
 import type { AccessTokenRow } from "../../access-token-rows.js";
 import { useAccessTokens, type AccessTokensArgs } from "../hooks/use-access-tokens.hooks.js";
+import { writeCredential } from "../hooks/access-token-store-operations.js";
 
 /**
  * @file Drives `access-token-add-actions.ts`, `access-token-replace-actions.ts` and `access-token-actions.ts` through the real
@@ -555,18 +556,15 @@ describe("access-token submit failures", () => {
     expect(addForm(hook, "publish", "host")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "en:token is too short" }));
   });
 
-  it("refuses to create a hosting or source-control token whose form built no connection, without calling the port", async () => {
-    const hook = await loaded();
-    vi.mocked(hook.deps.buildAccessTokenConnectionInput).mockReturnValue(undefined as never);
-    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
-    await act(async () => { await hook.result.current.createToken(HOST); });
-    expect(hook.port.publish.create).not.toHaveBeenCalled();
-    expect(addForm(hook, "publish", "host")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "new publish credential has no connection|t(unknown error)" }));
+  it("refuses to create a hosting or source-control token whose patch carries no connection, without calling the port", async () => {
+    // `writeCredential`'s `patch.connection` is optional in its exported signature, so a create
+    // without one is a legal call; it must reject with its own message before any port write.
+    const { port } = setup();
+    await expect(writeCredential({ port, kind: "publish", mode: { type: "create", label: "Second" }, patch: {} })).rejects.toThrow("new publish credential has no connection");
+    expect(port.publish.create).not.toHaveBeenCalled();
 
-    act(() => hook.result.current.setAddField(SOURCE, { name: "Repo", token: "tok-b" }));
-    await act(async () => { await hook.result.current.createToken(SOURCE); });
-    expect(hook.port.sourceControl.create).not.toHaveBeenCalled();
-    expect(addForm(hook, "source-control", "source")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "new source control credential has no connection|t(unknown error)" }));
+    await expect(writeCredential({ port, kind: "source-control", mode: { type: "create", label: "Repo" }, patch: {} })).rejects.toThrow("new source control credential has no connection");
+    expect(port.sourceControl.create).not.toHaveBeenCalled();
   });
 
   it("replaces one hosting token in place and leaves its sibling rows untouched", async () => {

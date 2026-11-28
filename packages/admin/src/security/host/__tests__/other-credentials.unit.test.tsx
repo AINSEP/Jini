@@ -157,6 +157,8 @@ describe("other credential stores", () => {
 
   it("shows the masked tail when no hint is saved and a blank tail when the server sends no mask, for both single-key stores", async () => {
     const hook = await loaded();
+    // Simulates a server reply that omits `masked` (the DTO declares it, but production reads it as
+    // optional: `data.masked?.replace(...) ?? ""` in other-credential-store-operations.ts:42/46).
     hook.state.assistant.masked = undefined as unknown as string;
     act(() => hook.result.current.setDraftToken({ key: "site-assistant:site-assistant", value: "key-aa" }));
     await act(async () => { await hook.result.current.replace(row(hook, "site-assistant:site-assistant")); });
