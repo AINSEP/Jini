@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createPluginInvocationBinding, createPluginRuntimeCore, type PluginRuntimeCoreOptional, type PluginRuntimeSource } from '../../node/index.js';
 import type { PluginManifest } from '../../manifest.js';
+import { PluginConflictError } from '../../plugin-claims.js';
 import { InMemoryPluginActivationRepo } from '../../repo.memory.js';
 import { manifestHost, pluginSdkBinding } from '../support/fixture-bindings.js';
 
@@ -231,6 +232,31 @@ describe('provider plugin admission', () => {
     expect(importModule.mock.calls).toEqual([['entry:plain']]);
     expect(runtime.pluginLoadedVersion({ id: 'plain' })).toBe('1.0.0');
     expect(spy.mock.calls.map((call) => String(call[0]))).toContain("[plugin-runtime] boot re-attach failed for 'gone'");
+    await runtime.dispose({}, {});
+  });
+  it('lists what a disabled plugin would clash with, from a fresh discovery', async () => {
+    const { runtime } = host([
+      { id: 'prov-a', provides: true, enabled: true },
+      { id: 'prov-b', provides: true, enabled: false },
+    ]);
+    const conflicts = await runtime.listPluginConflicts();
+    expect([...conflicts.keys()]).toEqual(['prov-b']);
+    expect(conflicts.get('prov-b')).toEqual([expect.objectContaining({ heldBy: 'prov-a' })]);
+    await runtime.dispose({}, {});
+  });
+
+  it('refuses to enable the newer of two clashing plugins before importing it', async () => {
+    const { runtime, importModule } = host([
+      { id: 'plain-a', provides: false, enabled: true },
+      { id: 'prov-a', provides: true, enabled: true },
+      { id: 'prov-b', provides: true, enabled: true },
+    ]);
+    const refused = await runtime.onPluginEnabled('prov-b').catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(PluginConflictError);
+    expect(refused).toMatchObject({ pluginId: 'prov-b', conflicts: [expect.objectContaining({ heldBy: 'prov-a' })] });
+    // The non-clashing plugin still enables through the same gate.
+    await runtime.onPluginEnabled('plain-a');
+    expect(importModule.mock.calls).toEqual([['entry:plain-a']]);
     await runtime.dispose({}, {});
   });
 });
