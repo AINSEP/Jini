@@ -7,6 +7,12 @@ import { registerUserManagePermissionGrants } from "../user-manage-permission.js
 import { InMemoryUserPurge, UserDeleteUnsupportedError } from "../user-purge-types.js";
 import { createUsernameChangePort } from "../username-change-ports.js";
 
+/** Return an optional port method, failing loudly when the port does not provide it. */
+function must<T>(method: T | undefined): T {
+  if (method === undefined) throw new Error("the port must provide this method");
+  return method;
+}
+
 /** An outbox that only records enqueued events; the other methods are never reached by the rename port. */
 function recordingOutbox(): { outbox: OutboxPort; events: DomainEvent[] } {
   const events: DomainEvent[] = [];
@@ -18,9 +24,9 @@ describe("createUsernameChangePort", () => {
   it("refuses renaming the seeded owner and allows anyone else", async () => {
     const { outbox } = recordingOutbox();
     const port = createUsernameChangePort({ outbox, idGen: { newId: () => "evt-1" }, isInTrash: async () => false, seededOwnerPrincipalId: Promise.resolve("owner") });
-    await expect(port.assertSupported({ principalId: "owner" })).rejects.toThrow(IdentityValidationError);
-    await expect(port.assertSupported({ principalId: "owner" })).rejects.toThrow("the seeded owner's username cannot be changed until a persistent owner identity is configured");
-    await expect(port.assertSupported({ principalId: "someone" })).resolves.toBeUndefined();
+    await expect(must(port.assertSupported)({ workspaceId: "ws", principalId: "owner" })).rejects.toThrow(IdentityValidationError);
+    await expect(must(port.assertSupported)({ workspaceId: "ws", principalId: "owner" })).rejects.toThrow("the seeded owner's username cannot be changed until a persistent owner identity is configured");
+    await expect(must(port.assertSupported)({ workspaceId: "ws", principalId: "someone" })).resolves.toBeUndefined();
   });
 
   it("asks the host Trash about exactly the principal given", async () => {
@@ -28,8 +34,8 @@ describe("createUsernameChangePort", () => {
     const { outbox } = recordingOutbox();
     const port = createUsernameChangePort({ outbox, idGen: { newId: () => "evt-1" }, seededOwnerPrincipalId: Promise.resolve("owner"),
       isInTrash: async ({ principalId }) => { asked.push(principalId); return principalId === "trashed"; } });
-    expect(await port.isInTrash({ principalId: "trashed" })).toBe(true);
-    expect(await port.isInTrash({ principalId: "live" })).toBe(false);
+    expect(await must(port.isInTrash)({ workspaceId: "ws", principalId: "trashed" })).toBe(true);
+    expect(await must(port.isInTrash)({ workspaceId: "ws", principalId: "live" })).toBe(false);
     expect(asked).toEqual(["trashed", "live"]);
   });
 

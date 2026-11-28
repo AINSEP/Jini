@@ -20,7 +20,7 @@ const card = (providerId: string, label: string): PluginCredentialCard => ({ pro
 
 function tools(deps: Partial<MailProviderToolDeps> = {}) {
   const issued: unknown[] = [];
-  const all: MailProviderToolDeps = { authorize: async () => ({ allowed: true }), workspaceId: "ws", category: "mail-cat",
+  const all: MailProviderToolDeps = { authorize: async () => ({ allowed: true, reason: "test" }), workspaceId: "ws", category: "mail-cat",
     loadPluginCredentialCardsSafely: async () => [], issueCredentialSetup: (required) => { issued.push(required); return { setupToolId: required.setupToolId, prefill: required.prefill }; }, ...deps };
   const regs = buildMailProviderRegistrations(all);
   const call = (id: string, input: unknown) => regs.find((r) => r.descriptor.id === id)!.handler(ctx(input));

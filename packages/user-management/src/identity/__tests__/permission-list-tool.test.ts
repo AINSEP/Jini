@@ -14,7 +14,7 @@ it("denial occurs before any lookup", async () => {
 
 function allowedTool(policies: Record<string, { id: string; name: string }>, grants: Record<string, { id: string; permission: string }[]>) {
   const lookups: string[] = [];
-  const [registration] = buildRegistrations({ deps: { workspaceId: "ws", authorize: async () => ({ allowed: true }),
+  const [registration] = buildRegistrations({ deps: { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "test" }),
     policyRepo: { findById: async ({ workspaceId, id }) => { lookups.push(`policy:${workspaceId}:${id}`); const p = policies[id]; return p ? { ...p, workspaceId, isBuiltin: false, isFrozen: false, version: 1 } : null; } },
     policyPermissionRepo: { listByPolicyId: async ({ workspaceId, policyId }) => { lookups.push(`grants:${workspaceId}:${policyId}`);
       return (grants[policyId] ?? []).map((g) => ({ ...g, workspaceId, policyId, resourceType: null, constraintJson: null })); } } },
@@ -48,7 +48,7 @@ it("the contributor builds the same single read-only tool under its own domain, 
   expect(contributor.domain).toBe("identity-policy-list-permissions");
   expect(contributor.risk.get("identity_policy_list_permissions")).toBe("none");
   const asked: unknown[] = [];
-  const built = contributor.build({ workspaceId: "ws", authorize: async (...args: unknown[]) => { asked.push(...args); return { allowed: true }; },
+  const built = contributor.build({ workspaceId: "ws", authorize: async (...args: unknown[]) => { asked.push(...args); return { allowed: true, reason: "test" }; },
     policyRepo: { findById: async () => null }, policyPermissionRepo: { listByPolicyId: async () => [] } }, undefined);
   expect(built.map((r) => r.descriptor.id)).toEqual(["identity_policy_list_permissions"]);
   expect(built[0]?.descriptor.description).toContain("host_policy_read");
