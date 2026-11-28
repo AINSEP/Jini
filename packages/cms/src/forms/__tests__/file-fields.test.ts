@@ -9,7 +9,7 @@ import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.
 import { toSubmissionRecord, toSubmissionRow, toDefinitionRecord, toDefinitionRow } from "../sql/repo.rows.js";
 import type { FieldDescriptor, FormDefinitionRecord, FormFileInput } from "../types.js";
 import type { FormFileReference } from "@jini-ai/core/contracts/forms";
-import { FormSubmissionValidationError } from "../errors.js";
+import { FormAttachmentSpaceError, FormSubmissionValidationError } from "../errors.js";
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const file: FormFileInput = { filename: "photo.png", contentType: "image/png", bytes: png };
 const field: FieldDescriptor = { id: "attachment", label: "Attachment", type: "file", required: true, accept: ["image/*"], maxFileSize: 20 };
@@ -143,4 +143,16 @@ test("tokenless identical uploads behind one IP store independent submissions an
   const rows = await f.deps.submissionRepo.listByDefinition({ workspaceId: "ws", formDefinitionId: "form", limit: 10 });
   assert.equal(rows.items.length, 2);
   assert.notEqual(rows.items[0]!.id, rows.items[1]!.id);
+});
+
+test("disk floor: the host's own refusal text is used verbatim before storage; a throwing logger cannot block an unreadable probe", async () => {
+  const f = fixture(); await f.deps.definitionRepo.create(definition());
+  const full = { ...f.deps, readUploadFreeBytes: async () => 1024, uploadSpaceMessage: "Disk full on this site; try later." };
+  await assert.rejects(submitForm({ deps: full, input: f.input }), (error: unknown) =>
+    error instanceof FormAttachmentSpaceError && error.message === "Disk full on this site; try later." && error.fields.map((d) => d.id).join() === "attachment");
+  assert.equal(f.stored.length, 0); assert.equal(f.events(), 0);
+  const g = fixture(); await g.deps.definitionRepo.create(definition());
+  const unreadable = { ...g.deps, logger: { warn() { throw new Error("logger down"); } }, readUploadFreeBytes: async () => { throw new Error("statfs unavailable"); } };
+  await submitForm({ deps: unreadable, input: g.input });
+  assert.equal(g.stored.length, 1); assert.equal(g.events(), 1);
 });
