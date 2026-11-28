@@ -85,9 +85,12 @@ it("an entry with no access field reaches the gating policy as one, distinct fro
   // This policy treats a MISSING access field as members-only, so the projection is observable.
   const isGated = ({ entry }: { entry: { memberAccessJson?: string | null } }) => !("memberAccessJson" in entry) || entry.memberAccessJson === "members";
   const base = { workspaceId: "w", nowMs: () => 0, readWidgetRows: undefined, findMedia: async () => record, readRetiredSlugs: async () => [], isGated };
-  const readEntitlement = vi.fn(async () => () => false);
+  const shownToEntitlement: unknown[] = [];
+  const readEntitlement = vi.fn(async () => ({ entry }: { entry: unknown }) => { shownToEntitlement.push(entry); return false; });
   expect(await createRenditionAccess({ ...base, cache: new Map(), readEntries: async () => [unset] }).decide({ idOrSlug: "loose", readEntitlement }))
     .toEqual({ gated: true, allowed: false, record });
+  // The entitlement check sees the same field-less evidence, not a present-but-undefined field.
+  expect(shownToEntitlement).toStrictEqual([{}]);
   expect(await createRenditionAccess({ ...base, cache: new Map(), readEntries: async () => [{ ...unset, memberAccessJson: null }] }).decide({ idOrSlug: "loose", readEntitlement }))
     .toEqual({ gated: false, allowed: true, record });
 });
