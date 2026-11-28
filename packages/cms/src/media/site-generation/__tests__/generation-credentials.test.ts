@@ -40,3 +40,20 @@ it("prefers a configured saved model, otherwise checks each provider once and us
   expect(readSavedCredential.mock.calls).toEqual([[{ workspaceId: "w", providerId: "other" }, {}], [{ workspaceId: "w", providerId: "studio" }, {}]]);
   expect(readEnvCredential.mock.calls).toEqual([[{ providerId: "other" }, {}], [{ providerId: "studio" }, {}]]);
 });
+
+it("falls back to an environment key only when no row is saved, and returns null when the environment has none", async () => {
+  const readSavedCredential = vi.fn(async (_input: { workspaceId: string; providerId: string }, _options?: Record<string, never>) => null);
+  const environment: Record<string, { apiKey?: string; baseUrl?: string }> = { keyed: { apiKey: "env-key", baseUrl: "https://env.example" }, bare: {} };
+  const readEnvCredential = vi.fn(({ providerId }: { providerId: string }, _options?: Record<string, never>) => environment[providerId] ?? {});
+  const routeDeps = { workspaceId: "w", providers: { readSavedCredential, readEnvCredential } };
+  expect(await resolveCredentialForProvider({ providerId: "keyed", routeDeps })).toEqual({ apiKey: "env-key", baseUrl: "https://env.example" });
+  expect(await resolveCredentialForProvider({ providerId: "bare", routeDeps })).toBeNull();
+  expect(readSavedCredential.mock.calls).toEqual([[{ workspaceId: "w", providerId: "keyed" }, {}], [{ workspaceId: "w", providerId: "bare" }, {}]]);
+  expect(readEnvCredential.mock.calls).toEqual([[{ providerId: "keyed" }, {}], [{ providerId: "bare" }, {}]]);
+});
+
+it("a saved key without a base URL is returned without one", async () => {
+  expect(await resolveCredentialForProvider({ providerId: "provider", routeDeps: { workspaceId: "w", providers: {
+    readSavedCredential: async () => ({ apiKey: "saved", baseUrl: "" }), readEnvCredential: () => ({ apiKey: "environment" }),
+  } } })).toStrictEqual({ apiKey: "saved" });
+});

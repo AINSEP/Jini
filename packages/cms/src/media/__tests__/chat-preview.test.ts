@@ -70,3 +70,22 @@ test("site chat envelope links raster previews without making a missing codec or
   assert.equal(await withSiteChatPreview({ ...request, routeDeps }), request.result);
   assert.equal(calls.length, 2);
 });
+
+test("the media envelope links a published preview, and the site envelope omits the link while unpublished", async () => {
+  const bytes = Uint8Array.from([137, 80, 78, 71]);
+  const imageCodec: ImageCodecPort = {
+    inspect: async () => { throw new Error("unexpected inspect"); },
+    encode: async () => ({ bytes: Uint8Array.from([7, 8]), width: 4, height: 4 }),
+    encodeTiles: async () => { throw new Error("unexpected encodeTiles"); },
+  };
+  const published = { media: { title: "Pond", publicUrl: "/m/pond/original" } };
+  assert.deepEqual(await withChatPreview({ routeDeps: { imageCodec }, bytes, contentType: "image/jpeg", result: published }), { content: [
+    { type: "text", text: '{"media":{"title":"Pond","publicUrl":"/m/pond/original"}}' },
+    { type: "image", mimeType: "image/webp", data: "Bwg=", title: "Pond", href: "/m/pond/original" },
+  ] });
+  const unpublished = { media: { title: "Draft", publicUrl: null } };
+  assert.deepEqual(await withSiteChatPreview({ routeDeps: { imageCodec }, bytes, contentType: "image/jpeg", result: unpublished }), { content: [
+    { type: "text", text: '{"media":{"title":"Draft","publicUrl":null}}' },
+    { type: "image", mimeType: "image/webp", data: "Bwg=", title: "Draft" },
+  ] });
+});

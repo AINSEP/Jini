@@ -106,3 +106,18 @@ test('an already cancelled Word text request never loads or runs the optional pa
   await assert.rejects(extractor.extract({ bytes: tinyDocx, limits }, { signal: controller.signal }), error => error === cause);
   assert.equal(loads, 0);
 });
+
+test('a live Word text signal lets the parse finish, and a cancel during parsing is reported as a typed failure carrying the reason', async () => {
+  const live = new AbortController();
+  const extractor = createMammothDocumentTextExtractor({ archiveReader: fixtureArchiveReader }, { loadModule: async () => ({
+    async extractRawText() { return { value: 'Kept text' }; },
+  }) });
+  assert.deepEqual(await extractor.extract({ bytes: tinyDocx, limits }, { signal: live.signal }), { text: 'Kept text', truncated: false });
+  const midParse = new AbortController();
+  const reason = new Error('Word preview cancelled mid-parse');
+  const cancelling = createMammothDocumentTextExtractor({ archiveReader: fixtureArchiveReader }, { loadModule: async () => ({
+    async extractRawText() { midParse.abort(reason); return { value: 'discarded' }; },
+  }) });
+  await assert.rejects(cancelling.extract({ bytes: tinyDocx, limits }, { signal: midParse.signal }), (error: unknown) =>
+    error instanceof DocumentTextExtractionError && error.code === 'DOCUMENT_TEXT_FAILED' && error.cause === reason);
+});
