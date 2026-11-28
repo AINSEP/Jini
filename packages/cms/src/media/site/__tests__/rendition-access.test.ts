@@ -54,3 +54,51 @@ it("a gated entry's placed widget gates the media its saved config shows; trashe
   for (const idOrSlug of ["binned", "paused"]) expect(await access.decide({ idOrSlug, readEntitlement })).toEqual({ gated: false, allowed: true, record: mediaRecord(idOrSlug) });
   expect(readWidgetRows.mock.calls).toEqual([[{ workspaceId }]]);
 });
+
+it("doc-body and featured images gate with their entry; a trashed referrer and a public draft are ignored, a gated draft still gates", async () => {
+  const workspaceId = "west";
+  const mediaRecord = (id: string): MediaRecord => ({ id, slug: `${id}-slug`, title: id, workspaceId, status: "active", source: { sha256: "a".repeat(64) },
+    alt: "", caption: "", credit: "", createdAt: "2026-11-19", updatedAt: "2026-11-19", version: 1, width: null, height: null, cssClass: null, htmlAttributes: null });
+  const image = (assetId: string) => ({ type: "image", attrs: { assetId } });
+  const entry = (id: string, images: string[], fields: Partial<PostRecord>): PostRecord => ({ id, workspaceId, title: "", slug: id, kind: "post", bodyFormat: "doc", bodyHtml: null,
+    bodyJson: { type: "doc", content: images.map(image) }, status: "published", memberAccessJson: "members", updatedAt: "now", version: 1, ...fields });
+  const entries = [
+    entry("live", ["pic"], { featuredMediaId: "hero" }),
+    // A trashed members-only post must not keep gating its stale reference.
+    entry("binned", ["stale"], { deletedAt: "2026-11-20" }),
+    // An unpublished members-only post keeps its media gated (takedown must not release it).
+    entry("taken-down", ["former"], { status: "draft" }),
+    // A public draft is not a referrer: if it were, "pic" would read as public evidence.
+    entry("public-draft", ["pic"], { status: "draft", memberAccessJson: null }),
+  ];
+  const readEntitlement = vi.fn(async () => () => false);
+  const access = createRenditionAccess({ workspaceId, cache: new Map(), nowMs: () => 0, readEntries: async () => entries, readWidgetRows: undefined,
+    findMedia: async ({ idOrSlug }) => mediaRecord(idOrSlug), readRetiredSlugs: async () => [], isGated: ({ entry }) => entry.memberAccessJson === "members" });
+  for (const idOrSlug of ["pic", "hero", "former"]) expect(await access.decide({ idOrSlug, readEntitlement })).toEqual({ gated: true, allowed: false, record: mediaRecord(idOrSlug) });
+  expect(await access.decide({ idOrSlug: "stale", readEntitlement })).toEqual({ gated: false, allowed: true, record: mediaRecord("stale") });
+});
+
+it("an entry with no access field reaches the gating policy as one, distinct from an explicitly public entry", async () => {
+  const record = { id: "loose", slug: "loose", source: {}, kind: "image" } as unknown as MediaRecord;
+  const unset: PostRecord = { id: "u", workspaceId: "w", title: "", slug: "u", kind: "post", bodyFormat: "doc", bodyHtml: null,
+    bodyJson: { type: "doc", content: [{ type: "image", attrs: { assetId: "loose" } }] }, status: "published", updatedAt: "now", version: 1 };
+  // This policy treats a MISSING access field as members-only, so the projection is observable.
+  const isGated = ({ entry }: { entry: { memberAccessJson?: string | null } }) => !("memberAccessJson" in entry) || entry.memberAccessJson === "members";
+  const base = { workspaceId: "w", nowMs: () => 0, readWidgetRows: undefined, findMedia: async () => record, readRetiredSlugs: async () => [], isGated };
+  const readEntitlement = vi.fn(async () => () => false);
+  expect(await createRenditionAccess({ ...base, cache: new Map(), readEntries: async () => [unset] }).decide({ idOrSlug: "loose", readEntitlement }))
+    .toEqual({ gated: true, allowed: false, record });
+  expect(await createRenditionAccess({ ...base, cache: new Map(), readEntries: async () => [{ ...unset, memberAccessJson: null }] }).decide({ idOrSlug: "loose", readEntitlement }))
+    .toEqual({ gated: false, allowed: true, record });
+});
+
+it("private-source media is gated without consulting entries or entitlement", async () => {
+  const record = { id: "upload", slug: "upload", source: { private: true }, kind: "image" } as unknown as MediaRecord;
+  const readEntries = vi.fn(async () => []);
+  const readEntitlement = vi.fn(async () => () => true);
+  const access = createRenditionAccess({ workspaceId: "w", cache: new Map(), nowMs: () => 0, readEntries, readWidgetRows: undefined,
+    findMedia: async () => record, readRetiredSlugs: async () => [], isGated: () => false });
+  expect(await access.decide({ idOrSlug: "upload", readEntitlement })).toEqual({ gated: true, allowed: false, record });
+  expect(readEntries).not.toHaveBeenCalled();
+  expect(readEntitlement).not.toHaveBeenCalled();
+});
