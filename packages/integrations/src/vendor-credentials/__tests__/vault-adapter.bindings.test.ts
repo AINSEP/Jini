@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
-import type { VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
+import type { KeyringPort, VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import { bindCredentialVaultAdapters, type CredentialVaultAdapterPolicy } from "../vault-adapter.js";
 
 const policy: CredentialVaultAdapterPolicy = { ownerKey: "host", acceptedKinds: ["vendor", "custom", "source-control"],
@@ -86,4 +86,27 @@ test("an opened vault without an id source or keyring refuses with the host's st
   expect(storageErrors).toHaveLength(2);
   expect(putFailure).toBe(storageErrors[1]);
   expect(await vault.find({ workspaceId: "site", id: "fresh" })).toBeNull();
+});
+
+test("an opened vault with a keyring but no sealer refuses to seal or open with the host's storage error", async () => {
+  const binding = bindCredentialVaultAdapters({ policy });
+  const vault = new InMemoryVaultRepo({});
+  await vault.put({ record: row, expectedRevision: null });
+  const storageErrors: Error[] = [];
+  const storageError = () => { const error = new Error("storage unavailable"); storageErrors.push(error); return error; };
+  const activeKeys: unknown[] = [];
+  const keyring: KeyringPort = { activeKey: async (options) => { activeKeys.push(options); return { keyId: "key" }; }, derive: async () => new Uint8Array(32), deriveSigningSecret: async () => new Uint8Array(32) };
+  const opened = binding.credentialVault({ repo: { vault }, storageError, keyring, idGen: { newId: () => "fresh" } });
+  const create = { ...binding.credentialScope({ workspaceId: "site", kind: "vendor" }), expectedRevision: null, provider: "acme", label: "New", meta: { credentialType: "vendor", worksFor: ["acme"] }, payload: { token: "tok-a" } };
+
+  const putFailure = await opened.put(create).then(() => "resolved", (error: unknown) => error);
+  // The key is fetched first; the missing sealer then raises inside the protected call, which maps it once more.
+  expect(activeKeys).toEqual([{}]);
+  expect(storageErrors).toHaveLength(2);
+  expect(putFailure).toBe(storageErrors[1]);
+  expect(await vault.find({ workspaceId: "site", id: "fresh" })).toBeNull();
+
+  const getFailure = await opened.get({ ...binding.credentialScope({ workspaceId: "site", kind: "vendor" }), id: "row" }).then(() => "resolved", (error: unknown) => error);
+  expect(storageErrors).toHaveLength(4);
+  expect(getFailure).toBe(storageErrors[3]);
 });

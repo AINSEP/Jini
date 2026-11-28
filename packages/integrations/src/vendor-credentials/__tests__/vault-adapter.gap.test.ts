@@ -81,6 +81,17 @@ describe("updateAccountLabel", () => {
     const broken = port(row(), vi.fn(async () => { throw new Error("disk"); }));
     await expect(new VendorCredentialSetVaultRepo({ vault: broken, policy }).updateAccountLabel({ workspaceId: "site", id: "v1", accountLabel: "x" })).rejects.toThrow("disk");
   });
+
+  it("a label the host's meta parser clears is refused as invalid meta and never patched", async () => {
+    const dropBlankLabel = createVaultMetaParsers({}, { parsers: { vendor: ({ meta }) => {
+      if (typeof meta !== "object" || meta === null) throw new Error("meta must be an object");
+      return Object.fromEntries(Object.entries(meta).filter(([key, value]) => key !== "accountLabel" || (typeof value === "string" && value.trim() !== "")));
+    } } });
+    const vault = port(row());
+    const repo = new VendorCredentialSetVaultRepo({ vault, policy: { ...policy, metaParsers: dropBlankLabel } });
+    await expect(repo.updateAccountLabel({ workspaceId: "site", id: "v1", accountLabel: "   " })).rejects.toMatchObject({ code: "invalid-meta" });
+    expect(vault.patchMeta).not.toHaveBeenCalled();
+  });
 });
 
 describe("vendor repo delete and listing", () => {

@@ -160,6 +160,15 @@ describe('create card failures', () => {
     expect(await handlers.create(ctx({}))).toEqual({ created: false, reason: 'error', message: 'tr:save failed' });
   });
 
+  it('a failure whose error mapper throws reports the fixed save-failure text as a generic error, not the store error kind', async () => {
+    const { f, seen, handlers } = save({ status: 'submit', values: { label: 'Shop', token: 'tok-c' } });
+    f.operations.locale.translate = () => { throw new Error('locale down'); };
+    f.sets.create.mockRejectedValueOnce(new CustomCredentialValidationError('bad url'));
+    expect(await handlers.create(ctx({}))).toEqual({ created: false, reason: 'error', message: 'save failed' });
+    expect(seen.outcomes[0]).toEqual({ title: 'created Shop', state: 'failure', message: 'save failed', app: { appName: 'created', appVersion: '1' } });
+    expect(f.invalidate).not.toHaveBeenCalled();
+  });
+
   it('a blank or non-free label displays as Untitled; blank submit reports invalid', async () => {
     const { f, seen, handlers } = save({ status: 'submit', values: { label: 'x!', token: 'tok-c' } });
     f.sets.create.mockRejectedValueOnce(new Error('disk'));

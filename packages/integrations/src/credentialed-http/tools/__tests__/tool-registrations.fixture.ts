@@ -77,7 +77,10 @@ export function makeCards(script: { status: 'submit' | 'cancelled' | 'expired' |
         else {
           try { run = { status: 'saved', saved: await spec.save({ values: script.values ?? {}, prep, signal: c.signal }) } as SurfaceCardSecretRun<never>; }
           catch (error) {
-            run = { status: 'failed', safeMessage: options?.safeError?.(error) ?? 'unsafe' };
+            // Mirrors the real engine: a throwing error mapper falls back to the fixed save-failure text.
+            let safeMessage = options?.text?.saveFailure ?? 'unsafe';
+            try { safeMessage = options?.safeError?.(error) ?? safeMessage; } catch { /* the engine keeps the fixed text */ }
+            run = { status: 'failed', safeMessage };
             options?.logFailure?.({ toolId: spec.toolId, exchangeId: 'x-1', saved: false });
             seen.logged.push('x-1');
           }
