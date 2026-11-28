@@ -355,6 +355,9 @@ it('handles one-tile sheets and rejects missing, invalid or oversized sheet JPEG
   expect(await extractor.extract({ bytes: mp4 }, { at: [1], layout: 'sheet' })).toMatchObject({ ok: false, reason: 'invalid', message: 'Video preview exceeded its output limit.' });
   image = Buffer.from([1, 2, 3, 4]);
   expect(await extractor.extract({ bytes: mp4 }, { at: [1], layout: 'sheet' })).toMatchObject({ ok: false, reason: 'invalid', message: 'Video preview returned no JPEG frame.' });
+  // Gap fill (cloud A3-4): a file shorter than the JPEG start+end markers is not a frame, even when it starts with them.
+  image = Buffer.from([255, 216, 255]);
+  expect(await extractor.extract({ bytes: mp4 }, { at: [1], layout: 'sheet' })).toMatchObject({ ok: false, reason: 'invalid', message: 'Video preview returned no JPEG frame.' });
   image = undefined;
   expect(await extractor.extract({ bytes: mp4 }, { at: [1], layout: 'sheet' })).toMatchObject({ ok: false, reason: 'invalid' });
 });

@@ -107,3 +107,30 @@ describe("video codec hint", () => {
     expect(failed && "videoCodec" in failed.source).toBe(false);
   });
 });
+
+// Gap fill (cloud A3-4).
+describe("ffmpeg codec probe edges", () => {
+  // Mutation: map 'unknown' through NAMED_CODECS (would report "other").
+  it("a video stream without a codec name stays unknown instead of being reported as another codec", async () => {
+    const noName = JSON.stringify({ format: { duration: "2", format_name: "mov,mp4" }, streams: [{ codec_type: "video", width: 64, height: 48 }] });
+    const adapter = createFfmpegVideoCodecProbe({ findBinaries: BINARIES, runProcess: async () => Buffer.from(noName) }, {});
+    expect(await adapter.probe({ bytes: QUICKTIME, contentType: "video/quicktime" })).toBeUndefined();
+  });
+
+  // Mutation: ignore a refused lock (`if (!release) return undefined` removed) and probe anyway.
+  it("a probe that finds the shared decoder lock busy answers unknown without discovering or running anything", async () => {
+    const lock = createVideoExtractionLock({});
+    const held = lock.tryAcquire({}, {});
+    expect(typeof held).toBe("function");
+    const touched: string[] = [];
+    const adapter = createFfmpegVideoCodecProbe({ lock,
+      findBinaries: async () => { touched.push("discover"); return BINARIES(); },
+      runProcess: async () => { touched.push("run"); return Buffer.from(probeJson("h264")); } }, {});
+    expect(await adapter.probe({ bytes: QUICKTIME, contentType: "video/quicktime" })).toBeUndefined();
+    expect(touched).toEqual([]);
+    held?.();
+    // Once released, the same adapter probes normally.
+    expect(await adapter.probe({ bytes: QUICKTIME, contentType: "video/quicktime" })).toBe("h264");
+    expect(touched).toEqual(["discover", "run"]);
+  });
+});
