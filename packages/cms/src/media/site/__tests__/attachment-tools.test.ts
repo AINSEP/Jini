@@ -3,7 +3,7 @@ import { expect, it, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 import { buildPromoteChatAttachmentTool } from "../promote-chat-attachment.js";
-import { buildLibrarySaveAttachmentTool } from "../library-save-attachment.js";
+import { buildLibrarySaveAttachmentTool, saveLibraryDocument } from "../library-save-attachment.js";
 import { MAX_DOCUMENT_BYTES, type MediaToolDeps } from "../../index.js";
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from "../../repo.memory.js";
 import { InMemoryBlobStore } from "../../blob-store.memory.js";
@@ -102,4 +102,69 @@ it("promotion treats an invalid attachment claim as a safe refusal and never rea
   expect(resolver.mock.calls).toEqual([[{ ref, runId: "original-run" }]]);
   expect(readFile.mock.calls).toEqual([]);
   expect(mediaUploadHandler.mock.calls).toEqual([]);
+});
+
+it("promotion refuses a missing ref, maps an unknown ref to the safe message and lets unexpected store failures through", async () => {
+  const readFile = vi.fn(async () => new Uint8Array());
+  const mediaUploadHandler = vi.fn(async () => ({ uploaded: true }));
+  const failure = new Error("store offline");
+  let resolveForRun: () => Promise<undefined> = async () => undefined;
+  const tool = buildPromoteChatAttachmentTool({ getStore: () => ({ resolveForRun: () => resolveForRun() }), readFile, mediaUploadHandler,
+    isAttachmentRejected: () => false, encodeBase64: () => "encoded" });
+  for (const input of [{}, { attachmentRef: "" }, { attachmentRef: 7 }, null]) {
+    await expect(tool.handler(ctx(input))).rejects.toThrow(new ToolInputError({ message: "'attachmentRef' is required and must be a non-empty string" }));
+  }
+  const unknown = tool.handler(ctx({ attachmentRef: "attachment:gone" }));
+  await expect(unknown).rejects.toBeInstanceOf(ToolInputError);
+  await expect(unknown).rejects.toHaveProperty("message", "attachment 'attachment:gone' is unknown or already claimed by a different run");
+  resolveForRun = async () => { throw failure; };
+  await expect(tool.handler(ctx({ attachmentRef: "attachment:any" }))).rejects.toBe(failure);
+  expect(readFile).not.toHaveBeenCalled();
+  expect(mediaUploadHandler).not.toHaveBeenCalled();
+});
+
+it("promotion forwards the caller's filename and text fields, and names a nameless attachment 'attachment'", async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  let name = "";
+  const mediaUploadHandler = vi.fn(async () => ({ uploaded: true }));
+  const tool = buildPromoteChatAttachmentTool({ getStore: () => ({ resolveForRun: async () => ({ path: "/private/file", name, kind: "image" as const }) }),
+    readFile: async () => bytes, mediaUploadHandler, isAttachmentRejected: () => false, encodeBase64: () => "encoded" });
+  const named = ctx({ attachmentRef: "attachment:one", filename: "Logo.png", alt: "Logo", caption: "Our logo", credit: "Studio" });
+  await tool.handler(named);
+  const nameless = ctx({ attachmentRef: "attachment:two", filename: "" });
+  await tool.handler(nameless);
+  name = "kept.png";
+  const ignoredText = ctx({ attachmentRef: "attachment:three", alt: 1, caption: null, credit: false });
+  await tool.handler(ignoredText);
+  expect(mediaUploadHandler.mock.calls).toEqual([
+    [{ ...named, input: { filename: "Logo.png", contentType: "image/png", dataBase64: "encoded", alt: "Logo", caption: "Our logo", credit: "Studio" } }, {}],
+    [{ ...nameless, input: { filename: "attachment", contentType: "image/png", dataBase64: "encoded" } }, {}],
+    [{ ...ignoredText, input: { filename: "kept.png", contentType: "image/png", dataBase64: "encoded" } }, {}],
+  ]);
+  expect(tool.policy?.authorize?.(named as never)).toBe("allow");
+});
+
+it("a Library save refuses mixed input and an unready store, and its policy defers to the handler's own check", async () => {
+  const ref = "attachment:current1";
+  let store: { resolveForRun: () => Promise<undefined> } | undefined;
+  const tool = buildLibrarySaveAttachmentTool({ deps: deps(), getStore: () => store, getMessageAttachmentRefs: () => [ref],
+    readFile: async () => { throw new Error("unexpected read"); }, isAttachmentRejected: () => false, archiveReader: { entries: async function* () { yield* []; } },
+    byteLengthUtf8: ({ text }) => text.length, encodeUtf8: ({ text }) => Buffer.from(text), description: "Save privately" });
+  await expect(tool.handler(ctx({ attachmentRef: ref, name: "note.md" }))).rejects.toThrow(new ToolInputError({ message: "Supply attachmentRef OR name and content, never both" }));
+  await expect(tool.handler(ctx({ attachmentRef: ref, content: "text" }))).rejects.toThrow("Supply attachmentRef OR name and content, never both");
+  await expect(tool.handler(ctx({ attachmentRef: ref }))).rejects.toThrow("attachment store is not ready");
+  expect(tool.policy?.authorize?.(ctx({}) as never)).toBe("allow");
+});
+
+it("saving a Library document reports upload analytics, works without an archive reader and lets storage failures through", async () => {
+  const media = deps();
+  const captures: unknown[] = [];
+  const tracker = { capture: (input: unknown, options: unknown) => { captures.push([input, options]); } };
+  const saved = await saveLibraryDocument({ deps: { ...media, tracker } as never, bytes: Buffer.from("hello"), name: "hello.txt", principalId: "owner" });
+  expect(saved.document).toMatchObject({ filename: "hello.txt", contentType: "text/plain", byteSize: 5, createdBy: "owner", publicUrl: null });
+  expect(captures).toEqual([[{ name: "media_uploaded", userId: "owner" }, { properties: { kind: "document", bytesBucket: "<100KB", source: "assistant" } }]]);
+  const failure = new Error("disk full");
+  const broken = { ...deps(), blobStore: Object.assign(new InMemoryBlobStore(), { put: async () => { throw failure; } }) };
+  await expect(saveLibraryDocument({ deps: broken, bytes: Buffer.from("other"), name: "other.txt", principalId: "owner" })).rejects.toBe(failure);
+  expect(await broken.mediaRepo.list({ workspaceId: "w" })).toEqual([]);
 });

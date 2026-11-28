@@ -35,3 +35,18 @@ it("uses the canonical workspace and digest key regardless of the bound storage 
   expect(bindings.storageKeyFor({ workspaceId: "site-one", sha256 })).toBe(`ws/site-one/blobs/ab/${sha256}`);
   expect(bindings.storageKeyFor({ workspaceId: "site-two", sha256 })).toBe(`ws/site-two/blobs/ab/${sha256}`);
 });
+
+it("asset fences serialize work on the same asset and keep it apart from storage-key locks", async () => {
+  const fence = createProcessBlobFence();
+  const order: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const first = fence.withAsset({ workspaceId: "w", assetId: "a1", work: async () => { order.push("first-start"); await gate; order.push("first-end"); return "one"; } });
+  const second = fence.withAsset({ workspaceId: "w", assetId: "a1", work: async () => { order.push("second"); return "two"; } });
+  const keyed = fence.withKeys({ workspaceId: "w", storageKeys: ["a1"], work: async () => { order.push("key"); return "key"; } });
+  expect(await keyed).toBe("key");
+  expect(order).toEqual(["first-start", "key"]);
+  release();
+  expect(await Promise.all([first, second])).toEqual(["one", "two"]);
+  expect(order).toEqual(["first-start", "key", "first-end", "second"]);
+});

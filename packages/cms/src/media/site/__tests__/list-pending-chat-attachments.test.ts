@@ -24,6 +24,11 @@ it('projects only this message’s attachments, looking them up with the trusted
   expect(getMessageAttachmentRefs.mock.calls).toEqual([[{ runId: 'run-west' }, {}]]);
 });
 
+it('leaves the access decision to its owner-scoped lookup, so its policy always allows', () => {
+  const tool = buildListPendingChatAttachmentsTool({ getStore: () => undefined, getMessageAttachmentRefs: async () => [] });
+  expect(tool.policy?.authorize?.(ctx as never)).toBe('allow');
+});
+
 it('fails closed without a message binding, and resolves a late-starting store on the next call', async () => {
   let store: PendingChatAttachmentLookup | undefined;
   const tool = buildListPendingChatAttachmentsTool({ getStore: () => store });
