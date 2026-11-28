@@ -55,3 +55,20 @@ test("the project half's repo, createRepo and replaceRepo are guarded alike", ()
   assert.equal(guarded.project.workspaceId, "ws-p");
   assert.deepEqual(calls, []);
 });
+
+test("a project half without createRepo or replaceRepo stays without them, and its repo is still guarded", () => {
+  const calls: string[] = [];
+  const controller = new AbortController();
+  const store = { ...recordingRepo(calls), project: { workspaceId: "ws-only", repo: recordingRepo(calls) } };
+  const guarded = abortGuardedCredentialRepo({ store: store as never, signal: controller.signal }) as typeof store;
+  assert.deepEqual(Object.keys(guarded.project).sort(), ["repo", "workspaceId"]);
+  guarded.project.repo.insert();
+  controller.abort(new Error("halt"));
+  assert.throws(() => guarded.project.repo.vault.applyBatch(), /halt/);
+  assert.deepEqual(calls, ["insert"]);
+});
+
+test("a store without a project half exposes no project", () => {
+  const guarded = abortGuardedCredentialRepo({ store: recordingRepo([]) as never, signal: new AbortController().signal }) as { project?: unknown };
+  assert.equal(guarded.project, undefined);
+});

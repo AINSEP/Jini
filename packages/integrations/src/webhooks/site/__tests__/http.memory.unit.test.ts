@@ -36,4 +36,11 @@ describe("RecordingHttpClient", () => {
     expect(await client.send(request)).toBe(response);
     expect(client.calls).toEqual([{ request }, { request }]);
   });
+  it("refuses to replay from an explicitly empty script but still records the call", async () => {
+    const client = new RecordingHttpClient({ responses: [] });
+    const request: HttpRequest = { method: "POST", url: "https://example.com/hooks", headers: {}, timeoutMs: 5000, body: "{}" };
+
+    await expect(client.send(request)).rejects.toThrow("RecordingHttpClient: no scripted responses");
+    expect(client.calls).toEqual([{ request }]);
+  });
 });
