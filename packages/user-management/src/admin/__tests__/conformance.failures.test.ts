@@ -3,7 +3,7 @@ import { createMemoryRolesApi, createMemoryMembersApi } from '../adapters/memory
 import { runRolesApiConformance, runUsersApiConformance, runMembersApiConformance, runAuthApiConformance } from '../conformance/index.js';
 import type { AuthApiPort, MembersApiPort, RolesApiPort, UsersApiPort } from '../ports.js';
 import type { AdminMember } from '../models.js';
-import { fixtures, member } from './people.fixtures.js';
+import { fixtures, member, member2 } from './people.fixtures.js';
 
 // A conformance suite is only useful if it rejects broken adapters. Each fake below violates the
 // port contract in a specific way; the suite must name exactly the checks that catch it.
@@ -89,6 +89,30 @@ describe('members conformance rejects broken adapters', () => {
     const result = await runMembersApiConformance({ api, memberId: 'm' });
     expect(names(result)).toEqual(['list and read member', 'snapshot isolation', 'aborted disable does not persist']);
     expect((result.failed[0]!.error as Error).message).toBe('member absent');
+  });
+});
+
+describe('members conformance pages through the roster', () => {
+  it('follows nextCursor until the member appears on a later page', async () => {
+    const real = createMemoryMembersApi({ workspaceId: 'w' }, { permissions: ['member.manage'], members: [member, member2] });
+    const requested: unknown[] = [];
+    // A one-row page size forces the suite to walk the real adapter's cursor chain.
+    const api: MembersApiPort = { ...real, listMembers: async (r, o = {}) => { requested.push(o.cursor); return real.listMembers(r, { ...o, limit: 1 }); } };
+    const result = await runMembersApiConformance({ api, memberId: 'n' });
+    expect(result.failed).toEqual([]);
+    expect(result.passed).toContain('list and read member');
+    expect(requested).toHaveLength(2);
+    expect(requested[0]).toBeNull();
+    expect(typeof requested[1]).toBe('string');
+  });
+
+  it('fails the listing check on a cursor the adapter repeats, instead of looping forever', async () => {
+    const real = createMemoryMembersApi({ workspaceId: 'w' }, { permissions: ['member.manage'], members: [member] });
+    let pages = 0;
+    const api: MembersApiPort = { ...real, listMembers: async () => { pages += 1; return { members: [], nextCursor: 'same-page' }; } };
+    const result = await runMembersApiConformance({ api, memberId: 'm' });
+    expect(result.failed.map((f) => [f.name, (f.error as Error).message])).toEqual([['list and read member', 'repeated cursor']]);
+    expect(pages).toBe(2);
   });
 });
 

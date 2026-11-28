@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMembersController } from '../controllers/members.controller.js';
 import { createAuthController } from '../controllers/auth.controller.js';
-import type { MembersApiPort } from '../ports.js';
+import { PeopleApiError, type MembersApiPort } from '../ports.js';
 import { memberApi, member, member2, deferred, authApi } from './people.fixtures.js';
 
 const manage = { permissions: ['member.manage'] };
@@ -82,6 +82,18 @@ describe('members controller failure and race paths', () => {
 });
 
 describe('auth controller', () => {
+  it('shows a typed refusal by its own message and falls back to "login failed" when that message is empty', async () => {
+    const onLogin = () => {};
+    const named = createAuthController({ api: { login: () => Promise.reject(new PeopleApiError({ code: 'UNAUTHENTICATED', message: 'invalid username or password' })) }, onLogin });
+    named.setDraft({ patch: { username: 'admin', password: 'pw' } });
+    await expect(named.submit({})).resolves.toBe(false);
+    expect(named.getSnapshot({})).toMatchObject({ error: 'invalid username or password', busy: false });
+    const blank = createAuthController({ api: { login: () => Promise.reject(new PeopleApiError({ code: 'UNAUTHENTICATED', message: '' })) }, onLogin });
+    blank.setDraft({ patch: { username: 'admin', password: 'pw' } });
+    await expect(blank.submit({})).resolves.toBe(false);
+    expect(blank.getSnapshot({})).toMatchObject({ error: 'login failed', busy: false });
+  });
+
   it('falls back to a generic message when the port rejects with a non-Error value', async () => {
     const onLogin = () => {};
     const c = createAuthController({ api: { login: () => Promise.reject('nope') }, onLogin });

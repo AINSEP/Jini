@@ -34,6 +34,20 @@ describe('members HTTP adapter', () => {
     expect(calls.map(([r]) => r.path)).toEqual(['/workspaces/w/members', '/workspaces/w/members?afterId=m%2F1&limit=25']);
   });
 
+  it('forwards a live signal on a roster listing and refuses to list once it is aborted', async () => {
+    const { calls, transport } = recordingTransport();
+    const api = createHttpMembersApi({ transport, workspaceId: 'w' });
+    const signal = new AbortController().signal;
+    await api.listMembers({}, { signal, limit: 5 });
+    expect(calls).toEqual([[{ path: '/workspaces/w/members?limit=5', method: 'GET' }, { signal }]]);
+    const abortedSignal = aborted();
+    await expect(api.listMembers({}, { signal: abortedSignal })).rejects.toThrow(abortedSignal.reason.message);
+    // The abort is checked before input validation: an aborted call with conflicting paging options
+    // rejects with the abort reason, not the cursor/afterId validation error.
+    await expect(api.listMembers({}, { signal: abortedSignal, afterId: 'm', cursor: 'c' })).rejects.toBe(abortedSignal.reason);
+    expect(calls).toHaveLength(1);
+  });
+
   it('forwards the caller signal and refuses to send once it is aborted', async () => {
     const { calls, transport } = recordingTransport();
     const api = createHttpMembersApi({ transport, workspaceId: 'w' });
