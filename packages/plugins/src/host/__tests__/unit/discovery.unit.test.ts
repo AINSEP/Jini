@@ -45,6 +45,26 @@ describe('site discovery edges', () => {
     expect(records[0]!.errors).toEqual([]);
   });
 
+  it('DUP-01: id folders that differ only by case invalidate each other where the filesystem keeps both', async () => {
+    const dir = await installDir();
+    await put(dir, 'acme', '1.0.0');
+    await put(dir, 'Acme', '1.0.0', JSON.stringify(manifest('acme', '1.0.0')));
+    const folders = (await filesystem.readdir(dir)).sort();
+    const records = await discover(dir);
+    if (folders.length === 1) {
+      // A case-insensitive filesystem (default macOS) stores one slot, so there is nothing to collide with.
+      expect(records.map(({ id, status }) => ({ id, status }))).toEqual([{ id: folders[0], status: 'valid' }]);
+      return;
+    }
+    expect(folders).toEqual(['Acme', 'acme']);
+    const lower = records.find((record) => record.id === 'acme')!;
+    expect(lower).toMatchObject({ status: 'invalid', manifest: undefined });
+    expect(lower.errors).toEqual([{ code: 'ID_DUPLICATE', file: null, message: "id 'acme' collides case-insensitively with another installed site plugin" }]);
+    const upper = records.find((record) => record.id === 'Acme')!;
+    expect(upper).toMatchObject({ status: 'invalid', manifest: undefined });
+    expect(upper.errors).toContainEqual({ code: 'ID_DUPLICATE', file: null, message: "id 'Acme' collides case-insensitively with another installed site plugin" });
+  });
+
   it('C25: a manifest version must match its installed version folder', async () => {
     const dir = await installDir();
     await put(dir, 'demo', '2.0.0', JSON.stringify(manifest('demo', '1.0.0')));
