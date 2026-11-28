@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { IdentityNotFoundError, IdentityValidationError, OwnerRequiredError, type IdentityRepos } from "../../core/index.js";
 import { NodeSessionTokens, InMemoryPolicyPermissionRepo, InMemoryPolicyRepo, InMemoryPrincipalPolicyRepo, InMemoryPrincipalRepo, InMemoryPrincipalRoleRepo, InMemoryRolePolicyRepo, InMemoryRoleRepo, InMemorySessionRepo, InMemoryUserRepo, type AuthServiceDeps } from "../../server/index.js";
 import {
-  assertActiveOwnerFloor, assertUserAccountAction, createTrashUserService, SelfDeleteError, type DeleteUserDeps, type RemoveUserFn,
+  assertActiveOwnerFloor, assertUserAccountAction, createTrashUserService, SelfDeleteError, userAccountProtection, type DeleteUserDeps, type RemoveUserFn,
 } from "../delete-user-service.js";
 import { UserDeleteUnsupportedError } from "../user-purge-types.js";
 
@@ -99,6 +99,53 @@ describe("account-action guards", () => {
       .rejects.toThrow(new OwnerRequiredError({ message: "the seeded owner principal can never be disabled" }));
     await expect(assertUserAccountAction({ deps: h.identity, workspaceId: WS, principalId: SEEDED, action: "purge" }, { callerPrincipalId: "owner-a", seededOwnerPrincipalId: SEEDED }))
       .rejects.toThrow(new OwnerRequiredError({ message: "the seeded owner principal can never be deleted" }));
+  });
+
+  it("refuses an unknown target with a not-found error naming the principal", async () => {
+    const h = await harness();
+    const attempt = assertUserAccountAction({ deps: h.identity, workspaceId: WS, principalId: "ghost", action: "reset-password" }, { callerPrincipalId: "owner-a" });
+    await expect(attempt).rejects.toBeInstanceOf(IdentityNotFoundError);
+    await expect(attempt).rejects.toThrow("principal 'ghost' was not found");
+  });
+
+  it("a non-owner caller is refused on a protected account, with enable worded by whether the target is an owner", async () => {
+    const h = await harness();
+    await h.repos.roles.save({ version: 1, id: "admin-role", workspaceId: WS, name: "admin", isBuiltin: true });
+    await h.addPrincipal({ id: "admin-1" });
+    await h.repos.principalRoles.save({ id: "admin-1-grant", workspaceId: WS, principalId: "admin-1", roleId: "admin-role" });
+    await h.addPrincipal({ id: "editor-1" });
+    await h.addPrincipal({ id: "seed-plain" });
+    const act = (principalId: string, action: "trash" | "enable" | "reset-password", callerPrincipalId: string, seededOwnerPrincipalId?: string) =>
+      assertUserAccountAction({ deps: h.identity, workspaceId: WS, principalId, action }, { callerPrincipalId, ...(seededOwnerPrincipalId ? { seededOwnerPrincipalId } : {}) });
+    const trash = act("admin-1", "trash", "editor-1");
+    await expect(trash).rejects.toBeInstanceOf(OwnerRequiredError);
+    await expect(trash).rejects.toThrow("only an owner can delete, trash, disable or reset the password of an admin or owner account");
+    await expect(act("admin-1", "enable", "editor-1")).rejects.toThrow("only an owner can turn an admin account back on");
+    await expect(act("owner-a", "enable", "editor-1")).rejects.toThrow("only an owner can modify an owner principal");
+    // A seeded owner without the wildcard grant is still protected and still worded as an owner.
+    await expect(act("seed-plain", "enable", "editor-1", "seed-plain")).rejects.toThrow("only an owner can modify an owner principal");
+    // The gate is the caller's wildcard, not the target: an owner passes, and an unprotected target needs no owner.
+    await expect(act("admin-1", "enable", "owner-a")).resolves.toBeUndefined();
+    await expect(act("seed-plain", "reset-password", "editor-1")).resolves.toBeUndefined();
+  });
+
+  it("userAccountProtection protects only builtin admin/owner role holders and wildcard owners", async () => {
+    const h = await harness();
+    const grant = async (principalId: string, role: { id: string; name: string; isBuiltin: boolean } | null) => {
+      await h.addPrincipal({ id: principalId });
+      if (role) await h.repos.roles.save({ version: 1, workspaceId: WS, ...role });
+      await h.repos.principalRoles.save({ id: `${principalId}-grant`, workspaceId: WS, principalId, roleId: role?.id ?? "deleted-role" });
+    };
+    await grant("builtin-owner", { id: "owner-role", name: "owner", isBuiltin: true });
+    await grant("builtin-editor", { id: "editor-role", name: "editor", isBuiltin: true });
+    await grant("custom-admin", { id: "custom-admin-role", name: "admin", isBuiltin: false });
+    await grant("dangling", null);
+    const protection = (principalId: string) => userAccountProtection({ deps: h.identity, workspaceId: WS, principalId });
+    await expect(protection("builtin-owner")).resolves.toEqual({ isOwner: false, isProtectedAccount: true });
+    await expect(protection("builtin-editor")).resolves.toEqual({ isOwner: false, isProtectedAccount: false });
+    await expect(protection("custom-admin")).resolves.toEqual({ isOwner: false, isProtectedAccount: false });
+    await expect(protection("dangling")).resolves.toEqual({ isOwner: false, isProtectedAccount: false });
+    await expect(protection("owner-a")).resolves.toEqual({ isOwner: true, isProtectedAccount: true });
   });
 
   it("assertActiveOwnerFloor passes with one active owner and throws once none remain", async () => {
