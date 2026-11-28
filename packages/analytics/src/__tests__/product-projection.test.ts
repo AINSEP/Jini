@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freezeProductEventCatalog, projectDeclaredProductEvent } from '../product/index.js';
+import { freezeProductEventCatalog, projectDeclaredProductEvent, type ProductEventCatalog } from '../product/index.js';
 
 const INSTALL = '00000000-0000-4000-8000-000000000001';
 const catalog = freezeProductEventCatalog({ catalog: {
@@ -66,5 +66,11 @@ describe('projectDeclaredProductEvent', () => {
   it('drops every event without an installation id', () => {
     expect(projectDeclaredProductEvent({ catalog, installationId: null, event: { name: 'app_started', userId: 'u' } })).toBeUndefined();
     expect(projectDeclaredProductEvent({ catalog, installationId: '', event: { name: 'app_started', userId: 'u' } })).toBeUndefined();
+  });
+
+  it('refuses a host-loaded catalog that names an event without declaring its rules', () => {
+    const loaded = JSON.parse('{"app_started":null}') as ProductEventCatalog;
+    expect(() => projectDeclaredProductEvent({ catalog: loaded, installationId: INSTALL, event: { name: 'app_started', userId: 'u' } }))
+      .toThrow(new Error('product event app_started has no declared rules'));
   });
 });

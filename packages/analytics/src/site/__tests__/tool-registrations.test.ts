@@ -138,6 +138,13 @@ it("returns the ten most frequent paths and referrers, breaking ties by name", a
   } });
 });
 
+it("ranks a direct (null) referrer seen after a named one ahead of it when their counts tie", async () => {
+  const { run } = setup([hit("/a"), hit("/b", { referrerHost: null })]);
+  await expect(run({ summarize: true })).resolves.toMatchObject({ summary: {
+    byReferrerHost: [{ referrerHost: null, hits: 1 }, { referrerHost: "news.example", hits: 1 }],
+  } });
+});
+
 it("preserves an unexpected storage failure instead of returning a fabricated empty window", async () => {
   const { run, list } = setup();
   const offline = new Error("buffer unavailable");

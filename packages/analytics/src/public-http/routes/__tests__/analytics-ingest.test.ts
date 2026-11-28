@@ -195,4 +195,10 @@ describe("analyticsIngestRoute", () => {
     await expectEmpty204(await post(failingSink, { path: "/x" }));
     expect(failingSink.log.captured).toEqual([]);
   });
+
+  it("records a pageview from a request the host passed without any headers", async () => {
+    const h = harness();
+    await expectEmpty204(await analyticsIngestRoute.handle({ raw: { body: { path: "/bare", kind: "pageview" }, query: {}, params: {} }, deps: h.deps }, { signal }));
+    expect(h.sink.all().map((hit) => [hit.path, hit.kind])).toEqual([["/bare", "pageview"]]);
+  });
 });
