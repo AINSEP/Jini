@@ -58,6 +58,11 @@ describe('scriptblocks detector — trimmed 2026-10-11 contract', () => {
   it('a backslash line break ends a quoted argument unterminated, so its comma still separates an unknown effect', () => {
     expect(tags(`<div data-kui="fade-up target:'h2\\\n, p'"><p>Text</p></div>`)).toEqual(['div']);
   });
+  it('a trailing backslash escapes nothing, so a quoted argument it ends stays unterminated and its comma still separates an unknown effect', () => {
+    expect(tags(`<div data-kui="fade-up target:'h2, future-effect\\"><p>Text</p></div>`)).toEqual(['div']);
+    // Control: the same argument closed properly is stripped whole, leaving only the editable effect.
+    expect(tags(`<div data-kui="fade-up target:'h2, future-effect'"><p>Text</p></div>`)).toEqual([]);
+  });
   it.each(['future-effect', 'fade-up-future', 'carousel-future', 'fade-up, future-effect'])('retains the structural fallback for unknown %s, even with stagger', effect => {
     expect(tags(`<div data-kui="${effect}" data-kui-stagger="45ms"><p>Text</p></div><p data-kui="${effect}">Text</p>`)).toEqual(['div']);
   });

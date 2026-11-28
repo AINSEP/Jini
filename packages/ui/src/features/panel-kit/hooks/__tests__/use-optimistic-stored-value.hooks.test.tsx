@@ -98,6 +98,31 @@ describe('useOptimisticStoredValue (T18J lifecycle)', () => {
     await waitFor(() => expect(result.current.value).toBe(7));
   });
 
+  it('keeps the optimistic value when the re-read after a save brings a different stored value', async () => {
+    const fake = fakePort(1);
+    const { result } = mount(fake.port);
+    await waitFor(() => expect(result.current.value).toBe(1));
+
+    // Another writer stores 9 while our save of 2 is in flight: the re-read moves the stored value
+    // (1 -> 9) without ever equalling the optimistic copy, so the copy must stay.
+    fake.state.stored = 9;
+    const loadsBefore = vi.mocked(fake.port.load).mock.calls.length;
+    act(() => { result.current.update(() => 2); });
+    await waitFor(() => expect(vi.mocked(fake.port.load).mock.calls.length).toBeGreaterThan(loadsBefore));
+    await act(async () => { await Promise.resolve(); });
+    expect(fake.saves).toEqual([{ next: 2, previous: 1 }]);
+    expect(result.current.saveFailed).toBe(false);
+    expect(result.current.value).toBe(2);
+
+    // The copy still yields once a re-read equals it, after which the store shows through again.
+    fake.state.stored = 2;
+    act(() => { fake.emit(); });
+    await waitFor(() => expect(vi.mocked(fake.port.load).mock.calls.length).toBeGreaterThan(loadsBefore + 1));
+    fake.state.stored = 5;
+    act(() => { fake.emit(); });
+    await waitFor(() => expect(result.current.value).toBe(5));
+  });
+
   it('a rejected save sets saveFailed and keeps the optimistic value', async () => {
     const fake = fakePort(1);
     fake.state.failSaves = true;
