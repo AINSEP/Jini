@@ -124,3 +124,64 @@ it("repointing without the change-set, authorization and outbox ports is a named
   await expect(repoint()).rejects.toThrow("publish-content: menu.repointReferences() requires PublishContentDeps.ports.menu.repo, .changeSets, .authorize and .outbox");
   expect(await originalFind({ workspaceId: "w", id: "nested" })).toEqual(menu);
 });
+
+function wiredMenuHandler({ repo, changeSets = new InMemoryChangeSetRepo() }: { repo: InMemoryMenuRepo; changeSets?: InMemoryChangeSetRepo }) {
+  const outbox = { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} } satisfies OutboxPort;
+  return contributeMenusPublish({ createRepoPublishHandler, updateMenuTree, applyRunActor }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "change" },
+    ports: { menu: { repo, bindingRepo: new InMemoryNavLocationBindingRepo({}) } }, authorize: async () => ({ allowed: true, reason: "grant" }), outbox, changeSets,
+    mutationActor: { id: "owner", kind: "user" } });
+}
+
+const linkedMenu: NavMenuEntry = { id: "nested", workspaceId: "w", slug: "nested", title: "Nested", status: "published", locations: [], updatedAt: "now", version: 1,
+  doc: { type: "menu", version: 1, items: [{ id: "child", label: "Child", target: { kind: "entryRef", entryId: "old" } }] } };
+const replaceOld = { replacements: [{ entityType: "post" as const, oldId: "old", newId: "new" }], skipIds: new Set<string>(), principalId: "owner", runId: "run" };
+
+it("a change-set record that fails after the repoint landed puts the prior tree back and surfaces the fault", async () => {
+  const repo = new InMemoryMenuRepo({}, { initialRows: [linkedMenu] });
+  const changeSets = new InMemoryChangeSetRepo();
+  changeSets.insert = async () => { throw new Error("ledger offline"); };
+  await expect(wiredMenuHandler({ repo, changeSets }).repointReferences!(replaceOld)).rejects.toThrow("ledger offline");
+  const restored = await repo.findById({ workspaceId: "w", id: "nested" });
+  expect(restored?.doc.items).toEqual(linkedMenu.doc.items);
+  // written at version 2 by the repoint, then rolled back under OCC against that version
+  expect(restored?.version).toBe(3);
+});
+
+it("a menu that vanished, or was already repointed by a peer, after the snapshot is skipped without a write", async () => {
+  for (const fresh of [null, { ...linkedMenu, doc: { ...linkedMenu.doc, items: [{ id: "child", label: "Child", target: { kind: "entryRef" as const, entryId: "new" } }] } }]) {
+    const repo = new InMemoryMenuRepo({}, { initialRows: [linkedMenu] });
+    const insert = vi.fn();
+    const changeSets = new InMemoryChangeSetRepo();
+    changeSets.insert = insert;
+    repo.findById = async () => fresh;
+    expect(await wiredMenuHandler({ repo, changeSets }).repointReferences!(replaceOld)).toEqual({ changeSetIds: [], linksUpdated: 0, notUpdated: [] });
+    expect(insert).not.toHaveBeenCalled();
+    expect((await repo.list({ workspaceId: "w" }))[0]).toEqual(linkedMenu);
+  }
+});
+
+it("packs every live menu with its transferred state and leaves a trashed menu out", async () => {
+  const trashed: NavMenuEntry = { ...linkedMenu, id: "binned", slug: "binned", title: "Binned", status: "trash" };
+  const repo = new InMemoryMenuRepo({}, { initialRows: [linkedMenu, trashed] });
+  const packed = [];
+  for await (const entity of wiredMenuHandler({ repo }).pack()) packed.push(entity);
+  expect(packed.map(entity => [entity.id, entity.state])).toEqual([
+    ["nested", { slug: "nested", title: "Nested", status: "published", doc: linkedMenu.doc, locations: [] }],
+  ]);
+});
+
+it("an update apply carries the expected version and a state without locations clears them", async () => {
+  const repo = new InMemoryMenuRepo({}, { initialRows: [{ ...linkedMenu, locations: ["header"] }] });
+  const handler = wiredMenuHandler({ repo });
+  const state = { slug: "nested", title: "Renamed", status: "published", doc: linkedMenu.doc };
+  const entity = { entityType: "menu", id: "nested", schemaVersion: 1, hashVersion: 1, requiredBlobs: [], contentHash: "hash", state };
+  await expect(handler.apply({ entity, expectedVersion: 7, principalId: "editor", idempotencyKey: "stale" })).rejects.toMatchObject({ name: "PublishContentApplyRowError", rowOutcome: "conflict" });
+  expect((await repo.findById({ workspaceId: "w", id: "nested" }))?.title).toBe("Nested");
+  await handler.apply({ entity, expectedVersion: 1, principalId: "editor", idempotencyKey: "fresh" });
+  expect(await repo.findById({ workspaceId: "w", id: "nested" })).toMatchObject({ title: "Renamed", locations: [], version: 2 });
+});
+
+it("finding references without a wired menu repo reports no holders", async () => {
+  const handler = contributeMenusPublish({ createRepoPublishHandler, updateMenuTree, applyRunActor }).build({ workspaceId: "w", clock: { nowMs: () => 0 }, idGen: { newId: () => "id" }, ports: {} });
+  expect(await handler.referencesTo!({ ids: ["old"] })).toEqual([]);
+});
