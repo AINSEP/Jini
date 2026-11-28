@@ -227,3 +227,14 @@ test("projectPostBody removes one occurrence in a 5,000-deep document without ch
   assert.deepEqual(stored, { type: "paragraph", content: [image, image] });
   assert.equal(post.bodyJson, body);
 });
+
+// Gap fill (cloud A3-4). Mutation: drop the `i in items` hole check (a hole would then be read as undefined and skipped).
+test("a hole in an in-memory body array fails closed in both cover selection and body projection", () => {
+  const holey: unknown[] = [];
+  holey[1] = { type: "image", attrs: { assetId: "photo" } }; // index 0 stays a hole
+  const post: CoverImagePost = { ...buildPostRecord(), bodyJson: { type: "doc", content: holey } };
+  assert.throws(() => resolveCoverImage({ post, mediaLookup }), /^Error: Cover image traversal has a missing item$/);
+  assert.throws(() => collectCoverMediaRefs({ post }), /^Error: Cover image traversal has a missing item$/);
+  // Selection runs first in projection, so a holey body never reaches the copy step half-copied.
+  assert.throws(() => projectPostBody({ post, mediaLookup, hasPublicTransform: true }), /^Error: Cover image traversal has a missing item$/);
+});
