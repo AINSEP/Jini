@@ -36,3 +36,25 @@ it("an owned attachment within the limit returns its bytes; an oversized one or 
   await expect(readPluginInstallArchive({ request, ownerId: "o", runId: "r", maxBytes: 3, files, messages })).rejects.toThrow("unavailable");
   expect(files.stat).not.toHaveBeenCalled();
 });
+it("parses folder and zip paths with replace defaulting to false, and refuses every malformed request shape with its message", () => {
+  expect(parse({ source: { kind: "folder", path: "/plugins/a" } })).toEqual({ kind: "folder", path: "/plugins/a", replace: false });
+  expect(parse({ source: { kind: "zip", attachmentRef: "attachment:12345678" }, replace: true })).toEqual({ kind: "zip", attachmentRef: "attachment:12345678", replace: true });
+  for (const source of [undefined, null, "zip", ["zip"]]) expect(() => parse({ source })).toThrow("source is required.");
+  for (const kind of [undefined, "tar", 1]) expect(() => parse({ source: { kind, path: "/a.zip" } })).toThrow("source.kind must be 'folder' or 'zip'.");
+  for (const source of [{ kind: "zip" }, { kind: "zip", path: "/a.zip", attachmentRef: "attachment:12345678" }]) {
+    expect(() => parse({ source })).toThrow("Exactly one of source.path/source.attachmentRef is required.");
+  }
+  expect(() => parse({ source: { kind: "zip", attachmentRef: "uploads/a.zip" } })).toThrow("source.attachmentRef must be an attachment:<uuid> ZIP reference.");
+  expect(() => parse({ source: { kind: "zip", path: 42 } })).toThrow("absolute required");
+  expect(() => parse({ source: { kind: "zip", path: "/a.zip" }, replace: "yes" })).toThrow("replace must be a boolean.");
+});
+it("a readable local ZIP within the limit is returned; an unreadable path is named in the refusal; a pathless request is refused", async () => {
+  const bytes = new Uint8Array([1, 2, 3]);
+  const ok = { stat: vi.fn(async () => ({ size: 3 })), read: vi.fn(async () => bytes) };
+  expect(await readPluginInstallArchive({ request: parse({ source: { kind: "zip", path: "/a.zip" } }), ownerId: "o", runId: "r", maxBytes: 3, files: ok, messages })).toBe(bytes);
+  expect(ok.read).toHaveBeenCalledWith({ path: "/a.zip" });
+  const missing = { stat: async () => { throw new Error("ENOENT"); }, read: vi.fn(async () => bytes) };
+  await expect(readPluginInstallArchive({ request: parse({ source: { kind: "zip", path: "/gone.zip" } }), ownerId: "o", runId: "r", maxBytes: 3, files: missing, messages })).rejects.toThrow("no ZIP /gone.zip");
+  expect(missing.read).not.toHaveBeenCalled();
+  await expect(readPluginInstallArchive({ request: { kind: "zip", replace: false } as never, ownerId: "o", runId: "r", maxBytes: 3, files: ok, messages })).rejects.toThrow("Plugin ZIP source has no path.");
+});
