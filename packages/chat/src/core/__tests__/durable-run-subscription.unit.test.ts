@@ -217,3 +217,36 @@ test("a dropped stream stopped before reconnect is released exactly once, and re
     expect(vi.getTimerCount()).toBe(0);
   } finally { vi.useRealTimers(); }
 });
+
+test.each([
+  ["error", '{"payload":{"message":"Connection lost"}}'],
+  ["end", '{"payload":{"status":"succeeded","code":0}}'],
+])("a live %s frame is not rendered: it latches a recovery read right away and the saved row finishes the run", async (kind, raw) => {
+  const reads: boolean[] = [];
+  const works: Array<() => void> = [];
+  const streams: Parameters<DurableSubscriptionPorts["stream"]>[0][] = [];
+  const saved: ChatMessage[] = [
+    { id: "answer", role: "assistant", content: "", runId: "run", runStatus: "running" },
+    { id: "answer", role: "assistant", content: "Saved", runId: "run", runStatus: "succeeded", events: [{ kind: "text", text: "Saved" }] },
+  ];
+  const ports: DurableSubscriptionPorts = {
+    read: async (_input, { recover = true }) => { reads.push(recover); return saved.shift()!; },
+    stream: input => { streams.push(input); return () => {}; },
+    schedule: ({ work }) => { works.push(work); return () => {}; },
+  };
+  const handlers = { onEvent: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
+  const stop = followDurableRun({ runId: "run", ports, bindings: new Map(), handlers, notices: {
+    toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
+    neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended",
+  } }, {});
+  try {
+    works[0]!();
+    await vi.waitFor(() => expect(reads).toEqual([true]));
+    streams[0]!.frame(kind, raw, "4");
+    await vi.waitFor(() => expect(handlers.onDone).toHaveBeenCalledOnce());
+    expect(reads).toEqual([true, true]);
+    expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "Saved" }]);
+    expect(handlers.onEvent).not.toHaveBeenCalled();
+    expect(handlers.onError).not.toHaveBeenCalled();
+  } finally { stop(); }
+});

@@ -53,3 +53,33 @@ describe("browserTimeoutSchedule", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+test("a message-less checkpoint poll keys its ETag by run id and a failed poll returns null without moving it", async () => {
+  const request = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ message: { id: "m" } }), { headers: { ETag: "e1" } }))
+    .mockResolvedValueOnce(new Response(null, { status: 304 }))
+    .mockResolvedValueOnce(new Response("down", { status: 503 }))
+    .mockResolvedValueOnce(new Response(null, { status: 304 }));
+  const ports = browserDurableSubscriptionPorts({ request, open: vi.fn(), schedule: () => () => {}, runPath: ({ runId }) => `/runs/${runId}` });
+  expect(await ports.read({ runId: "r" }, { recover: false })).toEqual({ id: "m" });
+  expect(request).toHaveBeenLastCalledWith("/runs/r/checkpoint", { method: "GET", credentials: "same-origin" });
+  // Another run's poll does not borrow this run's ETag.
+  expect(await ports.read({ runId: "s" }, { recover: false })).toBeNull();
+  expect(request).toHaveBeenLastCalledWith("/runs/s/checkpoint", { method: "GET", credentials: "same-origin" });
+  expect(await ports.read({ runId: "r" }, { recover: false })).toBeNull();
+  expect(request).toHaveBeenLastCalledWith("/runs/r/checkpoint", { method: "GET", credentials: "same-origin", headers: { "If-None-Match": "e1" } });
+  expect(await ports.read({ runId: "r" }, { recover: false })).toBeNull();
+  expect(request).toHaveBeenLastCalledWith("/runs/r/checkpoint", { method: "GET", credentials: "same-origin", headers: { "If-None-Match": "e1" } });
+});
+
+test("a stream with no cursor yet opens the run's event route bare, and schedule delegates to the host timer", () => {
+  const open = vi.fn((_url: string) => ({ readyState: 1, close: vi.fn(), addEventListener: vi.fn() }) as unknown as Pick<EventSource, "close" | "addEventListener" | "readyState">);
+  const cancel = () => {};
+  const schedule = vi.fn(() => cancel);
+  const ports = browserDurableSubscriptionPorts({ request: vi.fn(), open, schedule, runPath: () => "/runs/r" });
+  ports.stream({ runId: "r", cursor: "", frame: vi.fn(), dropped: vi.fn() }, {});
+  expect(open).toHaveBeenCalledExactlyOnceWith("/runs/r/events");
+  const work = () => {};
+  expect(ports.schedule({ work, delayMs: 250 }, {})).toBe(cancel);
+  expect(schedule).toHaveBeenCalledExactlyOnceWith({ work, delayMs: 250 });
+});
