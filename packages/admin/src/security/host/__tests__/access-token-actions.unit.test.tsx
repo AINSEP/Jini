@@ -533,3 +533,48 @@ describe("access-token row derivation", () => {
   });
 });
 
+
+describe("access-token submit failures", () => {
+  it("names a duplicate-label rejection after the attempted name and the provider", async () => {
+    const hook = await loaded();
+    hook.deps.classifyAccessTokenSubmitError = () => ({ kind: "duplicate-label" });
+    vi.mocked(hook.port.publish.create).mockRejectedValueOnce(new Error("conflict"));
+    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    expect(addForm(hook, "publish", "host")?.error).toBe(accessTokenDuplicateNameMessage({ locale: "en", name: "Second", provider: "Host" }));
+  });
+
+  it("shows a validation rejection's own detail, through the credential-message translator", async () => {
+    const hook = await loaded();
+    hook.deps.classifyAccessTokenSubmitError = () => ({ kind: "validation", detail: "token is too short" });
+    hook.deps.translateCredentialMessage = ({ message, locale }) => `${locale}:${message}`;
+    vi.mocked(hook.port.publish.create).mockRejectedValueOnce(new Error("bad request"));
+    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    expect(addForm(hook, "publish", "host")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "en:token is too short" }));
+  });
+
+  it("refuses to create a hosting or source-control token whose form built no connection, without calling the port", async () => {
+    const hook = await loaded();
+    vi.mocked(hook.deps.buildAccessTokenConnectionInput).mockReturnValue(undefined as never);
+    act(() => hook.result.current.setAddField(HOST, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    expect(hook.port.publish.create).not.toHaveBeenCalled();
+    expect(addForm(hook, "publish", "host")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "new publish credential has no connection|t(unknown error)" }));
+
+    act(() => hook.result.current.setAddField(SOURCE, { name: "Repo", token: "tok-b" }));
+    await act(async () => { await hook.result.current.createToken(SOURCE); });
+    expect(hook.port.sourceControl.create).not.toHaveBeenCalled();
+    expect(addForm(hook, "source-control", "source")?.error).toBe(accessTokenSaveErrorMessage({ locale: "en", error: "new source control credential has no connection|t(unknown error)" }));
+  });
+
+  it("replaces one hosting token in place and leaves its sibling rows untouched", async () => {
+    const hook = setup({ publish: [publishCredential(), publishCredential({ id: "pub-2", label: "Backup key", isDefault: false })] });
+    await waitFor(() => expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-1", "pub-2"]));
+    act(() => hook.result.current.setExistingField({ rowId: "pub-1", patch: { name: "Renamed" } }));
+    await act(async () => { await hook.result.current.replaceToken(requireRow(hook, "pub-1")); });
+    expect(requireRow(hook, "pub-1").name).toBe("Renamed");
+    expect(requireRow(hook, "pub-2").name).toBe("Backup key");
+    expect(rows(hook).filter((row) => row.kind === "publish").map((row) => row.id)).toEqual(["pub-1", "pub-2"]);
+  });
+});
