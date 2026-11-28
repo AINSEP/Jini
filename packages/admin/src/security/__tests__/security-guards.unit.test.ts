@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as security from '../index.js';
-import { createMemoryOtherCredentials, createMemorySecurityApi } from '../adapters/memory.js';
-import { runSecurityApiConformance } from '../conformance/security-api.conformance.js';
+import { createMemoryOtherCredentials, createMemoryPublishCredentials, createMemorySecurityApi } from '../adapters/memory.js';
+import { runPublishCredentialsConformance, runSecurityApiConformance } from '../conformance/security-api.conformance.js';
 import type { CredentialStorePort, SecurityApiPort } from '../ports.js';
 import type { OtherCredentialSummary } from '../models.js';
 
@@ -33,6 +33,24 @@ describe('runSecurityApiConformance refusals', () => {
     });
     await expect(runSecurityApiConformance({ createApi: () => ignoresAbort, provider: providers[0]! }))
       .rejects.toThrow('Security contract: aborted mutation writes nothing');
+  });
+});
+
+describe('runPublishCredentialsConformance refusals', () => {
+  const connection = { providerId: 'cdn', token: 'fake-one' };
+  it('fails a client whose list carries no known execution mode', async () => {
+    const client = createMemoryPublishCredentials({});
+    // A backend outside the typed contract can send any string; the conformance check exists for exactly that.
+    const odd = { ...client, listPublishCredentials: async () => ({ credentials: [], executionMode: 'cloud-magic' as never }) };
+    await expect(runPublishCredentialsConformance({ createClient: () => odd, connection }))
+      .rejects.toThrow(/^Publish credential contract: list carries the server executionMode$/);
+  });
+  it('fails a client that echoes the secret on verify and still deletes what it created', async () => {
+    const client = createMemoryPublishCredentials({});
+    const leaky = { ...client, verifyPublishCredential: async () => ({ verification: { status: 'valid' as const, message: 'fake-one', checkedAt: 't' } }) };
+    await expect(runPublishCredentialsConformance({ createClient: () => leaky, connection }))
+      .rejects.toThrow(/^Publish credential contract: verify returns a three-way status$/);
+    expect((await client.listPublishCredentials({})).credentials).toEqual([]);
   });
 });
 

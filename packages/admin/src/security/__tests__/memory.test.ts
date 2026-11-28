@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createMemorySecurityApi, createMemoryOtherCredentials, createMemoryRootKey } from '../adapters/memory.js';
+import { createMemorySecurityApi, createMemoryOtherCredentials, createMemoryRootKey, createMemoryPublishCredentials } from '../adapters/memory.js';
 import type { CredentialSummary, OtherCredentialSummary, RootKeyStatus } from '../models.js';
 const aborted = () => { const c = new AbortController(); c.abort(); return c.signal; };
 const saved = (over: Partial<CredentialSummary>): CredentialSummary => ({ kind: 'publish', id: 'p1', providerId: 'cloud', label: 'Work', configured: true, isDefault: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', ...over });
@@ -127,5 +127,66 @@ describe('memory root key', () => {
     const api = createMemoryRootKey({}); const signal = aborted();
     for (const call of [() => api.status({}, { signal }), () => api.generate({}, { signal }), () => api.importToken({ token: 'a'.repeat(64) }, { signal }), () => api.previewStartFresh({}, { signal }), () => api.startFresh({ confirm: 'START FRESH' }, { signal })]) await expect(call()).rejects.toThrow('This operation was aborted');
     expect((await api.status({})).active).toBe(false);
+  });
+});
+describe('memory custom storage, shared keys and project keys', () => {
+  const custom = (over: Partial<CredentialSummary>): CredentialSummary => saved({ kind: 'custom', id: 'c1', providerId: '', label: 'Api', isDefault: false, ...over });
+  it('keeps the saved usage facts of a project key on update and drops a cleared token hint', async () => {
+    const row = custom({ scope: 'project', usedBy: ['a-site', 'b-site'], usedByThisSite: false, tokenHint: null });
+    const updated = await createMemorySecurityApi({ rows: [row] }).custom.update({ id: 'c1', patch: { label: 'Api 2' } });
+    expect(updated).toEqual({ ...row, label: 'Api 2', updatedAt: NOW, category: 'general', baseUrl: '', additionalHosts: [], tokenHint: undefined });
+    expect(updated).not.toHaveProperty('tokenHint');
+  });
+  it('grants every requested id with the kind its source reports, and unknown ids as custom', async () => {
+    const sources = [{ siteId: 's1', name: 'One', keys: [{ kind: 'publish', id: 'k1', label: 'K1', provider: 'cloud' }] }];
+    const api = createMemorySecurityApi({ sharedKeys: { sources } });
+    expect(await api.sharedKeys!.grant({ sourceSiteId: 's1', ids: ['k1', 'ghost'], overwrite: false })).toEqual([{ kind: 'publish', id: 'k1', status: 'granted' }, { kind: 'custom', id: 'ghost', status: 'granted' }]);
+  });
+  it('attaches and detaches a project key for this site only, leaving other rows untouched', async () => {
+    const key = custom({ id: 'pk', label: 'Project', scope: 'project' }); const other = custom({ id: 'c2', label: 'Other', usedBy: ['x'] });
+    const api = createMemorySecurityApi({ rows: [key, other], projectKeysAvailable: true, siteName: 'mine' });
+    await api.useProjectKey!({ keyId: 'pk', use: true });
+    expect((await api.custom.list({})).map(r => [r.id, r.usedBy, r.usedByThisSite])).toEqual([['pk', ['mine'], true], ['c2', ['x'], undefined]]);
+    await api.useProjectKey!({ keyId: 'pk', use: false });
+    expect((await api.custom.list({})).find(r => r.id === 'pk')).toMatchObject({ usedBy: [], usedByThisSite: false });
+  });
+  it('refuses to use a key that is not a saved project key', async () => {
+    const api = createMemorySecurityApi({ rows: [custom({ id: 'site-key', scope: 'site' })], projectKeysAvailable: true });
+    await expect(api.useProjectKey!({ keyId: 'site-key', use: true })).rejects.toThrow(/^Project key not found$/);
+    await expect(api.useProjectKey!({ keyId: 'missing', use: true })).rejects.toThrow(/^Project key not found$/);
+  });
+});
+describe('memory publish credentials client', () => {
+  const row = { credentialType: 'vendor' as const, worksFor: ['git'], id: 'publish-0', providerId: 'cloud', label: 'Work', configured: true as const, isDefault: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', accountLabel: 'acct' };
+  it('refuses an incomplete create: blank label or only blank secrets', async () => {
+    const api = createMemoryPublishCredentials({});
+    await expect(api.createPublishCredential({ label: ' ', connection: { providerId: 'cloud', token: 't' } })).rejects.toThrow(/^Incomplete credential$/);
+    await expect(api.createPublishCredential({ label: 'Work', connection: { providerId: 'cloud', token: ' ' } })).rejects.toThrow(/^Incomplete credential$/);
+    expect((await api.listPublishCredentials()).credentials).toEqual([]);
+  });
+  it('refuses a duplicate label ignoring case', async () => {
+    await expect(createMemoryPublishCredentials({ rows: [row] }).createPublishCredential({ label: 'WORK', connection: { providerId: 'other', token: 't' } })).rejects.toThrow(/^Duplicate label$/);
+  });
+  it('keeps the saved label when an update omits it, and clears the account label when the connection changes', async () => {
+    const api = createMemoryPublishCredentials({ rows: [row] });
+    expect((await api.updatePublishCredential({ id: 'publish-0', input: { isDefault: true } })).credential).toMatchObject({ label: 'Work', accountLabel: 'acct', updatedAt: NOW });
+    expect((await api.updatePublishCredential({ id: 'publish-0', input: { connection: { providerId: 'cloud', token: 't2' } } })).credential).toMatchObject({ label: 'Work', accountLabel: null });
+  });
+  it('refuses to update or verify an unknown credential', async () => {
+    const api = createMemoryPublishCredentials({ rows: [row] });
+    await expect(api.updatePublishCredential({ id: 'nope', input: {} })).rejects.toThrow(/^Credential not found$/);
+    await expect(api.verifyPublishCredential({ id: 'nope' })).rejects.toThrow(/^Credential not found$/);
+  });
+  it('refuses every aborted call without changing the list', async () => {
+    const api = createMemoryPublishCredentials({ rows: [row] }); const signal = aborted();
+    for (const call of [() => api.listPublishCredentials({}, { signal }), () => api.createPublishCredential({ label: 'New', connection: { providerId: 'cloud', token: 't' } }, { signal }), () => api.updatePublishCredential({ id: 'publish-0', input: { label: 'X' } }, { signal }), () => api.deletePublishCredential({ id: 'publish-0' }, { signal }), () => api.verifyPublishCredential({ id: 'publish-0' }, { signal })]) await expect(call()).rejects.toThrow('This operation was aborted');
+    expect((await api.listPublishCredentials()).credentials).toEqual([row]);
+  });
+});
+describe('memory root key reveal', () => {
+  it('reveals the fixture only for an active key that has one', async () => {
+    expect(await createMemoryRootKey({ revealHex: 'ab' }).reveal!({})).toEqual({ active: false });
+    expect(await createMemoryRootKey({ status: { active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'local' } }).reveal!({})).toEqual({ active: true });
+    expect(await createMemoryRootKey({ status: { active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'local' }, revealHex: 'ab' }).reveal!({})).toEqual({ active: true, hex: 'ab' });
   });
 });
