@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { SurfaceEmission, SurfaceExchangeStore } from '@jini-ai/core';
 import { A2UI_DISPLAY_ONLY_PROPERTY, createLabCatalog, parseAgentToRendererMessage } from '@jini-ai/protocol/a2ui';
 import { createRenderUiToolRegistrations, renderA2uiSurface } from '../render-surface.js';
@@ -48,6 +48,19 @@ describe('renderA2uiSurface', () => {
     const outcome = await renderA2uiSurface({ exchanges: empty.exchanges, emitSurface: async () => undefined, toolId: 't', principalId: 'p', components: [], ...renderProtocol }, { rejectionGraceMs: 5 });
     expect(outcome).toMatchObject({ rendered: false, reason: 'schema-rejected' });
     expect(empty.closed()).toBe(1);
+  });
+});
+
+describe('renderA2uiSurface when the opening message is refused', () => {
+  test('a refused createSurface is schema-rejected with the parser label, draws nothing and still closes', async () => {
+    const emitted: SurfaceEmission[] = [];
+    const { exchanges, closed } = exchangesWith();
+    const parseAgentMessage: typeof parseAgentToRendererMessage = ({ raw }) =>
+      typeof raw === 'object' && raw !== null && 'createSurface' in raw ? { ok: false as const, code: 'VALIDATION_FAILED' as const, message: 'catalog not offered' } : parseAgentToRendererMessage({ raw });
+    const outcome = await renderA2uiSurface({ exchanges, emitSurface: async (emission) => { emitted.push(emission); }, toolId: 't', principalId: 'p', components: tree, ...renderProtocol, parseAgentMessage }, { rejectionGraceMs: 5 });
+    expect(outcome).toEqual({ rendered: false, reason: 'schema-rejected', detail: 'catalog not offered' });
+    expect(emitted).toEqual([]);
+    expect(closed()).toBe(1);
   });
 });
 
@@ -135,5 +148,21 @@ describe('createRenderUiToolRegistrations', () => {
     const refused = { status: 'received', params: { message: { error: { message: 'bad prop' } } } };
     await expect(handlerFor(refused)({ components: tree }, async () => undefined))
       .resolves.toEqual({ rendered: false, reason: 'rejected-by-renderer', detail: 'bad prop', note: 'refused' });
+  });
+
+  test('without a grace override it waits the default four seconds for a renderer refusal', async () => {
+    vi.useFakeTimers();
+    try {
+      const refused = { status: 'received', params: { message: { error: { message: 'late refusal' } } } };
+      const exchange = { id: 'surface-1', close: () => undefined,
+        receive: () => new Promise((resolve) => { setTimeout(() => resolve(refused), 3_900); }) };
+      const [registration] = createRenderUiToolRegistrations(
+        { tool, exchanges: { open: () => exchange } as unknown as SurfaceExchangeStore, copy, ...renderProtocol,
+          registration: { domain: 'draw', catalogModule: 'host/draw.ts', metadata: {}, derivedRisk: new Map([['draw', 'none']]) } },
+      );
+      const result = registration!.handler({ principal: { id: 'p' }, input: { components: tree } } as never, { emitSurface: async () => undefined });
+      await vi.advanceTimersByTimeAsync(4_000);
+      await expect(result).resolves.toEqual({ rendered: false, reason: 'rejected-by-renderer', detail: 'late refusal', note: 'refused' });
+    } finally { vi.useRealTimers(); }
   });
 });

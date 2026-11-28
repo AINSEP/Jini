@@ -30,6 +30,31 @@ describe('published navigation targets', () => {
   it.each(['.', '..'])('refuses a dot segment %s from an entity lookup', async slug => {
     await expect(resolvePageNavigation({ screen: pages, input: { entity: { type: 'page', id: 'id' } } }, { lookupEntity: async () => ({ params: { slug } }) })).rejects.toThrow('invalid route parameter');
   });
+  it('resolves a navigation with no entity to the screen path, keeping its declared query and adding only allowed query state', async () => {
+    const lookupEntity = vi.fn(async () => null);
+    expect(await resolvePageNavigation({ screen: plugins, input: { query: { tab: 'downloaded' } } }, { lookupEntity })).toEqual({ path: '/addons/agent-plugins?tab=downloaded' });
+    expect(await resolvePageNavigation({ screen: { ...plugins, path: '/addons/agent-plugins?tab=installed' }, input: {} })).toEqual({ path: '/addons/agent-plugins?tab=installed' });
+    expect(lookupEntity).not.toHaveBeenCalled();
+  });
+  it('refuses an entity navigation when the host gave no entity lookup', async () => {
+    await expect(resolvePageNavigation({ screen: pages, input: { entity: { type: 'page', id: 'id' } } })).rejects.toThrow(new Error('Entity lookup is unavailable'));
+  });
+  it('refuses a published entity route template that is not a single-origin path', async () => {
+    const lookupEntity = vi.fn(async () => ({ params: { slug: 'home' } }));
+    for (const routeTemplate of ['//evil/:slug', 'pages/:slug', '/pages/:slug?x=1']) {
+      const screen = { ...pages, routeTemplates: [routeTemplate], entityTargets: [{ type: 'page', routeTemplate }] };
+      await expect(resolvePageNavigation({ screen, input: { entity: { type: 'page', id: 'id' } } }, { lookupEntity })).rejects.toThrow(new Error('Invalid published route template'));
+    }
+  });
+  it.each([
+    ['a parameter the lookup did not return', '/pages/:slug'],
+    ['a parameter named like an inherited object key', '/pages/:constructor'],
+  ])('refuses %s', async (_case, routeTemplate) => {
+    const screen = { ...pages, routeTemplates: [routeTemplate], entityTargets: [{ type: 'page', routeTemplate }] };
+    const name = routeTemplate.split(':')[1];
+    await expect(resolvePageNavigation({ screen, input: { entity: { type: 'page', id: 'id' } } }, { lookupEntity: async () => ({ params: {} }) }))
+      .rejects.toThrow(new Error(`Missing or invalid route parameter "${name}"`));
+  });
   it('refuses arbitrary link destinations and query state', () => {
     for (const path of ['https://evil.test', '../pages', 'pages?tab=other', 'made-up', 'constructor']) expect(() => validatePageLink({ screens: [pages], path })).toThrow('Not a published admin screen');
     expect(() => validatePageLink({ screens: [pages], path: 'pages', query: { next: '//evil' } })).toThrow('not allowed');
