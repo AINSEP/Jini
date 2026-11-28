@@ -77,6 +77,11 @@ describe('parseClaudeCodePickerCache', () => {
       reason: 'no-usable-values',
     });
   });
+
+  it('keeps a trailing ] that closes no bracket group of its own', () => {
+    const raw = JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-odd]' }, { value: 'claude-a[b]c]' }] });
+    expect(parseClaudeCodePickerCache({ raw })).toEqual({ ok: true, ids: ['claude-odd]', 'claude-a[b]c]'] });
+  });
 });
 
 describe('parseClaudeInitializeModels', () => {
@@ -102,6 +107,13 @@ describe('parseClaudeInitializeModels', () => {
     expect(parseClaudeInitializeModels({ stdout: '{"type":"control_response", truncated' })).toBeNull();
     expect(parseClaudeInitializeModels({ stdout: initializeStdout([]) })).toBeNull();
     expect(parseClaudeInitializeModels({ stdout: initializeStdout([{ value: 'default' }]) })).toBeNull();
+  });
+
+  it('skips a success response whose models field is not an array and keeps scanning', () => {
+    const notArray = '{"type":"control_response","response":{"subtype":"success","response":{"models":"claude-bogus-1"}}}';
+    const rows = parseClaudeInitializeModels({ stdout: `${notArray}\n${initializeStdout([{ value: 'claude-ok-1' }])}` });
+    expect(rows?.map((r) => r.id)).toEqual(['claude-ok-1']);
+    expect(parseClaudeInitializeModels({ stdout: notArray })).toBeNull();
   });
 
   it('drops ids the chat path would refuse', () => {

@@ -27,3 +27,11 @@ it('handles plain thrown values, cyclic causes and hostile getters without throw
   const hostile = { get message(): string { throw new Error('getter failed'); } };
   expect(startupFailureMessage({ stage: 'plugins', error: hostile })).toContain('error details could not be read');
 });
+
+it('names a missing cause and an object that carries neither a message nor a code', () => {
+  expect(startupFailureMessage({ stage: 'CLI launch', error: undefined })).toContain('Cause: No startup cause was supplied.');
+  expect(startupFailureMessage({ stage: 'CLI launch', error: null })).toContain('Cause: No startup cause was supplied.');
+  expect(startupFailureMessage({ stage: 'CLI launch', error: { message: { nested: true }, code: false } })).toContain('Cause: Startup error without a message');
+  // A numeric code alone is kept.
+  expect(startupFailureMessage({ stage: 'CLI launch', error: { code: 127 } })).toContain('Cause: 127');
+});

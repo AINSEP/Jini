@@ -1260,6 +1260,17 @@ describe('createClaudeStreamHandler', () => {
       expect(events).toEqual([{ type: 'tool_use', id: 'inline1', name: 'Grep', input: { pattern: 'foo' } }]);
     });
 
+    it('defers a tool_use block with neither streamed JSON nor inline input to the final assistant wrapper', () => {
+      const events = run([
+        { type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'bare1', name: 'Read' } } },
+        { type: 'stream_event', event: { type: 'content_block_stop', index: 0 } },
+        { type: 'assistant', message: { id: 'msg_bare', content: [{ type: 'tool_use', id: 'bare1', name: 'Read', input: { file_path: 'a.txt' } }] } },
+      ]);
+      expect(events.filter((e) => e.type === 'tool_use')).toEqual([
+        { type: 'tool_use', id: 'bare1', name: 'Read', input: { file_path: 'a.txt' } },
+      ]);
+    });
+
     it('does not emit tool_input_delta when the block at that index is not a tool_use block', () => {
       const events = run([
         { type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } },
@@ -1672,6 +1683,14 @@ describe('isRedundantWrittenArtifact', () => {
     expect(isRedundantWrittenArtifact({ candidate: '<artifact>hello world</artifact>', ctx })).toBe(true);
     // Normalization strips a BOM, normalizes CRLF, and trims surrounding whitespace/escaped-whitespace.
     expect(isRedundantWrittenArtifact({ candidate: '<artifact>\r\n  hello world  \r\n</artifact>', ctx })).toBe(true);
+  });
+
+  it('trims literal \\r and \\n escapes at either end of the body but keeps those inside it', () => {
+    const ctx = { ...baseCtx, recentWriteContents: ['hello\\nworld'] };
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>\uFEFF\\r\\n \\nhello\\nworld\\n\\r </artifact>', ctx })).toBe(true);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>hello\\nworld\\</artifact>', ctx })).toBe(false);
+    // A body made only of padding normalizes to the empty string.
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>\\n \\r\\n</artifact>', ctx: { ...baseCtx, recentWriteContents: [''] } })).toBe(true);
   });
 
   it('returns false when the artifact body does not match any recent write', () => {

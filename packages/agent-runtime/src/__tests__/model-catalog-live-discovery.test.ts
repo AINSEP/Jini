@@ -101,6 +101,20 @@ describe("fetchLiveClaudeModels", () => {
     expect(consoleWarn).not.toHaveBeenCalled();
     consoleWarn.mockRestore();
   });
+
+  it("warns with the failure kind alone when the failure carries no detail", async () => {
+    const warn = vi.fn();
+    const listModels = (async () => ({ ok: false, kind: "timeout", latencyMs: 1 })) as typeof listProviderModels;
+    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u", warn }, { listModels })).toBeNull();
+    expect(warn).toHaveBeenCalledWith("live Claude model discovery failed (timeout) — falling back to the static model list");
+  });
+
+  it("returns null, without a warning, for a success that lists no models field", async () => {
+    const warn = vi.fn();
+    const listModels = (async () => ({ ok: true, kind: "success", latencyMs: 1 })) as typeof listProviderModels;
+    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u", warn }, { listModels })).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
 });
 
 describe("unionModels", () => {

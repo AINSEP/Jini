@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { modelConfigFiles, parseConfiguredModel, parseSettingsJson, readModelConfiguration } from '../model-discovery-config.js';
+import { yamlModelCapture } from '../model-discovery-yaml.js';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/cli', cwd: '/work', env: { HOME: '/h' } };
@@ -188,4 +189,15 @@ it.each([
   ['a value terminated by CR before a quoted setting', 'model: vendor/selected\rweak-model: "vendor/other" rest', 'vendor/selected'],
 ])('reads the configured model with %s', (_case, raw, expected) => {
   expect(parseConfiguredModel({ file: { path: '/aider.conf.yml', format: 'yaml' }, raw })).toBe(expected);
+});
+
+// Expected captures are what `/^model\s*:\s*["']?([^\n"'#]+)["']?\s*(?:#.*)?$/m` (the pattern
+// yamlModelCapture replaces) captures for the same input.
+it.each([
+  ['a value cut short by a quote with text after it, then a second model key', 'model: a"b\nmodel: vendor/next', 'vendor/next'],
+  ['a quoted value followed by text, on the only line', 'model:"a"b', undefined],
+  ['whitespace holding a CR before an unmatched value', 'model: \r x"y', ' '],
+  ['whitespace holding U+2028 before an unmatched value', 'model: \u2028 x"y\nmodel: z', ' '],
+])('yamlModelCapture matches the replaced regex for %s', (_case, raw, expected) => {
+  expect(yamlModelCapture({ raw })).toBe(expected);
 });

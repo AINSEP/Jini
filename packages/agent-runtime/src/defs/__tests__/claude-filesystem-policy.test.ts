@@ -242,6 +242,15 @@ describe('claude runtime temp exceptions stay narrow', () => {
       filesystemRoot: '/site', filesystemRuntimeTempBase: '/var/tmp/jini-ABC123', filesystemSharedTempRoots: ['/login-temp'],
     } }, { platform: 'linux', uid: 501, homeDir: '/home/owner', tempDir: '/host/temp', realpath })).toThrow('read-denied');
   });
+  it('rethrows a realpath failure other than ENOENT instead of treating the deny root as absent', () => {
+    const realpath = (path: string) => {
+      if (path === '/login-temp') throw Object.assign(new Error('EACCES: permission denied, realpath'), { code: 'EACCES' });
+      return path;
+    };
+    expect(() => claudeFilesystemSettings({ options: {
+      filesystemRoot: '/site', filesystemRuntimeTempBase: '/var/tmp/jini-ABC123', filesystemSharedTempRoots: ['/login-temp'],
+    } }, { platform: 'linux', uid: 501, homeDir: '/home/owner', tempDir: '/host/temp', realpath })).toThrow('EACCES: permission denied, realpath');
+  });
   it.each(['', '/runtime'])('preserves the effective child override %j through repeated policy builds', base => {
     const options = { filesystemRoot: '/site', filesystemTempDir: '/site/private-temp', filesystemRuntimeTempBase: base };
     const facts = { platform: 'linux' as const, homeDir: '/home/owner', tempDir: '/host/temp', uid: 501 };
