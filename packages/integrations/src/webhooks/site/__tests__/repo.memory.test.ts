@@ -274,3 +274,32 @@ test("save skips the injected assertVersionedWrite when expectedVersion matches 
   assert.equal(injected.mock.calls.length, 0);
   assert.equal((await repo.findById({ workspaceId: "workspace-1", id: "sub-1" }))?.label, "Unversioned");
 });
+
+test("save with an expectedVersion for a row that does not exist reports no current version and writes nothing", async () => {
+  const seen: (number | null)[] = [];
+  const missing = new Error("injected not found");
+  const injected = vi.fn(async (args: { readCurrentVersion: () => Promise<number | null> }) => { seen.push(await args.readCurrentVersion()); throw missing; });
+  const repo = new InMemoryWebhookSubscriptionRepo({ assertVersionedWrite: injected });
+
+  await assert.rejects(repo.save(makeSubscription({ id: "ghost", version: 2 }), { expectedVersion: 1 }), missing);
+  assert.deepEqual(seen, [null]);
+  assert.equal(await repo.findById({ workspaceId: "workspace-1", id: "ghost" }), null);
+});
+
+test("claimPending with a claim lease also reclaims due delivering rows and pushes every claim out by the lease", async () => {
+  const repo = new InMemoryWebhookDeliveryRepo({}, { initialRows: [
+    makeDelivery({ id: "pending-due", eventId: "e1", nextAttemptAt: "2026-07-10T00:00:01.000Z" }),
+    makeDelivery({ id: "stale-claim", eventId: "e2", status: "delivering", attempts: 2, nextAttemptAt: "2026-07-10T00:00:02.000Z" }),
+    makeDelivery({ id: "live-claim", eventId: "e3", status: "delivering", attempts: 1, nextAttemptAt: "2026-07-10T00:10:00.000Z" }),
+    makeDelivery({ id: "dead-row", eventId: "e4", status: "dead", nextAttemptAt: "2026-07-10T00:00:00.000Z" }),
+  ] });
+
+  const claimed = await repo.claimPending({ batchSize: 10, nowIso: "2026-07-10T00:00:05.000Z" }, { claimLeaseMs: 30_000 });
+
+  assert.deepEqual(claimed.map((row) => [row.id, row.status, row.attempts, row.nextAttemptAt]), [
+    ["pending-due", "delivering", 1, "2026-07-10T00:00:35.000Z"],
+    ["stale-claim", "delivering", 3, "2026-07-10T00:00:35.000Z"],
+  ]);
+  const live = await repo.findById({ workspaceId: "workspace-1", id: "live-claim" });
+  assert.deepEqual([live?.attempts, live?.nextAttemptAt], [1, "2026-07-10T00:10:00.000Z"]);
+});

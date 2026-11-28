@@ -339,6 +339,26 @@ test("delete: a run aborted while the confirmed delete re-checks permission is a
   assert.equal(fixture.saves.count, 0);
 });
 
+test("delete: a storage failure during the confirmed delete reaches the caller unchanged, not as a confirmation conflict", async () => {
+  const fixture = await makeFixture("confirm");
+  const failure = new Error("storage offline");
+  fixture.repo.save = async () => { throw failure; };
+  await assert.rejects(caller(fixture)("webhooks_delete_subscription", { subscriptionId: "sub-1" }), (error: unknown) => error === failure);
+  assert.equal(fixture.confirm.runs, 1);
+  const current = await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: "sub-1" });
+  assert.equal(current?.status, "active");
+  assert.equal(current?.version, 1);
+});
+
+test("list_subscriptions reports the newest delivery even when the port lists it last", async () => {
+  const fixture = await makeFixture();
+  await fixture.deliveries.enqueue({ record: seededDelivery("d-old", "2026-11-01T00:00:00.000Z") });
+  await fixture.deliveries.enqueue({ record: seededDelivery("d-new", "2026-11-03T00:00:00.000Z") });
+  await fixture.deliveries.enqueue({ record: seededDelivery("d-mid", "2026-11-02T00:00:00.000Z") });
+  const result = (await caller(fixture)("webhooks_list_subscriptions", {})) as { subscriptions: { lastDelivery: { id: string; createdAt: string } | null }[] };
+  assert.deepEqual(result.subscriptions.map((row) => [row.lastDelivery?.id, row.lastDelivery?.createdAt]), [["d-new", "2026-11-03T00:00:00.000Z"]]);
+});
+
 test("toWebhookDeliveryView drops the workspace id and keeps the delivery facts", () => {
   const view = toWebhookDeliveryView({ delivery: seededDelivery("d-1", NOW) });
   assert.equal(Object.hasOwn(view, "workspaceId"), false);

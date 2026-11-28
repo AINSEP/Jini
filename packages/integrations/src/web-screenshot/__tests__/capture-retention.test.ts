@@ -210,3 +210,62 @@ test("preview tokens bind to one capture root and writer/cleanup use the same re
   expect(await binding.apply({ context: {}, previewToken: next.previewToken, confirm: true })).toEqual({ deleted: ["2026-10-01/shot.jpg"], kept: [] });
   expect(paths).toEqual(Array(4).fill(path.join(path.resolve(first), CAPTURE_LOCK_NAME)));
 });
+
+test("apply keeps a capture that disappeared since the preview, and one the remover could not delete", async () => {
+  const root = await captureRoot();
+  await put(root, "2026-10-01/gone.jpg", "g", OLD);
+  await put(root, "2026-10-01/stuck.jpg", "s", OLD);
+  const ports = createCaptureFilePorts({ fs }, {});
+  const removals: { root: string; relPath: string; identity: string }[] = [];
+  const retention = createCaptureRetention({ root, listOwned: ports.listOwned, removeOwned: async (required) => { removals.push(required); return false; },
+    previewStore: memoryPreviewStore(), clock: () => NOW, lock: keyLock() }, {});
+  const preview = await retention.preview({ ...who, before: CUTOFF }, {});
+  expect(preview.items).toEqual(["2026-10-01/gone.jpg", "2026-10-01/stuck.jpg"]);
+  await rm(path.join(root, "2026-10-01/gone.jpg"));
+
+  const result = await retention.apply({ ...who, previewToken: preview.previewToken, confirm: true }, {});
+  expect(result).toEqual({ deleted: [], kept: [{ relPath: "2026-10-01/gone.jpg", reason: "not-eligible" }, { relPath: "2026-10-01/stuck.jpg", reason: "missing" }] });
+  expect(removals.map((entry) => [entry.root, entry.relPath])).toEqual([[path.resolve(root), "2026-10-01/stuck.jpg"]]);
+  expect(await exists(path.join(root, "2026-10-01/stuck.jpg"))).toBe(true);
+});
+
+function fakeStat(kind: "file" | "directory" | "symlink" | "other", ino: bigint) {
+  return { dev: 1n, ino, size: 4n, mtimeMs: BigInt(OLD.getTime()), mtimeNs: BigInt(OLD.getTime()) * 1_000_000n,
+    isFile: () => kind === "file", isDirectory: () => kind === "directory", isSymbolicLink: () => kind === "symlink" };
+}
+
+function fakeFs(stats: Record<string, ReturnType<typeof fakeStat>>, dirs: Record<string, string[]>) {
+  const unlinked: string[] = [];
+  return { unlinked, fs: {
+    readdir: async (dir: string) => dirs[dir] ?? [],
+    lstat: async (file: string) => { const found = stats[file]; if (!found) throw new Error(`ENOENT ${file}`); return found; },
+    unlink: async (file: string) => { unlinked.push(file); },
+  } };
+}
+
+test("the default lister finds nothing under a missing root or a root that is a plain file", async () => {
+  const missing = createCaptureFilePorts({ fs: fakeFs({}, { "/caps": ["a.jpg"] }).fs }, {});
+  expect(await missing.listOwned({ root: "/caps" }, {})).toEqual([]);
+  const plain = createCaptureFilePorts({ fs: fakeFs({ "/caps": fakeStat("file", 1n) }, { "/caps": ["a.jpg"] }).fs }, {});
+  expect(await plain.listOwned({ root: "/caps" }, {})).toEqual([]);
+});
+
+test("the default lister reports a non-file, non-folder entry as other and the remover refuses anything but a matching file", async () => {
+  const { fs: fake, unlinked } = fakeFs({ "/caps": fakeStat("directory", 1n), "/caps/pipe": fakeStat("other", 2n), "/caps/day": fakeStat("directory", 3n) }, { "/caps": ["pipe", "day", "vanished"] });
+  const ports = createCaptureFilePorts({ fs: fake }, {});
+  expect((await ports.listOwned({ root: "/caps" }, {})).map((entry) => [entry.relPath, entry.kind])).toEqual([["pipe", "other"], ["day", "directory"]]);
+  expect(await ports.removeOwned({ root: "/caps", relPath: "vanished", identity: "1:9:4:0" }, {})).toBe(false);
+  expect(await ports.removeOwned({ root: "/caps", relPath: "day", identity: `1:3:4:${BigInt(OLD.getTime()) * 1_000_000n}` }, {})).toBe(false);
+  expect(unlinked).toEqual([]);
+});
+
+test("a bound cleanup honours its limit and offers same-age captures in path order", async () => {
+  const root = await captureRoot();
+  await put(root, "2026-10-01/b.jpg", "b", OLD);
+  await put(root, "2026-10-01/a.jpg", "a", OLD);
+  await put(root, "2026-10-01/c.jpg", "c", OLD);
+  const options = { captureRootFor: () => root, writerFence: keyLock(), fs, clock: () => NOW, authorizeOwner: () => ({ principal: "owner" }) };
+  const limited = bindCaptureRetention({ siteDir: "/unused", previewStore: memoryPreviewStore(), ...options }, { limit: 2 });
+  const preview = await limited.preview({ context: {}, before: CUTOFF });
+  expect([preview.count, preview.items]).toEqual([2, ["2026-10-01/a.jpg", "2026-10-01/b.jpg"]]);
+});
