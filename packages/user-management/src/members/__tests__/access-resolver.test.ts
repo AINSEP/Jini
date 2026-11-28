@@ -8,7 +8,7 @@ import {
   InMemoryMemberSubscriptionRepo,
   InMemoryMemberTierRepo,
 } from "../repo.memory.js";
-import type { MemberContentAccess, MemberContext } from "../types.js";
+import type { MemberContentAccess, MemberContext, MemberRecord, MemberStatus } from "../types.js";
 
 const WORKSPACE_ID = "ws-1";
 const NOW = "2026-07-10T00:00:00.000Z";
@@ -425,4 +425,25 @@ test("activeMemberFromSession refuses sessions older than the member credential 
   const member = { id: 'member', workspaceId: WORKSPACE_ID, email: 'm@example.test', status: 'active' as const, credentialsRevokedAt: '2026-07-02T00:00:00.000Z', createdAt: NOW, updatedAt: NOW, version: 1 };
   assert.equal(await activeMemberFromSession({ deps: { memberSessionRepo: sessions, memberRepo: { findById: async () => member }, workspaceId: WORKSPACE_ID, sessionToken: () => 'token', nowIso: () => NOW } }), null);
   assert.equal(await activeMemberFromSession({ deps: { memberSessionRepo: sessions, memberRepo: { findById: async () => ({ ...member, credentialsRevokedAt: '2026-06-01T00:00:00.000Z' }) }, workspaceId: WORKSPACE_ID, sessionToken: () => 'token', nowIso: () => NOW } }), 'member');
+});
+
+test("activeMemberFromSession: an unreadable cookie is anonymous, an unknown session or a missing/inactive member resolves to nobody, other failures propagate", async () => {
+  const { activeMemberFromSession } = await import('../access-resolver.js');
+  const { MemberLoginError } = await import('../../server/login-types.js');
+  const sessions = new InMemoryMemberSessionRepo();
+  await sessions.save({ id: 'session', workspaceId: WORKSPACE_ID, memberId: 'member', tokenHash: hashToken('token'), createdAt: '2026-07-01T00:00:00.000Z', expiresAt: '2026-08-01T00:00:00.000Z' });
+  const member: MemberRecord = { id: 'member', workspaceId: WORKSPACE_ID, email: 'm@example.test', status: 'active', createdAt: NOW, updatedAt: NOW, version: 1 };
+  const lookups: unknown[] = [];
+  const resolve = (sessionToken: () => string | undefined, found: { status: MemberStatus } | null = member) => activeMemberFromSession({ deps: {
+    memberSessionRepo: sessions, workspaceId: WORKSPACE_ID, sessionToken, nowIso: () => NOW,
+    memberRepo: { findById: async (input) => { lookups.push(input); return found === null ? null : { ...member, ...found }; } } } });
+  assert.equal(await resolve(() => { throw new MemberLoginError({ code: 'LOGIN_INVALID' }); }), null);
+  await assert.rejects(resolve(() => { throw new Error('cookie store down'); }), /cookie store down/);
+  assert.equal(await resolve(() => 'unknown-token'), null);
+  assert.equal(await resolve(() => undefined), null);
+  assert.deepEqual(lookups, []);
+  assert.equal(await resolve(() => 'token', null), null);
+  assert.equal(await resolve(() => 'token', { status: 'disabled' }), null);
+  assert.equal(await resolve(() => 'token'), 'member');
+  assert.deepEqual(lookups, [{ workspaceId: WORKSPACE_ID, id: 'member' }, { workspaceId: WORKSPACE_ID, id: 'member' }, { workspaceId: WORKSPACE_ID, id: 'member' }]);
 });
