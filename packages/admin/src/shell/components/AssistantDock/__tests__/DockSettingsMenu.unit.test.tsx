@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render as renderBare, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderBare, screen } from "@testing-library/react";
 import { createRef, type ReactElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AdminKitProvider } from "../../../../react/kit.js";
 import { fakeAdminKit } from "../../../../react/testing-kit.js";
@@ -24,8 +24,8 @@ afterEach(cleanup);
 type Menu = ReturnType<typeof useTaxonomyRowMenu>;
 
 /** A stand-in for the host's segmented pill: one radio per option, enough to lay a choice section out. */
-function Segmented({ name, items, inputRole }: DockSettingsSegmentedProps) {
-  return <div>{items.map((item) => <input key={item.key} type="radio" name={name} role={inputRole} aria-label={item.label}
+function Segmented({ name, items, inputRole, checkedRef }: DockSettingsSegmentedProps) {
+  return <div>{items.map((item) => <input key={item.key} ref={item.checked ? checkedRef : undefined} type="radio" name={name} role={inputRole} aria-label={item.label}
     checked={Boolean(item.checked)} onChange={item.change} />)}</div>;
 }
 
@@ -101,3 +101,49 @@ describe("popup", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 });
+
+describe("activating rows", () => {
+  function renderActions() {
+    const pick = vi.fn();
+    const wrap = vi.fn();
+    const open = vi.fn();
+    const soon = vi.fn();
+    const sections: DockSettingsMenuSection[] = [
+      { key: "show", label: "Show", items: [{ key: "shown", label: "Shown", role: "menuitemradio", checked: true, onSelect: vi.fn() }, { key: "hidden", label: "Hidden", role: "menuitemradio", onSelect: pick }] },
+      { key: "toggles", label: "Toggles", items: [{ key: "wrap", label: "Wrap", role: "menuitemcheckbox", checked: false, onSelect: wrap }] },
+      { key: "actions", items: [{ key: "open", label: "Open settings", onSelect: open }, { key: "soon", label: "Coming soon", disabled: true, onSelect: soon }] },
+    ];
+    const fake = fakeMenu(PLACED);
+    render(<DockSettingsMenu label="Chat settings" sections={sections} useTaxonomyRowMenuHook={fake.useMenu} ChatSettingsSegmented={Segmented} />);
+    return { ...fake, pick, wrap, open, soon };
+  }
+
+  it("applies a segmented choice and a checkbox row in place, without closing the menu", () => {
+    const { pick, wrap, selected } = renderActions();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Hidden" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Wrap" }));
+    expect(pick).toHaveBeenCalledTimes(1);
+    expect(wrap).toHaveBeenCalledTimes(1);
+    expect(selected).toEqual([]);
+  });
+
+  it("runs a plain row through the menu's close-then-run and ignores a disabled row", () => {
+    const { open, soon, selected } = renderActions();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open settings" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Coming soon" }));
+    expect(selected).toEqual([open]);
+    expect(open).not.toHaveBeenCalled();
+    expect(soon).not.toHaveBeenCalled();
+  });
+
+  it("registers the checked choice (one slot per choice section) and every row in the roving-focus list, in menu order", () => {
+    const { menu } = renderActions();
+    expect(menu.itemRefs.current).toEqual([
+      screen.getByRole("menuitemradio", { name: "Shown" }),
+      screen.getByRole("menuitemcheckbox", { name: "Wrap" }),
+      screen.getByRole("menuitem", { name: "Open settings" }),
+      screen.getByRole("menuitem", { name: "Coming soon" }),
+    ]);
+  });
+});
+
