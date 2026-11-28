@@ -116,6 +116,33 @@ describe("host: honest status", () => {
   });
 });
 
+describe("host: honest status leaves rows it need not check", () => {
+  it("never opens tokens for a row that is not connected or whose connection is no longer declared", async () => {
+    let loads = 0;
+    const load = async () => { loads++; throw new TokenStoreError("owner-mismatch"); };
+    const pending = build({ load });
+    await seed(pending.records, { status: "revocation-pending" });
+    expect(await pending.host.records.read({ key: REF })).toMatchObject({ status: "revocation-pending", revision: 1 });
+    const undeclared = build({ load, connections: [declared({ pluginId: "other" })] });
+    await seed(undeclared.records);
+    expect(await undeclared.host.records.read({ key: REF })).toMatchObject({ status: "connected", revision: 1 });
+    expect(loads).toBe(0);
+  });
+
+  it("when another writer wins the race to mark the row, the read returns what won", async () => {
+    let records: ReturnType<typeof memoryRecordStore> | undefined;
+    const built = build({ load: async () => {
+      const current = await records!.read({ key: REF });
+      await records!.compareAndSet({ key: REF, expectedRevision: 1, record: { ...current!, status: "disconnected", revision: 2, generation: 2 } });
+      throw new TokenStoreError("owner-mismatch");
+    } });
+    records = built.records;
+    await seed(records);
+    expect(await built.host.records.read({ key: REF })).toMatchObject({ status: "disconnected", revision: 2, generation: 2 });
+    expect(await records.read({ key: REF })).toMatchObject({ status: "disconnected", revision: 2 });
+  });
+});
+
 describe("host: tool connections", () => {
   it("reads the connected account only for its own workspace and declared connections", async () => {
     const { host, records } = build();
