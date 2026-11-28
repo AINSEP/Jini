@@ -138,4 +138,33 @@ describe('shared OAuth consumption', () => {
       status: 'connected', account: { accountId: 'alice', displayName: 'Alice' }, grantedScopes: ['calendar.read'] });
     expect(JSON.stringify(status)).not.toContain('secret');
   });
+  it('projects an identity without issuer, authorization endpoint or resource with those keys absent', async () => {
+    const f = fixture();
+    const minimal = { pluginId: 'calendar', connectionId: 'account', tokenEndpoint: 'https://issuer.test/token', clientId: 'issuing-client' };
+    f.change({ ...f.current(), identity: minimal, account: null });
+    const status = await f.consumer.getStatus({ ...target, identity: minimal });
+    expect(status).toEqual({ credentialId: 'saved-account', generation: 1, status: 'connected', identity: minimal, account: null, grantedScopes: ['calendar.read'] });
+    expect(Object.keys(status?.identity ?? {}).sort()).toEqual(['clientId', 'connectionId', 'pluginId', 'tokenEndpoint']);
+    expect(await f.consumer.getAccessToken({ ...target, identity: minimal })).toBe('owner-access-token');
+    expect(f.tokenRequests).toEqual([{ credentialId: 'saved-account', expectedGeneration: 1 }]);
+  });
+
+  it('refuses a granted binding whose owner record is gone or names another credential', async () => {
+    const f = fixture();
+    const current = f.current();
+    f.change(null);
+    await expect(f.consumer.getStatus(target)).rejects.toMatchObject({ code: 'connection-not-found' });
+    f.change({ ...current, credentialId: 'other-account' });
+    await expect(f.consumer.getStatus(target)).rejects.toMatchObject({ code: 'connection-not-found' });
+    expect(f.calls()).toBe(0);
+  });
+
+  it('denies authorization and tokens to a site with no binding, while its status is simply absent', async () => {
+    const f = fixture();
+    const unbound = { ...target, siteId: 'site-c-uuid' };
+    expect(await f.consumer.getStatus(unbound)).toBeNull();
+    await expect(f.consumer.assertAuthorized(unbound)).rejects.toMatchObject({ code: 'access-denied' });
+    await expect(f.consumer.getAccessToken(unbound)).rejects.toMatchObject({ code: 'access-denied' });
+    expect(f.calls()).toBe(0);
+  });
 });

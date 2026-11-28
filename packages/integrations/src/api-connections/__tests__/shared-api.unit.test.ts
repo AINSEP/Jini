@@ -81,6 +81,13 @@ describe('reading and using the shared connection', () => {
     expect(createService.mock.calls[0]![0]).toMatchObject({ connection: expect.objectContaining({ pluginId: 'calendar' }), context: issuingContext });
   });
 
+  it('asks the owner service for no frozen account when the shared connection has no account', async () => {
+    const { api, state, service } = setup();
+    state.connection = sharedConnection({ account: null });
+    expect(await api.getAccessToken(connection)).toBe('owner-token');
+    expect(service.getAccessToken).toHaveBeenCalledWith({ connectionRef: CREDENTIAL, workspaceId: 'project' }, {});
+  });
+
   it('reuses the per-credential service across requests instead of rebuilding it', async () => {
     const { api, createService } = setup();
     await api.getAccessToken(connection);

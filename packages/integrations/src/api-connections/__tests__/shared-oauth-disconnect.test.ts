@@ -101,3 +101,26 @@ it("changed reviewed grants refuse CAS and grant removal", async () => {
   expect(removeKey).not.toHaveBeenCalled();
   expect(f.tokensFor).not.toHaveBeenCalled();
 });
+
+it("a concurrent owner write between review and stop refuses before grants or tokens are touched", async () => {
+  const f = await fixture();
+  const { report } = await inspectSharedOAuthDisconnect(f.required);
+  const compareAndSet = vi.spyOn(f.required.storage.records, "compareAndSet").mockResolvedValueOnce(false);
+  const removeKey = vi.spyOn(f.required.attachments, "removeKey");
+  await expect(disconnectSharedOAuth({ ...f.required, expectedRevision: report.revision, expectedDigest: report.sourceDigest })).rejects.toMatchObject({ code: "storage-conflict", message: "grants changed" });
+  expect(compareAndSet).toHaveBeenCalledWith(expect.objectContaining({ key: KEY, expectedRevision: report.revision }));
+  expect(removeKey).not.toHaveBeenCalled();
+  expect(f.tokensFor).not.toHaveBeenCalled();
+  expect((await f.deps.records.read({ key: KEY }))?.status).toBe("connected");
+});
+
+it("without a loaded revoke hook the stop applies, remote revocation stays pending and tokens are kept for a retry", async () => {
+  const f = await fixture();
+  const { report } = await inspectSharedOAuthDisconnect(f.required);
+  const result = await disconnectSharedOAuth({ ...f.required, expectedRevision: report.revision, expectedDigest: report.sourceDigest });
+  expect(result).toMatchObject({ applied: true, remoteRevocation: "pending", sites: ["A"] });
+  expect(f.tokenStore.entries.has(KEY)).toBe(true);
+  const record = await f.deps.records.read({ key: KEY });
+  expect(record?.status).toBe("revocation-pending");
+  expect(record?.revocationFailure).toBe("provider-unreachable");
+});
