@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ButtonHTMLAttributes } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -31,4 +32,17 @@ it('an expired preview explains itself and offers only a fresh choice, never the
   expect(choose).toHaveBeenCalledOnce();
   expect(preview).not.toHaveBeenCalled();
   expect(apply).not.toHaveBeenCalled();
+});
+it('a kit button that stays clickable while disabled (aria-disabled) still cannot delete without a preview token', async () => {
+  // Accessible design kits often keep a disabled button focusable and clickable, marking it with
+  // aria-disabled instead of the native attribute; the dialog itself must refuse the delete then.
+  const AriaDisabledButton = ({ disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement>) => <button {...rest} aria-disabled={disabled} />;
+  const apply = vi.fn(async () => ({ complete: true })), onDone = vi.fn();
+  const useChatCleanup = () => ({ state: 'confirm' as const, count: 5, bytes: 10, kept: [], preview: vi.fn(), apply, choose: vi.fn() });
+  render(<ChatCleanupDialog useChatCleanup={useChatCleanup} kit={{ Button: AriaDisabledButton }} copy={{ preview: 'Preview', confirm: 'Delete', expired: 'Expired', choose: 'Choose', partial: 'Partial', count: ({ count }) => `${count} chats` }} onDone={onDone} />);
+  const del = screen.getByRole('button', { name: 'Delete' });
+  expect(del.getAttribute('aria-disabled')).toBe('true');
+  await userEvent.click(del);
+  expect(apply).not.toHaveBeenCalled();
+  expect(onDone).not.toHaveBeenCalled();
 });

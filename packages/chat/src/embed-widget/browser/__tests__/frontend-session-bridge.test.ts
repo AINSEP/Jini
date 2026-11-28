@@ -246,6 +246,28 @@ it('both widget hosts use explicit claims, header authentication, live tokens an
   events.dispatchEvent(new Event('error')); expect(bridge.bindToken()).toBeUndefined(); bridge.close();
 });
 
+it('a header callback that closes the bridge while a response is built never sends the dead bind token', async () => {
+  // The host's header provider runs inside the response request; a host that tears the surface
+  // down there (say, its visitor session just ended) must not leak the token it held a moment ago.
+  const events = new EventTarget(); const calls: { url: string; init: RequestInit }[] = [];
+  let headerCalls = 0;
+  const bridge = createFrontendSessionBridge({ baseUrl: '', endpointPrefix: '/public/frontend',
+    headers: () => { headerCalls += 1; if (headerCalls === 2) bridge.close(); return { 'x-tab': 'credential' }; },
+    openStream: () => ({ addEventListener: events.addEventListener.bind(events) as EventSource['addEventListener'], close() {} }),
+    fetch: vi.fn(async (url, init) => { calls.push({ url: String(url), init: init! }); return new Response('{"settled":true}'); }) as typeof fetch,
+  }, { capabilityIds: ['page.click'], page: createDriverPagePort({ driver: {
+    findElements: async () => [{ handle: 'menu', label: 'Menu', labelTruncated: false }], listPages: async () => [],
+    click: async () => {}, scrollTo: async () => {},
+  } as unknown as PageDriver }) });
+  const frame = (data: unknown) => events.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
+  frame({ type: 'attached', sessionId: 's', bindToken: 'live-one' }); await bridge.ready;
+  frame({ type: 'invocation', invocationId: 'i', capabilityId: 'page.click', input: { handle: 'menu' } });
+  await vi.waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]!.url).toBe('/public/frontend/s/responses');
+  expect(calls[0]!.init.headers).toEqual({ 'content-type': 'application/json', 'x-tab': 'credential', 'x-frontend-bind-token': '' });
+  expect(bridge.bindToken()).toBeUndefined();
+});
+
 it('oversized output sends valid refusal JSON and cannot trigger an accepted terminal effect', async () => {
   const events = new EventTarget(); const after = vi.fn(); const error = vi.fn();
   const bodies: string[] = [];

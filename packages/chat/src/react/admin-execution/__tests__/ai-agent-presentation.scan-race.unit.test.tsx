@@ -1,4 +1,5 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
+import { useEffect } from 'react';
 import { afterEach, expect, test } from 'vitest';
 import type { ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import { createAgentPresentationPort, localCliScopeCopy, normalizeAgentDescription, selectedAgentWarning } from '../ai-agent-presentation.js';
@@ -76,4 +77,30 @@ test('with no saved config there is no warning, even for a default agent that is
   await act(async () => { await result.current.port.detectLocalAgents(); });
   expect(result.current.warning).toBeNull();
   expect(result.current.scopeCopy).toBe('server');
+});
+
+test('a rescan that reports the same agents again commits nothing new, while a changed report does', async () => {
+  // Every scan returns a fresh array; only its content decides whether Settings re-commits.
+  let report: ExecutionCardAgent[] = [{ id: 'local', label: 'Local CLI', installed: true, authStatus: 'ok' }];
+  const port: ExecutionPort = { detectLocalAgents: async () => report.map(agent => ({ ...agent })), testConnection: async () => ({ ok: true }) };
+  let commits = 0;
+  const { result } = renderHook(() => {
+    const presentation = useAiAgentPresentation({
+      port, config: { mode: 'local-cli', byok: { protocol: 'openai', providerId: null, baseUrl: '', apiKey: '', model: '' }, localCli: { agentId: 'local' } },
+      locale: 'en', desktop: true, defaultLocalAgentId: 'local',
+      translate: ({ key }) => key, scopeKeys: { desktopKey: 'desktop', serverKey: 'server' },
+    });
+    useEffect(() => { commits += 1; });
+    return presentation;
+  });
+  expect(commits).toBe(1);
+  await act(async () => { await result.current.port.detectLocalAgents(); });
+  expect(commits).toBe(2);
+  await act(async () => { await result.current.port.detectLocalAgents(); });
+  expect(commits).toBe(2);
+  expect(result.current.warning).toBeNull();
+  report = [{ id: 'local', label: 'Local CLI', installed: true, authStatus: 'missing' }];
+  await act(async () => { await result.current.port.detectLocalAgents(); });
+  expect(commits).toBe(3);
+  expect(result.current.warning).toBe('Local CLI: Authentication required. Sign in before sending.');
 });
