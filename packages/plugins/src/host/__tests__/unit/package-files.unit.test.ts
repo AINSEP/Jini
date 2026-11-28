@@ -218,7 +218,7 @@ test("a regular file replaced by a symlink after listing never exposes the targe
 });
 
 /** Runs `run` with `fsPromises[key]` replaced, restoring the real export afterwards. */
-async function withFsPatch<K extends "open" | "readdir">(t: TestContext, key: K, implementation: unknown, run: () => Promise<void>): Promise<void> {
+async function withFsPatch<K extends "open" | "readdir" | "lstat">(t: TestContext, key: K, implementation: unknown, run: () => Promise<void>): Promise<void> {
   const spy = t.mock.method(fsPromises, key, implementation);
   syncBuiltinESMExports();
   try { await run(); } finally { spy.mock.restore(); syncBuiltinESMExports(); }
@@ -367,4 +367,17 @@ test("j3: an invalid, built-in, missing, linked or escaping site plugin has no p
   await assert.rejects(listSitePluginPackage({ installDir: root, record: siteRecord({ id: "linked" }) }), PluginPackagePathError);
   await writeTree(path.join(root, "bare", "1.0.0"), { "server/index.mjs": "export {}" });
   await assert.rejects(listSitePluginPackage({ installDir: root, record: siteRecord({ id: "bare" }) }), PluginPackagePathError);
+});
+
+test("j3: a manifest lstat fault other than ENOENT propagates instead of reading as not installed", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(path.join(root, "demo", "1.0.0"), { [PLUGIN_MANIFEST_FILENAME]: "{}", "server/index.mjs": "export {}" });
+  const denied = Object.assign(new Error("denied"), { code: "EACCES" });
+  const originalLstat = fsPromises.lstat;
+  await withFsPatch(t, "lstat", async (...args: Parameters<typeof fsPromises.lstat>) => {
+    if (path.basename(String(args[0])) === PLUGIN_MANIFEST_FILENAME) throw denied;
+    return originalLstat(...args);
+  }, async () => {
+    await assert.rejects(listSitePluginPackage({ installDir: root, record: siteRecord() }), (error: unknown) => error === denied);
+  });
 });

@@ -308,4 +308,18 @@ describe('generation retirement and provider resources', () => {
     await host.dispose({}); await host.dispose({});
     expect(good).toHaveBeenCalledTimes(1); expect(phases.sort()).toEqual(['dispose', 'dispose', 'dispose_timeout']);
   });
+  it('a diagnostics hook that throws synchronously still lets every other provider release', async () => {
+    const registry = createPluginContributionRegistry({});
+    let call = 0;
+    const good = vi.fn();
+    const disposers = [() => { throw new Error('sync'); }, good];
+    publish({ registry, factory: () => ({ port: 'ok', dispose: disposers[call++]! }) });
+    const phases: string[] = [];
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] }, {
+      onError: ({ phase }) => { phases.push(phase); throw new Error('reporting failed'); },
+    });
+    for (let index = 0; index < 2; index++) await host.initialize({ ...declaration, input: {} });
+    await host.dispose({});
+    expect(good).toHaveBeenCalledTimes(1); expect(phases).toEqual(['dispose']);
+  });
 });

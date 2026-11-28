@@ -120,6 +120,19 @@ test("a concurrent reap may remove an entry, while an unreadable entry fails boo
   await assert.rejects(createPluginModuleSnapshotLifecycle({ runtimeRoot: ROOT }, f.options).ready, error => error === denied);
 });
 
+test("an opaque inspection failure (no error code, or not an object) is never read as a missing entry", async () => {
+  for (const opaque of [new Error("no code"), "plain failure", null]) {
+    const f = fixture();
+    const candidate = path.join(ROOT, `${PREFIX}10-opaque`);
+    f.entries.set(candidate, stat());
+    f.proc.isAlive = () => false;
+    const original = f.fs.lstat;
+    f.fs.lstat = async directory => { if (directory === candidate) throw opaque; return original(directory); };
+    await assert.rejects(createPluginModuleSnapshotLifecycle({ runtimeRoot: ROOT }, f.options).ready, error => error === opaque);
+    assert.deepEqual(f.removed, []);
+  }
+});
+
 test("a linked runtime root is refused before listing or deleting anything", async () => {
   const f = fixture();
   f.entries.set(ROOT, stat({ link: true }));

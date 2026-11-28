@@ -100,6 +100,17 @@ test("a site entry inside its package is imported from a verified copy held by t
   assert.equal(readFileSync(path.join(p.runtimeRoot, copies[0]!, "server", "index.mjs"), "utf8"), ENTRY);
 });
 
+test("a site entry imported without a host snapshot owner still runs from a fresh verified copy, never the installed file", async t => {
+  const p = installed(t);
+  const importer = createPluginModuleImporter({ manifest: p.manifest({ "server/index.mjs": digest(ENTRY) }), source: "site" });
+  const modulePath = path.join(p.pluginRoot, "server", "index.mjs");
+  assert.deepEqual(await importer({ plugin: { pluginId: "acme", packageRoot: p.pluginRoot }, modulePath }), { exported: 1 });
+  const copies = readdirSync(p.runtimeRoot);
+  assert.equal(copies.length, 1);
+  assert.match(copies[0]!, /^load-/);
+  assert.equal(readFileSync(path.join(p.runtimeRoot, copies[0]!, "server", "index.mjs"), "utf8"), ENTRY);
+});
+
 const manifest = { integrity: {} } as unknown as PluginManifest;
 
 test("built-in seam receives its original entry and projects the default without running setup", async () => {
