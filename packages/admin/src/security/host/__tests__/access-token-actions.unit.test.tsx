@@ -578,3 +578,27 @@ describe("access-token submit failures", () => {
     expect(rows(hook).filter((row) => row.kind === "publish").map((row) => row.id)).toEqual(["pub-1", "pub-2"]);
   });
 });
+
+describe("access-token custom replace and blank add form", () => {
+  it("replaces one custom credential in place, keeps its sibling, and seeds a blank username when the server saved none", async () => {
+    const hook = await loaded({ custom: [customCredential(), customCredential({ id: "cus-9", label: "Second API", usedByThisSite: false })] });
+    vi.mocked(hook.port.custom.update).mockImplementationOnce(async ({ id, input }) => {
+      const { usedBy: _usedBy, usedByThisSite: _usedByThisSite, username: _username, ...metadata } = customCredential({ id, label: input.label ?? "Example API", username: "unused" });
+      return metadata;
+    });
+    act(() => hook.result.current.setExistingField({ rowId: "cus-1", patch: { name: "Renamed API", username: "typed-user" } }));
+    await act(async () => { await hook.result.current.replaceToken(requireRow(hook, "cus-1")); });
+    expect(rowState(hook, "cus-1")).toMatchObject({ name: "Renamed API", username: "", error: null });
+    expect(requireRow(hook, "cus-1").name).toBe("Renamed API");
+    expect(requireRow(hook, "cus-9")).toMatchObject({ name: "Second API", usedByThisSite: false });
+  });
+
+  it("reports the required-token error for Save on a provider whose add form was never filled, without calling the port", async () => {
+    const hook = await loaded();
+    hook.deps.credentialDraftError = ({ value }, options) => (options?.required && value === "" ? "token required" : null);
+    act(() => hook.result.current.openAddForm(HOST));
+    await act(async () => { await hook.result.current.createToken(SOURCE); });
+    expect(hook.port.sourceControl.create).not.toHaveBeenCalled();
+    expect(addForm(hook, "source-control", "source")).toMatchObject({ name: "", token: "", saving: false, error: "token required" });
+  });
+});
