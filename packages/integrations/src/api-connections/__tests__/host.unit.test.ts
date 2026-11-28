@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createApiConnectionHost } from "../host.js";
 import { ApiConnectionError } from "../errors.js";
 import { deriveApiConnectionKey } from "../keys.js";
@@ -19,7 +19,7 @@ function declared(over: Record<string, unknown> = {}): DeclaredApiConnection {
 
 class TokenStoreError extends Error { constructor(readonly code: string) { super(code); this.name = "OAuthTokenStoreError"; } }
 
-interface Opts { runtime?: "hosted" | "desktop"; env?: Record<string, string>; origin?: string; connections?: DeclaredApiConnection[]; load?: () => Promise<unknown>; byo?: unknown; shared?: Record<string, unknown>; storage?: Record<string, unknown> }
+interface Opts { runtime?: "hosted" | "desktop"; env?: Record<string, string>; origin?: string; connections?: DeclaredApiConnection[]; load?: () => Promise<unknown>; byo?: unknown; shared?: Record<string, unknown>; storage?: Record<string, unknown>; oauth?: unknown }
 
 function build(o: Opts = {}) {
   const records = memoryRecordStore();
@@ -36,7 +36,7 @@ function build(o: Opts = {}) {
     apiConnectionStorage: { records, tokensFor: () => ({ load: o.load ?? (async () => null) }) },
     createLimiter: () => ({ check: async () => ({ allowed: true }) }),
     createSharedConnections: (input: unknown) => { sharedCalls.push(input); return o.shared; },
-    oauthHttp: {}, oauth: realOAuthCapabilities, pluginHttp: {}, pluginState: { s: 1 }, callbackInbox: {}, startLoopback: async () => ({}),
+    oauthHttp: {}, oauth: o.oauth ?? realOAuthCapabilities, pluginHttp: {}, pluginState: { s: 1 }, callbackInbox: {}, startLoopback: async () => ({}),
   } as unknown as ApiConnectionRuntimeHostDeps<unknown>;
   const host = createApiConnectionHost(deps, o.shared ? { shared: (o.storage ?? { readContext: async () => null }) as never } : {});
   return { host, records, sharedCalls };
@@ -173,6 +173,72 @@ describe("host: shared connections (desktop)", () => {
   });
   it("refuses a shared sign-in when sharing is unavailable", async () => {
     await expect(build().host.prepareSignIn({ connection: declared(), actorId: "a", destination: "shared" })).rejects.toMatchObject({ code: "connection-not-found" });
+  });
+});
+
+describe("host: randomness and waiting it hands each service it builds", () => {
+  const LOOPBACK = "http://127.0.0.1:5555/cb";
+  type Sleep = (input: { ms: number }) => Promise<void>;
+  type Started = { attemptId: string; browserBinding: string };
+  type Service = { start: (input: unknown) => Promise<Started> };
+  /** The host's real assembly, with an OAuth port that records what each service hands it. */
+  function rig() {
+    const refresherDeps: { sleep: Sleep }[] = [];
+    const begun: { randomBytesFn: unknown }[] = [];
+    const oauth = { ...realOAuthCapabilities, flow: { ...realOAuthCapabilities.flow,
+      createTokenRefresher: (deps: { sleep: Sleep }) => { refresherDeps.push(deps); return { getAccessToken: async () => "tok-a" }; },
+      beginAuthorizationCode: async (input: { randomBytesFn: unknown }) => { begun.push(input); return { authorizationUrl: "https://idp.test/auth?x=1", state: "st-a", expiresAt: "2026-01-01T00:10:00.000Z" }; } } };
+    const storage = { readContext: async () => null, records: memoryRecordStore(), tokensFor: () => ({}) };
+    const descriptor = { ...declared().descriptor, startParams: [], authorizationParams: { public: {}, confidential: {} }, forceConsentParams: {} };
+    const connection = declared({ descriptor });
+    const { host, sharedCalls } = build({ runtime: "desktop", connections: [connection], shared: { hasBinding: async () => false }, storage, oauth });
+    const { createService } = sharedCalls[0] as { createService: (input: unknown) => Service };
+    const services: Record<"shared" | "site", () => Service> = {
+      shared: () => createService({ connection, redirectUri: LOOPBACK, context: { descriptor, client: { clientId: "desk-client", authMethod: "none" }, clientKind: "public" } }),
+      site: () => host.serviceFor({ connection, redirectUri: LOOPBACK }) as unknown as Service,
+    };
+    return { host, services, refresherDeps, begun };
+  }
+  for (const kind of ["shared", "site"] as const) {
+    it(`gives the ${kind} service real random bytes of the requested length for each OAuth start`, async () => {
+      const { services, begun } = rig();
+      const service = services[kind]();
+      const start = () => service.start({ workspaceId: "ws-1", actorId: "a1", intent: "connect", scopeSetIds: [], redirectUri: LOOPBACK });
+      const first = await start();
+      const second = await start();
+      expect([Buffer.from(first.attemptId, "base64url").length, Buffer.from(first.browserBinding, "base64url").length]).toEqual([16, 32]);
+      expect(new Set([first.attemptId, second.attemptId, first.browserBinding, second.browserBinding]).size).toBe(4);
+      expect(begun).toHaveLength(2);
+      const bytes = (begun[0]?.randomBytesFn as (input: { byteLength: number }) => Uint8Array)({ byteLength: 7 });
+      expect(bytes.length).toBe(7);
+    });
+    it(`gives the ${kind} service's token refresher a sleep that waits the asked-for time`, async () => {
+      const { services, refresherDeps } = rig();
+      services[kind]();
+      expect(refresherDeps).toHaveLength(1);
+      vi.useFakeTimers();
+      try {
+        let woke = false;
+        const slept = refresherDeps[0]!.sleep({ ms: 250 }).then(() => { woke = true; });
+        await vi.advanceTimersByTimeAsync(249);
+        expect(woke).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await slept;
+        expect(woke).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
+  it("issues distinct 32-byte sign-in handoff ids, each redeemable once by its starter", () => {
+    const { host } = rig();
+    const handoff = { authorizationUrl: "https://idp.test/auth?x=1", browserBinding: "bb-a", actorId: "a1", expiresAt: "2026-01-01T00:10:00.000Z" };
+    const first = host.signInHandoffs.issue(handoff);
+    const second = host.signInHandoffs.issue({ ...handoff, actorId: "a2" });
+    expect(Buffer.from(first, "base64url").length).toBe(32);
+    expect(first).not.toBe(second);
+    expect(host.signInHandoffs.take({ handoffId: first, actorId: "a1" })).toEqual(handoff);
+    expect(host.signInHandoffs.take({ handoffId: first, actorId: "a1" })).toBeNull();
   });
 });
 
