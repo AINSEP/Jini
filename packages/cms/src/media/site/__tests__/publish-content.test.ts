@@ -244,3 +244,26 @@ it("an entity without a source is blocked at apply before any row is written", a
   await expect(applied).rejects.toThrow("media 'video' cannot be applied — missing or malformed media source");
   expect(await f.repo.findById({ workspaceId: "site", id: "video" })).toBeNull();
 });
+
+it("a row deleted between the import and its read-back is applied without a version, and its audit records no entity version", async () => {
+  const f = await boundFixture();
+  const fresh = await boundFixture();
+  // A concurrent delete lands after the import wrote the row and recorded its type, before the read-back.
+  const recordType = f.contentTypeStore.set.bind(f.contentTypeStore);
+  vi.spyOn(f.contentTypeStore, "set").mockImplementation(async (input) => {
+    await recordType(input);
+    await f.repo.remove({ workspaceId: "site", id: "video" });
+  });
+  const result = await f.handler.apply({ entity: f.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "deleted" });
+  const kept = await fresh.handler.apply({ entity: fresh.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "kept" });
+  expect(result).toEqual({ blobWritten: true, changeSetId: "change" });
+  expect(kept).toEqual({ blobWritten: true, version: 1, changeSetId: "change" });
+  const audit = await f.deps.changeSets.findById({ workspaceId: "site", id: "change" });
+  const keptAudit = await fresh.deps.changeSets.findById({ workspaceId: "site", id: "change" });
+  expect(audit?.changeSet.status).toBe("applied");
+  expect(audit?.items).toHaveLength(1);
+  expect(audit?.items[0]).toMatchObject({ entityType: "media", entityId: "video", operation: "create" });
+  expect(audit?.items[0]?.entityVersionAtApply).toBeUndefined();
+  expect(keptAudit?.items[0]).toMatchObject({ entityId: "video", entityVersionAtApply: 1 });
+  expect(await f.repo.findById({ workspaceId: "site", id: "video" })).toBeNull();
+});
