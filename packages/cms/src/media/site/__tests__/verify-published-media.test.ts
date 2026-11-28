@@ -91,3 +91,24 @@ it("reports a missing published file without attempting to infer the type from a
   ]);
   expect(get.mock.calls).toEqual([]);
 });
+
+it("an empty batch reports nothing without reading the type store", async () => {
+  const p = ports([record]);
+  const getMany = vi.spyOn(p.contentTypeStore, "getMany");
+  expect(await verifyPublishedMedia({ ports: p, workspaceId, entities: [], orFallback })).toEqual([]);
+  expect(getMany).not.toHaveBeenCalled();
+});
+
+it("labels a slug-less item by its id and batches only string source hashes", async () => {
+  const p = ports([record]);
+  await p.blobStore.putIfAbsent({ workspaceId, sha256, bytes });
+  await p.contentTypeStore.set({ workspaceId, sha256, contentType: "image/png" });
+  const getMany = vi.spyOn(p.contentTypeStore, "getMany");
+  const blank: PackedEntity = { ...entity, id: "ghost-id", state: { slug: "", source: { sha256: 42 } } };
+  const sourceless: PackedEntity = { ...entity, id: "bare-id", state: { slug: 7 } };
+  expect(await verifyPublishedMedia({ ports: p, workspaceId, entities: [blank, entity, sourceless], orFallback })).toEqual([
+    "Media 'ghost-id' was published but is not on the site.",
+    "Media 'bare-id' was published but is not on the site.",
+  ]);
+  expect(getMany.mock.calls).toEqual([[{ workspaceId, sha256s: [sha256] }]]);
+});
