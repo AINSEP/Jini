@@ -171,3 +171,13 @@ test("worker start: an injected importModule registers nothing; no port throws b
   await assert.rejects(startTier2Worker({ ...base, parentPort: null }), /must run inside a worker_threads Worker/);
   assert.deepEqual(order, ["injected"]);
 });
+
+test("worker start: an entry that imports as no module object is probed as having no default export", async () => {
+  const posted: unknown[] = [];
+  await startTier2Worker({
+    workerData: request, parentPort: { postMessage: (m) => posted.push(m) }, binding,
+    registerSdkResolver: () => undefined, realImport: async () => null,
+  });
+  // A null namespace must not crash the read of `.default` (that would report a different stage/error).
+  assert.deepEqual(posted, [{ ok: false, stage: "export", error: "plugin 't2' does not default-export definePlugin(...)" }]);
+});

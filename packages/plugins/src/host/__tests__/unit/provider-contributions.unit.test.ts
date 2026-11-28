@@ -84,6 +84,19 @@ describe('provider contributions on the existing plugin pipeline', () => {
     expect(() => capture.providers.register({ ...declaration, factory })).toThrow('sealed');
     expect(factory).not.toHaveBeenCalled();
   });
+  it('refuses a provider that is not a tier-3 factory matching the declaration shape, before any declaration lookup', () => {
+    const factory = vi.fn(() => ({ port: 'ok', dispose() {} }));
+    // Tier-1 is declaration-only (tier-2 is refused earlier, as a worker contribution).
+    const tier1 = createPluginContributionCapture({ manifest: { ...manifest, tier: 'tier-1' } });
+    expect(() => tier1.providers.register({ ...declaration, factory })).toThrow('invalid plugin provider factory');
+    const capture = createPluginContributionCapture({ manifest });
+    expect(() => capture.providers.register({ ...declaration, factory: 'not callable' } as unknown as PluginProviderContribution)).toThrow('invalid plugin provider factory');
+    expect(() => capture.providers.register({ ...declaration, contractVersion: 2, factory } as unknown as PluginProviderContribution)).toThrow('invalid plugin provider factory');
+    // None of the refusals took the slot: the valid declaration still registers once.
+    capture.providers.register({ ...declaration, factory });
+    expect(capture.seal({ sdk }).providers.map(({ contract: name, id }) => `${name}:${id}`)).toEqual(['fixture:fixture']);
+    expect(factory).not.toHaveBeenCalled();
+  });
   it('publishes only after successful setup and seals captures after failure', async () => {
     const registry = createPluginContributionRegistry({});
     let retained!: PluginSdk;
