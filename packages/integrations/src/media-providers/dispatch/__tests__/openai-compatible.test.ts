@@ -8,6 +8,7 @@ import {
   buildOpenAISpeechUrl,
   buildOpenAIVideoUrl,
   detectAzureEndpoint,
+  jsonPostInit,
   normalizeOpenAICompatiblePath,
   openaiSizeFor,
   parseOpenAICompatibleJson,
@@ -46,6 +47,21 @@ describe('withRequestInit', () => {
   it('defaults to ctx.requestInit alone when no explicit init is given', () => {
     const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
     expect(withRequestInit({ requestInit: { dispatcher } })).toEqual({ dispatcher });
+  });
+});
+
+describe('jsonPostInit', () => {
+  it('sends no authorization header without an apiKey, keeps the request init and serializes the body', () => {
+    const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
+    expect(jsonPostInit({ ctx: { requestInit: { dispatcher } }, body: { prompt: 'cat' } })).toEqual({
+      dispatcher, method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"prompt":"cat"}',
+    });
+  });
+
+  it('adds a bearer header for an apiKey and lets caller headers override the defaults', () => {
+    expect(jsonPostInit({ ctx: {}, body: [1] }, { apiKey: 'test-key', headers: { 'content-type': 'application/vnd.test+json', 'x-extra': 'yes' } })).toEqual({
+      method: 'POST', headers: { authorization: 'Bearer test-key', 'content-type': 'application/vnd.test+json', 'x-extra': 'yes' }, body: '[1]',
+    });
   });
 });
 

@@ -537,6 +537,17 @@ describe('createMediaDispatchEngine — injected guarded fetch', () => {
     expect(guardedFetch).not.toHaveBeenCalled();
   });
 
+  it('a caller signal alone becomes the guarded request signal when the vendor sets none', async () => {
+    const registry = createVendorAdapterRegistry();
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter });
+    const guardedFetch = vi.fn<MediaGuardedFetch>(async () => new Response('plain', { status: 200 }));
+    const engine = createMediaDispatchEngine({ registry, httpClient: clientFixture(), guardedFetch });
+    const caller = new AbortController();
+    expect((await engine.generate({ surface: 'image', model: 'dall-e-3' }, { signal: caller.signal })).bytes.toString()).toBe('plain');
+    expect(guardedFetch).toHaveBeenCalledTimes(1);
+    expect(guardedFetch.mock.calls[0]![1]!.signal).toBe(caller.signal);
+  });
+
   // REGRESSION: fails if the engine ignores the host's guardedFetch and binds its own adapter.
   it('routes vendor calls through the guarded fetch the host injected', async () => {
     const registry = createVendorAdapterRegistry();
