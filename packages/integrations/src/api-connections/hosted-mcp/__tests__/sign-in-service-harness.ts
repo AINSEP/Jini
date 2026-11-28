@@ -6,6 +6,7 @@ import type { OAuthFlowOperations, OAuthProviderDescriptor, OAuthProviderRegistr
 import type { VaultRecord } from "@jini-ai/core/contracts/vault";
 import type { ApiConnectionRecord, ApiConnectionTokenStore } from "../../index.js";
 import type { HostedMcpOAuthFailure } from "../contracts.js";
+import type { SignInDeps } from "../sign-in-provider.js";
 import type { SharedExternalMcpOwner, SharedSignInIssuingContext } from "../shared-sign-in.js";
 import { createDeviceAuthorizationStore, createHostedMcpSignInService } from "../sign-in.js";
 import { FakeOAuthError, FakeRepo, makeHarness, makeRecord, type Harness } from "./sign-in-harness.js";
@@ -91,8 +92,8 @@ export interface SignInRig {
   readonly devices: DeviceAuthorizationStore;
 }
 
-/** The real service over `row`; `token` answers every refresher's `getAccessToken`. */
-export function makeSignInService(row: ExternalMcpServerRecord, _over: { flow?: Flow; shared?: SharedRig; onConnected?: ((id: string) => Promise<void>) | null; token?: (key: string) => Promise<string>; providers?: boolean } = {}): SignInRig {
+/** The real service over `row`; `token` answers every refresher's `getAccessToken`; `extra` overrides deps (e.g. sealer, keyring). */
+export function makeSignInService(row: ExternalMcpServerRecord, _over: { flow?: Flow; shared?: SharedRig; onConnected?: ((id: string) => Promise<void>) | null; token?: (key: string) => Promise<string>; providers?: boolean; extra?: Partial<SignInDeps> } = {}): SignInRig {
   const refresherDeps: TokenRefresherDeps[] = [];
   const connected: string[] = [];
   const devices = createDeviceAuthorizationStore();
@@ -105,6 +106,6 @@ export function makeSignInService(row: ExternalMcpServerRecord, _over: { flow?: 
     ..._over.flow,
   };
   const onConnected = _over.onConnected === undefined ? async (id: string) => { connected.push(id); } : _over.onConnected;
-  const h = makeHarness(new FakeRepo(row), { flow, extra: { devices, ...(onConnected === null ? {} : { onConnected }), ...(_over.providers === false ? {} : { providers: registry }), ...(_over.shared ? { shared: _over.shared.shared } : {}) } });
+  const h = makeHarness(new FakeRepo(row), { flow, extra: { devices, ...(onConnected === null ? {} : { onConnected }), ...(_over.providers === false ? {} : { providers: registry }), ...(_over.shared ? { shared: _over.shared.shared } : {}), ..._over.extra } });
   return { service: createHostedMcpSignInService(h.deps), h, refresherDeps, connected, devices };
 }
