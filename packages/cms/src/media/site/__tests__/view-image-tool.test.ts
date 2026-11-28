@@ -81,3 +81,24 @@ test('missing or non-raster media never reach the codec, and a decode fault beco
   await expect(failure).rejects.toThrow("media asset 'photo' could not be decoded as an image (image/png) — its stored file may be damaged.");
   expect(raster.imageCodec.encode.mock.calls).toEqual([]);
 });
+
+test('an unrotated or mirrored source keeps its dimensions, and a height-only downscale is still reported', async () => {
+  const metadataOf = async (f: Awaited<ReturnType<typeof fixture>>) =>
+    JSON.parse((await f.read() as { content: [{ text: string }] }).content[0].text) as { original: object; returned: object };
+  const tall = await fixture();
+  tall.imageCodec.inspect.mockResolvedValueOnce({ width: 800, height: 2000, hasAlpha: false, autoOrient: { width: 800, height: 2000 } });
+  tall.imageCodec.encode.mockResolvedValueOnce({ bytes: Uint8Array.from([1]), width: 800, height: 1568 });
+  const tallMeta = await metadataOf(tall);
+  expect([tallMeta.original, tallMeta.returned]).toEqual([
+    { contentType: 'image/png', width: 800, height: 2000 },
+    { mimeType: 'image/webp', width: 800, height: 1568, downscaled: true },
+  ]);
+  const mirrored = await fixture();
+  mirrored.imageCodec.inspect.mockResolvedValueOnce({ width: 600, height: 400, orientation: 4, hasAlpha: false, autoOrient: { width: 600, height: 400 } });
+  mirrored.imageCodec.encode.mockResolvedValueOnce({ bytes: Uint8Array.from([2]), width: 600, height: 400 });
+  const mirroredMeta = await metadataOf(mirrored);
+  expect([mirroredMeta.original, mirroredMeta.returned]).toEqual([
+    { contentType: 'image/png', width: 600, height: 400 },
+    { mimeType: 'image/webp', width: 600, height: 400, downscaled: false },
+  ]);
+});
