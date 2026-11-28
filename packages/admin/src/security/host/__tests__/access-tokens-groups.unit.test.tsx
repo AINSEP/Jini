@@ -289,3 +289,19 @@ describe("AddCustomCredentialDialog", () => {
   });
 });
 
+
+describe("search visibility of saved groups", () => {
+  it("keeps a provider or store with saved rows on screen when its own name does not match the query, and hides empty non-matching ones", () => {
+    const saved = providerGroup(providerInfo({ providerId: "host", label: "Host Pages" }), [rowState({ id: "row-1", name: "Deploy bot" })]);
+    const unsaved = providerGroup(providerInfo({ providerId: "other-host", label: "Other Host" }));
+    const item = { key: "media:cloud", itemId: "cloud", store: MEDIA_STORE, name: "Cloud images", valueFact: "tail", updatedAt: null, token: "", saving: false, error: null };
+    renderTab({
+      controller: fakeController({ query: "deploy", groups: [saved, unsaved] }),
+      other: fakeOtherController({ groups: [{ store: MEDIA_STORE, rows: [item] }, { store: { ...MEDIA_STORE, id: "external-mcp", label: "MCP servers" }, rows: [] }] }),
+    });
+    expect(screen.getByDisplayValue("Deploy bot")).toBeInTheDocument();
+    expect(screen.queryByText("Other Host")).toBeNull();
+    expect(screen.getByText("other media-provider: Cloud images")).toBeInTheDocument();
+    expect(screen.queryByText("other external-mcp: none")).toBeNull();
+  });
+});
