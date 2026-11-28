@@ -84,3 +84,29 @@ test("active users cannot be purged and the injected account guard protects disa
     expect(await f.kernel.query(sql`SELECT * FROM principals`)).toHaveLength(1);
   } finally { await f.kernel.close(); }
 });
+
+test("a missing principal is reported as absent by every operation and nothing is written", async () => {
+  const f = await fixture();
+  try {
+    const ghost = { ...input, entityId: "ghost" };
+    expect(await f.adapter.hide(ghost)).toEqual({ ok: false, reason: "not-found" });
+    expect(await f.adapter.unhide(ghost)).toEqual({ ok: false, reason: "not-found" });
+    expect(await f.adapter.purge(ghost)).toBe("already-gone");
+    expect(f.assertAccountAction).not.toHaveBeenCalled();
+    expect(await f.kernel.query(sql`SELECT * FROM outbox_events`)).toEqual([]);
+  } finally { await f.kernel.close(); }
+});
+
+test("events carry the login username when one exists, and a restore to disabled leaves disabled_at as it was", async () => {
+  const f = await fixture();
+  try {
+    await f.kernel.execute(sql`INSERT INTO identity_users VALUES ('site','member','member-login'), ('other-site','member','elsewhere')`);
+    await f.adapter.hide(input);
+    await f.kernel.execute(sql`UPDATE principals SET status = 'suspended'`);
+    expect(await f.adapter.unhide(input)).toEqual({ ok: true, version: null });
+    expect(await f.kernel.query(sql`SELECT status, disabled_at FROM principals`)).toEqual([{ status: "disabled", disabled_at: "now" }]);
+    const events = (await f.kernel.query<{ type: string; payload: string }>(sql`SELECT type, payload FROM outbox_events`))
+      .map(row => [row.type, (JSON.parse(row.payload) as { username: string }).username]);
+    expect(events).toEqual([["identity.user.trashed", "member-login"], ["identity.user.restored", "member-login"]]);
+  } finally { await f.kernel.close(); }
+});
