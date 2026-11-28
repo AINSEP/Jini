@@ -175,6 +175,34 @@ describe("useSkills", () => {
   });
 });
 
+describe("useSkills reload and file pickers", () => {
+  it("a reload whose list read fails resolves anyway, leaving the error to the query", async () => {
+    const harness = skillsHarness({ skills: [] });
+    const view = await mount(useSkills, harness.props);
+    harness.load.mockRejectedValueOnce(new Error("offline"));
+    let settled: unknown = "pending";
+    await act(async () => { settled = await view.current().reload(); });
+    expect(settled).toBeUndefined();
+    expect(harness.load).toHaveBeenCalledTimes(1);
+    expect(view.current().error).toBeNull();
+  });
+
+  it("the choose-files and choose-folder actions open their own hidden input", async () => {
+    const harness = skillsHarness({ skills: [] });
+    const view = await mount(useSkills, harness.props);
+    const opened: string[] = [];
+    const filesInput = document.createElement("input");
+    const folderInput = document.createElement("input");
+    filesInput.addEventListener("click", (event) => { event.preventDefault(); opened.push("files"); });
+    folderInput.addEventListener("click", (event) => { event.preventDefault(); opened.push("folder"); });
+    view.current().filesInput.current = filesInput;
+    view.current().folderInput.current = folderInput;
+    view.current().onChooseFiles();
+    view.current().onChooseFolder();
+    expect(opened).toEqual(["files", "folder"]);
+  });
+});
+
 type FilesProps = Parameters<typeof useSkillFiles>[0];
 
 function filesHarness(options: { data?: SkillFiles; queryError?: Error | null; readError?: string | null } = {}) {
@@ -342,4 +370,41 @@ describe("useSkillInstall failures", () => {
     await act(async () => { view.current().cancel(); });
     expect(view.current()).toMatchObject({ pending: null, error: null });
   });
+
+  it("hands describeFailure an untranslated message for both the read and the install failure", async () => {
+    const translated: string[] = [];
+    const describeFailure = ({ message, error, t }: { error: unknown; message: string; t: Translate }): UserFacingError => {
+      const text = t(message);
+      translated.push(text);
+      return failureOf({ message: text, error });
+    };
+    const view = await mount(useSkillInstall, { installSkill: async () => { throw new Error("conflict"); }, prepareSkillUpload: async () => { throw new Error("zip broken"); }, describeFailure });
+    await act(async () => { await view.current().proposeFiles([new File(["x"], "skill.zip")]); });
+    await act(async () => { view.current().propose({ githubUrl: "https://github.com/acme/skills" }); });
+    await act(async () => { await view.current().confirm(); });
+    expect(translated).toEqual(["Could not read skill.", "Could not install skill."]);
+  });
+
+  it("a confirmed install with no onInstalled callback clears the proposal without an error", async () => {
+    const installSkill = vi.fn(async (_payload: SkillInstallPayload) => {});
+    const view = await mount(useSkillInstall, { installSkill, prepareSkillUpload: async () => ({ githubUrl: "u" }), describeFailure: failureOf });
+    await act(async () => { view.current().propose({ githubUrl: "https://github.com/acme/skills" }); });
+    await act(async () => { await view.current().confirm(); });
+    expect(installSkill).toHaveBeenCalledExactlyOnceWith({ githubUrl: "https://github.com/acme/skills" });
+    expect(view.current()).toMatchObject({ pending: null, error: null, busy: false });
+  });
+
+  it("a confirmed install stays busy until onInstalled has settled, then clears the proposal", async () => {
+    let finish: () => void = () => {};
+    const onInstalled = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const view = await mount((p: Parameters<typeof useSkillInstall>[0]) => useSkillInstall(p, { onInstalled }), { installSkill: async () => {}, prepareSkillUpload: async () => ({ githubUrl: "u" }), describeFailure: failureOf });
+    await act(async () => { view.current().propose({ githubUrl: "https://github.com/acme/skills" }); });
+    let confirmed: Promise<void> = Promise.resolve();
+    await act(async () => { confirmed = view.current().confirm(); });
+    expect(onInstalled).toHaveBeenCalledTimes(1);
+    expect(view.current()).toMatchObject({ busy: true, pending: null });
+    await act(async () => { finish(); await confirmed; });
+    expect(view.current()).toMatchObject({ busy: false, pending: null, error: null });
+  });
 });
+
