@@ -9,7 +9,8 @@ import { fakeAdminKit } from "../../../../react/testing-kit.js";
 import { DockHeader, type DockConversationTools, type DockHeaderProps } from "../DockHeader.js";
 import type { KitConversationListProps } from "../../../../react/kit.js";
 import { CHAT_TOOL_CALL_OPTIONS, DEFAULT_CHAT_DISPLAY } from "../chat-display-preferences.js";
-import { REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
+import { DEFAULT_ASSISTANT_RUNTIME_PREFERENCES, REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
+import { SubagentsIndicator } from "../SubagentsIndicator.js";
 import { DockCleanupHeader, type DockChatCleanup } from "../DockCleanupHeader.js";
 
 /**
@@ -106,6 +107,13 @@ describe("DockHeader", () => {
     expect(within(await openSettingsMenu()).getByRole("status")).toHaveTextContent(SAVE_FAILED);
   });
 
+  it("reports a failed runtime preference save in the gear menu", async () => {
+    const runtime = { preferences: { ...DEFAULT_ASSISTANT_RUNTIME_PREFERENCES }, update: vi.fn(),
+      visible: { preferSubagents: true, useClaudeInChrome: false, replyLength: true }, saveFailed: true };
+    render(<DockHeader {...headerProps({ runtime })} />);
+    expect(within(await openSettingsMenu()).getByRole("status")).toHaveTextContent(SAVE_FAILED);
+  });
+
   it("shows no save notice in the gear menu when both choices saved", async () => {
     render(<DockHeader {...headerProps()} />);
     expect(within(await openSettingsMenu()).queryByRole("status")).toBeNull();
@@ -152,5 +160,51 @@ describe("DockHeader conversation tools", () => {
     expect(props.hooks).toBeUndefined();
     expect(props.selectable).toBeUndefined();
     expect(props.conversations.map((row) => row.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("DockHeader subagents indicator and delete gate", () => {
+  it("shows the subagents icon beside the switcher, its tip translated for the dock's locale, only when settings name a tooltip", () => {
+    const useSubagentsSettingsHook = vi.fn((_required: { mode: string; agentId: string | null }) => ({ tooltipKey: "subagents.on" as string | null }));
+    const translateAiAssistant = vi.fn(({ locale, key }: { locale: string; key: string }) => `${locale}:${key}`);
+    const { rerender } = render(<DockHeader {...headerProps({ mode: "local-cli", agentId: "codex", locale: "fr", translateAiAssistant, useSubagentsSettingsHook })} />);
+
+    expect(useSubagentsSettingsHook).toHaveBeenLastCalledWith({ mode: "local-cli", agentId: "codex" });
+    const indicator = screen.getByRole("status");
+    expect(indicator).toHaveClass("jini-chat-pane__subagents");
+    expect(indicator.closest(".jini-chat-pane__header")).not.toBeNull();
+    expect(within(indicator).getByTitle("fr:subagents.on")).toBeInTheDocument();
+    expect(translateAiAssistant).toHaveBeenCalledWith({ locale: "fr", key: "subagents.on" });
+
+    useSubagentsSettingsHook.mockImplementation(() => ({ tooltipKey: null }));
+    rerender(<DockHeader {...headerProps({ translateAiAssistant, useSubagentsSettingsHook })} />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("gates a conversation delete behind the admin's danger confirm dialog, naming the conversation", async () => {
+    const seen: KitConversationListProps[] = [];
+    const listKit = fakeAdminKit({ chat: { ConversationList: (props: KitConversationListProps) => { seen.push(props); return null; } } });
+    const confirm = vi.fn(async () => false);
+    const chatI18n = { locale: "en", t: (key: string, vars: Record<string, string | number> = {}) => `<${key.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name]))}>` };
+    rtlRender(<DockHeader {...headerProps({ chatI18n, conversationDelete: { confirm } })} />, { wrapper: ({ children }) => <AdminKitProvider kit={listKit}>{children}</AdminKitProvider> });
+
+    const confirmDelete = seen.at(-1)!.confirmDelete!;
+    await expect(confirmDelete({ id: "a", title: "Alpha" })).resolves.toBe(false);
+    expect(confirm).toHaveBeenLastCalledWith({ dialog: {
+      title: "<Delete conversation>",
+      body: "<Delete \"Alpha\"? This cannot be undone.>",
+      confirmLabel: "<Delete conversation>",
+      tone: "danger",
+    } });
+
+    await confirmDelete({ id: "b", title: null });
+    expect(confirm).toHaveBeenLastCalledWith({ dialog: expect.objectContaining({ body: "<Delete \"<Untitled>\"? This cannot be undone.>" }) });
+  });
+});
+
+describe("SubagentsIndicator", () => {
+  it("shows the settings' tooltip key untranslated when the host passes no translator", () => {
+    render(<SubagentsIndicator mode="local-cli" agentId={null} useSettings={() => ({ tooltipKey: "Subagents are on" })} />);
+    expect(within(screen.getByRole("status")).getByTitle("Subagents are on")).toBeInTheDocument();
   });
 });
