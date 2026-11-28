@@ -223,6 +223,21 @@ describe('attachAcpSession', () => {
       emitResult(child, 3, {});
       expect(controller.completedSuccessfully()).toBe(true);
     });
+    it('a broken pipe while refusing an unknown request is left to the transport lifecycle and the prompt still completes', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      const controller = attachWith(baseOptions(child, { send }));
+      handshakeToSessionNew(child);
+      const count = writesOf(child).length;
+      child.stdin!.failWith = new Error('EPIPE');
+      expect(() => emitLine(child, { jsonrpc: '2.0', id: 'x-8', method: 'fs/read_text_file', params: { path: '/a' } })).not.toThrow();
+      expect(writesOf(child)).toHaveLength(count);
+      expect(controller.hasFatalError()).toBe(false);
+      expect(send.mock.calls.filter(([message]) => message.event === 'error')).toEqual([]);
+      child.stdin!.failWith = null;
+      emitResult(child, 3, {});
+      expect(controller.completedSuccessfully()).toBe(true);
+    });
     it('does not answer an unknown notification', () => {
       const child = new FakeAcpChild();
       attachWith(baseOptions(child));
