@@ -198,7 +198,10 @@ test("contributed import tools log an egress refusal to the host's refusal log, 
     // The tool surfaces only the caller-safe text as a tool input error; the resolved address never reaches the model.
     const error = await result.catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ToolInputError);
-    expect((error as Error).message).toMatch(/^That address is not allowed\.\. Fix the input and retry/);
+    // Exact caller-safe sentence first, then the retry guidance; the separator between them is not pinned
+    // (core's decorateWithSchema currently doubles the period after a message that already ends in one).
+    expect((error as Error).message.startsWith("That address is not allowed.")).toBe(true);
+    expect((error as Error).message).toContain("Fix the input and retry — this will not resolve on retry without an input change.");
     expect((error as Error).message).not.toContain("10.0.4.7");
     const line = "[media-import] media_import_from_url egress refused: resolves 10.0.4.7";
     if (hostLog) {

@@ -221,6 +221,10 @@ it("verification runs against the bound media ports and reports nothing when med
   await f.handler.apply({ entity: f.entity, expectedVersion: undefined, principalId: "human", idempotencyKey: "create" });
   const verifyApplied = (f.handler as unknown as { verifyApplied: (input: { entities: unknown[] }) => Promise<unknown[]> }).verifyApplied;
   expect(await verifyApplied({ entities: [f.entity] })).toEqual([]);
+  // The bound blob store is what is checked: once the row's bytes are gone from it, the same call
+  // must report the item, so a verifier that never consults the ports cannot pass.
+  await f.blobStore.remove({ storageKey: computeBlobStorageKey({ workspaceId: "site", sha256: f.record.source.sha256 }) });
+  expect(await verifyApplied({ entities: [f.entity] })).toEqual(["Media 'video' is on the site without its file, so it cannot be shown."]);
   const { contributeMediaPublish: bound } = bindMediaPublishContributor({ createRepoPublishHandler, sha256: { bytesMatchSha256, isValidSha256Hex }, createHash, createBlobWriteBindings: createHostBlobWriteBindings, uploadCaps: f.uploadCaps });
   const unwired = bound().build({ ...f.deps, ports: {} }) as unknown as { verifyApplied: (input: { entities: unknown[] }) => Promise<unknown[]>; precheck: (input: { entity: unknown }) => Promise<unknown> };
   expect(await unwired.verifyApplied({ entities: [f.entity] })).toEqual([]);
