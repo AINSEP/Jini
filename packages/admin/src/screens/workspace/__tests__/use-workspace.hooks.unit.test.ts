@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
-import type { FormEvent } from "react";
+import { act, renderHook, testAdminKit, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { createElement, type FormEvent, type ReactNode } from "react";
+import { AdminKitProvider } from "../../../react/kit.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminWorkspaceResponse as AdminWorkspace } from "@jini-ai/core/contracts/site/cms-workspace";
@@ -242,5 +243,17 @@ describe("workspace cache and form drafts", () => {
     await waitFor(() => expect(view.result.current.workspace?.name).toBe("Renamed elsewhere"));
     expect(view.result.current.name).toBe("My draft");
     expect(view.result.current.slug).toBe(WORKSPACE.slug);
+  });
+
+  it("keeps workspace null, not undefined, while a host query binding has not published the read the loader hydrated from", async () => {
+    // A host may bind its own reactive query; this one never publishes data, while the loader still reads the port.
+    const lagging = () => ({ data: undefined, status: "loading" as const, error: null, isFetching: true, refetch: () => {} });
+    const kit = { ...testAdminKit, query: { ...testAdminKit.query, useFetchQuery: lagging } };
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(AdminKitProvider, { kit, children });
+    const { result } = renderHook(() => useWorkspace(deps(createFakePort({ workspace: WORKSPACE }))), { wrapper });
+    await waitFor(() => expect(result.current.name).toBe(WORKSPACE.name));
+    expect(result.current.slug).toBe(WORKSPACE.slug);
+    expect(result.current.workspace).toBeNull();
+    expect(result.current.error).toBeNull();
   });
 });
