@@ -213,6 +213,36 @@ describe('useTabStripDragReorder', () => {
       expect(result.current.dragOverTarget).toEqual({ tabId: 'c', edge: 'after' });
     });
 
+    it('falls back to the scan instead of throwing when the dragover target is a text node, not an element', () => {
+      const tabs = [tab({ id: 'a' }), tab({ id: 'b' }), tab({ id: 'c' })];
+      const { result } = renderHook(() => useTabStripDragReorder({ tabs, onReorder: vi.fn() }));
+      const strip = buildStrip([
+        { id: 'a', left: 0, right: 100, width: 100 },
+        { id: 'b', left: 100, right: 200, width: 100 },
+        { id: 'c', left: 200, right: 300, width: 100 },
+      ]);
+      // A tab's label text: `EventTarget` admits a Text node, which has no `closest()`.
+      const label = document.createTextNode('Tab b');
+      strip.querySelector('[data-tab-strip-item-id="b"]')!.appendChild(label);
+      act(() => {
+        (result.current.stripRef as { current: HTMLDivElement | null }).current = strip;
+      });
+      act(() => {
+        result.current.getItemDragProps('a').onDragStart({ dataTransfer: makeDataTransfer() } as never);
+      });
+
+      act(() => {
+        result.current.stripDragProps.onDragOver({
+          clientX: 130,
+          target: label,
+          dataTransfer: makeDataTransfer(),
+          preventDefault: vi.fn(),
+        } as never);
+      });
+
+      expect(result.current.dragOverTarget).toEqual({ tabId: 'b', edge: 'before' });
+    });
+
     it('finds no target (and leaves state untouched) when the only item left in the strip is the drag source itself', () => {
       // Simulates the source's sibling tab(s) having been closed mid-drag —
       // the fallback scan finds only the dragged tab's own element, which it
