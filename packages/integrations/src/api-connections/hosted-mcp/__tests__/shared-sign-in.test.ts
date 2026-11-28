@@ -49,6 +49,16 @@ describe("shared sign-in through the hosted MCP service", () => {
     expect(owner.records.get(credentialId)).toMatchObject({ workspaceId: "owner-ws", status: "disconnected", revision: 1, generation: 0 });
     expect(rig.h.repo.rows.get("srv")?.oauthStatus).toBeNull();
   });
+  it("refuses to start when the owner record vanishes between selecting the credential and reading it", async () => {
+    const { owner, rig } = sharedRig();
+    const set = owner.shared.bindings.set;
+    // A concurrent global stop removes the owner record right after this site's binding is written.
+    Object.assign(owner.shared.bindings, { set: async (input: { consumerId: string; credentialId: string }) => { await set(input); owner.records.delete(input.credentialId); } });
+    await expect(rig.service.beginConnect({ serverId: "srv", destination: "shared", redirectUri: CB, delivery: "hosted", actorId: OWNER }))
+      .rejects.toThrow("shared-unavailable");
+    expect(owner.records.size).toBe(0);
+    expect(rig.h.repo.rows.get("srv")?.oauthStatus).toBeNull();
+  });
   it("takes the shared audience from the server URL when the row stores none, and omits it when there is no URL", async () => {
     for (const [url, resource] of [["https://mcp.example.test/mcp", "https://mcp.example.test/mcp"], [null, undefined]] as const) {
       const { owner, rig } = sharedRig({ row: { oauthEndpointsJson: null, url } });
