@@ -42,3 +42,8 @@ test("nested hostile labels are inert, hostile hrefs are refused and unavailable
 test("render-time rel preserves quoted nonstandard tokens and authored token order", () => {
   assert.equal(menuLinkRelAttr({ openInNewTab: true, rel: 'noreferrer x"y' }), ' rel="noreferrer x&quot;y noopener"');
 });
+
+test("non-object entries in a stored item list render nothing while their object siblings still render", () => {
+  assert.equal(renderWidgetMenu({ props: { items: [null, "Loose text", 7, ["/nested"], { label: "Home", href: "/", available: true }] } }),
+    '<nav class="widget widget-menu"><ul><li><a href="/">Home</a></li></ul></nav>');
+});

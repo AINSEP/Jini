@@ -62,3 +62,9 @@ test("optional CSS author values ignore non-strings without coercing and trim su
   assert.equal(safeCssFontFamily({ value: "  Georgia, serif  " }), "Georgia, serif");
   assert.equal(safeCssLength({ value: "  1.25rem  " }), "1.25rem");
 });
+
+test("language classes ignore non-string attribute values instead of coercing them into a class token", () => {
+  for (const value of [false, 12, ["js"], null, undefined, { language: "js" }]) {
+    assert.equal(safeLanguageClass({ value }), null);
+  }
+});

@@ -35,3 +35,8 @@ it('edits source-located identity inside template content without reserializing 
     '<main>  ♥ <template data-theme="keep"><link rel="canonical" href="https://shop.example/card"><p data-slot="inner">  &amp;  </p></template> tail</main>',
   );
 });
+
+it('keeps an href-less non-canonical link, and leaves an unterminated trailing JSON-LD block byte-for-byte because it has no end tag to edit between', () => {
+  const html = '<head><link rel="preconnect"><link rel="icon" href="/favicon.ico"></head><body><script type="application/ld+json">{"url":"/kept","name":"Tail"}';
+  expect(exportHtml({ html, stripNativeFormTools: input => input.html })).toBe(html);
+});

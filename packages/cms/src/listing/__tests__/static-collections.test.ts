@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { collectionMarkerKey, splitCollectionMarkerInner, injectCollectionEmbeds } from "../static-collections.js";
-import { markersOfType, COLLECTION_MARKER_TYPE } from "../../widgets/markers/marker.js";
+import { markersOfType, COLLECTION_MARKER_TYPE, MENU_MARKER_TYPE } from "../../widgets/markers/marker.js";
 
 test("splitCollectionMarkerInner: no <template> -> whole inner content is the fallback, no template returned", () => {
   const result = splitCollectionMarkerInner({ inner: "<p>empty state</p>" });
@@ -75,4 +75,11 @@ test("only the built-in listing wrapper keeps the see-more identity", () => {
   assert.equal(injectCollectionEmbeds({ html, lists: new Map([[key, rendered]]) }),
     '<section class="recipes"><div data-jini-listing="3"><article>Chili</article></div></section>');
   assert.equal(injectCollectionEmbeds({ html, lists: new Map([[key, undefined]]) }), html);
+});
+
+test("injectCollectionEmbeds leaves another widget's marker as authored even when a list is keyed exactly like it", () => {
+  const html = `<nav data-embed-config='{"type":"menu","location":"header"}'>Menu fallback</nav>`;
+  const [menu] = markersOfType({ html, type: MENU_MARKER_TYPE });
+  assert.ok(menu !== undefined);
+  assert.equal(injectCollectionEmbeds({ html, lists: new Map([[collectionMarkerKey(menu), "<b>hijacked</b>"]]) }), html);
 });

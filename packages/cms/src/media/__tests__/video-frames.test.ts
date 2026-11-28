@@ -102,6 +102,13 @@ describe('ffprobe metadata', () => {
       expect(() => parseVideoProbe({ output, sizeBytes: 42 }, {})).toThrow(output === 'invalid JSON' ? syntaxError.message : 'Video metadata is missing or invalid.');
     }
   });
+  // Gap fill (cloud A3-4). Mutation: drop the Number.isInteger guard (a fractional or absent side would then pass or compare as NaN).
+  it('rejects a fractional, absent or textual dimension even with a usable duration', () => {
+    for (const dims of [{ width: 10.5, height: 10 }, { width: 10 }, { width: '10', height: 10 }, { width: 10, height: 7.25 }]) {
+      const output = JSON.stringify({ format: { duration: '1' }, streams: [{ codec_type: 'video', ...dims }] });
+      expect(() => parseVideoProbe({ output, sizeBytes: 42 }, {})).toThrow('Video metadata is missing or invalid.');
+    }
+  });
 });
 
 
