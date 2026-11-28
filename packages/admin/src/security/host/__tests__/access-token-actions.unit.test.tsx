@@ -36,7 +36,7 @@ const sourceCredential = (over: Partial<AdminSourceControlCredentialSummary> = {
 const categories = [{ id: "all" as const, label: "All" }, { id: "hosting" as const, label: "Hosting" }];
 const providerCopy = { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" };
 
-function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[] } = {}) {
+function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; onRefresh?: { current: (() => void) | null } } = {}) {
   const port: AccessTokensArgs["port"] = {
     publish: {
       list: vi.fn(async () => ({ credentials: [publishCredential()], executionMode: "hosted-api-only" as const })),
@@ -80,7 +80,8 @@ function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCr
     buildAccessTokenUpdatePatch: vi.fn(({ fields, nameChanged }) => (nameChanged ? { label: fields.name.trim() } : { connection: { token: fields.token } as never })),
     classifyAccessTokenSubmitError: () => ({ kind: "generic" }),
   };
-  const hook = renderHook(() => useAccessTokens({ port, locale: "en", t: (key) => `t(${key})`, deps, hooks: { useFetchQuery, useSettlementGeneration, useContentRefreshSubscription: () => {} } }));
+  const useContentRefreshSubscription = ({ onRefresh }: { resource: string; onRefresh: () => void }) => { if (options.onRefresh) options.onRefresh.current = onRefresh; };
+  const hook = renderHook(() => useAccessTokens({ port, locale: "en", t: (key) => `t(${key})`, deps, hooks: { useFetchQuery, useSettlementGeneration, useContentRefreshSubscription } }));
   return { port, deps, ready, ...hook };
 }
 
@@ -419,5 +420,73 @@ describe("access-token remove, make-default and custom-key actions", () => {
     await act(async () => { await hook.result.current.setCustomKeyUse({ row: requireRow(hook, "cus-p"), use: false }); });
     expect(hook.port.custom.useKey).toHaveBeenNthCalledWith(2, { keyId: "cus-p", use: false });
     expect(hook.result.current.customKeyBusy["cus-p"]).toEqual({ saving: false, error: null });
+  });
+});
+
+describe("access-token actions on a store that is not loaded", () => {
+  it.each([
+    ["hosting", "publish", HOST, "pub-2"],
+    ["source-control", "sourceControl", SOURCE, "src-2"],
+  ] as const)("adds a new %s token as the store's only row when a reload lost the list while the create was in flight", async (_name, store, ref, newId) => {
+    const onRefresh: { current: (() => void) | null } = { current: null };
+    const hook = await loaded({ onRefresh });
+    const answer = store === "publish" ? publishCredential({ id: newId, label: "Fresh", isDefault: false }) : sourceCredential({ id: newId, label: "Fresh", isDefault: false });
+    let release: (value: typeof answer) => void = () => {};
+    vi.mocked(hook.port[store].create).mockImplementationOnce((() => new Promise((resolve) => { release = resolve; })) as never);
+    act(() => hook.result.current.setAddField(ref, { name: "Fresh", token: "tok-a" }));
+    const pending = hook.result.current.createToken(ref);
+    vi.mocked(hook.port[store].list).mockRejectedValue(new Error("offline"));
+    await act(async () => { onRefresh.current!(); });
+    await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: offline|t(unknown error)"));
+    await act(async () => { release(answer); await pending; });
+    expect(rows(hook).filter((row) => row.kind === ref.kind).map((row) => row.id)).toEqual([newId]);
+  });
+
+  it.each([
+    ["hosting", "publish", HOST, "pub-2"],
+    ["source-control", "sourceControl", SOURCE, "src-2"],
+  ] as const)("promotes a %s token from the server's answer even when a reload lost the list mid-flight", async (_name, store, ref, newId) => {
+    const onRefresh: { current: (() => void) | null } = { current: null };
+    const hook = await loaded({ onRefresh });
+    // A created token is not the default (the source-control fake answers isDefault: true by default).
+    if (store === "sourceControl") vi.mocked(hook.port.sourceControl.create).mockResolvedValueOnce(sourceCredential({ id: newId, label: "Second", isDefault: false }));
+    act(() => hook.result.current.setAddField(ref, { name: "Second", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(ref); });
+    const answer = store === "publish" ? publishCredential({ id: newId, label: "Second", isDefault: true }) : sourceCredential({ id: newId, label: "Second", isDefault: true });
+    let release: (value: typeof answer) => void = () => {};
+    vi.mocked(hook.port[store].update).mockImplementationOnce((() => new Promise((resolve) => { release = resolve; })) as never);
+    const pending = hook.result.current.makeDefault(requireRow(hook, newId));
+    // A refresh lands while the promotion is in flight and this store's re-read fails.
+    vi.mocked(hook.port[store].list).mockRejectedValue(new Error("offline"));
+    await act(async () => { onRefresh.current!(); });
+    await waitFor(() => expect(rows(hook).some((row) => row.kind === ref.kind)).toBe(false));
+    await act(async () => { release(answer); await pending; });
+    expect(hook.deps.withPromotedDefault).toHaveBeenCalledWith({ credentials: [], promoted: answer });
+  });
+});
+
+
+describe("access-token reloads", () => {
+  it("drops the custom rows, keeps the others and names the failure when the custom reload fails", async () => {
+    const onRefresh: { current: (() => void) | null } = { current: null };
+    const hook = await loaded({ onRefresh });
+    vi.mocked(hook.port.custom.list).mockRejectedValue(new Error("vault locked"));
+    await act(async () => { onRefresh.current!(); });
+    await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: vault locked|t(unknown error)"));
+    expect(rows(hook).map((row) => row.id)).toEqual(["pub-1"]);
+  });
+
+  it("ignores an older reload that settles after a newer one", async () => {
+    const onRefresh: { current: (() => void) | null } = { current: null };
+    const hook = await loaded({ onRefresh });
+    let failOlder: (error: Error) => void = () => {};
+    vi.mocked(hook.port.publish.list).mockImplementationOnce((() => new Promise((_resolve, reject) => { failOlder = reject; })) as never);
+    await act(async () => { onRefresh.current!(); });
+    vi.mocked(hook.port.publish.list).mockResolvedValueOnce({ credentials: [publishCredential({ id: "pub-9", label: "Newer" })], executionMode: "hosted-api-only" } as never);
+    await act(async () => { onRefresh.current!(); });
+    await waitFor(() => expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-9"]));
+    await act(async () => { failOlder(new Error("stale failure")); });
+    expect(hook.result.current.loadError).toBeNull();
+    expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-9"]);
   });
 });
