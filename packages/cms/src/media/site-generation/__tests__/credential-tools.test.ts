@@ -114,3 +114,72 @@ it("media-provider contribution dispatches its safe configured marker using the 
   expect(await registration!.handler(input)).toEqual({ providers: [{ id: "selected", label: "Selected", integrated: true, configured: true, kinds: ["image", "video"] }] });
   expect(getMediaProviderCredentials.mock.calls).toEqual([[{ repo: f.deps.mediaProviderCredentialRepo }, { workspaceId: "ws" }]]);
 });
+
+const proposeCtx = (input: unknown) => ({ executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input, signal: new AbortController().signal });
+
+it("the request refuses extra fields, an unlisted provider and an over-long reason before authorization, and screens the reason", async () => {
+  const f = fixture();
+  const authorize = vi.fn(f.deps.authorize);
+  f.deps.authorize = authorize;
+  // `bare` has no image/video model, so it is not a media provider at all.
+  f.deps.mediaProviderRegistry = { ...f.deps.mediaProviderRegistry,
+    listProviders: () => [{ id: "selected", label: "Selected", hint: "", integrated: true }, { id: "bare", label: "Bare", hint: "", integrated: true }] };
+  await expect(saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "selected", apiKey: "pasted" }) }))
+    .rejects.toThrow("media_propose_provider_credential accepts only provider and reason; enter the key in the human form.");
+  await expect(saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "bare" }) }))
+    .rejects.toThrow("Unknown media provider. Call media_list_providers for supported provider ids.");
+  await expect(saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "selected", reason: "r".repeat(1001) }) }))
+    .rejects.toThrow("Credential setup reason must be at most 1000 characters.");
+  expect(vi.mocked(f.host.assertCredentialFreeField).mock.calls).toEqual([[{ value: "r".repeat(1001), field: "reason" }]]);
+  expect(authorize).not.toHaveBeenCalled();
+  const listing = await buildMediaProviderRegistrations(f)[0]!.handler(proposeCtx({}));
+  expect(listing).toEqual({ providers: [{ id: "selected", label: "Selected", integrated: true, configured: true, kinds: ["image", "video"] }] });
+});
+
+it("a provider dropped from the registry between parsing and listing is a named fault, not a card", async () => {
+  const f = fixture();
+  let reads = 0;
+  f.deps.mediaProviderRegistry = { ...f.deps.mediaProviderRegistry,
+    listProviders: () => (++reads === 1 ? [{ id: "selected", label: "Selected", hint: "", integrated: true }] : []) };
+  await expect(saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "selected", reason: "set up" }) })).rejects.toThrow("Media provider list has no selected provider");
+  expect(f.host.secureCard).not.toHaveBeenCalled();
+});
+
+it("an integrated provider saved without a key hint reads as plainly saved; expired and abandoned forms record no outcome", async () => {
+  const f = fixture();
+  f.host.credentialText = ({ id }) => ({ saved: "Key saved.", blank: "Enter a key.", generationUnavailable: "Generation is not available." })[id];
+  f.host.formatCredentialHint = ({ hint }) => hint?.last4 ? `Ends in ${hint.last4}` : "";
+  const records: unknown[] = [];
+  f.host.secureCard = async ({ prep, result, outcome }) => {
+    expect(prep).toEqual({ provider: { id: "selected", label: "Selected", integrated: true, kinds: ["image", "video"] }, configured: true, reason: "rotate", locale: "en" });
+    for (const run of [{ status: "expired" }, { status: "abandoned" }] as const) records.push(outcome({ prep, run }));
+    const run = { status: "saved", saved: { configured: true, tokenHint: null } } as const;
+    records.push(outcome({ prep, run }));
+    return result({ prep, run });
+  };
+  expect(await saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "selected", reason: "rotate" }) })).toEqual({
+    saved: true, provider: "selected", configured: true, tokenHint: null, connection: "not_tested", message: "Key saved.",
+  });
+  expect(records).toEqual([undefined, undefined, { title: "Provider key saved", state: "success", message: "Key saved." }]);
+});
+
+it("the human-submitted save reaches the store's vault and writes a new provider row with no prior model or base URL", async () => {
+  const f = fixture();
+  const vault = { put: vi.fn(), get: vi.fn(), delete: vi.fn() } as unknown as NonNullable<MediaProviderCredentialRepoPort["vault"]>;
+  let written: unknown;
+  f.deps.mediaProviderCredentialRepo = { ...f.deps.mediaProviderCredentialRepo, vault,
+    replaceWorkspace: async ({ plan }) => { const patch = plan({ existing: [] }); written = patch; return patch.upserts; } };
+  const fresh = { workspaceId: "ws", providerId: "selected", baseUrl: "https://planned.example", model: "planned", sealed: null, keyTail: "tail", aadVersion: 1, createdAt: "stamp", updatedAt: "stamp" };
+  f.host.saveProviders = vi.fn(async ({ deps }) => {
+    expect(deps.repo.vault).toBe(vault);
+    await deps.repo.replaceWorkspace({ workspaceId: "ws", plan: () => ({ upserts: [fresh], tombstoneProviderIds: [] }) });
+    return { selected: { apiKeyConfigured: true, apiKeyHint: { length: 10, last4: "tail" } } };
+  });
+  f.host.secureCard = async ({ save }) => {
+    expect(await save({ value: "typed-key", signal: new AbortController().signal })).toEqual({ configured: true, tokenHint: { length: 10, last4: "tail" } });
+    return { saved: true, provider: "selected", configured: true };
+  };
+  await saveMediaCredential({ ...f, ctx: proposeCtx({ provider: "selected" }) });
+  expect(vi.mocked(f.host.saveProviders).mock.calls[0]?.[1]).toEqual({ providers: { selected: { apiKey: "typed-key" } } });
+  expect(written).toEqual({ tombstoneProviderIds: [], upserts: [{ ...fresh, baseUrl: null, model: null }] });
+});
