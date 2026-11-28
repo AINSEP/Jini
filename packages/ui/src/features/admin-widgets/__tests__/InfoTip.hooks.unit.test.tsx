@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TIP_BOUNDS_ATTRIBUTE, useInfoTip } from "../components/InfoTip.hooks";
+import { TIP_BOUNDS_ATTRIBUTE, claimOpenTip, useInfoTip } from "../components/InfoTip.hooks";
 import { placeInfoTipBubble } from "../components/InfoTip.rules";
 
 /**
@@ -250,5 +250,21 @@ describe("useInfoTip", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("claimOpenTip", () => {
+  it("re-claiming with the same close keeps the slot without closing it, and hands back the same release", () => {
+    const close = vi.fn();
+    const first = claimOpenTip(close);
+    const again = claimOpenTip(close);
+    expect(close).not.toHaveBeenCalled();
+    expect(again).toBe(first);
+    // The one release frees the slot: a later claim by another tip no longer closes this one.
+    again();
+    const otherClose = vi.fn();
+    const releaseOther = claimOpenTip(otherClose);
+    expect(close).not.toHaveBeenCalled();
+    releaseOther();
   });
 });
