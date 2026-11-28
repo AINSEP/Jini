@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { GrantExceedsIssuerError, IdentityConflictError, IdentityForbiddenError, IdentityNotFoundError, IdentityValidationError, OwnerRequiredError } from "../../../../core/types.js";
 import {
-  hostRung, principalIdParam, rejectUserError, USER_CONFLICT_OWN_CODE, USER_FORBIDDEN, USER_GRANT_EXCEEDS_ISSUER, USER_NOT_FOUND,
+  adminUserForPrincipal, hostRung, principalIdParam, rejectUserError, USER_CONFLICT_OWN_CODE, USER_FORBIDDEN, USER_GRANT_EXCEEDS_ISSUER, USER_NOT_FOUND,
   USER_NOT_FOUND_CODELESS, USER_OWNER_REQUIRED, USER_USERNAME_CONFLICT, USER_VALIDATION, userActorId,
 } from "../shared.js";
-import { HostSelfDeleteError, refusalOf } from "./helpers.js";
+import { HostSelfDeleteError, refusalOf, seededIdentity, WORKSPACE_ID } from "./helpers.js";
 
 describe("users route shared rungs", () => {
   const cases: Array<[string, unknown, Parameters<typeof rejectUserError>[0]["rungs"][number], { status: number; body: unknown }]> = [
@@ -38,6 +38,21 @@ describe("users route shared rungs", () => {
     expect((await refusalOf(() => rejectUserError({ err, rungs: [USER_NOT_FOUND, USER_VALIDATION, hostRung({ matches: () => true, status: 500 })] }))).status).toBe(400);
     const unmapped = new Error("db down");
     expect(() => rejectUserError({ err: unmapped, rungs: [USER_FORBIDDEN] })).toThrow(unmapped);
+  });
+
+  it("answers a matched non-Error throw with its string form as the error text", async () => {
+    const rung = hostRung({ matches: ({ err }) => err === "quota-exceeded", status: 503, code: "HOST_BUSY" });
+    expect(await refusalOf(() => rejectUserError({ err: "quota-exceeded", rungs: [rung] }))).toEqual({ status: 503, body: { error: "quota-exceeded", code: "HOST_BUSY" } });
+  });
+
+  it("adminUserForPrincipal answers the paired user with grants and refuses a principal without a users row", async () => {
+    const { repos, ownerId } = await seededIdentity();
+    const owner = (await repos.principals.findById({ workspaceId: WORKSPACE_ID, id: ownerId }))!;
+    expect(await adminUserForPrincipal({ repos, workspaceId: WORKSPACE_ID, principal: owner })).toMatchObject({ principalId: ownerId, username: "admin" });
+    const ghost = { ...owner, id: "ghost-1" };
+    const refusal = adminUserForPrincipal({ repos, workspaceId: WORKSPACE_ID, principal: ghost });
+    await expect(refusal).rejects.toBeInstanceOf(IdentityNotFoundError);
+    await expect(refusal).rejects.toThrow("user 'ghost-1' was not found");
   });
 
   it("reads the actor id and the principal id param, failing closed without a principal", () => {

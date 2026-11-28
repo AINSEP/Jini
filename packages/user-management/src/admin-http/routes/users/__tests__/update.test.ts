@@ -23,6 +23,8 @@ describe("userUpdateRoute", () => {
   it("parses the PATCH fields, leaving omitted ones undefined, and flags a non-string username", () => {
     expect(userUpdateRoute.parse(raw({ principalId: "p1" }, { email: 7, username: "bo" }))).toEqual({ ok: true, value: input("p1", { email: "7", username: "bo" }) });
     expect(userUpdateRoute.parse(raw({}, undefined))).toEqual({ ok: true, value: input("") });
+    // `raw` defaults an undefined body to {}, so a JSON null body is what reaches the route's own `?? {}`.
+    expect(userUpdateRoute.parse(raw({ principalId: "p2" }, null))).toEqual({ ok: true, value: input("p2") });
     for (const username of [5, null, {}]) {
       expect(userUpdateRoute.parse(raw({ principalId: "p1" }, { username }))).toEqual({ ok: true, value: input("p1", { usernameIsInvalid: true }) });
     }
@@ -78,6 +80,17 @@ describe("userUpdateRoute", () => {
     const forbidden = await refusalOf(() => userUpdateRoute.handle({ input: input(alice, { email: "x@example.test" }), deps, context: { id: bob } }));
     expect(forbidden.status).toBe(403);
     expect(forbidden.body).toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("answers 404 naming the principal when it is gone by the time the response is assembled", async () => {
+    const { deps, services, alice } = await updateDeps();
+    const aliceUser = (await services.repos.users.findByPrincipalId({ workspaceId: WORKSPACE_ID, principalId: alice }))!;
+    const seen: unknown[] = [];
+    // The injected update succeeds for an id whose principal row no longer exists (deleted concurrently).
+    const vanishing: typeof deps.updateUser = async (required, optional) => { seen.push([required.input, optional]); return { user: aliceUser }; };
+    const refusal = await refusalOf(() => userUpdateRoute.handle({ input: input("ghost-3", { email: "g@example.test" }), deps: { ...deps, updateUser: vanishing }, context: { id: alice } }));
+    expect(seen).toEqual([[{ workspaceId: WORKSPACE_ID, callerPrincipalId: alice, principalId: "ghost-3" }, { email: "g@example.test", username: undefined, expectedVersion: undefined }]]);
+    expect(refusal).toEqual({ status: 404, body: { error: "principal 'ghost-3' was not found", code: "RESOURCE_NOT_FOUND" } });
   });
 
   it("rethrows an unmapped failure and fails closed without a principal", async () => {

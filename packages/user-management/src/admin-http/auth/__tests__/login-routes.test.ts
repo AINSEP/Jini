@@ -66,6 +66,10 @@ describe('POST /auth/login (U-AUTH-1)', () => {
     const { deps } = loginDeps(); await (await runLogin({ username: 123, password: null }, { deps })).result;
     expect(deps.login).toHaveBeenCalledWith({ input: { workspaceId: 'w1', username: '123', password: '' } }, { ip: '203.0.113.7', userAgent: 'ua', sessionTtlMs: 1000 });
   });
+  it('B3 coerces an absent username to "" and keeps the password string as sent', async () => {
+    const { deps } = loginDeps(); await (await runLogin({ password: 'pw-a' }, { deps })).result;
+    expect(deps.login).toHaveBeenCalledWith({ input: { workspaceId: 'w1', username: '', password: 'pw-a' } }, { ip: '203.0.113.7', userAgent: 'ua', sessionTtlMs: 1000 });
+  });
   it('starts the owner login when an MFA store is configured', async () => {
     const { deps } = loginDeps({ mfaStore: {} }); await (await runLogin({ username: 'u', password: 'p' }, { deps })).result;
     expect(deps.beginOwnerLogin).toHaveBeenCalledTimes(1); expect(deps.login).not.toHaveBeenCalled();

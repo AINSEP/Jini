@@ -48,6 +48,17 @@ describe("userListRoute", () => {
     expect(users.find((user) => user.principalId === bob)).toMatchObject({ isProtectedAccount: true, canRename: true, roleIds: [], policyIds: [] });
   });
 
+  it("omits a kind=user principal that has no paired users row, without asking its protection", async () => {
+    const { deps, services, ownerId, alice, bob, protections } = await listDeps();
+    const owner = await services.repos.principals.findById({ workspaceId: WORKSPACE_ID, id: ownerId });
+    await services.repos.principals.save({ ...owner!, id: "orphan-1", displayName: "Orphan" });
+    expect((await services.repos.principals.list({ workspaceId: WORKSPACE_ID })).map((p) => p.id)).toContain("orphan-1");
+    const result = await userListRoute.handle({ input: {}, deps, context: { id: alice } });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.value.users.map((user) => user.principalId).sort()).toEqual([alice, bob, ownerId].sort());
+    expect(protections).not.toContain("orphan-1");
+  });
+
   it("hides a disabled user who is in the Trash but keeps an intentionally disabled one", async () => {
     const { deps, services, alice, bob, trash } = await listDeps();
     for (const id of [alice, bob]) {

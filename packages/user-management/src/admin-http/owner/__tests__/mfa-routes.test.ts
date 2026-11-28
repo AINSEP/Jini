@@ -95,6 +95,16 @@ describe('owner MFA routes', () => {
       'begin:{"workspaceId":"site","principalId":"owner","password":"pw","code":"","label":"ada","issuer":"Site"}']);
   });
 
+  it('labels the enrollment "Owner" when the owner principal has no user row to name it', async () => {
+    const f = fixture();
+    const lookups: unknown[] = [];
+    const deps: OwnerMfaRouteDeps = { ...f.deps, findUserByPrincipalId: async (input) => { lookups.push(input); return null; } };
+    const reply = await call(ownerMfaEnrollRoute, deps, { body: { password: 'pw' } });
+    expect(reply).toMatchObject({ status: 200, body: { pendingToken: 'p', otpauthUrl: 'otpauth://x' } });
+    expect(lookups).toEqual([{ workspaceId: 'site', principalId: 'owner', password: 'pw', code: '' }]);
+    expect(f.calls.at(-1)).toBe('begin:{"workspaceId":"site","principalId":"owner","password":"pw","code":"","label":"Owner","issuer":"Site"}');
+  });
+
   it('maps a bad TOTP code to 400 and an unexpected failure to the host failure writer (rethrown, never disclosed)', async () => {
     const f = fixture();
     const bad = await call(ownerMfaConfirmRoute, f.deps, { body: { pendingToken: 't', code: 'bad' } });

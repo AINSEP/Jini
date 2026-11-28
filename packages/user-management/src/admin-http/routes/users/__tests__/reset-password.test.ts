@@ -30,6 +30,8 @@ describe("userResetPasswordRoute", () => {
   it("parses the principal id and password with the host's fallbacks", () => {
     expect(userResetPasswordRoute.parse(raw({ principalId: "p1" }, { password: 12345 }))).toEqual({ ok: true, value: { principalId: "p1", password: "12345" } });
     expect(userResetPasswordRoute.parse(raw({}, undefined))).toEqual({ ok: true, value: { principalId: "", password: "" } });
+    // `raw` defaults an undefined body to {}, so a JSON null body is what reaches the route's own `?? {}`.
+    expect(userResetPasswordRoute.parse(raw({ principalId: "p2" }, null))).toEqual({ ok: true, value: { principalId: "p2", password: "" } });
   });
 
   it("runs the injected guard, resets the password and answers no body", async () => {
