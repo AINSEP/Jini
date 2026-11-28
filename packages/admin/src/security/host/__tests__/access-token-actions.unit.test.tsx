@@ -36,7 +36,7 @@ const sourceCredential = (over: Partial<AdminSourceControlCredentialSummary> = {
 const categories = [{ id: "all" as const, label: "All" }, { id: "hosting" as const, label: "Hosting" }];
 const providerCopy = { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" };
 
-function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; publish?: AdminPublishCredentialSummary[]; source?: AdminSourceControlCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom" } = {}) {
+function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; publish?: AdminPublishCredentialSummary[]; source?: AdminSourceControlCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom"; pendingSourceProviders?: Promise<Array<{ id: string; label: string }>> } = {}) {
   const port: AccessTokensArgs["port"] = {
     publish: {
       list: vi.fn(async () => ({ credentials: options.publish ?? [publishCredential()], executionMode: "hosted-api-only" as const })),
@@ -64,6 +64,7 @@ function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCr
     sourceControlProviders: { list: vi.fn(async () => [{ id: "source", label: "Source" }]) },
   } as unknown as AccessTokensArgs["port"];
   if (options.failingList) vi.mocked(port[options.failingList].list).mockRejectedValue(new Error(`${options.failingList} forbidden`));
+  if (options.pendingSourceProviders) vi.mocked(port.sourceControlProviders.list).mockReturnValue(options.pendingSourceProviders as never);
   const ready = { add: true, existing: true };
   const deps: AccessTokensArgs["deps"] = {
     ACCESS_TOKENS_RESOURCE: "credentials", ACCESS_TOKEN_CATEGORIES: categories, ACCESS_TOKEN_PROVIDER_COPY: providerCopy,
@@ -600,5 +601,77 @@ describe("access-token custom replace and blank add form", () => {
     await act(async () => { await hook.result.current.createToken(SOURCE); });
     expect(hook.port.sourceControl.create).not.toHaveBeenCalled();
     expect(addForm(hook, "source-control", "source")).toMatchObject({ name: "", token: "", saving: false, error: "token required" });
+  });
+});
+
+describe("access-token saves issued before the provider catalogs settle", () => {
+  /** Every store has loaded but the source-control catalog is still in flight, so no row list exists yet. */
+  async function beforeCatalogs() {
+    let releaseCatalog: (providers: Array<{ id: string; label: string }>) => void = () => {};
+    const hook = setup({ pendingSourceProviders: new Promise((resolve) => { releaseCatalog = resolve; }) });
+    await waitFor(() => expect(hook.port.custom.list).toHaveBeenCalled());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(hook.result.current.groups).toBeUndefined();
+    return { hook, releaseCatalog: () => act(async () => { releaseCatalog([{ id: "source", label: "Source" }]); }) };
+  }
+  const hostRow: AccessTokenRow = { kind: "publish", providerId: "host", id: "pub-1", name: "Main host key", rawLabel: "Main host key", isDefault: true, createdAt: "2026-01-01", updatedAt: "2026-01-01", worksFor: ["host"] };
+  const customRow: AccessTokenRow = { kind: "custom", providerId: "cus-1", id: "cus-1", name: "Example API", rawLabel: "Example API", isDefault: false, createdAt: "2026-01-01", updatedAt: "2026-01-01", scope: "site", category: "general", baseUrl: "https://api.example.test", worksFor: [] };
+
+  it("leaves a hosting create's duplicate-name check to the server, and the saved row joins the list once it loads", async () => {
+    const { hook, releaseCatalog } = await beforeCatalogs();
+    act(() => hook.result.current.setAddField(HOST, { name: "Main host key", token: "tok-a" }));
+    await act(async () => { await hook.result.current.createToken(HOST); });
+    expect(vi.mocked(hook.port.publish.create).mock.calls[0]?.[0]).toMatchObject({ label: "Main host key" });
+    await releaseCatalog();
+    await waitFor(() => expect(rows(hook).filter((row) => row.kind === "publish").map((row) => row.id)).toEqual(["pub-1", "pub-2"]));
+  });
+
+  it("leaves a custom create's duplicate-name check to the server", async () => {
+    const { hook } = await beforeCatalogs();
+    let saved = false;
+    act(() => hook.result.current.setCustomAddField({ name: "Example API", token: "tok-a", baseUrl: "https://api.example.test" }));
+    await act(async () => { saved = await hook.result.current.createCustomCredential(); });
+    expect(saved).toBe(true);
+    expect(vi.mocked(hook.port.custom.create).mock.calls[0]?.[0]).toMatchObject({ scope: "site", label: "Example API" });
+  });
+
+  it("sends a hosting replace to the server", async () => {
+    const { hook } = await beforeCatalogs();
+    await act(async () => { await hook.result.current.replaceToken(hostRow); });
+    expect(hook.port.publish.update).toHaveBeenCalledWith({ id: "pub-1", input: { connection: { token: "" } } });
+  });
+
+  it("sends a custom replace to the server", async () => {
+    const { hook } = await beforeCatalogs();
+    await act(async () => { await hook.result.current.replaceToken(customRow); });
+    expect(vi.mocked(hook.port.custom.update).mock.calls[0]?.[0]).toMatchObject({ id: "cus-1" });
+  });
+});
+
+describe("access-token custom saves on an inventory that is not loaded", () => {
+  it("makes a custom credential created after the inventory failed to load its only custom row", async () => {
+    const hook = setup({ failingList: "custom" });
+    await waitFor(() => expect(hook.result.current.groups?.map((group) => group.info.providerId).sort()).toEqual(["host", "source"]));
+    let saved = false;
+    act(() => hook.result.current.setCustomAddField({ name: "Mail", token: "tok-a", baseUrl: "https://mail.example.test" }));
+    await act(async () => { saved = await hook.result.current.createCustomCredential(); });
+    expect(saved).toBe(true);
+    expect(rows(hook).filter((row) => row.kind === "custom").map((row) => row.id)).toEqual(["cus-2"]);
+  });
+
+  it("does not resurrect a replaced custom credential when a reload lost the inventory while the replace was in flight", async () => {
+    const onRefresh: { current: (() => void) | null } = { current: null };
+    const hook = await loaded({ onRefresh });
+    const answer = customCredential({ id: "cus-1", label: "Example API v2" });
+    let release: (value: typeof answer) => void = () => {};
+    vi.mocked(hook.port.custom.update).mockImplementationOnce((() => new Promise((resolve) => { release = resolve; })) as never);
+    act(() => hook.result.current.setExistingField({ rowId: "cus-1", patch: { name: "Example API v2", token: "tok-a" } }));
+    const pending = hook.result.current.replaceToken(requireRow(hook, "cus-1"));
+    vi.mocked(hook.port.custom.list).mockRejectedValue(new Error("vault locked"));
+    await act(async () => { onRefresh.current!(); });
+    await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: vault locked|t(unknown error)"));
+    await act(async () => { release(answer); await pending; });
+    expect(hook.port.custom.update).toHaveBeenCalledWith({ id: "cus-1", input: { label: "Example API v2", connection: { token: "tok-a" } } });
+    expect(rows(hook).map((row) => row.id)).toEqual(["pub-1"]);
   });
 });
