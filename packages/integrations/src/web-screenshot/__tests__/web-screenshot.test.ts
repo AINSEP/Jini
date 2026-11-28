@@ -200,11 +200,13 @@ test("an own-site request without a site opener is refused before any capture", 
   expect(requests).toEqual([]);
 });
 
-test("an opener origin that the site path does not resolve back to is refused before any capture", async () => {
+test("an opener origin that the site path does not resolve back to is refused before any capture and the opened server is closed", async () => {
   const { service, requests } = harness({ capture: async () => shot() });
   const input = readWebScreenshotInput({ input: { sitePath: "/about" } });
-  await expect(service.screenshot({ input, openOwnSite: async () => ({ origin: "http://127.0.0.1:80", close: async () => {} }) })).rejects.toThrow(/sitePath must stay on this site/);
+  let closed = 0;
+  await expect(service.screenshot({ input, openOwnSite: async () => ({ origin: "http://127.0.0.1:80", close: async () => { closed += 1; } }) })).rejects.toThrow(/sitePath must stay on this site/);
   expect(requests).toEqual([]);
+  expect(closed).toBe(1);
 });
 
 test("a final URL that cannot be parsed is reported as given", async () => {

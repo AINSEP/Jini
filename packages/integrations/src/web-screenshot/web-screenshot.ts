@@ -393,16 +393,17 @@ function createScreenshotRunner(ports: WebScreenshotPorts) {
     const preset = VIEWPORT_PRESETS[input.viewport];
     const started = ports.nowMs();
     const site = input.target.kind === "site" ? await openSite({ openOwnSite, themeId: input.themeId }) : null;
-    const url = site === null ? (input.target as { url: string }).url : ownSiteUrl({ origin: site.origin, path: (input.target as { path: string }).path });
-    const where = site === null ? new URL(url).origin : "this site";
-    const observe = (
-      { outcome }: { outcome: WebScreenshotEvent["outcome"] },
-      { blockedRequests }: { blockedRequests?: number } = {}
-    ) => ports.observe?.({
-      target: input.target.kind, origin: site === null ? new URL(url).origin : "own-site", viewport: input.viewport, outcome,
-      durationMs: ports.nowMs() - started, ...(blockedRequests === undefined ? {} : { blockedRequests }),
-    });
     try {
+      // Inside the try: a site path that escapes the opened origin must still close that server.
+      const url = site === null ? (input.target as { url: string }).url : ownSiteUrl({ origin: site.origin, path: (input.target as { path: string }).path });
+      const where = site === null ? new URL(url).origin : "this site";
+      const observe = (
+        { outcome }: { outcome: WebScreenshotEvent["outcome"] },
+        { blockedRequests }: { blockedRequests?: number } = {}
+      ) => ports.observe?.({
+        target: input.target.kind, origin: site === null ? new URL(url).origin : "own-site", viewport: input.viewport, outcome,
+        durationMs: ports.nowMs() - started, ...(blockedRequests === undefined ? {} : { blockedRequests }),
+      });
       let shot: PageCapture;
       try {
         shot = await ports.capture.capture(captureRequestFor({ input, url, preset, site }), signal ? { signal } : {});
