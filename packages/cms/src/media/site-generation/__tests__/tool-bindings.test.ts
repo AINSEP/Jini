@@ -6,7 +6,7 @@ function fixture() {
   const saved = vi.fn(async () => ({ apiKey: "saved", baseUrl: null, model: null }));
   const env = vi.fn(() => ({ apiKey: "env" }));
   const generate = vi.fn(async () => ({ bytes: Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]), providerId: "provider", usedStubFallback: false }));
-  const binding = bindMediaGenerationTools({
+  const input: Parameters<typeof bindMediaGenerationTools>[0] = {
     imageModelIds: ["metadata"], imageModelIdsFrom: () => ["live"], defaultModelId: "live", mediaAssetReadToolId: "content_read.media_asset",
     findModel: () => ({ provider: "provider" }), defaultGenerateMedia: generate,
     uploadMedia: vi.fn(async () => ({ media: { id: "asset", slug: "asset", source: { sha256: "hash" }, status: "active", version: 1 } })) as never,
@@ -14,12 +14,13 @@ function fixture() {
     getMediaProviderCredentials: vi.fn(async () => ({})), resolveMediaProviderCredential: saved,
     resolveProviderCredentialsFromEnv: env, readEnvironment: () => ({ KEY: "env" }), envVars: {}, aliases: {},
     buildNoCredentialError: () => ({ message: "configure credential" }), issueCredentialSetup: () => ({}) as never,
-  });
+  };
+  const binding = bindMediaGenerationTools(input);
   const deps = { workspaceId: "site", authorize: async () => ({ allowed: true, reason: "grant" }), mediaProviderRegistry: {},
     mediaContentTypeStore: { set: vi.fn() } } as unknown as Parameters<typeof binding.buildMediaGenerationRegistrations>[0];
   const resolvePublicUrls = vi.fn(async () => new Map([["asset", "/m/asset/"]]));
   const ctx: ToolExecutionContext = { executionId: "e", principal: { id: "human" }, run: { id: "run" }, signal: new AbortController().signal, input: { prompt: "Picture", model: "live" } };
-  return { binding, deps, resolvePublicUrls, ctx, saved, env, generate };
+  return { binding, input, deps, resolvePublicUrls, ctx, saved, env, generate };
 }
 
 test("direct and contributor builds select the live catalog or the injected metadata fallback", () => {
@@ -51,4 +52,31 @@ test("missing keys refuse generation unless the caller opts into a placeholder",
   expect(f.generate).not.toHaveBeenCalled();
   await tool!.handler({ ...f.ctx, input: { ...f.ctx.input as object, allowStubFallback: true } });
   expect(f.generate).toHaveBeenCalledWith(expect.objectContaining({ credentials: {}, options: expect.objectContaining({ allowStubFallback: true }) }), { signal: f.ctx.signal });
+});
+
+test("an omitted model reads saved selections through the bound credential repo, and env keys come from the host env or the process environment", async () => {
+  for (const hostEnv of [{ HOST_KEY: "1" }, undefined]) {
+    const f = fixture();
+    const getMediaProviderCredentials = vi.fn(async () => ({}));
+    const readEnvironment = vi.fn(() => ({ PROCESS_KEY: "1" }));
+    const binding = bindMediaGenerationTools({ ...f.input, getMediaProviderCredentials, readEnvironment });
+    f.saved.mockResolvedValue(null as never);
+    const repo = { marker: "credential-repo" };
+    const deps = { ...f.deps, mediaProviderCredentialRepo: repo, ...(hostEnv ? { env: hostEnv } : {}) } as typeof f.deps;
+    const [tool] = binding.buildMediaGenerationRegistrations(deps, f);
+    await tool!.handler({ ...f.ctx, input: { prompt: "Picture" } });
+    expect(getMediaProviderCredentials.mock.calls).toEqual([[{ deps: { repo }, workspaceId: "site" }]]);
+    expect(f.env).toHaveBeenCalledWith({ providerId: "provider", env: hostEnv ?? { PROCESS_KEY: "1" } }, { envVars: {}, aliases: {} });
+    if (hostEnv) expect(readEnvironment).not.toHaveBeenCalled();
+    else expect(readEnvironment).toHaveBeenCalled();
+    expect(f.generate).toHaveBeenCalledWith(expect.objectContaining({ credentials: { apiKey: "env" } }), { signal: f.ctx.signal });
+  }
+});
+
+test("a saved key with a custom base URL dispatches with that base URL", async () => {
+  const f = fixture();
+  f.saved.mockResolvedValue({ apiKey: "saved", baseUrl: "https://gateway.example/v1", model: null });
+  const [tool] = f.binding.buildMediaGenerationRegistrations(f.deps, f);
+  await tool!.handler(f.ctx);
+  expect(f.generate).toHaveBeenCalledWith(expect.objectContaining({ credentials: { apiKey: "saved", baseUrl: "https://gateway.example/v1" } }), { signal: f.ctx.signal });
 });

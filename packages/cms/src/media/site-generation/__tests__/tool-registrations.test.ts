@@ -120,3 +120,29 @@ it("omitted model tries the next configured provider, falling back only when no 
   expect(deps.missingCredential.mock.calls).toEqual([[{ providerId: "plugin" }, {}]]);
   expect(deps.providers.generateImage.mock.calls).toHaveLength(1);
 });
+
+it("a provider already found without a key is not re-checked for its next model, and a symbol-only prompt gets the default filename", async () => {
+  const { deps, catalogInput, ctx } = fixture();
+  deps.findModel.mockImplementation(({ id }) => (id === "plugin-third" ? { provider: "other" } : { provider: "plugin" }));
+  const registration = buildMediaGenerationRegistrations({ deps, catalogInput: { ...catalogInput, imageModelIds: ["plugin-first", "plugin-second", "plugin-third"] } })[0]!;
+  deps.providers.readSavedCredential.mockImplementation(async ({ providerId }) => (providerId === "other" ? { apiKey: "other-saved" } : null));
+  deps.providers.readEnvCredential.mockReturnValue(null);
+  const tracker = { capture: vi.fn(async () => {}) };
+  Object.assign(deps, { tracker });
+  deps.storage.resolvePublicUrls.mockResolvedValue(new Map());
+  expect(await registration.handler(ctx({ prompt: "!!! ???" }))).toMatchObject({ model: "plugin-third", media: { publicUrl: null } });
+  // "plugin" is looked up once (for plugin-first), never again for plugin-second.
+  expect(deps.providers.readSavedCredential.mock.calls.map(([input]) => input.providerId)).toEqual(["plugin", "other", "other"]);
+  expect(deps.storage.upload.mock.calls[0]?.[0].input.filename).toBe("generated-image.png");
+  expect(tracker.capture).toHaveBeenCalledWith({ name: "media_uploaded", userId: "agent" }, { properties: expect.objectContaining({ kind: "image", source: "assistant" }) });
+});
+
+it("a catalogued model id the registry cannot resolve is a named wiring fault, chosen or defaulted, before any dispatch", async () => {
+  const { deps, catalogInput, ctx } = fixture();
+  const registration = buildMediaGenerationRegistrations({ deps, catalogInput: { ...catalogInput, imageModelIds: ["missing", "plugin-first"] } })[0]!;
+  for (const input of [{ prompt: "Picture" }, { prompt: "Picture", model: "missing" }]) {
+    await expect(registration.handler(ctx(input))).rejects.toThrow("Media generation registry has no model missing");
+  }
+  expect(deps.providers.generateImage).not.toHaveBeenCalled();
+  expect(deps.storage.upload).not.toHaveBeenCalled();
+});
