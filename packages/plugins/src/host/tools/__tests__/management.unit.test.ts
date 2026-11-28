@@ -136,6 +136,16 @@ describe('plugins list', () => {
     expect(await call('list', {})).toEqual({ plugins: [{ id: 'off-plugin', enabled: false, status: 'valid', description: 'OFF off-plugin' }], agentPlugins: [] });
   });
 
+  it('attributes listed conflicts to their own enabled plugin, and none to an enabled plugin the conflict map does not name', async () => {
+    const clash = { kind: 'route', key: '/feed', heldBy: 'first', heldByName: 'first name', heldKey: '/feed' };
+    const { call } = fixture({
+      discovery: [site('first'), site('second')], rows: [activation('first', true), activation('second', true)],
+      patch: { listPluginConflicts: async () => new Map([['second', [clash]]]) },
+    });
+    const out = await call('list', {}) as { plugins: { id: string; conflicts: unknown[] }[] };
+    expect(out.plugins.map(({ id, conflicts }) => ({ id, conflicts }))).toEqual([{ id: 'first', conflicts: [] }, { id: 'second', conflicts: [clash] }]);
+  });
+
   it('refuses list input', async () => {
     const { call } = fixture();
     await expect(call('list', { anything: true })).rejects.toBeInstanceOf(ToolInputError);
@@ -239,6 +249,39 @@ describe('site-runtime set-enabled', () => {
     expect(out).toMatchObject({ changed: false });
     expect(log.some((entry) => (entry as unknown[])[0] === 'command')).toBe(false);
   });
+  it('returns abandoned and writes nothing when the call is cancelled while the confirmed write is re-authorized', async () => {
+    const abort = new AbortController();
+    const writeChecks: string[] = [];
+    const { call, log, repo } = fixture({ discovery: [site('tally')], patch: {
+      // The second write check is the post-confirmation one; the run is cancelled while it is pending.
+      authorize: async (input) => { writeChecks.push(input.permission); if (writeChecks.length === 2) abort.abort(); return { allowed: true, reason: 'ok' }; },
+    } });
+    expect(await call('setEnabled', { family: 'site-runtime', pluginId: 'tally', enabled: true }, abort.signal)).toEqual({ changed: false, cancelled: false, note: 'not confirmed: abandoned' });
+    expect(writeChecks).toEqual(['pm.write', 'pm.write']);
+    expect(log.some((entry) => ['recordApproval', 'command'].includes((entry as unknown[])[0] as string))).toBe(false);
+    expect(await repo.getActivation({ workspaceId: WS, pluginId: 'tally' })).toBeNull();
+  });
+
+  it('enables a site package with no manifest without reading or recording a capability approval', async () => {
+    const { call, log, repo } = fixture({ discovery: [site('bare', { manifest: undefined })] });
+    expect(await call('setEnabled', { family: 'site-runtime', pluginId: 'bare', enabled: true })).toMatchObject({ changed: true, plugin: { id: 'bare', enabled: true } });
+    const ask = log.find((entry) => (entry as unknown[])[0] === 'ask') as [string, string];
+    expect(JSON.parse(ask[1]).subject).toMatchObject({ pluginId: 'bare', adds: [] });
+    expect(log.some((entry) => ['readApproval', 'recordApproval'].includes((entry as unknown[])[0] as string))).toBe(false);
+    expect((await repo.getActivation({ workspaceId: WS, pluginId: 'bare' }))?.enabled).toBe(true);
+  });
+
+  it('refuses to report a disable the gateway answered without running the write for a plugin no longer discovered', async () => {
+    const { call, log } = fixture({ discovery: [], patch: {
+      // A replaying gateway hands back a stored result instead of executing the mutation.
+      executeCommand: async () => ({ result: { activation: activation('gone', false) } }),
+    } });
+    await expect(call('setEnabled', { family: 'site-runtime', pluginId: 'gone', enabled: false })).rejects.toThrow(
+      new ToolInputError({ message: "plugin 'gone' was not found in the current discovery snapshot" }),
+    );
+    expect(log).toContainEqual(['lower', 'gone']);
+    expect(log.some((entry) => (entry as unknown[])[0] === 'toggled')).toBe(false);
+  });
 });
 
 describe('agent-plugin set-enabled', () => {
@@ -278,6 +321,41 @@ describe('agent-plugin set-enabled', () => {
     } });
     await expired.call('setEnabled', { family: 'agent-plugin', pluginId: 'guide', enabled: true });
     expect(declined).toEqual(['access-1']);
+  });
+
+  it('fingerprints every installed copy independent of listing order and names all versions without a selection owner', async () => {
+    const copies: InstalledPluginRevision[] = [
+      { pluginId: 'guide', version: '2.0.0', archiveDigest: 'db', skills: [] },
+      { pluginId: 'guide', version: '1.0.0', archiveDigest: 'da', skills: [] },
+    ];
+    const subjectFor = async (installedCopies: InstalledPluginRevision[]) => {
+      const { call, log } = fixture({ installed: installedCopies });
+      await call('setEnabled', { family: 'agent-plugin', pluginId: 'guide', enabled: true });
+      return JSON.parse((log.find((entry) => (entry as unknown[])[0] === 'ask') as [string, string])[1]).subject;
+    };
+    const revision = `fp:agent-plugin:guide:${JSON.stringify([['1.0.0', 'da'], ['2.0.0', 'db']])}`;
+    expect(await subjectFor(copies)).toMatchObject({ version: '1.0.0, 2.0.0', revision });
+    expect(await subjectFor([...copies].reverse())).toMatchObject({ version: '1.0.0, 2.0.0', revision });
+  });
+
+  it('names only the copy the selection owner prefers while the fingerprint still covers every copy, unversioned ones as null', async () => {
+    const copies: InstalledPluginRevision[] = [
+      { pluginId: 'guide', version: '2.0.0', archiveDigest: 'db', skills: [] },
+      { pluginId: 'guide', archiveDigest: 'dx', skills: [] },
+    ];
+    const offered: unknown[] = [];
+    const { call, log } = fixture({ installed: copies, agent: { preferInstalled: async ({ installed: candidates }) => { offered.push(candidates); return [candidates[0]!]; } } });
+    await call('setEnabled', { family: 'agent-plugin', pluginId: 'guide', enabled: true });
+    // Asked once for the card and once more by the post-confirmation identity re-check.
+    expect(offered).toEqual([copies, copies]);
+    expect(JSON.parse((log.find((entry) => (entry as unknown[])[0] === 'ask') as [string, string])[1]).subject).toMatchObject({
+      version: '2.0.0', revision: `fp:agent-plugin:guide:${JSON.stringify([['2.0.0', 'db'], [null, 'dx']])}`,
+    });
+  });
+
+  it('reports no warnings when the activation owner returns none', async () => {
+    const { call } = fixture({ installed, agent: { setEnabled: async (input) => ({ pluginId: input.pluginId, enabled: input.enabled }) } });
+    expect(await call('setEnabled', { family: 'agent-plugin', pluginId: 'guide', enabled: false })).toMatchObject({ changed: true, warnings: [] });
   });
 
   it('refuses an uninstalled agent plugin as an input error', async () => {
@@ -369,6 +447,23 @@ describe('uninstall', () => {
       pluginId: 'tally', uninstalled: false, cancelled: false, reason: 'changed-since-confirmation', note: 'changed tally 1.0.0',
     });
     expect(log.some((entry) => (entry as unknown[])[0] === 'remove')).toBe(false);
+  });
+
+  it('returns abandoned and removes nothing when the call is cancelled while the confirmed removal is re-authorized', async () => {
+    const abort = new AbortController();
+    let writeChecks = 0;
+    const { call, log } = fixture({ discovery: [site('tally')], patch: {
+      authorize: async () => { writeChecks += 1; if (writeChecks === 2) abort.abort(); return { allowed: true, reason: 'ok' }; },
+    } });
+    expect(await call('uninstall', { family: 'site-runtime', pluginId: 'tally' }, abort.signal)).toEqual({ uninstalled: false, cancelled: false, note: 'not confirmed: abandoned' });
+    expect(writeChecks).toBe(2);
+    expect(log.some((entry) => (entry as unknown[])[0] === 'remove')).toBe(false);
+  });
+
+  it('propagates a removal failure that is not a change since the dialog unchanged', async () => {
+    const trashFailure = new Error('trash unavailable');
+    const { call } = fixture({ discovery: [site('tally')], patch: { removePlugin: async () => { throw trashFailure; } } });
+    await expect(call('uninstall', { family: 'site-runtime', pluginId: 'tally' })).rejects.toBe(trashFailure);
   });
 
   it('refuses a built-in before any dialog, and requires a family', async () => {
