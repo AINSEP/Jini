@@ -158,18 +158,18 @@ describe('runtime activation edges', () => {
       sources: [{ manifest, setup: () => {}, entryPath: path.join(root, 'server', 'index.mjs') }],
       enabled: ['charts'], runtime: { browserProviderApprovals: [approval] },
     });
-    expect(runtime.browserProviders()).toEqual({ generation: 0, providers: [] });
+    expect(runtime.browserProviders({})).toEqual({ generation: 0, providers: [] });
     await runtime.onPluginEnabled('charts');
-    const published = runtime.browserProviders();
+    const published = runtime.browserProviders({});
     expect(published.generation).toBe(1);
     expect(published.providers.map((provider) => provider.pluginId)).toEqual(['charts']);
     const asset = published.providers[0]!.assets.find((candidate) => candidate.path === 'client/provider.js')!;
     expect(new TextDecoder().decode(asset.readBytes({}))).toBe('export function mount() {}');
     runtime.onPluginDisabled('charts');
-    expect(runtime.browserProviders()).toEqual({ generation: 2, providers: [] });
+    expect(runtime.browserProviders({})).toEqual({ generation: 2, providers: [] });
     // A second disable has nothing left to retire, so the generation stays put.
     runtime.onPluginDisabled('charts');
-    expect(runtime.browserProviders().generation).toBe(2);
+    expect(runtime.browserProviders({}).generation).toBe(2);
     await runtime.dispose({}, {});
   });
 });
