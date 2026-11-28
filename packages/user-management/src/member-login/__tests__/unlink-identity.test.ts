@@ -48,3 +48,43 @@ it("refuses unlinking the last sign-in method before any identity or session wri
   expect(revokeSessions).not.toHaveBeenCalled();
   expect(saveMember).not.toHaveBeenCalled();
 });
+
+function unlinkInput(overrides: Partial<Parameters<typeof unlinkMemberIdentity>[0]> & { found?: unknown } = {}) {
+  const unlink = vi.fn(async () => {});
+  const lockKey = vi.fn(async () => {});
+  const links = { transaction: async (work: () => Promise<unknown>) => work(), lockKey,
+    identities: { findByMemberAndProvider: async () => overrides.found, unlink } } as unknown as MemberLoginLinkDeps;
+  const { found: _found, ...rest } = overrides;
+  return { unlink, lockKey, input: { workspaceId: "w", providerId: "p", readCurrent: async () => ({ member, session }), readProviderId: () => "p", links,
+    readPasswordHash: async () => "hash", revokeSessions: vi.fn(async () => {}), saveMember: vi.fn(async () => {}), nowIso: () => "2026-01-01T00:01:00Z",
+    userAgent: undefined, ip: "ip", ...rest } };
+}
+
+it("refuses without a current session before taking any lock, and when the session vanishes once the locks are held", async () => {
+  const absent = unlinkInput({ readCurrent: async () => null, found: { id: "i" } });
+  await expect(unlinkMemberIdentity(absent.input)).rejects.toMatchObject({ code: "LOGIN_INVALID" });
+  expect(absent.lockKey).not.toHaveBeenCalled();
+  let reads = 0;
+  const raced = unlinkInput({ readCurrent: async () => (++reads === 1 ? { member, session } : null), found: { id: "i" } });
+  await expect(unlinkMemberIdentity(raced.input)).rejects.toMatchObject({ code: "LOGIN_INVALID" });
+  expect(raced.lockKey.mock.calls).toEqual([["members:external-identities:w"], ["trash:member:w:m"]]);
+  expect(raced.unlink).not.toHaveBeenCalled();
+});
+
+it("refuses a provider the member has no live link to: never linked or already unlinked", async () => {
+  for (const found of [undefined, null, { id: "i", unlinkedAt: "2025-12-01T00:00:00Z" }]) {
+    const run = unlinkInput({ found });
+    await expect(unlinkMemberIdentity(run.input)).rejects.toMatchObject({ code: "LOGIN_INVALID" });
+    expect(run.unlink).not.toHaveBeenCalled();
+    expect(run.input.revokeSessions).not.toHaveBeenCalled();
+  }
+});
+
+it("refuses a member without a password and an unverified email without asking mail readiness", async () => {
+  vi.mocked(prepareMemberChallenge).mockClear();
+  const { emailVerifiedAt: _verified, ...unverified } = member;
+  const run = unlinkInput({ found: { id: "i" }, readPasswordHash: async () => null, readCurrent: async () => ({ member: unverified, session }) });
+  await expect(unlinkMemberIdentity(run.input)).rejects.toMatchObject({ code: "LOGIN_BLOCKED" });
+  expect(prepareMemberChallenge).not.toHaveBeenCalled();
+  expect(run.unlink).not.toHaveBeenCalled();
+});

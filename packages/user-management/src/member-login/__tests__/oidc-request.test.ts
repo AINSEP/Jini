@@ -1,7 +1,8 @@
 import { expect, it, vi } from "vitest";
 import { completeMemberOidcCallback, readOidcCallbackParams, readOidcEmailProof, requireOidcContinuationDelivery, verifyMemberOidcEmailProof } from "../oidc-request.js";
 import { completeOidcLogin, openLoginEmailContinuation, sealLoginEmailContinuation, type OidcLoginDeps } from "../oidc-login.js";
-import { requestLoginEmailProof, resolveFederatedIdentity, type MemberLoginLinkDeps } from "../link-service.js";
+import { requestLoginEmailProof, resolveFederatedIdentity, type MemberLoginLinkDeps, type MemberLoginLinkResult } from "../link-service.js";
+import type { MemberSignInResult } from "../../members/ports.js";
 
 vi.mock("../oidc-login.js", () => ({ completeOidcLogin: vi.fn(), openLoginEmailContinuation: vi.fn(), sealLoginEmailContinuation: vi.fn() }));
 vi.mock("../link-service.js", () => ({ requestLoginEmailProof: vi.fn(), resolveFederatedIdentity: vi.fn() }));
@@ -64,4 +65,63 @@ it("reads link facts only after callback protocol completion and after a proof r
   order.length = 0;
   await verifyMemberOidcEmailProof(proof);
   expect(order).toEqual(["proof", "links", "userAgent", "ip", "link"]);
+});
+
+it("parses the callback query strictly, refusing provider errors, missing, empty or oversized values", () => {
+  const cancelled = () => new Error("cancelled");
+  expect(readOidcCallbackParams({ query: { code: "c", state: "s", extra: "ignored" }, cancelled })).toEqual({ code: "c", state: "s" });
+  const refused: Array<Record<string, unknown>> = [
+    { error: "server_error", code: "c", state: "s" }, { code: ["c"], state: "s" }, { code: "c", state: 1 },
+    { code: "", state: "s" }, { code: "c".repeat(4097), state: "s" }, { code: "c", state: "" }, { code: "c", state: "s".repeat(16385) },
+  ];
+  for (const query of refused) expect(() => readOidcCallbackParams({ query, cancelled })).toThrow(expect.objectContaining({ code: "LOGIN_INVALID" }));
+  expect(readOidcCallbackParams({ query: { code: "c".repeat(4096), state: "s".repeat(16384) }, cancelled }).code).toHaveLength(4096);
+});
+
+it("reads exactly the three proof fields and bounds each one", () => {
+  const body = { continuation: "sealed", challengeId: "id", code: "123456" };
+  expect(readOidcEmailProof({ body })).toEqual(body);
+  const refused: unknown[] = [null, "text", [body], { continuation: "sealed", challengeId: "id" },
+    { ...body, continuation: "" }, { ...body, continuation: "x".repeat(8193) }, { ...body, continuation: 5 },
+    { ...body, challengeId: "x".repeat(256) }, { ...body, code: "12345" }, { ...body, code: 123456 }, { ...body, code: "12345a" }];
+  for (const value of refused) expect(() => readOidcEmailProof({ body: value })).toThrow(expect.objectContaining({ code: "LOGIN_INVALID" }));
+  expect(readOidcEmailProof({ body: { ...body, continuation: "x".repeat(8192), challengeId: "y".repeat(255) } }).challengeId).toHaveLength(255);
+});
+
+it("continues by email: seals the bound login, issues the proof and builds the continuation location", async () => {
+  const login = { identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: false }, startedAt: "t0", authenticatedAt: "t1", returnPath: "/account" as const, connectMemberId: "m1" };
+  vi.mocked(completeOidcLogin).mockResolvedValue(login);
+  vi.mocked(resolveFederatedIdentity).mockResolvedValue({ kind: "email_verification_required", email: "a@example.com", providerId: "p" });
+  vi.mocked(sealLoginEmailContinuation).mockResolvedValue("sealed-continuation");
+  vi.mocked(requestLoginEmailProof).mockResolvedValue({ challengeId: "challenge-1" } as Awaited<ReturnType<typeof requestLoginEmailProof>>);
+  const protocol = {} as OidcLoginDeps;
+  const links = {} as MemberLoginLinkDeps;
+  const delivered: unknown[] = [];
+  const located: unknown[] = [];
+  const result = await completeMemberOidcCallback({ context: { workspaceId: "w", providerId: "p" }, protocol, links, browserBinding: () => "binding",
+    query: () => ({ code: "c", state: "s" }), cancelled: () => new Error("cancelled"), userAgent: "agent", ip: "ip",
+    deliveryAllowed: async (input) => { delivered.push(input); }, continuationLocation: (input) => { located.push(input); return "/signin#next"; } });
+  expect(resolveFederatedIdentity).toHaveBeenLastCalledWith({ deps: links, input: { workspaceId: "w", identity: login.identity, startedAt: "t0", connectMemberId: "m1", userAgent: "agent", ip: "ip" } });
+  if (result.kind !== "email_verification_required") throw new Error("expected continuation");
+  expect(await result.continueByEmail()).toEqual({ browserBinding: "binding", location: "/signin#next" });
+  expect(delivered).toEqual([{ email: "a@example.com" }]);
+  expect(sealLoginEmailContinuation).toHaveBeenLastCalledWith({ deps: protocol, input: { workspaceId: "w", providerId: "p", browserBinding: "binding" }, login });
+  expect(requestLoginEmailProof).toHaveBeenLastCalledWith({ deps: links, input: { workspaceId: "w", email: "a@example.com" } });
+  expect(located).toEqual([{ providerId: "p", challengeId: "challenge-1", continuation: "sealed-continuation" }]);
+});
+
+it("returns a signed-in link result directly and forwards a connect intent, without a user agent, with the email proof", async () => {
+  const login = { identity: { providerId: "p", issuer: "issuer", subject: "subject", email: "a@example.com", emailAuthoritative: true }, startedAt: "t0", authenticatedAt: "t1", returnPath: "/account" as const, connectMemberId: "m2" };
+  const signedIn: MemberLoginLinkResult = { kind: "signed_in", result: {} as MemberSignInResult };
+  vi.mocked(completeOidcLogin).mockResolvedValue(login);
+  vi.mocked(resolveFederatedIdentity).mockResolvedValue(signedIn);
+  const result = await completeMemberOidcCallback({ context: { workspaceId: "w", providerId: "p" }, protocol: {} as OidcLoginDeps, links: {} as MemberLoginLinkDeps,
+    browserBinding: () => "binding", query: () => ({ code: "c", state: "s" }), cancelled: () => new Error("cancelled"), userAgent: undefined, ip: "ip",
+    deliveryAllowed: async () => {}, continuationLocation: () => "unused" });
+  expect(result).toBe(signedIn);
+  vi.mocked(openLoginEmailContinuation).mockResolvedValue(login);
+  await verifyMemberOidcEmailProof({ context: { workspaceId: "w", providerId: "p" }, protocol: {} as OidcLoginDeps, links: {} as MemberLoginLinkDeps,
+    browserBinding: "binding", proof: { continuation: "c", challengeId: "id", code: "123456" }, userAgent: undefined, ip: "ip" });
+  expect(resolveFederatedIdentity).toHaveBeenLastCalledWith({ deps: {}, input: { workspaceId: "w", identity: login.identity, startedAt: "t0",
+    connectMemberId: "m2", emailProof: { challengeId: "id", code: "123456" }, ip: "ip" } });
 });

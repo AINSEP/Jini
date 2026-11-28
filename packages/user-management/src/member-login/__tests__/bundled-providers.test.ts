@@ -34,3 +34,18 @@ it("loads bundled descriptors before installed admission and fingerprints the de
 it("an absent installed descriptor yields no admitted candidate", async () => {
   expect(await loadLoginProviders({ workspaceId: "site", bundledProviders: [], loadCandidates: async () => [] })).toEqual([]);
 });
+
+it("hands the source loader the login-provider definition: a missing file reads as no providers, any other read error is not absorbed", async () => {
+  const definitions: Array<Parameters<Parameters<typeof loadBundledLoginProviders>[0]["loadPluginContributionsFromSource"]>[0]["definition"]> = [];
+  const items = await loadBundledLoginProviders({ parseLoginProviders, sourceRoot: "/bundle", sha256Hex: ({ text }) => `hash:${text.length}`,
+    bundledContributionSources: ({ sourceRoot, filename }) => [{ pluginId: `${sourceRoot}|${filename}`, packageRoot: "/bundle/p" }],
+    readManifest: async () => ({}), acceptsManifest: () => true,
+    loadPluginContributionsFromSource: async ({ definition }) => { definitions.push(definition); return { items: [] }; } });
+  expect(items).toEqual([]);
+  const [definition] = definitions;
+  if (!definition) throw new Error("expected the loader to receive a definition");
+  expect([definition.filename, definition.contribution, definition.kind, definition.parse]).toEqual(["jini-login-providers.json", "member login providers", "data", parseLoginProviders]);
+  expect(definition.onReadError({ error: Object.assign(new Error("missing"), { code: "ENOENT" }) })).toEqual([]);
+  expect(definition.onReadError({ error: Object.assign(new Error("denied"), { code: "EACCES" }) })).toBeUndefined();
+  expect(definition.onReadError({ error: new Error("no code") })).toBeUndefined();
+});
