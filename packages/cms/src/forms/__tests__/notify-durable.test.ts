@@ -91,3 +91,56 @@ for (const kind of ['retry', 'permanent', 'throw'] as const) test(`${kind} mail 
   f.fail(undefined); await f.bus.publish(f.queued[1]!);
   assert.equal(f.calls.at(-1), 'b@example.com');
 });
+
+test('a delivery job whose submission or form was purged sends nothing and settles', async () => {
+  const f = await fixture();
+  await f.bus.publish(f.source);
+  const job = f.queued[0]!;
+  const purged = (payload: Record<string, string>) => ({ ...job, payload: { ...(job.payload as Record<string, string>), ...payload } });
+  await f.bus.publish(purged({ submissionId: 'gone' }));
+  await f.bus.publish(purged({ formDefinitionId: 'gone' }));
+  assert.deepEqual(f.calls, []);
+  await f.bus.publish(job);
+  assert.deepEqual(f.calls, ['a@example.com']);
+});
+
+test('a durable host fails source planning when the outbox refuses, so the source event is retried', async () => {
+  const bus = new InMemoryEventBus(), definitions = new InMemoryFormDefinitionRepo(), submissions = new InMemoryFormSubmissionRepo();
+  await definitions.create({ id: 'f', workspaceId: 'w', slug: 'contact', name: 'Contact', fields: [], notify: { enabled: true, recipients: ['a@example.com'] }, version: 1, status: 'active', createdAt: 'now', updatedAt: 'now' });
+  const refusal = new Error('outbox unavailable');
+  const warnings: unknown[] = [];
+  await registerFormNotifySubscriber({ bus, sender: { email: 'sender@example.com' }, logger: { warn: (...args: unknown[]) => { warnings.push(args); } },
+    formDefinitionRepo: definitions, formSubmissionRepo: submissions,
+    outbox: { enqueue: async () => { throw refusal; } },
+    mailer: { send: async () => { throw new Error('unexpected send'); } } });
+  await assert.rejects(bus.publish({ id: 'e', name: 'form.submission.received', occurredAt: '2026-11-04T00:00:00Z', workspaceId: 'w', payload: { workspaceId: 'w', formDefinitionId: 'f', submissionId: 's' } }),
+    error => error === refusal);
+  assert.deepEqual(warnings, []);
+});
+
+test('a legacy mailer that throws a bare undefined is logged without an error field', async () => {
+  const bus = new InMemoryEventBus(), definitions = new InMemoryFormDefinitionRepo(), submissions = new InMemoryFormSubmissionRepo();
+  await definitions.create({ id: 'f', workspaceId: 'w', slug: 'contact', name: 'Contact', fields: [], notify: { enabled: true, recipients: ['a@example.com'] }, version: 1, status: 'active', createdAt: 'now', updatedAt: 'now' });
+  await submissions.create({ id: 's', workspaceId: 'w', formDefinitionId: 'f', data: { message: 'hi' }, sourceIp: null, submittedAt: 'now' });
+  const warnings: unknown[] = [];
+  await registerFormNotifySubscriber({ bus, sender: { email: 'sender@example.com' }, logger: { warn: (...args: unknown[]) => { warnings.push(args); } },
+    formDefinitionRepo: definitions, formSubmissionRepo: submissions,
+    mailer: { send: async () => { const nonError: unknown = undefined; throw nonError; } } });
+  await bus.publish({ id: 'e', name: 'form.submission.received', occurredAt: '2026-11-04T00:00:00Z', workspaceId: 'w', payload: { workspaceId: 'w', formDefinitionId: 'f', submissionId: 's' } });
+  assert.deepEqual(warnings, [[{ message: "[forms:notify] mail send threw for submission 's' (recipient address withheld from logs)" }, {}]]);
+});
+
+test('a legacy host logger that throws while reporting a refusal cannot stop the other recipients or sibling subscribers', async () => {
+  const bus = new InMemoryEventBus(), definitions = new InMemoryFormDefinitionRepo(), submissions = new InMemoryFormSubmissionRepo();
+  await definitions.create({ id: 'f', workspaceId: 'w', slug: 'contact', name: 'Contact', fields: [], notify: { enabled: true, recipients: ['a@example.com', 'b@example.com'] }, version: 1, status: 'active', createdAt: 'now', updatedAt: 'now' });
+  await submissions.create({ id: 's', workspaceId: 'w', formDefinitionId: 'f', data: { message: 'hi' }, sourceIp: null, submittedAt: 'now' });
+  const attempts: string[] = [];
+  let logged = 0;
+  await registerFormNotifySubscriber({ bus, sender: { email: 'sender@example.com' }, logger: { warn: () => { logged++; throw new Error('log sink down'); } },
+    formDefinitionRepo: definitions, formSubmissionRepo: submissions,
+    mailer: { send: async ({ message }) => { attempts.push(message.to.email); return { ok: false, retryable: false, errorCode: 'REFUSED', message: 'no' }; } } });
+  let sibling = 0;
+  await bus.subscribe({ eventName: 'form.submission.received', handler: async () => { sibling++; } });
+  await bus.publish({ id: 'e', name: 'form.submission.received', occurredAt: '2026-11-04T00:00:00Z', workspaceId: 'w', payload: { workspaceId: 'w', formDefinitionId: 'f', submissionId: 's' } });
+  assert.deepEqual([attempts, logged, sibling], [['a@example.com', 'b@example.com'], 2, 1]);
+});
