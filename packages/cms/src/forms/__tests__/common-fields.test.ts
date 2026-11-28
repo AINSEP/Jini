@@ -118,3 +118,10 @@ test("portable dates reject a zero calendar component and retain valid leap-day 
   }
   assert.deepEqual(resolvePortableFormField({ field, value: "2024-02-29" }), { kind: "accepted", value: "2024-02-29" });
 });
+
+test("a published field of an unknown or prototype-named type is rejected, never resolved", () => {
+  for (const type of ["signature", "constructor", "toString"]) {
+    // Published descriptors are untrusted data, so the type is cast from outside the known union.
+    assert.deepEqual(resolvePortableFormField({ field: { id: "f", label: "F", type } as unknown as FieldDescriptor, value: "x" }), { kind: "rejected", reason: "invalid_type" }, type);
+  }
+});

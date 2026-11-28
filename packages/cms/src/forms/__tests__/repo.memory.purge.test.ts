@@ -20,3 +20,18 @@ test("form purge enumeration includes trashed answers, is tenant scoped and retu
   assert.ok(await repo.findById({ workspaceId: "ws-1", id: "other-form" }));
   assert.ok(await repo.findById({ workspaceId: "ws-2", id: "other-workspace" }));
 });
+
+test("trash-blind reads and saves keep captured evidence as an independent copy", async () => {
+  const repo = new InMemoryFormSubmissionRepo();
+  const evidence = { version: 1 as const, fields: [{ id: "agree", label: "I agree", type: "checkbox" as const, required: true }], consent: [{ fieldId: "agree", wording: "I agree to be contacted" }],
+    schemaHash: "hash-a", capturedAt: "2026-10-01T00:00:00Z", source: "native" as const };
+  await repo.create({ id: "answer", workspaceId: "ws-1", formDefinitionId: "form-1", data: { agree: true }, sourceIp: null, submittedAt: "2026-10-01T00:00:00Z", evidence });
+  const stored = (await repo.findAnyById({ workspaceId: "ws-1", id: "answer" }))!;
+  assert.deepEqual(stored.evidence, evidence);
+  stored.evidence!.consent[0]!.wording = "Changed copy";
+  assert.equal((await repo.findAnyById({ workspaceId: "ws-1", id: "answer" }))!.evidence!.consent[0]!.wording, "I agree to be contacted");
+  const saved = { ...stored, evidence: { ...evidence, consent: [{ fieldId: "agree", wording: "Saved wording" }] }, deletedAt: "2026-10-02T00:00:00Z" };
+  await repo.save(saved);
+  saved.evidence.consent[0]!.wording = "Mutated after save";
+  assert.equal((await repo.findAnyById({ workspaceId: "ws-1", id: "answer" }))!.evidence!.consent[0]!.wording, "Saved wording");
+});
