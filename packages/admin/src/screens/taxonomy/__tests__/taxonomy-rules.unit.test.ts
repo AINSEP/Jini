@@ -10,6 +10,7 @@ import {
   splitTermNames,
   termDepth,
   termPickerSubject,
+  visibleTaxonomyError,
 } from "../rules.js";
 import type { TaxonomyApiErrorLike, TaxonomyErrorKit } from "../taxonomy-host-kit.js";
 
@@ -122,4 +123,18 @@ describe("term picker text rules", () => {
     expect(splitTermNames({ text: " Food, Drink ", hierarchical: true })).toEqual(["Food, Drink"]);
     expect(splitTermNames({ text: "   ", hierarchical: true })).toEqual([]);
   });
+});
+
+describe("visibleTaxonomyError", () => {
+  const base = { errors, deleteTermBlocked: false, deleteTermError: null, deleteTermFallback: "term-fb", deleteTaxonomyBlocked: false, deleteTaxonomyError: null, deleteTaxonomyFallback: "tax-fb", listError: null, listFallback: "list-fb" };
+  it("shows the list failure through the host describer when no delete failed", () => {
+    expect(visibleTaxonomyError({ ...base, listError: new Error("offline") })).toBe("described(offline, list-fb)");
+  });
+  it("lets a delete failure outrank the list failure, but not a blocked or already-gone delete", () => {
+    const listError = new Error("offline");
+    expect(visibleTaxonomyError({ ...base, listError, deleteTaxonomyError: new Error("boom") })).toBe("described(boom, tax-fb)");
+    expect(visibleTaxonomyError({ ...base, listError, deleteTermBlocked: true, deleteTermError: new FakeApiError(409), deleteTaxonomyBlocked: true, deleteTaxonomyError: new FakeApiError(409) })).toBe("described(offline, list-fb)");
+    expect(visibleTaxonomyError({ ...base, listError, deleteTermError: new FakeApiError(404), deleteTaxonomyError: new FakeApiError(404) })).toBe("described(offline, list-fb)");
+  });
+  it("is null when nothing failed", () => { expect(visibleTaxonomyError(base)).toBeNull(); });
 });

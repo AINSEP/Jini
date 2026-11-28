@@ -167,4 +167,35 @@ describe("useTermPicker add flow", () => {
     await act(async () => { await hook.result.current.addTerm("tags"); await hook.result.current.addTerm("nope"); });
     expect(hook.port.createTerm).not.toHaveBeenCalled();
   });
+
+  it("treats an untouched or unknown taxonomy as empty and hierarchical: no create, no suggestions, no comma add", async () => {
+    const hook = await loaded();
+    await waitFor(() => expect(hook.result.current.canCreate).toBe(true));
+    expect(hook.result.current.newTermName("cats")).toBe("");
+    await act(async () => { await hook.result.current.addTerm("cats"); });
+    expect(hook.result.current.suggestions("nope")).toEqual([]);
+    act(() => hook.result.current.pickSuggestion("nope", "Stray"));
+    expect(hook.result.current.newTermName("nope")).toBe("Stray");
+    const comma = key(",");
+    await act(async () => { hook.result.current.onNewTermKeyDown("nope", comma); });
+    expect(comma.preventDefault).not.toHaveBeenCalled();
+    expect(sel(hook)).toEqual(["c1"]);
+    expect(hook.port.createTerm).not.toHaveBeenCalled();
+  });
+
+  it("reports creating only for the taxonomy whose create is in flight, and translates through the host", async () => {
+    const hook = await loaded();
+    await waitFor(() => expect(hook.result.current.canCreate).toBe(true));
+    expect(hook.result.current.t("Categories")).toBe("tr(Categories)");
+    let release: (value: { term: AdminTerm }) => void = () => {};
+    hook.port.createTerm.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    act(() => hook.result.current.setNewTermName("tags", "Slow"));
+    let adding: Promise<void> = Promise.resolve();
+    act(() => { adding = hook.result.current.addTerm("tags"); });
+    await waitFor(() => expect(hook.result.current.creating("tags")).toBe(true));
+    expect(hook.result.current.creating("cats")).toBe(false);
+    await act(async () => { release({ term: term("slow-1", "tags", "Slow") }); await adding; });
+    expect(hook.result.current.creating("tags")).toBe(false);
+    expect(sel(hook)).toEqual(["c1", "slow-1"]);
+  });
 });
