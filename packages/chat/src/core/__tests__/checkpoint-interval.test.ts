@@ -23,3 +23,12 @@ it('thinking and receipt events count as progress; status, usage and raw do not'
     { kind: 'status', label: 'waiting' }, { kind: 'usage', inputTokens: 1 }, { kind: 'raw', line: 'noise' },
   ] })).toEqual({ textCharacters: 6, extensionEvents: 1, tools: new Set() });
 });
+
+it('records each tool call and tool result once, keyed by its id', () => {
+  expect(checkpointProgress({ events: [
+    { kind: 'tool_use', id: 'call-1', name: 'search', input: {} },
+    { kind: 'tool_result', toolUseId: 'call-1', content: 'ok', isError: false },
+    { kind: 'tool_use', id: 'call-1', name: 'search', input: {} },
+    { kind: 'tool_use', id: 'call-2', name: 'read', input: {} },
+  ] })).toEqual({ textCharacters: 0, extensionEvents: 0, tools: new Set(['tool_use:call-1', 'tool_result:call-1', 'tool_use:call-2']) });
+});

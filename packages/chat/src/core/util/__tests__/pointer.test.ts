@@ -223,3 +223,17 @@ describe('resolveHtmlPointerArtifactTarget — guards that the file lookup would
     expect(resolveHtmlPointerArtifactTarget({ content: `see ${name}`, candidateFileName: 'new.html', projectFiles: [{ name }] })).toBeNull();
   });
 });
+
+it('stops tag stripping at an unclosed "<" and keeps the remainder, "<" included, as literal text', () => {
+  expect(resolveHtmlPointerArtifactTarget({
+    content: '<b>see</b> <design.html',
+    candidateFileName: 'response.html',
+    projectFiles: [{ name: 'design.html' }, { name: '<design.html' }],
+  })).toBe('<design.html');
+  // With no unclosed "<" the same reply names the plain file.
+  expect(resolveHtmlPointerArtifactTarget({
+    content: '<b>see</b> design.html',
+    candidateFileName: 'response.html',
+    projectFiles: [{ name: 'design.html' }],
+  })).toBe('design.html');
+});

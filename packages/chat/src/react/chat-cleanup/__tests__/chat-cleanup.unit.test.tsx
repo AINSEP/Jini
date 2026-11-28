@@ -49,3 +49,36 @@ it("cancels the visible confirmation without deletion, then deletes exactly the 
   await waitFor(() => expect(client.deleteSelected).toHaveBeenCalledTimes(1));
   expect(client.deleteSelected).toHaveBeenCalledWith({ ids: ["b", "a"], confirm: true });
 });
+
+it.each([
+  [true, [[false]]],
+  [false, []],
+])("closes the panel only after a partial-preview apply reports complete=%s", async (complete, closes) => {
+  const client: ChatCleanupClient = { setPinned: vi.fn(), preview: vi.fn(), apply: vi.fn(), deleteSelected: vi.fn() };
+  const copy: ChatCleanupCopy = {
+    dialog: { preview: "Preview", confirm: "Delete", expired: "Expired", choose: "Choose", partial: "Some were kept",
+      count: ({ count, bytes }) => `${count} chats, ${bytes} bytes` },
+    open: "Cleanup", olderThan: "Age", deleteSelected: ({ count }) => `Delete selected (${count})`,
+    deleteSelectedBody: "Delete these?", untitled: "Untitled", reason: ({ reason }) => reason,
+    errors: { notConfigured: "Unavailable", invalid: "Invalid", failed: "Failed" },
+  };
+  const apply = vi.fn(async () => ({ complete }));
+  const setOpen = vi.fn();
+  function Harness() {
+    const selection = useSelectedDeletion({ client, copy, hide: vi.fn(), onError: vi.fn(), clearError: vi.fn() });
+    return <ChatCleanupPanel cleanup={{ ...selection, listHooks: defaultConversationListHooks, kit: { Button: "button" }, copy,
+      open: true, setOpen, olderThanDays: 30, setOlderThanDays: vi.fn(), togglePin: vi.fn(),
+      visibleConversations: ({ conversations }) => conversations, error: null,
+      useDialog: () => ({ state: "partial", previewToken: "tok-a", count: 2, bytes: 10,
+        kept: [{ id: "k1", title: "Kept chat", reason: "pinned" }], preview: vi.fn(), choose: vi.fn(), apply }),
+    }} confirm={async () => true} />;
+  }
+  render(<Harness />);
+  expect(screen.getByText("2 chats, 10 bytes")).toBeTruthy();
+  expect(screen.getByText("Some were kept")).toBeTruthy();
+  expect(screen.getByText("Kept chat: pinned")).toBeTruthy();
+  fireEvent.click(screen.getByText("Delete"));
+  await waitFor(() => expect(apply).toHaveBeenCalledWith({ previewToken: "tok-a", confirm: true }));
+  await Promise.resolve();
+  expect(setOpen.mock.calls).toEqual(closes);
+});
