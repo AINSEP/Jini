@@ -32,4 +32,25 @@ describe("trash rules take their copy from the injected translator", () => {
     expect(describePurgeReport({ translate, report: { purged: 0, results: [{ outcome: "still-referenced" }] } as never })).toBe("«Nothing was deleted.» «Items still in use were not deleted.»");
     expect(coverageLine({ translate })).toContain("«Deleted items wait here");
   });
+
+  it("gives a plugin with no subtitle just the shared-across-workspaces note", () => {
+    expect(itemSubtitle({ translate, item: { entityType: "plugin", subtitle: null } })).toBe("«Shared across all workspaces on this site.»");
+  });
+
+  it("resolves an omitted actor username from the known users, else names the system actor", () => {
+    const knownUsernames = new Map([["p1", "ana"]]);
+    expect(actorLabel({ translate, item: item({}) }, { knownUsernames })).toEqual({ label: "ana" });
+    expect(actorLabel({ translate, item: item({ actorPrincipalId: "p2" }) }, { knownUsernames })).toEqual({ label: "«Unknown»" });
+    expect(actorLabel({ translate, item: item({ actorIsSystem: true }) })).toEqual({ label: "«System»" });
+    expect(actorLabel({ translate, item: item({ actorPrincipalId: "system" }) })).toEqual({ label: "«System»" });
+  });
+
+  it("states partial batches as succeeded/total and an all-failed restore by name", () => {
+    const restoreResults = [{ outcome: "restored" }, { outcome: "restored" }, { outcome: "not-found" }];
+    expect(describeRestoreReport({ translate, report: { restored: 2, results: restoreResults } as never })).toBe("«Restored.» 2/3");
+    expect(describeRestoreReport({ translate, report: { restored: 0, results: [{ outcome: "not-found" }] } as never })).toBe("«Nothing was restored.»");
+    const purgeResults = [{ outcome: "purged" }, { outcome: "not-found" }, { outcome: "not-found" }];
+    expect(describePurgeReport({ translate, report: { purged: 1, results: purgeResults } as never })).toBe("«Deleted permanently.» 1/3");
+    expect(describePurgeReport({ translate, report: { purged: 3, results: [{ outcome: "purged" }, { outcome: "purged" }, { outcome: "purged" }] } as never })).toBe("«Deleted permanently.»");
+  });
 });

@@ -306,4 +306,24 @@ describe("useTrash", () => {
     expect(result.current.selected.size).toBe(0);
     expect(result.current.allSelected).toBe(false);
   });
+
+  it("treats select-all, restore and purge before the first page lands as acting on no rows", async () => {
+    const first = deferred<AdminTrashPageDto>();
+    const { port, restoreCalls, purgeCalls } = fakePort({ pages: { "": [first.promise] } });
+    const { result } = renderHook(() => useTrash(deps(port)));
+    expect(result.current.items).toBeNull();
+    expect(result.current.allSelected).toBe(false);
+
+    act(() => result.current.toggleAll());
+    expect(result.current.selected.size).toBe(0);
+    act(() => result.current.toggle("a"));
+    await act(async () => { await result.current.onRestoreSelected(); await result.current.onPurgeConfirmed(); });
+    expect(restoreCalls).toEqual([]);
+    expect(purgeCalls).toEqual([]);
+    expect(result.current.busy).toBe(false);
+
+    await act(async () => { first.resolve(page(["a"])); await first.promise; });
+    await waitFor(() => expect(result.current.items?.map((item) => item.id)).toEqual(["a"]));
+  });
 });
+
