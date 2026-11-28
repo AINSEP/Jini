@@ -11,7 +11,7 @@ import { InMemoryPrincipalRepo, InMemoryUserRepo, InMemorySessionRepo, InMemoryR
 import type { IdentityRepos } from "../../core/index.js";
 import { SelfDeleteError, assertUserAccountAction } from "../delete-user-service.js";
 import { createUsernameChangePort } from "../username-change-ports.js";
-import { buildGatedIdentityRegistrations, contributeIdentityTools, USER_CREATE_DESCRIPTION_SUFFIX, type IdentityToolDeps } from "../tool-registrations.js";
+import { buildGatedIdentityRegistrations, contributeIdentityTools, USER_CREATE_DESCRIPTION_SUFFIX, withoutPassword, type IdentityToolDeps } from "../tool-registrations.js";
 
 type CardScript = { status: "submit"; password: string } | { status: "blank" | "cancelled" | "expired" };
 interface FixtureOptions { duringApproval?: (repos: IdentityRepos) => Promise<void>; decline?: boolean; card?: CardScript; withApps?: boolean;
@@ -109,6 +109,18 @@ describe("identity_role_delete / identity_policy_delete confirmation gate", () =
     await f.repos.roles.save(role);
     expect(await f.tool("identity_role_delete").handler(ctx(f.ownerPrincipalId, { roleId: "role-1" }))).toEqual({ deleted: { roleId: "role-1" } });
     expect(await f.repos.roles.findById({ workspaceId: "ws", id: "role-1" })).toBeNull();
+  });
+
+  it("deletes an unreferenced policy after approval, and refuses one renamed while the confirmation is open", async () => {
+    const f = await fixture();
+    await f.repos.policies.save(policy);
+    expect(await f.tool("identity_policy_delete").handler(ctx(f.ownerPrincipalId, { policyId: "pol-1" }))).toEqual({ deleted: { policyId: "pol-1" } });
+    expect(await f.repos.policies.findById({ workspaceId: "ws", id: "pol-1" })).toBeNull();
+    const raced = await fixture({ duringApproval: async (repos) => { await repos.policies.save({ ...policy, name: "Renamed" }); } });
+    await raced.repos.policies.save(policy);
+    await expect(raced.tool("identity_policy_delete").handler(ctx(raced.ownerPrincipalId, { policyId: "pol-1" })))
+      .rejects.toThrow("identity_policy_delete: target changed while confirmation was open. Request a new confirmation; nothing was deleted.");
+    expect((await raced.repos.policies.findById({ workspaceId: "ws", id: "pol-1" }))?.name).toBe("Renamed");
   });
 
   it("refuses malformed input with the schema before any dialog", async () => {
@@ -247,4 +259,11 @@ it("contributeIdentityTools exposes the gated builder under the identity domain 
   expect(contributor.domain).toBe("identity");
   expect(contributor.build).toBe(buildGatedIdentityRegistrations);
   expect(contributor.risk).toBe(identityDerivedRisk);
+});
+
+it("withoutPassword drops the password property and requirement, treating a schema without a required list as requiring nothing", () => {
+  const properties = { username: { type: "string" }, password: { type: "string" } };
+  expect(withoutPassword({ schema: { type: "object", properties, required: ["username", "password"], additionalProperties: false } }))
+    .toEqual({ type: "object", additionalProperties: false, required: ["username"], properties: { username: { type: "string" } } });
+  expect(withoutPassword({ schema: { type: "object", properties } })).toEqual({ type: "object", required: [], properties: { username: { type: "string" } } });
 });
