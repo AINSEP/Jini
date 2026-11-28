@@ -90,6 +90,43 @@ describe("run checkpointer cadence", () => {
     expect(watch.trailing).toBeUndefined();
   });
 
+  it("a frame arriving after the interval writes at once and cancels the trailing timer it supersedes", async () => {
+    const h = harness({ intervalMs: undefined });
+    const events = [text("a")];
+    const watch = makeWatch(events);
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    h.clock.now = NOW + 400;
+    events.push(text("b"));
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    expect(h.armed().map((entry) => entry.delayMs)).toEqual([600]);
+    h.clock.now = NOW + 1_500;
+    events.push(text("c"));
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    expect(h.writes.map((write) => write.content)).toEqual(["a", "abc"]);
+    expect(h.armed()).toEqual([]);
+    expect(watch.trailing).toBeUndefined();
+  });
+
+  it("records the saved tool identities, so the same tool call alone does not write again", async () => {
+    const h = harness();
+    const events: AgentEvent[] = [{ kind: "tool_use", id: "t1", name: "search", input: {} }];
+    const watch = makeWatch(events);
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    expect([...watch.checkpointedTools]).toEqual(["tool_use:t1"]);
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    expect(h.writes).toHaveLength(1);
+    events.push({ kind: "tool_result", toolUseId: "t1", content: "found", isError: false });
+    h.checkpointer.onFrame({ watch });
+    await flush();
+    expect(h.writes).toHaveLength(2);
+    expect([...watch.checkpointedTools]).toEqual(["tool_use:t1", "tool_result:t1"]);
+  });
+
   it("scales the interval by the last saved payload size (1 MB -> 3 s) unless the host overrides it", async () => {
     const h = harness({ intervalMs: undefined });
     const watch = makeWatch([text("x".repeat(1_000_000 - "text".length))]);

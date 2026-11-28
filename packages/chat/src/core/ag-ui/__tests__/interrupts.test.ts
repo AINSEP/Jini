@@ -30,6 +30,17 @@ test('rejects a matching resume with an unrecognized resolved payload', () => {
   expect(readConfirmationResume({ input: resume, ...handoff })).toEqual({ decision: 'allow' });
 });
 
+test.each([['a string', 'resume me'], ['null', null], ['a matching answer whose run input fails the schema', { ...resume, messages: 'not-a-list' }]])('decides nothing for an input that is not a run input (%s)', (_label, input) => {
+  expect(readConfirmationResume({ input, ...handoff })).toBeUndefined();
+});
+
+test('refuses to park a second handoff under an interrupt id already parked', () => {
+  const store = createAgUiPauseStore({ caps: { global: 3, perScope: 3 }, nowMs: () => 0 });
+  expect(store.park(handoff)).toBe(true);
+  expect(store.park({ ...handoff, owner: 'other', state: { cursor: 9 } })).toBe(false);
+  expect(store.claim(handoff)).toEqual(handoff);
+});
+
 test('claims the retained handoff once for its owner and thread', () => {
   const store = createAgUiPauseStore({ caps: { global: 3, perScope: 2 }, nowMs: () => 0 });
   expect(store.park(handoff)).toBe(true);

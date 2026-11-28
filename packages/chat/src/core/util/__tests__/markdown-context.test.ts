@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../markdown-context.js';
+import { computeSkipRanges, fencedCodeRanges, isRealArtifactOpenAt, rangeContains } from '../markdown-context.js';
 
 // Not part of the artifacts barrel (see artifacts/markdown-context.ts's own module doc: it's an
 // internal detail shared by parser.ts/strip.ts), so this describe block imports the module
@@ -75,5 +75,20 @@ describe('artifacts/markdown-context (internal, direct import)', () => {
 
   it('does not close a fence on an unterminated trailing ``` line', () => {
     expect(computeSkipRanges({ buffer: '```\na\n```' })).toEqual({ ranges: [], unclosedFenceStart: 0 });
+  });
+});
+
+describe('fencedCodeRanges', () => {
+  const opener = /```(?:json)?/g;
+
+  it('skips an opener with no newline before its body and still finds a later fenced block', () => {
+    expect([...fencedCodeRanges({ content: 'a ```json {} b\n```json\n{}\n```', opener })]).toEqual([{ start: 15, end: 29, body: '{}' }]);
+  });
+
+  it.each([
+    ['a single newline after the opener', '```json\n{} and ```json\n{}'],
+    ['several newlines with no closing fence after them', '```json\n\n{} and ```json\n{}'],
+  ])('yields nothing once an opener has no closing fence anywhere (%s)', (_label, content) => {
+    expect([...fencedCodeRanges({ content, opener })]).toEqual([]);
   });
 });

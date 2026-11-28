@@ -53,6 +53,8 @@ describe('title regex edges (F3)', () => {
     ['inline code and strike', '`code` ~~old~~', 'code old'],
     ['escaped marker stays literal', '\\*not emphasis\\*', '*not emphasis*'],
     ['unclosed fence removed to end', 'Intro ```js\nconst x = 1', 'Intro'],
+    ['cut-off image link drops its ! and [', 'Chart ![sales by', 'Chart sales by'],
+    ['cut-off plain link drops only its [', 'Wow! [read more', 'Wow! read more'],
   ])('%s', (_label, text, expected) => {
     expect(stripConversationTitleMarkdown({ text })).toBe(expected);
   });

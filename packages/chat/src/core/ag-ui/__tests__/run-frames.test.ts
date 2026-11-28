@@ -203,3 +203,18 @@ test('a resume whose parent run is not the paused run is refused, even with a ma
 test('a resume answering a different interrupt is refused, even when it allows (G19)', () => {
   expect(readConfirmationResume({ input: { ...resumeInput, resume: [{ interruptId: 'other', status: 'resolved', payload: 'allow' }] }, ...pausedRun })).toBeUndefined();
 });
+
+test('an end naming no reason finishes with stop, and the daemon stream still open behind it is cancelled', async () => {
+  const cancelled: unknown[] = [];
+  const bytes = new TextEncoder().encode(`event: end\ndata: ${JSON.stringify({ payload: { status: 'succeeded' } })}\n\n`);
+  const reader = new ReadableStream<Uint8Array>({
+    start(c) { c.enqueue(bytes); },
+    cancel(reason) { cancelled.push(reason ?? 'cancelled'); },
+  }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } });
+  expect(outcome).toEqual({ status: 'succeeded' });
+  expect(events).toEqual([{ type: 'RUN_FINISHED', threadId: 't', runId: 'r', result: { reason: 'stop' } }]);
+  expect(cancelled).toHaveLength(1);
+});
