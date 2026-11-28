@@ -116,3 +116,38 @@ it("unavailable and refusing providers never fall back to local storage", async 
   registry.register({ definition: { id: "example_store", provider: { create: () => providerRejected({ code: "invalid_request", message: "private bucket not reachable" }) } } });
   await expect(blobStore.get({ storageKey })).rejects.toThrow("Media storage provider 'example_store' refused its configuration: private bucket not reachable");
 });
+
+it("an unknown backend with no declarations lists only 'local' as the accepted value", () => {
+  expect(() => readMediaStoreEnvChoice({ env: { MEDIA_STORE: "example" }, envName: "MEDIA_STORE" })).toThrow("Unknown MEDIA_STORE 'example' — expected 'local'.");
+});
+
+it("an unset env with a blank site setting stays on the injected local store and reports media as not remote", async () => {
+  const local = memoryObjectStore();
+  let localCalls = 0;
+  const credentialReads: unknown[] = [];
+  const { blobStore, mediaIsRemoteByEnv, isMediaRemote } = selectMediaBlobStore({
+    ...required, env: {}, local: () => { localCalls += 1; return local; }, ports: () => ({
+      ...ports("")(), resolveSharedCredential: async (input) => { credentialReads.push(input); return undefined; },
+    }),
+  });
+  expect(mediaIsRemoteByEnv).toBe(false);
+  expect(await isMediaRemote()).toBe(false);
+  expect(localCalls).toBe(0);
+  expect(await blobStore.put({ workspaceId: "west", sha256: digest, bytes: payload })).toEqual({ storageKey });
+  expect(await local.get({ key: storageKey })).toEqual(payload);
+  expect(localCalls).toBe(1);
+  expect(credentialReads).toEqual([]);
+});
+
+it("a site connection with a private media bucket and no public bucket binds the media bucket", async () => {
+  const create = vi.fn<ObjectStoreProvider<null>["create"]>(() => providerOk({ value: memoryObjectStore() }));
+  const registry = createObjectStoreRegistry<null>({}, { seed: [{ id: "example_store", provider: { create } }] });
+  const fields = { mediaBucket: "media-only" };
+  const { blobStore } = selectMediaBlobStore({
+    ...required, env: {}, ports: () => ({
+      ...ports("example_store", { fields, secret: "fixture-secret" })(), loadSiteRegistry: async () => ({ registry, refusals: [] }),
+    }),
+  });
+  await expect(blobStore.get({ storageKey })).rejects.toThrow(`blob '${storageKey}' was not found`);
+  expect(create.mock.calls).toEqual([[{ settings: { bucket: "media-only", keyPrefix: undefined }, credential: { fields, secret: "fixture-secret" }, host: null }]]);
+});

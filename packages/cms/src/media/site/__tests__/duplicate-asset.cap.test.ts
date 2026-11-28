@@ -111,3 +111,55 @@ test("duplicate refuses a trashed asset or missing blob before creating any copy
     error instanceof ToolInputError && error.message.includes("has no stored blob for hash") && error.message.includes("nothing was copied"));
   assert.deepEqual((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id).sort(), [source.id, "missing-blob"].sort());
 });
+
+test("duplicate refuses an unknown id and a library document with their own messages and creates nothing", async () => {
+  const { deps, source } = await seed({ bytes: pngBytes(8), contentType: "image/png" });
+  await assert.rejects(duplicate({ deps, source: { id: "nope" }, caps: {} }), error =>
+    error instanceof ToolInputError && error.message === "content_duplicate: media asset 'nope' was not found");
+  await deps.mediaRepo.save({ ...source, id: "doc-1", slug: "doc-one", kind: "document" });
+  await assert.rejects(duplicate({ deps, source: { id: "doc-1" }, caps: {} }), error =>
+    error instanceof ToolInputError && error.message === "Library document duplication is unavailable");
+  assert.deepEqual((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).map(asset => asset.id).sort(), ["doc-1", source.id].sort());
+});
+
+test("without a title override the copy's name skips every title already in the library", async () => {
+  const { deps, source } = await seed({ bytes: pngBytes(8), contentType: "image/png" });
+  await deps.mediaRepo.save({ ...source, id: "taken-2", slug: "taken-two", title: `${source.title} 2` });
+  const probed: string[] = [];
+  const result = await duplicateMediaAsset({
+    routeDeps: deps as never, principalId: "p", id: source.id, overrides: {},
+    deriveDuplicateName: async ({ sourceName }, { isTaken }) => {
+      for (let suffix = 2; suffix < 10; suffix++) {
+        const candidate = `${sourceName} ${suffix}`;
+        probed.push(candidate);
+        if (!(await isTaken({ candidate }))) return candidate;
+      }
+      throw new Error("no free name");
+    },
+  });
+  assert.deepEqual(probed, [`${source.title} 2`, `${source.title} 3`]);
+  assert.equal((result.media as { title: string }).title, `${source.title} 3`);
+});
+
+test("the copy reuses the recorded content type, falls back to sniffing when none is recorded, and records the copy's type", async () => {
+  const { deps, source } = await seed({ bytes: pngBytes(8), contentType: "image/png" });
+  const sets: unknown[] = [];
+  const recorded = new Map<string, string>([[source.source.sha256, "image/gif"]]);
+  const reads: unknown[] = [];
+  const store = {
+    getMany: async (required: { workspaceId: string; sha256s: string[] }) => { reads.push(required); return recorded; },
+    set: async (required: { workspaceId: string; sha256: string; contentType: string }) => { sets.push(required); },
+  };
+  const withStore = { ...deps, mediaContentTypeStore: store };
+  await duplicate({ deps: withStore as never, source, caps: {} });
+  recorded.clear();
+  await duplicate({ deps: withStore as never, source, caps: {} });
+  assert.deepEqual(reads, [
+    { workspaceId: WORKSPACE_ID, sha256s: [source.source.sha256] },
+    { workspaceId: WORKSPACE_ID, sha256s: [source.source.sha256] },
+  ]);
+  assert.deepEqual(sets, [
+    { workspaceId: WORKSPACE_ID, sha256: source.source.sha256, contentType: "image/gif" },
+    { workspaceId: WORKSPACE_ID, sha256: source.source.sha256, contentType: "image/png" },
+  ]);
+});

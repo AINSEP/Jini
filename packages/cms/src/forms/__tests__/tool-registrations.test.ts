@@ -6,6 +6,7 @@ import { DELIVERY_STATUS_MAX_LIMIT } from "../delivery-status-limits.js";
 import { FormDefinitionNotFoundError } from "../errors.js";
 import { duplicateFormDefinition } from "../duplicate-form.js";
 import { formsAgentToolCatalog } from "../agent-tools.js";
+import { createFormCollectionRegistry } from "../provider.js";
 import type { FormsPackageToolDeps, FormsToolDeliveryStatusRow, FormsToolWriteDeps, FormsWriteOps } from "../tool-handlers.types.js";
 import { buildFormsToolRegistrations, formsDerivedRisk } from "../tool-registrations.js";
 import {
@@ -305,4 +306,50 @@ test("submission listing without a limit pages 50 at a time, and a plain submiss
   assert.deepEqual(await call("forms_get_submission", { formId, submissionId: "s-07" }), {
     submission: { id: "s-07", formDefinitionId: formId, data: { n: "7" }, sourceIp: "198.51.100.7", submittedAt },
   });
+});
+
+test("the providers tool and create both consult the host's collection registry when one is bound", async () => {
+  const fixture = makeFixture();
+  const providers = createFormCollectionRegistry({});
+  providers.contribute({ pluginId: "test/collector", definition: { id: "collector", label: "Collector", provider: {
+    describe: () => ({ label: "Collector", fields: [], answers: "Remote inbox", validation: "Remote validation", frameOrigins: [] }),
+    plan: ({ config }) => ({ kind: "post", action: config.endpoint ?? "", external: true, capabilities: { answers: "external", validation: "external", spamProtection: "external" } }),
+  } } });
+  fixture.deps.formCollectionProviders = () => providers;
+  const call = build(fixture);
+  const listed = (await call("forms_list_providers", {})) as { providers: Array<{ id: string; available: boolean }> };
+  assert.deepEqual(listed.providers.map((provider) => [provider.id, provider.available]), [["builtin", true], ["collector", true]]);
+  await assert.rejects(
+    call("forms_create_definition", { name: "Lost", slug: "lost", fields: FIELDS, provider: { id: "nowhere", config: {} } }),
+    (error: Error) => error instanceof ToolInputError && error.message.startsWith("This form cannot send answers because its nowhere form provider is unavailable."),
+  );
+  assert.equal(await fixture.repo.findBySlug({ workspaceId: WORKSPACE_ID, slug: "lost" }), null);
+  const provider = { id: "collector", config: { endpoint: "https://collector.example/in" } };
+  const created = (await call("forms_create_definition", { name: "Remote", slug: "remote", fields: FIELDS, provider })) as { definition: { provider?: unknown } };
+  assert.deepEqual(created.definition.provider, provider);
+});
+
+test("without a bound registry the providers tool lists only the built-in collector", async () => {
+  const listed = (await build(makeFixture())("forms_list_providers", {})) as { providers: Array<{ id: string }> };
+  assert.deepEqual(listed.providers.map((provider) => provider.id), ["builtin"]);
+});
+
+test("create without a fields array falls back to an empty list and is refused by field validation, writing nothing", async () => {
+  const fixture = makeFixture();
+  await assert.rejects(
+    build(fixture)("forms_create_definition", { name: "Empty", slug: "empty", fields: "not-a-list" }),
+    (error: Error) => error instanceof ToolInputError && error.message.startsWith("one or more field descriptors are invalid."),
+  );
+  assert.equal(await fixture.repo.findBySlug({ workspaceId: WORKSPACE_ID, slug: "empty" }), null);
+});
+
+test("list definitions keeps an HTML form's authoring mode but drops its stored html body", async () => {
+  const fixture = makeFixture();
+  const formId = await seedForm(fixture);
+  const stored = await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: formId });
+  assert.ok(stored);
+  await fixture.repo.update({ ...stored, mode: "html", html: "<form><input name=\"email\"></form>" } as typeof stored);
+  const result = (await build(fixture)("forms_list_definitions", {})) as { definitions: Array<Record<string, unknown>> };
+  assert.equal(result.definitions[0]?.mode, "html");
+  assert.equal("html" in result.definitions[0]!, false);
 });
