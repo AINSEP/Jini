@@ -24,3 +24,21 @@ it('does not emit an image URL when the URL parser refuses its authority', () =>
   expect(safeImageSrc({ value: ' https://photos.example/photo.jpg ', isPrivatePath })).toBe('https://photos.example/photo.jpg');
   expect(isPrivatePath.mock.calls).toEqual([['/photo.jpg']]);
 });
+
+it('refuses non-string, scheme, protocol-relative and off-origin relative image sources, and credentialed URLs', () => {
+  const isPrivatePath = vi.fn(() => false);
+  for (const value of [undefined, 42, null, '', 'javascript:alert(1)', 'data:image/png;base64,AAAA', '//evil.example/x.png', 'img\\x.png']) {
+    expect(safeImageSrc({ value, isPrivatePath })).toBeNull();
+  }
+  expect(isPrivatePath).not.toHaveBeenCalled();
+  // The URL parser strips a leading control character, so this resolves to another origin.
+  expect(safeImageSrc({ value: '\u0001//evil.example/x.png', isPrivatePath })).toBeNull();
+  expect(isPrivatePath).not.toHaveBeenCalled();
+  expect(safeImageSrc({ value: 'https://user:pw@photos.example/x.jpg', isPrivatePath })).toBeNull();
+  expect(safeImageSrc({ value: 'images/x.png', isPrivatePath })).toBe('images/x.png');
+});
+
+it('a non-string video source has no YouTube id', () => {
+  expect(extractYoutubeVideoId({ value: undefined })).toBeNull();
+  expect(extractYoutubeVideoId({ value: 7 })).toBeNull();
+});
