@@ -8,13 +8,13 @@ import { memberAuthHarness, memberRow, T0, WS } from "../../members/__tests__/me
 const T5 = "2026-01-01T00:05:00.000Z";
 const relaxed: VerifiedLoginIdentity = { providerId: "google", issuer: "https://issuer.example", subject: "sub-1", email: "ada@example.com", emailAuthoritative: false };
 
-function harness(options: { members?: MemberRecord[]; transaction?: MemberLoginLinkDeps["transaction"] } = {}) {
+function harness(options: { members?: MemberRecord[]; transaction?: MemberLoginLinkDeps["transaction"]; lockKey?: MemberLoginLinkDeps["lockKey"] } = {}) {
   const h = memberAuthHarness({ members: options.members ?? [] });
   const identities = new InMemoryMemberExternalIdentityRepo({});
   const deps: MemberLoginLinkDeps = {
     ...h.deps, identities,
     transaction: options.transaction ?? (async (run) => run()),
-    lockKey: async () => undefined,
+    lockKey: options.lockKey ?? (async () => undefined),
     reportFailure: () => { throw new Error("not expected in these flows"); },
   };
   return { ...h, deps, identities };
@@ -51,6 +51,47 @@ describe("resolveFederatedIdentity with an emailed inbox proof", () => {
     expect(await h.identities.listByMember({ workspaceId: WS, memberId: "m-1" })).toEqual([]);
     await h.seedChallenge({ purpose: "signin", member: memberRow(), challengeId: "c-2", rawToken: "raw-2", code: "123456" });
     await expect(login(h.deps, { emailProof: { challengeId: "c-2", code: "999999" } })).rejects.toMatchObject({ code: "LOGIN_INVALID" });
+  });
+});
+
+/** A writer that commits between the proof (verified outside the link transaction) and the first lock. */
+function raceBeforeFirstLock(write: () => Promise<void>): { lockKey: MemberLoginLinkDeps["lockKey"]; keys: string[] } {
+  const keys: string[] = [];
+  return { keys, lockKey: async (key) => { keys.push(key); if (keys.length === 1) await write(); } };
+}
+
+describe("resolveFederatedIdentity when the proved member changes before the link transaction", () => {
+  it("refuses a proof whose member no longer owns the address: another member took it after the code was checked", async () => {
+    let members: ReturnType<typeof harness>["members"] | undefined;
+    const race = raceBeforeFirstLock(async () => {
+      const proved = await members?.findById({ workspaceId: WS, id: "m-1" });
+      if (!proved) throw new Error("the proved member should still exist");
+      await members?.save({ ...proved, email: "old@example.com", version: proved.version + 1 });
+      await members?.save(memberRow({ id: "m-2" }));
+    });
+    const h = harness({ members: [memberRow()], lockKey: race.lockKey });
+    members = h.members;
+    await h.seedChallenge({ purpose: "signin", member: memberRow(), code: "123456" });
+    await expect(login(h.deps, { emailProof: { challengeId: "c-1", code: "123456" } })).rejects.toMatchObject({ code: "LOGIN_INVALID" });
+    expect(await h.identities.listByMember({ workspaceId: WS, memberId: "m-2" })).toEqual([]);
+    expect(await h.identities.listByMember({ workspaceId: WS, memberId: "m-1" })).toEqual([]);
+    expect(await h.sessions.listByMember({ workspaceId: WS, memberId: "m-2" })).toEqual([]);
+  });
+
+  it("blocks a connect whose signed-in member went to Trash after the proof, even though the proof matches the provider address", async () => {
+    let members: ReturnType<typeof harness>["members"] | undefined;
+    const race = raceBeforeFirstLock(async () => {
+      const proved = await members?.findById({ workspaceId: WS, id: "m-1" });
+      if (!proved) throw new Error("the proved member should still exist");
+      await members?.save({ ...proved, status: "trash", version: proved.version + 1 });
+    });
+    const h = harness({ members: [memberRow()], lockKey: race.lockKey });
+    members = h.members;
+    await h.seedChallenge({ purpose: "signin", member: memberRow(), code: "123456" });
+    await expect(login(h.deps, { connectMemberId: "m-1", emailProof: { challengeId: "c-1", code: "123456" } }))
+      .rejects.toMatchObject({ code: "LOGIN_BLOCKED" });
+    expect(race.keys).toEqual([`members:external-identities:${WS}`]);
+    expect(await h.identities.listByMember({ workspaceId: WS, memberId: "m-1" })).toEqual([]);
   });
 });
 
