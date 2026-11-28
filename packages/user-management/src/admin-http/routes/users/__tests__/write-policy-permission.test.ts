@@ -29,6 +29,14 @@ describe("policyPermissionWriteRoute", () => {
     expect(result.ok && result.value.policyPermission).toMatchObject({ policyId: policy.id, permission: "role.manage", resourceType: null, constraintJson: null });
   });
 
+  it("forwards a resource scope and constraint to the service, which stores them on the row", async () => {
+    const { routeDeps, serviceDeps, OWNER } = await makeAccessDeps();
+    const { policy } = await createPolicy({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Scoped" } });
+    const result = await policyPermissionWriteRoute.handle({ input: { ...input(), policyId: policy.id, resourceType: "post", constraintJson: '{"own":true}' },
+      deps: { ...routeDeps, ...HOST_POLICY }, context: OWNER });
+    expect(result.ok && result.value.policyPermission).toMatchObject({ policyId: policy.id, permission: "role.manage", resourceType: "post", constraintJson: '{"own":true}' });
+  });
+
   for (const reserved of HOST_POLICY.ungrantablePermissions) {
     it(`refuses the injected ungrantable permission '${reserved}' with the host's code-only 403 before any service work`, async () => {
       const { routeDeps, OWNER, serviceCalls } = await makeAccessDeps();

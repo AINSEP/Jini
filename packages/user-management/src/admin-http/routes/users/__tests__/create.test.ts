@@ -53,6 +53,22 @@ describe("userCreateRoute", () => {
     });
   });
 
+  it("parses a request with no body at all as empty credentials", () => {
+    expect(userCreateRoute.parse({ body: undefined, query: {}, params: {} })).toEqual({ ok: true, value: { username: "", email: undefined, password: "" } });
+  });
+
+  it("claims USERNAME_IN_TRASH only when the host normalizer finds the trashed holder itself", async () => {
+    const { deps, services, ownerId, trash } = await createDeps();
+    trash.trashed.add(await addUser({ services, ownerId, username: "alice" }));
+    const conflictWith = async (normalize: typeof normalizeUsername) =>
+      refusalOf(() => userCreateRoute.handle({ input: input({ username: "alice" }), deps: { ...deps, normalizeUsername: normalize }, context: { id: ownerId } }));
+    for (const normalize of [() => "", () => "someone-else"]) {
+      const refusal = await conflictWith(normalize);
+      expect(refusal.status).toBe(409);
+      expect(refusal.body).toMatchObject({ code: "RESOURCE_CONFLICT", details: { field: "username" } });
+    }
+  });
+
   it("maps a validation failure to 400 VALIDATION_ERROR", async () => {
     const { deps, ownerId } = await createDeps();
     const refusal = await refusalOf(() => userCreateRoute.handle({ input: input({ username: "" }), deps, context: { id: ownerId } }));
