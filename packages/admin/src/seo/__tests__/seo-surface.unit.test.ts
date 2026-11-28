@@ -131,6 +131,17 @@ describe('createMemorySeoApi', () => {
     });
     await expect(api.putSeoEntry({ entryId: 'conformance-entry' }, { title: 'Custom' })).resolves.toMatchObject({ title: 'conformance-entry:Custom' });
   });
+
+  it('leaves an override alone when its patch key is present but undefined, and clears it on null', async () => {
+    const seen: object[] = [];
+    const api = createMemorySeoApi({ entries: seed }, { resolveEntry: ({ base, overrides }) => { seen.push(overrides); return base; } });
+    await api.putSeoEntry({ entryId: 'conformance-entry' }, { title: 'Custom', description: 'Desc' });
+    // A host compiled without exactOptionalPropertyTypes may legally send an explicit `undefined`.
+    const loosePatch = { title: undefined, description: null } as unknown as Parameters<AdminSeoPort['putSeoEntry']>[1];
+    await api.putSeoEntry({ entryId: 'conformance-entry' }, loosePatch);
+    expect(seen.at(-1)).toEqual({ title: 'Custom' });
+    expect(Object.keys(seen.at(-1)!)).toEqual(['title']);
+  });
 });
 
 describe('runSeoApiConformance', () => {

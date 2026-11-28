@@ -229,4 +229,18 @@ describe("workspace cache and form drafts", () => {
     await waitFor(() => expect(result.current.second.workspace?.name).toBe("Published name"));
     expect(result.current.second.name).toBe("My unsaved name");
   });
+
+  it("re-reads through a newly injected port without replacing the hydrated draft", async () => {
+    const first = createFakePort({ workspace: WORKSPACE });
+    const second = createFakePort({ workspace: { ...WORKSPACE, name: "Renamed elsewhere", slug: "renamed" } });
+    const reads = vi.spyOn(second, "getWorkspace");
+    const view = renderHook(({ port }) => useWorkspace(deps(port)), { initialProps: { port: first as WorkspacePort } });
+    await waitFor(() => expect(view.result.current.name).toBe(WORKSPACE.name));
+    act(() => { view.result.current.setName("My draft"); });
+    view.rerender({ port: second });
+    await waitFor(() => expect(reads).toHaveBeenCalled());
+    await waitFor(() => expect(view.result.current.workspace?.name).toBe("Renamed elsewhere"));
+    expect(view.result.current.name).toBe("My draft");
+    expect(view.result.current.slug).toBe(WORKSPACE.slug);
+  });
 });
