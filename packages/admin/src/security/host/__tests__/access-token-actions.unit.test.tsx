@@ -36,16 +36,16 @@ const sourceCredential = (over: Partial<AdminSourceControlCredentialSummary> = {
 const categories = [{ id: "all" as const, label: "All" }, { id: "hosting" as const, label: "Hosting" }];
 const providerCopy = { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" };
 
-function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom" } = {}) {
+function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; publish?: AdminPublishCredentialSummary[]; source?: AdminSourceControlCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom" } = {}) {
   const port: AccessTokensArgs["port"] = {
     publish: {
-      list: vi.fn(async () => ({ credentials: [publishCredential()], executionMode: "hosted-api-only" as const })),
+      list: vi.fn(async () => ({ credentials: options.publish ?? [publishCredential()], executionMode: "hosted-api-only" as const })),
       create: vi.fn(async (input) => publishCredential({ id: "pub-2", label: input.label, isDefault: false, worksFor: input.worksFor ?? [] })),
       update: vi.fn(async ({ id, input }) => publishCredential({ id, label: input.label ?? "Main host key", worksFor: input.worksFor ?? ["host"] })),
       remove: vi.fn(),
     },
     sourceControl: {
-      list: vi.fn(async () => ({ credentials: [] })),
+      list: vi.fn(async () => ({ credentials: options.source ?? [] })),
       create: vi.fn(async (input) => sourceCredential({ id: "src-2", label: input.label })),
       update: vi.fn(async ({ id }) => sourceCredential({ id })),
       remove: vi.fn(),
@@ -505,6 +505,31 @@ describe("access-token first load with one failed store", () => {
     await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: custom forbidden|t(unknown error)"));
     await waitFor(() => expect(hook.result.current.groups?.map((group) => group.info.providerId).sort()).toEqual(["host", "source"]));
     expect(rows(hook).map((row) => row.id)).toEqual(["pub-1"]);
+  });
+});
+
+describe("access-token row derivation", () => {
+  it("names legacy sentinel rows after their provider's catalog label, numbering the second one per provider", async () => {
+    const hook = setup({
+      publish: [publishCredential({ id: "pub-a", label: "default" }), publishCredential({ id: "pub-b", label: "default-proj1", isDefault: false }), publishCredential({ id: "pub-c", label: "Named key", isDefault: false })],
+      source: [sourceCredential({ id: "src-a", label: "default" })],
+    });
+    await waitFor(() => expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-a", "pub-b", "pub-c", "src-a"]));
+    expect(requireRow(hook, "pub-a").name).toBe("Host token");
+    expect(requireRow(hook, "pub-b").name).toBe("Host token 2");
+    expect(requireRow(hook, "pub-c").name).toBe("Named key");
+    expect(requireRow(hook, "src-a").name).toBe("Source token");
+  });
+
+  it("files a custom credential an older server sent without a category under General", async () => {
+    const { category: _category, ...uncategorized } = customCredential({ id: "cus-old" });
+    const hook = setup({ custom: [uncategorized as AdminCustomCredentialSummary] });
+    await waitFor(() => expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-old", "pub-1"]));
+
+    act(() => hook.result.current.setCategory("general"));
+    expect(hook.result.current.groups?.map((group) => group.info.providerId)).toContain("cus-old");
+    act(() => hook.result.current.setCategory("hosting"));
+    expect(hook.result.current.groups?.map((group) => group.info.providerId)).not.toContain("cus-old");
   });
 });
 
