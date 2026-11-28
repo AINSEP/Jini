@@ -120,3 +120,24 @@ describe("useLogin — submit", () => {
     expect(result.current.busy).toBe(false);
   });
 });
+
+describe("useLogin — second factor without a completion port", () => {
+  it("asks for the code, then refuses the code step with translated guidance and keeps the pending proof", async () => {
+    const login = vi.fn(async () => ({ mfaRequired: true as const, pendingToken: "proof-a" }));
+    const port: LoginPort = { login };
+    const onLogin = vi.fn();
+    const { result } = renderHook(() => useLogin({ onLogin, port, translate: (key: string) => `tr:${key}` }));
+
+    await act(async () => result.current.submit(fakeSubmitEvent()));
+    expect(result.current.mfa?.pendingToken).toBe("proof-a");
+    act(() => result.current.mfa?.setCode("123456"));
+
+    await act(async () => result.current.submit(fakeSubmitEvent()));
+
+    expect(result.current.error).toBe("tr:Authenticator sign-in is unavailable. Cancel and try again.");
+    expect(result.current.mfa).toMatchObject({ pendingToken: "proof-a", code: "123456" });
+    expect(login).toHaveBeenCalledOnce();
+    expect(onLogin).not.toHaveBeenCalled();
+    expect(result.current.busy).toBe(false);
+  });
+});

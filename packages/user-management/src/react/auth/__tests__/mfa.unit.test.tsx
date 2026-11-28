@@ -74,3 +74,16 @@ it('requires the current password and factor when removing an enrolled authentic
   expect(await screen.findByText('Authenticator removed. Sign in again.')).toBeInTheDocument();
   expect(screen.getByLabelText('Current owner password')).toHaveValue('');
 });
+
+it('shows a refused setup as an alert in the settings form and keeps the setup key hidden', async () => {
+  const user = userEvent.setup();
+  const port = { status: vi.fn().mockResolvedValue({ isOwner: true, available: true, enrolled: false }),
+    enroll: vi.fn().mockRejectedValue(new Error('The current owner password was not accepted.')), confirm: vi.fn(), remove: vi.fn() };
+  render(<TotpSettings port={port} translate={translate} />);
+  await user.type(await screen.findByLabelText('Current owner password'), 'wrong-password');
+  await user.click(screen.getByRole('button', { name: 'Set up authenticator' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('The current owner password was not accepted.');
+  expect(screen.getByRole('heading', { name: 'Authenticator app' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Confirm authenticator' })).not.toBeInTheDocument();
+  expect(port.confirm).not.toHaveBeenCalled();
+});

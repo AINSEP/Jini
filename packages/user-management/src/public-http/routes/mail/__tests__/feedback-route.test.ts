@@ -86,6 +86,15 @@ describe("mailFeedbackRoute", () => {
     expect(deps.seen[0]!.rawBody.byteLength).toBe(0);
   });
 
+  it("a request routed without a provider id reaches the ingest as an empty id and gets its 404", async () => {
+    const body = bytes("{}");
+    const deps = ingestDeps({ "x-signature": sign(body) });
+    const raw = { params: {}, query: {}, body } as RouteInputContext;
+    const res = await mailFeedbackRoute.handle({ raw, deps }, { signal });
+    expect(deps.seen.map(seen => seen.providerId)).toEqual([""]);
+    expect(res.status).toBe(404);
+  });
+
   it("lets an ingest failure propagate to the host's failure writer", async () => {
     const deps = ingestDeps({});
     deps.ingest.handle = async () => { throw new Error("store failed"); };

@@ -96,3 +96,61 @@ test('passkey settings render the credentials of the injected hook and revoke th
   await user.click(screen.getByRole('button', { name: 'Add passkey' }));
   expect(action).toHaveBeenCalledWith();
 });
+
+test('a replacement password proof while the server begin is in flight never opens the stale browser prompt', async () => {
+  const user = userEvent.setup(), onComplete = vi.fn(), ceremony = vi.fn();
+  let release!: (value: typeof started) => void;
+  const begin = vi.fn(() => new Promise<typeof started>(done => { release = done; }));
+  const port = { begin, complete: vi.fn() };
+  const { rerender } = render(<PasskeySignIn port={port} pendingToken="password-proof" onComplete={onComplete} translate={translate} ceremony={ceremony} />);
+  await user.click(screen.getByRole('button', { name: 'Use a passkey' }));
+  expect(screen.getByRole('button', { name: 'Waiting for passkey…' })).toBeDisabled();
+  rerender(<PasskeySignIn port={port} pendingToken="new-proof" onComplete={onComplete} translate={translate} ceremony={ceremony} />);
+  release(started);
+  await new Promise(done => setTimeout(done, 0));
+  expect(begin).toHaveBeenCalledWith({ pendingToken: 'password-proof' });
+  expect(ceremony).not.toHaveBeenCalled(); expect(port.complete).not.toHaveBeenCalled(); expect(onComplete).not.toHaveBeenCalled();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+test('a sign-in failure that is not an Error shows the translated fallback guidance', async () => {
+  const user = userEvent.setup();
+  const port = { begin: vi.fn().mockRejectedValue('offline'), complete: vi.fn() };
+  render(<PasskeySignIn port={port} pendingToken="password-proof" onComplete={vi.fn()} translate={text => `tr:${text}`} ceremony={vi.fn()} />);
+  await user.click(screen.getByRole('button', { name: 'tr:Use a passkey' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('tr:Passkey sign-in could not finish. Use your authenticator app or recovery code.');
+  expect(screen.getByRole('button', { name: 'tr:Use a passkey' })).toBeEnabled();
+});
+
+test('a settings load failure that is not an Error shows the translated reload guidance', async () => {
+  const port = { status: vi.fn().mockRejectedValue('offline'), enroll: vi.fn(), confirm: vi.fn(), remove: vi.fn() };
+  render(<PasskeySettings port={port} translate={text => `tr:${text}`} />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('tr:Passkey settings could not load. Reload this page to try again.');
+});
+
+test('a failed owner action keeps the list, shows the translated fallback for a non-Error, and clears the proofs', async () => {
+  const user = userEvent.setup();
+  const port = { status: vi.fn().mockResolvedValue({ isOwner: true, credentials: [{ id: 'key' }] }),
+    enroll: vi.fn(), confirm: vi.fn(), remove: vi.fn().mockRejectedValue('offline') };
+  render(<PasskeySettings port={port} translate={text => `tr:${text}`} ceremony={vi.fn()} />);
+  const password = await screen.findByLabelText('tr:Current owner password');
+  await user.type(password, 'password'); await user.type(screen.getByLabelText('tr:Authenticator code'), '123456');
+  await user.click(screen.getByRole('button', { name: 'tr:Remove passkey 1' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('tr:The passkey action could not finish. Try a new attempt.');
+  expect(port.remove).toHaveBeenCalledWith({ id: 'key', password: 'password', code: '123456' });
+  expect(port.status).toHaveBeenCalledOnce();
+  expect(screen.getByRole('button', { name: 'tr:Remove passkey 1' })).toBeDisabled();
+  expect(password).toHaveValue(''); expect(screen.getByLabelText('tr:Authenticator code')).toHaveValue('');
+});
+
+test('a refused enrollment shows the server reason verbatim and never opens the browser prompt', async () => {
+  const user = userEvent.setup(), ceremony = vi.fn();
+  const port = { status: vi.fn().mockResolvedValue({ isOwner: true, credentials: [] }),
+    enroll: vi.fn().mockRejectedValue(new Error('Set up your authenticator app before adding a passkey.')), confirm: vi.fn(), remove: vi.fn() };
+  render(<PasskeySettings port={port} translate={translate} ceremony={ceremony} />);
+  await user.type(await screen.findByLabelText('Current owner password'), 'password');
+  await user.type(screen.getByLabelText('Authenticator code'), '123456');
+  await user.click(screen.getByRole('button', { name: 'Add passkey' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Set up your authenticator app before adding a passkey.');
+  expect(ceremony).not.toHaveBeenCalled(); expect(port.confirm).not.toHaveBeenCalled();
+});
