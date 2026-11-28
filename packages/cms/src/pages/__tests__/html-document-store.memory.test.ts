@@ -165,3 +165,50 @@ it("a lost compare-and-set is a concurrent edit and records no revision or refer
   expect(await entryRefsRepo.findBySource({ workspaceId: "site", sourceEntryId: "page" })).toEqual([]);
   expect(store.capturedVersion()).toBe(7);
 });
+
+it("converting or reading a missing or trashed page is refused before any write", async () => {
+  const { store, repo } = setup({ ...post, deletedAt: before });
+  await expect(store.ensureHtmlFormat({ seedHtml: htmlBody })).rejects.toBeInstanceOf(EntityNotLiveError);
+  await expect(store.read()).rejects.toBeInstanceOf(EntityNotLiveError);
+  expect(await repo.findById(key)).toMatchObject({ bodyFormat: "doc", version: 7 });
+  const missing = new InMemoryPagesHtmlDocumentStore({ scope: { workspaceId: "site", postId: "gone" }, deps: { repo, clock: { nowMs: () => 0 }, reportUnindexedRef: () => {}, restoredEntryRefs: () => [] } });
+  await expect(missing.ensureHtmlFormat({ seedHtml: htmlBody })).rejects.toThrow(new PageNotFoundError("page 'gone' was not found"));
+  expect(await repo.listRevisions(scope)).toEqual([]);
+});
+
+it("a conversion that loses its compare-and-set is a concurrent edit and leaves the page in its old format", async () => {
+  const { store, repo, entryRefsRepo } = setup(post);
+  vi.spyOn(repo, "saveIfVersion").mockResolvedValueOnce({ applied: false });
+  await expect(store.ensureHtmlFormat({ seedHtml: htmlBody, expectedVersion: 7 }))
+    .rejects.toThrow("page 'page' was edited elsewhere while it was being converted to HTML — retry");
+  expect(await repo.findById(key)).toMatchObject({ bodyFormat: "doc", bodyHtml: null, version: 7 });
+  expect(await entryRefsRepo.findBySource({ workspaceId: "site", sourceEntryId: "page" })).toEqual([]);
+  expect(store.capturedVersion()).toBeNull();
+});
+
+it("a restore that loses its compare-and-set keeps the newer version and moves no captured version", async () => {
+  const { store, repo } = setup({ ...post, bodyFormat: "html", bodyHtml: htmlBody });
+  vi.spyOn(repo, "saveIfVersion").mockResolvedValueOnce({ applied: false });
+  await expect(store.restore({ inverse: { format: "doc", bodyJson: docBody }, expectedVersion: 7 }))
+    .rejects.toThrow("page 'page' changed after this edit was made — the newer version was kept");
+  expect(await repo.findById(key)).toMatchObject({ bodyFormat: "html", bodyHtml: htmlBody, version: 7 });
+  expect(store.capturedVersion()).toBeNull();
+});
+
+it("without a references repo a conversion still lands and records its revisions", async () => {
+  const { repo } = setup(post);
+  const store = new InMemoryPagesHtmlDocumentStore({ scope, deps: { repo, clock: { nowMs: () => Date.parse(now) }, reportUnindexedRef: () => {}, restoredEntryRefs: () => [] } });
+  await store.ensureHtmlFormat({ seedHtml: htmlBody });
+  expect(await store.read()).toBe(htmlBody);
+  expect((await repo.listRevisions(scope)).map(({ seq, stateJson }) => [seq, stateJson.bodyFormat])).toEqual([[7, "doc"], [8, "html"]]);
+});
+
+it("a page that disappears inside the conversion transaction records no revision for it", async () => {
+  const { store, repo } = setup(post);
+  const findById = repo.findById.bind(repo);
+  let reads = 0;
+  vi.spyOn(repo, "findById").mockImplementation(async input => (++reads === 1 ? findById(input) : null));
+  await store.ensureHtmlFormat({ seedHtml: htmlBody });
+  expect(await repo.listRevisions(scope)).toEqual([]);
+  expect(store.capturedVersion()).toBe(8);
+});
