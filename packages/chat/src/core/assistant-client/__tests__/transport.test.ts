@@ -672,6 +672,26 @@ describe('stopRun', () => {
     expect([h.agUiStopped, h.fetched]).toEqual([['ag:1'], []]);
   });
 
+  it.each([[true, ['run-canon'], []], [false, [], ['/runs/run-canon/cancel']]])('routes Stop for a canonical id the AG-UI client accepted (%s) to that client, else to the daemon', async (accepted, stopped, posted) => {
+    const agUiStopped: string[] = [];
+    const fetched: string[] = [];
+    const h = harness({
+      fetch: async (url) => { fetched.push(String(url)); return new Response('{}'); },
+      agUi: {
+        isAgUiRunId: () => false,
+        isAcceptedAgUiRun: ({ runId }) => accepted && runId === 'run-canon',
+        handleAgUiEvent: () => {},
+        startAgUiRun: async () => { throw new Error('not started in this case'); },
+        reattachAgUiRun: async () => {},
+        fetchAgUiRunStatus: async () => null,
+        stopAgUiRun: async ({ runId }) => { agUiStopped.push(runId); },
+        resumeAgUiRun: async () => { throw new Error('not resumed in this case'); },
+      },
+    });
+    await h.transport().stopRun('run-canon');
+    expect([agUiStopped, fetched]).toEqual([stopped, posted]);
+  });
+
   it('posts a daemon cancel carrying the bound message id', async () => {
     const h = harness({ runBinding: () => ({ messageId: 'm', conversationId: 'c' }), fetch: async (url, init) => { h.fetched.push({ url: String(url), init }); return new Response('{}'); } });
     await h.transport().stopRun('r/1');

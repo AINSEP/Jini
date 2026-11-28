@@ -150,6 +150,69 @@ describe("AG-UI parked approvals", () => {
       expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([text("done")]);
     });
 
+    it("a live segment forwards its events and errors to the turn until it settles", () => {
+      const { segment, handlers } = relay(async () => ({ runId: "resumed" }));
+      segment.onEvent(text("live"));
+      segment.onError(new Error("segment failed"));
+      expect(handlers.onEvent).toHaveBeenCalledExactlyOnceWith(text("live"));
+      expect(handlers.onError).toHaveBeenCalledExactlyOnceWith(new Error("segment failed"));
+    });
+
+    it("a refused resume settles the held turn once, so a later stop does not deliver a second transcript", async () => {
+      const { approvals, segment, handlers } = relay(async () => { throw new Error("HTTP 503"); });
+      approvals.bindRun({ threadId: "thread", runId: "parent" });
+      approvals.observe({ threadId: "thread", input: parentInput, event: interrupt() });
+      segment.onDone([text("held")]);
+      expect(await approvals.answer({ exchangeId: "exchange", allow: true })).toBe(false);
+      expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([text("held")]);
+      expect(approvals.release({ runId: "parent" })).toBeUndefined();
+      expect(handlers.onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it("a resume refused after stop already settled the turn reports no refusal", async () => {
+      let reject!: (error: unknown) => void;
+      const { approvals, segment, handlers } = relay(() => new Promise<{ runId: string }>((_resolve, fail) => { reject = fail; }));
+      approvals.bindRun({ threadId: "thread", runId: "parent" });
+      approvals.observe({ threadId: "thread", input: parentInput, event: interrupt() });
+      segment.onDone([text("held")]);
+      const answered = approvals.answer({ exchangeId: "exchange", allow: true });
+      expect(approvals.release({ runId: "parent" })).toBeUndefined();
+      expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([text("held")]);
+      reject(new Error("HTTP 503"));
+      expect(await answered).toBe(false);
+      expect(handlers.onError).not.toHaveBeenCalled();
+      expect(handlers.onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it("a second refused exchange in the same turn shows no second refusal", async () => {
+      const { approvals, handlers } = relay(async () => { throw new Error("HTTP 503"); });
+      approvals.observe({ threadId: "thread", input: parentInput, event: interrupt("first") });
+      approvals.observe({ threadId: "thread", input: parentInput, event: interrupt("second") });
+      expect(await approvals.answer({ exchangeId: "first", allow: true })).toBe(false);
+      expect(await approvals.answer({ exchangeId: "second", allow: false })).toBe(false);
+      expect(handlers.onError).toHaveBeenCalledExactlyOnceWith(new Error("Unsent"));
+      expect(handlers.onDone).not.toHaveBeenCalled();
+    });
+
+    it("a durable turn's resume segment frames never reach the turn: its follower renders the resumed run", async () => {
+      const handlers = { onEvent: vi.fn(), onError: vi.fn(), onDone: vi.fn() };
+      const resume = vi.fn(async ({ handlers: segment }: { handlers: { onEvent: (e: never) => void; onError: (e: Error) => void; onDone: (f: never[]) => void } }) => {
+        segment.onEvent(text("duplicate"));
+        segment.onError(new Error("segment noise"));
+        segment.onDone([text("duplicate")]);
+        return { runId: "resumed" };
+      });
+      const approvals = createAgUiApprovalRelay({ ports: { resume: resume as never, isAccepted: ({ runId }) => runId === "canon", copy: { expired: "Expired", unsent: "Unsent" } } });
+      approvals.beginTurn({ threadId: "thread", signal: new AbortController().signal, handlers });
+      approvals.observe({ threadId: "thread", input: parentInput, event: { type: "RUN_STARTED", runId: "canon" } });
+      approvals.observe({ threadId: "thread", input: parentInput, event: interrupt() });
+      expect(await approvals.answer({ exchangeId: "exchange", allow: true })).toBe(true);
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(handlers.onEvent).not.toHaveBeenCalled();
+      expect(handlers.onError).not.toHaveBeenCalled();
+      expect(handlers.onDone).not.toHaveBeenCalled();
+    });
+
     it("routes a cancel decision as deny and acknowledges a sent answer", async () => {
       const answer = vi.fn(async () => true);
       const fallback = vi.fn();

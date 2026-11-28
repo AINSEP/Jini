@@ -98,3 +98,13 @@ it('conditional history discards another conversation snapshot and clears failed
   await load({ conversationId: 'b' });
   expect(versions).toEqual([undefined, undefined, 'v1', undefined]);
 });
+
+it('conditional history refuses an unchanged answer with no earlier snapshot and coerces a missing message list', async () => {
+  const replies: Array<{ unchanged?: boolean; messages?: unknown; version?: string }> = [{ unchanged: true }, { messages: 'not-a-list', version: 'v2' }, { unchanged: true }];
+  const versions: (string | undefined)[] = [];
+  const load = createConditionalHistoryRead({ read: async (_input, { version }) => { versions.push(version); return replies.shift() as never; } });
+  await expect(load({ conversationId: 'c' })).rejects.toThrow(/^Unchanged history requires an earlier snapshot$/);
+  expect(await load({ conversationId: 'c' })).toEqual([]);
+  expect(await load({ conversationId: 'c' })).toEqual([]);
+  expect(versions).toEqual([undefined, undefined, 'v2']);
+});

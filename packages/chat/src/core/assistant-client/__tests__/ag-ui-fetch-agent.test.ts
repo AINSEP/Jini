@@ -99,6 +99,16 @@ test('reports a host refusal before the response once', async () => {
   expect(observer.complete).not.toHaveBeenCalled();
 });
 
+test('reports a response without a body as a missing event stream, once', async () => {
+  const agent = createAgUiFetchAgent({ request: async () => new Response(null, { status: 204 }) });
+  const observer = { next: vi.fn(), error: vi.fn(), complete: vi.fn() };
+  agent.run(input).subscribe(observer);
+  await vi.waitFor(() => expect(observer.error).toHaveBeenCalledOnce());
+  expect(observer.error.mock.calls[0]![0]).toEqual(new Error('The agent response has no event stream'));
+  expect(observer.next).not.toHaveBeenCalled();
+  expect(observer.complete).not.toHaveBeenCalled();
+});
+
 test('consumes a registered live directive before transcript reduction', async () => {
   const directive = { type: EventType.CUSTOM, name: 'ext.navigate', value: { path: '/guide' } };
   const visit = vi.fn();
