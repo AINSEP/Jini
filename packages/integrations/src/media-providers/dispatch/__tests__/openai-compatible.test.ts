@@ -59,7 +59,7 @@ describe('jsonPostInit', () => {
   });
 
   it('adds a bearer header for an apiKey and lets caller headers override the defaults', () => {
-    expect(jsonPostInit({ ctx: {}, body: [1] }, { apiKey: 'test-key', headers: { 'content-type': 'application/vnd.test+json', 'x-extra': 'yes' } })).toEqual({
+    expect(jsonPostInit({ ctx: { requestInit: {} }, body: [1] }, { apiKey: 'test-key', headers: { 'content-type': 'application/vnd.test+json', 'x-extra': 'yes' } })).toEqual({
       method: 'POST', headers: { authorization: 'Bearer test-key', 'content-type': 'application/vnd.test+json', 'x-extra': 'yes' }, body: '[1]',
     });
   });
