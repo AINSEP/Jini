@@ -4,6 +4,7 @@ import {
   normalizeConfigOptionToken,
   isModelConfigOption,
   findModelConfigOption,
+  findEffortConfigOption,
   normalizeModelConfigOptions,
   normalizeModels,
   modelSelectionErrorIsRecoverable,
@@ -94,6 +95,28 @@ describe('findModelConfigOption', () => {
 
   it('defaults values to [] when options is not an array', () => {
     expect(findModelConfigOption({ configOptions: [{ id: 'model', category: 'model' }] })?.values).toEqual([]);
+  });
+});
+
+describe('findEffortConfigOption', () => {
+  it('returns the first thought_level option with a string id, skipping other categories and id-less entries', () => {
+    const configOptions = [
+      null,
+      { category: 'model', id: 'model', options: [{ value: 'm' }] },
+      { category: 'thought_level', id: 7, options: [{ value: 'ignored' }] },
+      { category: 'thought_level', id: 'effort', options: [{ value: 'low' }, { value: 3 }, null, { value: 'high' }] },
+      { category: 'thought_level', id: 'later', options: [{ value: 'never' }] },
+    ];
+    expect(findEffortConfigOption({ configOptions })).toEqual({ configId: 'effort', values: ['low', 'high'] });
+  });
+
+  it('defaults values to [] when the options field is not an array', () => {
+    expect(findEffortConfigOption({ configOptions: [{ category: 'thought_level', id: 'effort', options: 'low' }] })).toEqual({ configId: 'effort', values: [] });
+  });
+
+  it('returns null for a non-array configOptions or when no entry qualifies', () => {
+    expect(findEffortConfigOption({ configOptions: { category: 'thought_level', id: 'effort' } })).toBeNull();
+    expect(findEffortConfigOption({ configOptions: [{ category: 'model', id: 'model' }] })).toBeNull();
   });
 });
 
@@ -313,6 +336,15 @@ describe('detectAcpModels', () => {
     const promise = detectAcpModels({ bin: 'bad-bin', args: [] });
     child.emit('error', new Error('ENOENT'));
     await expect(promise).rejects.toThrow('spawn failed: ENOENT');
+  });
+
+  it('rejects when stdout carries an oversized multiline JSON reply', async () => {
+    const child = new FakeChild();
+    (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
+    const promise = detectAcpModels({ bin: 'acp-bin', args: [] });
+    child.stdout.emit('data', '{\n"jsonrpc":"2.0","id":1,"result":{"pad":"' + 'x'.repeat(128000) + '"}}\n');
+    await expect(promise).rejects.toThrow('Agent output multiline JSON exceeded 128000 characters or 256 lines.');
+    expect(child.stdin.writes, 'The oversized reply is never executed as the initialize result').toHaveLength(1);
   });
 
   it('rejects when stdin write fails', async () => {

@@ -680,6 +680,11 @@ describe('launch effort uses exact selection validation', () => {
     await expect(resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'minimal', deps: hostDeps() }))
       .rejects.toThrow('Available effort levels: high');
   });
+  it('names an id-less definition as runtime in the effort refusal', async () => {
+    const { id: _omitted, ...anonymous } = def;
+    await expect(resolveModelForLaunch({ def: anonymous, context: { ...context, model: 'chosen' }, effort: 'minimal', deps: hostDeps() }))
+      .rejects.toThrow("Unknown effort 'minimal' for 'runtime'. Available effort levels: high (empty means Default).");
+  });
   it('retains the chosen model and advertised effort, leaving omission to the runtime', async () => {
     expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'high', deps: hostDeps() })).model).toBe('chosen');
     expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, deps: hostDeps() })).model).toBe('chosen');

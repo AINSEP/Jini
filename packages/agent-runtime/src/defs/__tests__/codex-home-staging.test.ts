@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { parse } from 'smol-toml';
@@ -47,6 +47,32 @@ it.each([true, false])('keeps native login and sessions across scratch cleanup (
     expect(await readFile(join(source, 'sessions', 'rollout.jsonl'), 'utf8')).toBe('{"session":"active"}');
     expect(await readFile(join(source, 'archived_sessions', 'old.jsonl'), 'utf8')).toBe('{"session":"archived"}');
     expect(await readFile(join(source, 'config.toml'), 'utf8')).toBe(original);
+  } finally {
+    await rm(source, { recursive: true, force: true });
+  }
+});
+
+it('links an inherited top-level plain file (not only directories) into the staged home', async () => {
+  const source = await mkdtemp(join(tmpdir(), 'codex-home-source-'));
+  try {
+    await writeFile(join(source, 'config.toml'), original);
+    await writeFile(join(source, 'auth.json'), '{"refresh":"old"}');
+    await writeFile(join(source, 'history.jsonl'), '{"turn":1}\n');
+    const result = await stageCodexHome({
+      runId: 'green', entry, hostEnv: { CODEX_HOME: source }, io: { readFile: read, writeFile: write },
+      nativeCapabilities: { userSettings: true, userMcp: true }, toolApprovalOwner: 'host',
+    });
+    if (result.kind !== 'staged') throw new Error(result.message);
+    const { home } = result;
+    try {
+      const staged = join(home.path, 'history.jsonl');
+      expect((await lstat(staged)).isSymbolicLink()).toBe(true);
+      expect(await readlink(staged)).toBe(join(source, 'history.jsonl'));
+      await writeFile(staged, '{"turn":2}\n', { flag: 'a' });
+    } finally {
+      await home.cleanup();
+    }
+    expect(await readFile(join(source, 'history.jsonl'), 'utf8')).toBe('{"turn":1}\n{"turn":2}\n');
   } finally {
     await rm(source, { recursive: true, force: true });
   }

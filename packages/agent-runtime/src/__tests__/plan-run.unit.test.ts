@@ -33,6 +33,11 @@ it('collects every unsupported off switch and admits own tools only after explic
   expect(planRun({ def: { name: 'Test' }, policy: { nativeToolAccess: false, nativeCapabilities: { shell: false, fileWrite: false, userMcp: false } } })).toMatchObject({ verdict: 'ASK', keys: ['enabled', 'shell', 'fileWrite', 'userMcp'] });
   expect(planRun({ def: { name: 'Test' }, policy: { nativeToolAccess: true, nativeCapabilities: { userMcp: true } } })).toMatchObject({ verdict: 'RUN', loadsOwn: true });
 });
+it('asks only for the master switch when a no-client CLI policy names no capabilities at all', () => {
+  const def = { name: 'Test', mcpIsolation: 'no-client' as const };
+  expect(planRun({ def, policy: { nativeToolAccess: false } })).toEqual({ verdict: 'ASK', keys: ['enabled'] });
+  expect(planRun({ def, policy: { nativeToolAccess: true } })).toEqual({ verdict: 'RUN', loadsOwn: false, bridged: false });
+});
 
 it('keeps own-list and host-lock invariants across every definition and capability combination', () => {
   const keys = Object.keys(policy.nativeCapabilities) as (keyof typeof policy.nativeCapabilities)[];

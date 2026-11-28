@@ -51,6 +51,21 @@ describe('Antigravity native audit', () => {
       expect(JSON.stringify(events)).not.toContain('private document');
     });
 
+  it('drops tool frames without a conversation, a numeric step index or a tool name, and passes unknown events through raw', () => {
+    const events: Record<string, unknown>[] = [];
+    const parser = createJsonEventStreamHandler({ kind: 'antigravity', onEvent: event => events.push(event) });
+    const done = toolFrame('run_command', { CommandLine: 'echo hidden' });
+    const unknown = JSON.stringify({ event: 'heartbeat', at: 3 });
+    const frames = [
+      { ...done, step_update: { ...done.step_update, conversation_id: 7 } },
+      { ...done, step_update: { ...done.step_update, step_index: '4' } },
+      { ...done, step_update: { ...done.step_update, tool_name: undefined, tool_info: { parameters: { CommandLine: 'echo hidden' } } } },
+    ];
+    parser.feed({ chunk: `${frames.map(frame => JSON.stringify(frame)).join('\n')}\n${unknown}\n` });
+    parser.flush();
+    expect(events).toEqual([{ type: 'raw', line: unknown }]);
+  });
+
   it('waits for real parameters when ACTIVE only announces a tool name', () => {
     const events: Record<string, unknown>[] = [];
     const parser = createJsonEventStreamHandler({ kind: 'antigravity', onEvent: event => events.push(event) });

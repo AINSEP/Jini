@@ -68,6 +68,17 @@ describe('validateNativePermissionSnapshot', () => {
     expect(validate).not.toThrow(secret);
   });
 
+  test.each([['null', null], ['an array', []], ['a string', secret]])('rejects a snapshot that is %s with the default message when none is given', (_name, value) => {
+    const validate = () => validateNativePermissionSnapshot({ value, capabilityKeys });
+    expect(validate).toThrow(InvalidNativePermissionsError);
+    expect(validate).toThrow(expect.objectContaining({ message: 'Invalid native permissions' }));
+  });
+
+  test('accepts a per-agent override that sets only enabled, with no capabilities map', () => {
+    const value = { ...snapshot(), byAgent: { worker: { enabled: false } } };
+    expect(validateNativePermissionSnapshot({ value, capabilityKeys }, { message })).toEqual({ ...snapshot(), byAgent: { worker: { enabled: false } } });
+  });
+
   test('accepts an unknown top-level capability key and returns only the known keys', () => {
     const value = { ...snapshot(), capabilities: { ...snapshot().capabilities, extra: secret } };
     expect(validateNativePermissionSnapshot({ value, capabilityKeys }, { message })).toEqual(snapshot());

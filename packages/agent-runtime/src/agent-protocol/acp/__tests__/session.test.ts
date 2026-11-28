@@ -1321,6 +1321,19 @@ describe('attachAcpSession', () => {
       expect(JSON.stringify(send.mock.calls)).not.toContain('SECRET');
     });
 
+    it('hands the handler a null sessionId when the agent sends a non-string one', async () => {
+      const child = new FakeAcpChild();
+      const onPermissionRequest = vi.fn((_request: { sessionId: string | null }) => ({ outcome: 'selected' as const, optionId: 'allow' }));
+      attachAcpSession({ child: child as unknown as Parameters<typeof attachAcpSession>[0]['child'], prompt: 'hello', send: vi.fn() }, { onPermissionRequest });
+      handshakeToSessionNew(child);
+      emitLine(child, { jsonrpc: '2.0', id: 24, method: 'session/request_permission', params: {
+        sessionId: 42, toolCall: { toolCallId: 'call-1', kind: 'execute' }, options: [{ optionId: 'allow', kind: 'allow_once' }],
+      } });
+      await Promise.resolve();
+      expect(onPermissionRequest.mock.calls[0]?.[0].sessionId).toBeNull();
+      expect(lastWrite(child)).toEqual({ jsonrpc: '2.0', id: 24, result: { outcome: { outcome: 'selected', optionId: 'allow' } } });
+    });
+
     it('cancels missing params without invoking the handler or failing', () => {
       const child = new FakeAcpChild();
       const handler = vi.fn();

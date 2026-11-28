@@ -28,6 +28,13 @@ describe('provider credentials', () => {
     expect(reads).toEqual([ids]);
   });
 
+  test('stored: a row without a base URL or token cap resolves with neither field', async () => {
+    const port = createStoredExecutionCredentialPort({ readStored: async () => stored() });
+    const resolved = await port.resolve({ requestBody: {}, ...ids });
+    expect(resolved).toEqual({ protocol: 'openai', apiKey: 'sk', model: 'gpt' });
+    expect(Object.keys(resolved ?? {}).sort()).toEqual(['apiKey', 'model', 'protocol']);
+  });
+
   test('stored: no row, unknown protocol or blank model resolves null', async () => {
     for (const row of [null, stored({ protocol: 'other' }), stored({ model: null }), stored({ model: ' ' })]) {
       const port = createStoredExecutionCredentialPort({ readStored: async () => row });
