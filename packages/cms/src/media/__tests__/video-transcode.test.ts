@@ -282,3 +282,28 @@ test("convertMediaVideo refuses a trashed original and one whose stored file is 
     (error: unknown) => error instanceof VideoConversionError && error.reason === "trashed");
   assert.equal(h.calls.length, 0);
 });
+
+// Gap fill (cloud A3-4). Mutation: drop the legacy sniff (`contentType === undefined &&` arm) or invert isVideoType there.
+test("convertMediaVideo decides a legacy row with no recorded type by sniffing its stored bytes", async () => {
+  const forgetType = async (h: Harness & { originalId: string }) => {
+    const original = await h.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: h.originalId });
+    assert.ok(original);
+    const { contentType: _dropped, ...source } = original.source;
+    await h.mediaRepo.save({ ...original, source });
+  };
+  const video = await harness({});
+  await forgetType(video);
+  const converted = await convertMediaVideo({ deps: video.deps, input: input(video.originalId) });
+  assert.equal(converted.originalId, video.originalId);
+  assert.equal(video.calls.length, 1);
+  assert.deepEqual([...video.calls[0]!.input], [...mp4Bytes({ marker: 1 })]);
+
+  for (const bytes of [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]), Buffer.from("plain words, no media")]) {
+    const other = await harness({ original: bytes });
+    await forgetType(other);
+    await assert.rejects(convertMediaVideo({ deps: other.deps, input: input(other.originalId) }),
+      (error: unknown) => error instanceof VideoConversionError && error.reason === "not-video"
+        && error.message === "Only videos can be converted for the web, and this item is not a video. (ERR-ABAB-ABAB-ABAB-ABAB)");
+    assert.equal(other.calls.length, 0);
+  }
+});
