@@ -515,3 +515,100 @@ describe("durable AG-UI Local CLI binding", () => {
     expect(bound).toEqual([{ runId: "run-canon", binding: { messageId: "a-1", conversationId: "conv-1" } }]);
   });
 });
+
+describe("AG-UI run edges: caller-driven failures, pre-start drops and Stop listener release", () => {
+  it.each([["model refused", "model refused"], ["", "AG-UI run failed"]])("the exposed dispatcher reports a non-abort RUN_ERROR (%j) and then finishes", (message, expected) => {
+    const { client, handlers } = setup();
+    const order: string[] = [];
+    handlers.onError.mockImplementation((error: Error) => order.push(`error:${error.message}`));
+    const finish = vi.fn(() => { order.push("finish"); });
+    const ctx = { collected: [], handlers, state: createAgUiToAgentTranslationState({ customEventNames: NAMES }), finish };
+    client.handleAgUiEvent({ event: { type: EventType.RUN_ERROR, message }, ctx });
+    expect(order).toEqual([`error:${expected}`, "finish"]);
+    expect(ctx.collected).toEqual([]);
+  });
+
+  it("rejects a start the host aborted before any event with an AbortError, not a stream failure", async () => {
+    const { client, agents, handlers } = setup();
+    const signal = new AbortController();
+    const started = client.startAgUiRun({ input: { history, signal: signal.signal }, handlers });
+    signal.abort();
+    agents[0]!.observer!.error(new TypeError("fetch failed"));
+    const error = await started.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(DOMException);
+    expect((error as DOMException).name).toBe("AbortError");
+    expect((error as DOMException).message).toBe("Run cancelled");
+    expect(handlers.onError).not.toHaveBeenCalled();
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it("drops segment frames that arrive before the durable start is acknowledged", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const started = client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    let resolved = false;
+    void started.then(() => { resolved = true; });
+    agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "early" });
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "someone-else" });
+    await flushAll();
+    expect(resolved).toBe(false);
+    expect(handlers.onEvent).not.toHaveBeenCalled();
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "agui-id1" });
+    await expect(started).resolves.toEqual({ runId: "agui-id1" });
+    agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "late" });
+    agents[0]!.observer!.next({ type: EventType.RUN_FINISHED });
+    expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([{ kind: "text", text: "late" }]);
+    expect(binding.followAcceptedRun).not.toHaveBeenCalled();
+  });
+
+  it("a Stop signal that is already aborted at start cancels the prepared message immediately", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const stop = new AbortController();
+    stop.abort();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: new AbortController().signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    expect(binding.cancelPendingRun).toHaveBeenCalledExactlyOnceWith({ messageId: "a-1", conversationId: "conv-1" }, {});
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    await flushAll();
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+  });
+
+  it("a durable start that fails before acceptance stops listening to the Stop signal", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const stop = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: new AbortController().signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    agents[0]!.observer!.complete();
+    await expect(started).rejects.toThrow("The assistant stopped before replying. Send your message again.");
+    stop.abort();
+    expect(binding.cancelPendingRun).not.toHaveBeenCalled();
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+  });
+
+  it("an accepted run whose follower has finished stops listening to the Stop signal", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const stop = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: new AbortController().signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    binding.followAcceptedRun.mock.calls[0]![0].handlers.onDone([{ kind: "text", text: "final" }]);
+    expect(handlers.onDone).toHaveBeenCalledExactlyOnceWith([{ kind: "text", text: "final" }]);
+    stop.abort();
+    await flushAll();
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+    expect(client.isAcceptedAgUiRun?.({ runId: "run-canon" })).toBe(false);
+  });
+
+  it("a segment detached before acceptance stops listening to the Stop signal, so a later Stop cancels nothing", async () => {
+    const { client, agents, handlers, binding, bindRun } = durableSetup();
+    const detach = new AbortController();
+    const stop = new AbortController();
+    const started = client.startAgUiRun({ input: { history, conversationId: "conv-1", signal: detach.signal, cancelSignal: stop.signal }, handlers, durable: { launch: LAUNCH, bindRun } });
+    detach.abort();
+    agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    stop.abort();
+    await flushAll();
+    expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
+    expect(binding.cancelPendingRun).not.toHaveBeenCalled();
+    expect(client.isAcceptedAgUiRun?.({ runId: "run-canon" })).toBe(false);
+  });
+});
