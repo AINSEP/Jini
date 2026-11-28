@@ -94,7 +94,7 @@ describe('provider contributions on the existing plugin pipeline', () => {
     expect(() => capture.providers.register({ ...declaration, contractVersion: 2, factory } as unknown as PluginProviderContribution)).toThrow('invalid plugin provider factory');
     // None of the refusals took the slot: the valid declaration still registers once.
     capture.providers.register({ ...declaration, factory });
-    expect(capture.seal({ sdk }).providers.map(({ contract: name, id }) => `${name}:${id}`)).toEqual(['fixture:fixture']);
+    expect((capture.seal({ sdk }).providers ?? []).map(({ contract: name, id }) => `${name}:${id}`)).toEqual(['fixture:fixture']);
     expect(factory).not.toHaveBeenCalled();
   });
   it('publishes only after successful setup and seals captures after failure', async () => {
