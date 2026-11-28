@@ -61,3 +61,29 @@ test("without an injected schedule the watcher polls every 30 s on a real interv
     assert.equal(reads, 2, "close clears the interval");
   } finally { vi.useRealTimers(); }
 });
+
+test("rows that belong to no plugin are ignored, and a failed read keeps polling against the last good snapshot", async () => {
+  const key = "plugin-state:analytics-example:provider.config";
+  let rows = [{ id: "unrelated:key", revision: 1, attached_at: "a" }, { id: key, revision: 1, attached_at: "a" }];
+  let failing = false;
+  let check!: () => Promise<void>;
+  const applied: string[] = [];
+  const stop = watchProviderRevisions({
+    read: async () => { if (failing) throw new Error("store offline"); return rows; },
+    pluginIdOf, reapply: async ({ pluginId }) => { applied.push(pluginId); return "now"; },
+  }, { schedule: ({ run }) => { check = run; return () => {}; } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(applied, ["analytics-example"]);
+  // Only the unrelated row changes: nothing is reapplied.
+  rows = [{ id: "unrelated:key", revision: 9, attached_at: "b" }, { id: key, revision: 1, attached_at: "a" }];
+  await check(); assert.deepEqual(applied, ["analytics-example"]);
+  failing = true;
+  await check(); assert.deepEqual(applied, ["analytics-example"], "a failed read reapplies nothing and does not reject");
+  // Recovery compares against the snapshot before the failure: an unchanged revision is not reapplied...
+  failing = false;
+  await check(); assert.deepEqual(applied, ["analytics-example"]);
+  // ...and the loop is still alive (not stuck in `running`) for a real change.
+  rows = [{ id: key, revision: 2, attached_at: "a" }];
+  await check(); assert.deepEqual(applied, ["analytics-example", "analytics-example"]);
+  stop();
+});
