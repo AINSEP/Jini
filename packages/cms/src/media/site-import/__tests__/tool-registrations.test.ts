@@ -243,7 +243,7 @@ it("a replaced asset with no public URL reports a null URL", async () => {
 
 it("an editorial title names the local upload, and URL and local imports both report the upload to the tracker", async () => {
   const { deps, ctx } = fixture();
-  const tracker = { capture: vi.fn(async () => {}) };
+  const tracker = { capture: vi.fn(async () => {}), error: vi.fn(), trace: vi.fn(), metric: vi.fn() };
   const tracked = { ...deps, tracker };
   const registrations = buildMediaImportRegistrations({ deps: tracked, catalog });
   const handler = (id: string) => registrations.find(({ descriptor }) => descriptor.id === id)!.handler;
