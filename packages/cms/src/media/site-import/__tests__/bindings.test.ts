@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import type { ToolExecutionContext } from "@jini-ai/core";
+import { ToolInputError, type ToolExecutionContext } from "@jini-ai/core";
 import { createHash } from "node:crypto";
 import * as filesystem from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createGuardedFileReader, createNodeGuardedReaderFilesystem, createStagedFileAdapter, FsFilePathError } from "@jini-ai/platform/fs";
 import { createLocalFsObjectStore } from "@jini-ai/platform/object-store";
 import { bindMediaImportTools, type MediaImportToolDeps } from "../bindings.js";
+import { mediaImportDerivedRisk } from "../tool-registrations.js";
 import { MediaImportValidationError } from "../../import/index.js";
 import { createConvertingStagedUploader, createConvertingUploader, type VideoImportOptions } from "../../site/import-video-conversion.js";
 import { blobStoreFromObjectStore, computeBlobStorageKey, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryVersionedMediaRepo, sniffContentType } from "../../index.js";
@@ -37,13 +38,14 @@ function fixture(resolveSiteFileRequest: Parameters<typeof bindMediaImportTools<
   const read = vi.fn(async () => bytes);
   const replaceMediaFile = vi.fn(async () => null);
   const log = vi.fn();
+  const fetchImage = vi.fn(async () => ({ bytes, contentType: "image/png", url: new URL("https://cdn.example/final.png") }));
   const binding = bindMediaImportTools<Omit<VideoImportOptions, "linkDerivedMedia">>({ fsRootIds: ["site"], recoveryText: "Pick a folder.", mediaAssetReadToolId: "read_asset",
     resolveSiteFileRequest, openFsFileForRead: read,
     withLocalStream: async () => { throw new Error("unexpected staged read"); },
     withStagedFile: async () => { throw new Error("unexpected staging"); },
     createConvertingStagedUploader: () => upload,
     uploadLimitForFile: () => 100, uploadCaps: { maxUploadBytes: 100 },
-    fetchImage: vi.fn(async () => ({ bytes, contentType: "image/png", url: new URL("https://cdn.example/final.png") })),
+    fetchImage,
     validateImageBytes: () => "image/png", createConvertingUploader, replaceMediaFile,
     EgressRefusedError,
     isPathRefusal: ({ error }) => error instanceof URIError, logEgressRefusal: log,
@@ -53,7 +55,7 @@ function fixture(resolveSiteFileRequest: Parameters<typeof bindMediaImportTools<
     mediaContentTypeStore: { set: vi.fn() }, blobStore: {}, mediaImportLocalMaxBytes: 200 } as unknown as Parameters<typeof binding.buildMediaImportRegistrations>[0]["deps"];
   const resolvePublicUrls = vi.fn(async () => new Map([["asset", "/m/asset/"]]));
   const ctx: ToolExecutionContext = { executionId: "e", run: { id: "run" }, principal: { id: "human" }, signal: new AbortController().signal, input: {} };
-  return { binding, routeDeps, resolvePublicUrls, ctx, read, upload, createConvertingUploader, replaceMediaFile, log };
+  return { binding, routeDeps, resolvePublicUrls, ctx, read, upload, createConvertingUploader, replaceMediaFile, log, fetchImage, media };
 }
 
 test("local reads are clamped to the file ceiling and allow a smaller host limit", async () => {
@@ -173,4 +175,48 @@ test("local request binding preserves typed path refusals and translates other t
   expect(() => f.binding.resolveLocalImportRequest({ routeDeps: f.routeDeps, ...input })).toThrow(URIError);
   expect(() => f.binding.resolveLocalImportRequest({ routeDeps: f.routeDeps, ...input })).toThrow('restricted source');
   expect(f.read.mock.calls).toEqual([]);
+});
+
+test("a failure that is not an egress refusal passes through the caller-safe wrapper unchanged and logs nothing", async () => {
+  const f = fixture();
+  const fault = new Error("socket hang up");
+  await expect(f.binding.withCallerSafeEgressRefusal({ log: f.log, work: async () => { throw fault; } })).rejects.toBe(fault);
+  expect(f.log).not.toHaveBeenCalled();
+});
+
+test("contributed import tools log an egress refusal to the host's refusal log, else to the binding logger, and return only the safe message", async () => {
+  const contributor = fixture().binding.contributeMediaImportTools({ resolvePublicUrls: async () => new Map() });
+  expect(contributor.domain).toBe("media-import");
+  expect(contributor.risk).toBe(mediaImportDerivedRisk);
+  for (const hostLog of [vi.fn(), undefined]) {
+    const f = fixture();
+    f.fetchImage.mockRejectedValueOnce(new EgressRefusedError({ message: "resolves 10.0.4.7" }, { callerSafeMessage: "That address is not allowed." }));
+    const deps = { ...f.routeDeps, ...(hostLog ? { mediaImportEgressRefusalLog: hostLog } : {}) };
+    const tool = f.binding.contributeMediaImportTools({ resolvePublicUrls: f.resolvePublicUrls }).build(deps, undefined)
+      .find(row => row.descriptor.id === "media_import_from_url")!;
+    const result = tool.handler({ ...f.ctx, input: { url: "https://request.example/image" } });
+    // The tool surfaces only the caller-safe text as a tool input error; the resolved address never reaches the model.
+    const error = await result.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ToolInputError);
+    expect((error as Error).message).toMatch(/^That address is not allowed\.\. Fix the input and retry/);
+    expect((error as Error).message).not.toContain("10.0.4.7");
+    const line = "[media-import] media_import_from_url egress refused: resolves 10.0.4.7";
+    if (hostLog) {
+      expect(hostLog.mock.calls).toEqual([[line]]);
+      expect(f.log).not.toHaveBeenCalled();
+    } else expect(f.log.mock.calls).toEqual([[line]]);
+    expect(f.upload).not.toHaveBeenCalled();
+  }
+});
+
+test("persisting already-fetched bytes uploads them, records the sniffed type and returns the public receipt", async () => {
+  const f = fixture();
+  const input = { workspaceId: "site", bytes, filename: "found.png", contentType: "image/png", createdByPrincipal: "human" };
+  expect(await f.binding.persistImportedMedia({ routeDeps: f.routeDeps, resolvePublicUrls: f.resolvePublicUrls, input, sourceUrl: "https://cdn.example/found.png", actorId: "human" })).toEqual({
+    media: { id: "asset", slug: "asset", title: "Asset", alt: "", caption: "", createdBy: null, credit: "", sha256: "hash", status: "active", version: 3,
+      publicUrl: "/m/asset/", sourceUrl: "https://cdn.example/found.png" },
+  });
+  expect(f.upload.mock.calls).toEqual([[input]]);
+  expect(f.routeDeps.mediaContentTypeStore.set).toHaveBeenCalledWith({ workspaceId: "site", sha256: "hash", contentType: "image/png" });
+  expect(f.resolvePublicUrls).toHaveBeenCalledWith({ deps: f.routeDeps, assets: [f.media] });
 });
