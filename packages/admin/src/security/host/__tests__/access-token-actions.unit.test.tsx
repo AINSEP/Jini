@@ -36,7 +36,7 @@ const sourceCredential = (over: Partial<AdminSourceControlCredentialSummary> = {
 const categories = [{ id: "all" as const, label: "All" }, { id: "hosting" as const, label: "Hosting" }];
 const providerCopy = { categories: [], publishPurposeLabel: "Hosting", sourceControlPurposeLabel: "Source control", customScopeGuidanceKey: "", customCredentialSubtitleKey: "Custom" };
 
-function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; onRefresh?: { current: (() => void) | null } } = {}) {
+function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCredentialSummary[]; onRefresh?: { current: (() => void) | null }; failingList?: "publish" | "custom" } = {}) {
   const port: AccessTokensArgs["port"] = {
     publish: {
       list: vi.fn(async () => ({ credentials: [publishCredential()], executionMode: "hosted-api-only" as const })),
@@ -63,6 +63,7 @@ function setup(options: { projectKeysAvailable?: boolean; custom?: AdminCustomCr
     publishTargets: { list: vi.fn(async () => [{ id: "host", label: "Host", configFields: [], credential: { tokenField: "token", fields: [{ name: "token", label: "Token", required: true }] } }]) },
     sourceControlProviders: { list: vi.fn(async () => [{ id: "source", label: "Source" }]) },
   } as unknown as AccessTokensArgs["port"];
+  if (options.failingList) vi.mocked(port[options.failingList].list).mockRejectedValue(new Error(`${options.failingList} forbidden`));
   const ready = { add: true, existing: true };
   const deps: AccessTokensArgs["deps"] = {
     ACCESS_TOKENS_RESOURCE: "credentials", ACCESS_TOKEN_CATEGORIES: categories, ACCESS_TOKEN_PROVIDER_COPY: providerCopy,
@@ -490,3 +491,20 @@ describe("access-token reloads", () => {
     expect(rows(hook).map((row) => row.id).sort()).toEqual(["cus-1", "pub-9"]);
   });
 });
+
+describe("access-token first load with one failed store", () => {
+  it("names a failed hosting list, hides the hosting providers and still shows the other stores", async () => {
+    const hook = setup({ failingList: "publish" });
+    await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: publish forbidden|t(unknown error)"));
+    await waitFor(() => expect(hook.result.current.groups?.map((group) => group.info.providerId)).toEqual(["cus-1", "source"]));
+    expect(rows(hook).map((row) => row.id)).toEqual(["cus-1"]);
+  });
+
+  it("names a failed custom inventory and still shows the hosting and source-control providers", async () => {
+    const hook = setup({ failingList: "custom" });
+    await waitFor(() => expect(hook.result.current.loadError).toBe("Couldn't load saved access tokens: custom forbidden|t(unknown error)"));
+    await waitFor(() => expect(hook.result.current.groups?.map((group) => group.info.providerId).sort()).toEqual(["host", "source"]));
+    expect(rows(hook).map((row) => row.id)).toEqual(["pub-1"]);
+  });
+});
+
