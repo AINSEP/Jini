@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TAB_STRIP_ITEM_ID_ATTRIBUTE } from '../../../constants.js';
 import type { TabStripTab } from '../../../types.js';
 import { TabStrip } from '../../../react/components/TabStrip.js';
+import type { useTabStripDragReorder } from '../../../react/hooks/useTabStripDragReorder.js';
 
 function tab(overrides: Partial<TabStripTab> & { id: string }): TabStripTab {
   return { content: overrides.id, ...overrides };
@@ -202,6 +203,30 @@ describe('TabStrip hook override 4-pattern test suite', () => {
     expect(tabB).toHaveClass('is-drag-over-after');
   });
 
+  it('never draws a drop edge on the dragged tab itself, even when an injected controller targets it', () => {
+    const selfTargetingHook: typeof useTabStripDragReorder = () => ({
+      draggingTabId: 'a',
+      dragOverTarget: { tabId: 'a', edge: 'before' },
+      stripRef: { current: null },
+      stripDragProps: { onDragOver: vi.fn(), onDrop: vi.fn(), onDragLeave: vi.fn() },
+      getItemDragProps: () => ({ draggable: true, onDragStart: vi.fn(), onDragEnd: vi.fn(), onClickCapture: vi.fn() }),
+    });
+
+    render(
+      <TabStrip
+        tabs={[tab({ id: 'a' }), tab({ id: 'b' })]}
+        activeTabId="a"
+        onActivate={() => {}}
+        onReorder={() => {}}
+        useTabStripDragReorder={selfTargetingHook}
+      />,
+    );
+
+    const [tabA] = screen.getAllByRole('tab');
+    expect(tabA).toHaveClass('is-dragging');
+    expect(tabA).not.toHaveClass('is-drag-over-before');
+  });
+
   it('Pattern 4 — State 4: Dynamic full state transition walkthrough using React useState inside test harness', () => {
     function DynamicTabHarness() {
       const [activeId, setActiveId] = useState('a');
@@ -232,4 +257,15 @@ it('uses the injected tab handle base while preserving activation', () => {
   expect(item).toHaveAttribute('data-agent-element', 'injected-strip-tab-a');
   fireEvent.click(item);
   expect(onActivate).toHaveBeenCalledWith('a');
+});
+
+it('opting the strip out of agent handles (agentHandle={false}) leaves its tabs and close buttons unhandled', () => {
+  render(<TabStrip tabs={[tab({ id: 'a', content: 'Alpha' }), tab({ id: 'b', content: 'Beta' })]} activeTabId="a"
+    onActivate={vi.fn()} onClose={vi.fn()} onReorder={vi.fn()} agentHandle={false} />);
+  const tabs = screen.getAllByRole('tab');
+  expect(tabs).toHaveLength(2);
+  for (const item of tabs) expect(item).not.toHaveAttribute('data-agent-element');
+  const closeButtons = screen.getAllByRole('button');
+  expect(closeButtons.length).toBeGreaterThan(0);
+  for (const button of closeButtons) expect(button).not.toHaveAttribute('data-agent-element');
 });

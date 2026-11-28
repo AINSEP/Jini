@@ -245,6 +245,56 @@ describe('useTabStripDragReorder', () => {
       expect(result.current.dragOverTarget).toBeNull();
     });
 
+    it('does not offer the dragged tab itself as a drop target when the pointer is over it, and scans for the nearest other tab', () => {
+      const tabs = [tab({ id: 'a' }), tab({ id: 'b' })];
+      const { result } = renderHook(() => useTabStripDragReorder({ tabs, onReorder: vi.fn() }));
+      const strip = buildStrip([
+        { id: 'a', left: 0, right: 100, width: 100 },
+        { id: 'b', left: 100, right: 200, width: 100 },
+      ]);
+      act(() => {
+        (result.current.stripRef as { current: HTMLDivElement | null }).current = strip;
+      });
+      act(() => {
+        result.current.getItemDragProps('a').onDragStart({ dataTransfer: makeDataTransfer() } as never);
+      });
+      act(() => {
+        result.current.stripDragProps.onDragOver({
+          clientX: 10,
+          target: strip.querySelector('[data-tab-strip-item-id="a"]'),
+          dataTransfer: makeDataTransfer(),
+          preventDefault: vi.fn(),
+        } as never);
+      });
+      expect(result.current.dragOverTarget).toEqual({ tabId: 'b', edge: 'before' });
+    });
+
+    it('ignores a hovered tab element that belongs to a different strip, and scans its own tabs instead', () => {
+      const tabs = [tab({ id: 'a' }), tab({ id: 'b' }), tab({ id: 'c' })];
+      const { result } = renderHook(() => useTabStripDragReorder({ tabs, onReorder: vi.fn() }));
+      const strip = buildStrip([
+        { id: 'a', left: 0, right: 100, width: 100 },
+        { id: 'b', left: 100, right: 200, width: 100 },
+        { id: 'c', left: 200, right: 300, width: 100 },
+      ]);
+      const otherStrip = buildStrip([{ id: 'elsewhere', left: 0, right: 100, width: 100 }]);
+      act(() => {
+        (result.current.stripRef as { current: HTMLDivElement | null }).current = strip;
+      });
+      act(() => {
+        result.current.getItemDragProps('a').onDragStart({ dataTransfer: makeDataTransfer() } as never);
+      });
+      act(() => {
+        result.current.stripDragProps.onDragOver({
+          clientX: 260,
+          target: otherStrip.querySelector('[data-tab-strip-item-id="elsewhere"]'),
+          dataTransfer: makeDataTransfer(),
+          preventDefault: vi.fn(),
+        } as never);
+      });
+      expect(result.current.dragOverTarget).toEqual({ tabId: 'c', edge: 'after' });
+    });
+
     it('reorders live during dragover when reorderTiming is "live"', () => {
       const tabs = [tab({ id: 'a' }), tab({ id: 'b' })];
       const onReorder = vi.fn();

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
+import { defaultSketchEditorDependencies } from '../../../dependencies.js';
 import { createFakeSketchEditorDependencies } from '../../../react/dependencies-fake.js';
 import { emptySketchScene } from '../../../rules.js';
 import type { ExcalidrawProps, SketchEditorDependencies } from '../../../ports.js';
@@ -206,5 +207,21 @@ describe('SketchEditor', () => {
     await userEvent.click(screen.getByTestId('sketch-menu-save'));
     await waitFor(() => expect(document.querySelector('.jini-toast-message')?.textContent).toBe('Saved'));
     expect(screen.queryByText('Open file')).toBeNull();
+  });
+
+  it('mounts the module default engine when the host passes no dependencies', () => {
+    // The default engine is the real Excalidraw; swap a recording fake into the default slot so the
+    // fallback is observable in jsdom, and restore it afterwards.
+    const { dependencies, seen } = recordingDependencies();
+    const realEngine = defaultSketchEditorDependencies.engine;
+    defaultSketchEditorDependencies.engine = dependencies.engine;
+    try {
+      const { dependencies: _omitted, ...props } = baseProps();
+      render(<SketchEditor {...props} />);
+      expect(screen.getByTestId('fake-excalidraw').getAttribute('aria-label')).toBe('diagram.excalidraw');
+      expect(seen.length).toBeGreaterThan(0);
+    } finally {
+      defaultSketchEditorDependencies.engine = realEngine;
+    }
   });
 });

@@ -76,6 +76,14 @@ describe("NumberStepper", () => {
     expect(outer).toHaveBeenCalledTimes(1);
   });
 
+  it("focusing the field selects its whole value, so the next digit typed replaces it", () => {
+    render(<Harness initial={3} onSave={vi.fn()} />);
+    const input = field();
+    input.setSelectionRange(1, 1);
+    fireEvent.focus(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 1]);
+  });
+
   it("adds host classes beside its own jini-* classes", () => {
     const { container } = render(<Harness initial={2} onSave={vi.fn()} classNames={{ group: "stepper", step: "stepper__step", value: "stepper__value", tip: "visually-hidden" }} />);
     expect(container.querySelector('[role="group"]')!.className).toBe("jini-number-stepper stepper jini-tooltip");
