@@ -121,3 +121,50 @@ test('approved write card names the overwrite and byte counts before the exact f
     assert.equal(readFileSync(join(picked, 'new.txt'), 'utf8'), 'hi');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('a batch of only new files gets a plain card under the calling tool, with no overwrite warning', () => {
+  assert.deepEqual(describeWriteBatch({ folder: '/fixture/picked', writes: [{ path: 'a.txt', bytes: Buffer.from('abc'), overwrite: false }] }, { toolId: 'image_transform' }), {
+    toolId: 'image_transform', errorCode: 'FS_WRITE', title: 'Write 1 file(s) to picked?', confirmLabel: 'Write files',
+    details: [{ label: 'Folder', value: '/fixture/picked' }, { label: 'Files', value: 'new              3 B  a.txt', format: 'code' }, { label: 'Total', value: '3 B' }],
+  });
+});
+
+test('with no picked folder a batch is a tool input error, while an unexpected root-resolution fault is rethrown as-is', () => {
+  const unpicked = { workspaceId: 'ws', siteBinding: { dir: '/fixture/site' }, resolveFsRoots: () => ({ site: '/fixture/site', custom: undefined }),
+    resolveFsFilePath: () => assert.fail('no target is resolved without a folder') };
+  const message = "No folder is picked — ask the person to pick one with the composer's folder button";
+  assert.throws(() => resolvePickedFolder({ routeDeps: unpicked }), { name: 'FsWriteInputError', message });
+  assert.throws(() => preparePickedFolderBatch({ routeDeps: unpicked, files: [{ path: 'a.txt', content: 'x' }] }), (error: unknown) => error instanceof ToolInputError && error.message === message);
+  const fault = new Error('roots store offline');
+  assert.throws(() => preparePickedFolderBatch({ routeDeps: { ...unpicked, resolveFsRoots: () => { throw fault; } }, files: [] }), (error: unknown) => error === fault);
+});
+
+test('a listing forwards its path, recursive depth, limit and cursor, and refuses an out-of-range limit before listing', async () => {
+  const deps = toolDeps('/fixture/site');
+  const listFsFiles = vi.fn(deps.listFsFiles);
+  const tool = buildFsFilesRegistrations({ ...deps, listFsFiles }).find(item => item.descriptor.id === 'fs_list_files')!;
+  assert.deepEqual(await tool.handler(ctx({ root: 'site', path: 'docs', recursive: true, limit: 5, cursor: 'c1' })),
+    { root: 'site', path: 'docs', files: ['one.txt'], truncated: true, nextCursor: '1', remaining: 2 });
+  await tool.handler(ctx({ root: 'site', path: 'docs', depth: 3 }));
+  assert.deepEqual(listFsFiles.mock.calls, [
+    [{ rootPath: '/fixture/site', relativePath: 'docs', depth: 12, limit: 5, cursor: 'c1' }],
+    [{ rootPath: '/fixture/site', relativePath: 'docs', depth: 3, limit: 100 }],
+  ]);
+  for (const limit of [0, 101, 2.5]) {
+    await assert.rejects(tool.handler(ctx({ root: 'site', limit })), { name: 'ToolInputError', message: 'limit must be an integer between 1 and 100' });
+  }
+  assert.equal(listFsFiles.mock.calls.length, 2);
+});
+
+test('list and read failures are offered to the shape-rejection check, which decorates a shape error with the tool schema', async () => {
+  const deps = toolDeps('/fixture/site');
+  const refusal = new Error('path is outside the root');
+  const isShapeRejection = vi.fn(({ error }: { error: unknown }) => error === refusal);
+  const tools = buildFsFilesRegistrations({ ...deps, isShapeRejection, resolveSiteFileRequest: () => { throw refusal; } });
+  for (const [id, input] of [['fs_list_files', { root: 'site', path: '../up' }], ['fs_read_file', { root: 'site', path: '../up' }]] as const) {
+    const tool = tools.find(item => item.descriptor.id === id)!;
+    await assert.rejects(tool.handler(ctx(input)), (error: unknown) => error instanceof ToolInputError
+      && error.message.startsWith('path is outside the root') && error.message.includes(`Schema for '${id}'`));
+  }
+  assert.deepEqual(isShapeRejection.mock.calls, [[{ error: refusal }], [{ error: refusal }]]);
+});
