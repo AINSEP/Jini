@@ -82,3 +82,31 @@ describe("updateAccountLabel", () => {
     await expect(new VendorCredentialSetVaultRepo({ vault: broken, policy }).updateAccountLabel({ workspaceId: "site", id: "v1", accountLabel: "x" })).rejects.toThrow("disk");
   });
 });
+
+describe("vendor repo delete and listing", () => {
+  it("delete removes an owned row at its current revision; a missing or foreign row is left alone", async () => {
+    const vault: VaultRepoPort = { find: vi.fn().mockResolvedValueOnce(row({ revision: 6 })).mockResolvedValueOnce(null).mockResolvedValueOnce(row({ ownerKey: "foreign" })),
+      list: vi.fn(), put: vi.fn(), delete: vi.fn(async () => true), patchMeta: vi.fn() };
+    const repo = new VendorCredentialSetVaultRepo({ vault, policy });
+    await repo.delete({ workspaceId: "site", id: "v1" });
+    await repo.delete({ workspaceId: "site", id: "gone" });
+    await repo.delete({ workspaceId: "site", id: "v1" });
+    expect(vault.delete).toHaveBeenCalledTimes(1);
+    expect(vault.delete).toHaveBeenCalledWith({ workspaceId: "site", id: "v1", expectedRevision: 6 });
+  });
+
+  it("lists skip rows that are not this owner's vendor credentials", async () => {
+    const rows = [row({ id: "mine" }), row({ id: "theirs", ownerKey: "foreign" }), row({ id: "custom", meta: { credentialType: "custom", worksFor: [] } })];
+    const vault: VaultRepoPort = { find: vi.fn(), list: vi.fn(async () => rows), put: vi.fn(), delete: vi.fn(), patchMeta: vi.fn() };
+    const repo = new VendorCredentialSetVaultRepo({ vault, policy });
+    expect((await repo.listByVendor({ workspaceId: "site", vendorId: "acme" })).map((r) => r.id)).toEqual(["mine"]);
+    expect((await repo.listByWorkspace({ workspaceId: "site" })).map((r) => r.id)).toEqual(["mine"]);
+  });
+
+  it("a vendor insert without a worksFor list falls back to its own vendor", async () => {
+    const vault = new InMemoryVaultRepo({});
+    const { worksFor: _worksFor, ...withoutWorksFor } = vendorRecord({ id: "v2", vendorId: "imgco" });
+    await new VendorCredentialSetVaultRepo({ vault, policy }).insert(withoutWorksFor as VendorCredentialSetRecord);
+    expect((await vault.find({ workspaceId: "site", id: "v2" }))?.meta).toMatchObject({ credentialType: "vendor", worksFor: ["imgco"] });
+  });
+});

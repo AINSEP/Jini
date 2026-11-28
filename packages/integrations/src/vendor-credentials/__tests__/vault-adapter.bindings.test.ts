@@ -59,3 +59,31 @@ test("safe hints are present without opening or enumerating sealed-row metadata"
   expect(record?.tokenHint).toEqual({ length: 20, last4: "tail" });
   expect(Object.keys(record!)).not.toContain("tokenHint");
 });
+
+test("opening the bound vault needs a vault port, and a short stored token shows its length but not its tail", async () => {
+  const binding = bindCredentialVaultAdapters({ policy });
+  expect(() => binding.credentialVault({ repo: {}, storageError: () => new Error("storage") })).toThrow(expect.objectContaining({ code: "invalid-record" }));
+  const vault = new InMemoryVaultRepo({});
+  await vault.put({ record: { ...row, id: "short", last4: "abcd", tokenLength: 11 }, expectedRevision: null });
+  const record = await new binding.VendorCredentialSetVaultRepo({ vault }).findById({ workspaceId: "site", id: "short" });
+  expect(record?.tokenHint).toEqual({ length: 11, last4: null });
+  expect(binding.credentialScope({ workspaceId: "site", kind: "vendor", id: "row-9" })).toEqual({ workspaceId: "site", kind: "vendor", ownerKey: "host", principalId: null, binding: null, id: "row-9" });
+});
+
+test("an opened vault without an id source or keyring refuses with the host's storage error, never a raw port failure", async () => {
+  const binding = bindCredentialVaultAdapters({ policy });
+  const vault = new InMemoryVaultRepo({});
+  await vault.put({ record: row, expectedRevision: null });
+  const storageErrors: Error[] = [];
+  const storageError = () => { const error = new Error("storage unavailable"); storageErrors.push(error); return error; };
+  const create = { ...binding.credentialScope({ workspaceId: "site", kind: "vendor" }), expectedRevision: null, provider: "acme", label: "New", meta: { credentialType: "vendor", worksFor: ["acme"] }, payload: { token: "tok-a" } };
+
+  await expect(binding.credentialVault({ repo: { vault }, storageError }).put(create)).rejects.toMatchObject({ code: "invalid-record" });
+  expect(storageErrors).toEqual([]);
+  const withIds = binding.credentialVault({ repo: { vault }, storageError, idGen: { newId: () => "fresh" } });
+  const putFailure = await withIds.put(create).then(() => "resolved", (error: unknown) => error);
+  // The missing keyring raises the storage error inside the protected call, whose own catch maps it once more.
+  expect(storageErrors).toHaveLength(2);
+  expect(putFailure).toBe(storageErrors[1]);
+  expect(await vault.find({ workspaceId: "site", id: "fresh" })).toBeNull();
+});
