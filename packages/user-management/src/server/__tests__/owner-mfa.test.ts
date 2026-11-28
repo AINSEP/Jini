@@ -8,7 +8,7 @@ import { createTransactionalInMemoryIdentityRepos } from '../repo.memory-transac
 import * as memory from '../repo.memory.js';
 import { login as legacyLogin, type AuthServiceDeps } from '../auth-service.js';
 import type { MfaFactor, MfaPending, OwnerMfaDeps } from '../mfa/ports.js';
-import { beginOwnerLogin, completeOwnerLogin, beginOwnerEnrollment, confirmOwnerEnrollment, removeOwnerFactor } from '../mfa/service.js';
+import { beginOwnerLogin, beginPrincipalSignIn, completeOwnerLogin, beginOwnerEnrollment, confirmOwnerEnrollment, removeOwnerFactor } from '../mfa/service.js';
 
 const authenticatorRefusal = 'The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.';
 
@@ -158,4 +158,22 @@ test('legacy password login cannot create a surviving session after concurrent f
   await Promise.all([login, activation]);
   expect(await f.deps.store.factor(f.scope)).not.toBeNull();
   expect((await f.sessions()).filter(session => !session.revokedAt)).toHaveLength(0);
+});
+
+test('legacy one-step password login is refused once the owner has a factor, and mints no session', async () => {
+  const f = await fixture();
+  await f.enroll();
+  const before = (await f.sessions()).filter(session => !session.revokedAt).length;
+  await expect(legacyLogin({ deps: f.deps.auth, input: { workspaceId: 'a', username: 'owner', password: 'old' } }))
+    .rejects.toThrow('This owner requires an authenticator code. Use the two-step sign-in flow to continue.');
+  expect((await f.sessions()).filter(session => !session.revokedAt)).toHaveLength(before);
+});
+
+test('trusted principal sign-in refuses an active non-user principal and mints no session for it', async () => {
+  const f = await fixture();
+  const repos = f.deps.auth.repos;
+  await repos.principals.save({ id: 'agent-1', workspaceId: 'a', kind: 'agent', displayName: 'Helper', status: 'active', createdAt: '2027-01-15T08:00:00.000Z' });
+  await expect(beginPrincipalSignIn({ deps: f.deps, input: { workspaceId: 'a', principalId: 'agent-1' } }))
+    .rejects.toThrow(authenticatorRefusal);
+  expect(await repos.sessions.listByPrincipalId({ workspaceId: 'a', principalId: 'agent-1' })).toEqual([]);
 });

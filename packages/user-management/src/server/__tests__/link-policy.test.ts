@@ -38,3 +38,6 @@ test("custom-domain first link needs inbox proof, subsequent subject sign-in doe
 test("a signed-in connect whose member row is missing is a conflict, not a crash", () => {
   assert.equal(decideMemberLogin({ ...input, member: null, connectMemberId: "member" }), "conflict");
 });
+test("a linked subject whose member row is gone is blocked, never re-created", () => {
+  assert.equal(decideMemberLogin({ ...input, member: null, subjectLinked: true }), "blocked");
+});

@@ -23,6 +23,30 @@ describe('parseLoginProviders', () => {
     expect(parseLoginProviders({ raw: file({ ...provider, ...change }) })).toEqual({ ok: false, reason: 'LOGIN_PROVIDER_INVALID' });
   });
 
+  it.each([
+    ['non-object entry', 'example'], ['null entry', null], ['array entry', [provider]],
+  ])('refuses a %s in the providers list', (_name, entry) => {
+    expect(parseLoginProviders({ raw: file(entry) })).toEqual({ ok: false, reason: 'LOGIN_PROVIDER_INVALID' });
+  });
+
+  it.each([
+    ['blank label', { label: '  ' }], ['non-string label', { label: 7 }], ['oversized label', { label: 'x'.repeat(2049) }],
+    ['issuer with user info', { issuer: 'https://user@id.example.com' }], ['issuer with a password', { issuer: 'https://u:p@id.example.com' }],
+    ['issuer with a fragment', { issuer: 'https://id.example.com/#frag' }], ['too many domains', { authoritativeEmailDomains: Array(17).fill('example.com') }],
+    ['non-array domains', { authoritativeEmailDomains: 'example.com' }], ['non-string domain', { authoritativeEmailDomains: [7] }],
+    ['bad hosted-domain claim', { hostedDomainClaim: 'Hd-Claim' }], ['non-string hosted-domain claim', { hostedDomainClaim: 3 }],
+    ['non-array scopes', { scopes: 'openid email profile' }], ['two scopes', { scopes: ['openid', 'email'] }],
+    ['duplicated scope', { scopes: ['openid', 'email', 'email'] }], ['unknown third scope', { scopes: ['openid', 'email', 'phone'] }],
+  ])('refuses %s with the fixed code only', (_name, change) => {
+    expect(parseLoginProviders({ raw: file({ ...provider, ...change }) })).toEqual({ ok: false, reason: 'LOGIN_PROVIDER_INVALID' });
+  });
+
+  it('defaults absent email authority to no domains and keeps a valid hosted-domain claim', () => {
+    const { authoritativeEmailDomains: _omitted, ...withoutDomains } = provider;
+    expect(parseLoginProviders({ raw: file({ ...withoutDomains, hostedDomainClaim: 'hd' }) }))
+      .toEqual({ ok: true, descriptors: [{ ...withoutDomains, authoritativeEmailDomains: [], hostedDomainClaim: 'hd' }] });
+  });
+
   it('refuses oversized, malformed and wrong-version files', () => {
     expect(parseLoginProviders({ raw: ' '.repeat(32769) }).ok).toBe(false);
     expect(parseLoginProviders({ raw: '{' }).ok).toBe(false);

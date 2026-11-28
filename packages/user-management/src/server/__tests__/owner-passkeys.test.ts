@@ -220,3 +220,61 @@ test('parallel registration confirmation activates once; a suspended owner canno
   await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
   expect(await f.sessions()).toHaveLength(0);
 });
+
+test('a registration response the verifier refuses stores nothing and spends the challenge', async () => {
+  const f = await fixture(); await f.enroll();
+  const started = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: started.pendingToken, response: 'forged' } })).rejects.toThrow(passkeyRefusal);
+  expect(f.credentials()).toEqual([]);
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: started.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
+  expect(f.credentials()).toEqual([]);
+});
+
+test('the five-key cap is re-checked at confirmation when a key lands after the challenge began', async () => {
+  const f = await fixture(); await f.enroll();
+  for (let i = 0; i < 4; i++) { f.next(`key-${i}`); await f.register(); }
+  const started = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
+  await f.deps.credentials.save({ ...f.scope, id: 'key-concurrent', publicKey: 'public', counter: 0, rpId: 'localhost' });
+  f.next('key-6');
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: started.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
+  expect(f.credentials().map(c => c.id)).toEqual(['key-0', 'key-1', 'key-2', 'key-3', 'key-concurrent']);
+});
+
+test('an unknown password proof cannot begin a passkey login', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  await expect(beginOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'a', pendingToken: 'not-issued' } })).rejects.toThrow(passkeyRefusal);
+  expect(f.pending().filter(p => p.purpose === 'passkey-login')).toHaveLength(0);
+});
+
+test('a password proof for a principal that is no longer the configured owner cannot begin a passkey login', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  const password = await f.login(); if (!('pendingToken' in password)) throw Error('missing MFA');
+  f.deps.mfa.seededOwnerPrincipalId = 'successor';
+  await expect(beginOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'a', pendingToken: password.pendingToken } })).rejects.toThrow(passkeyRefusal);
+  expect(f.pending().filter(p => p.purpose === 'passkey-login')).toHaveLength(0);
+});
+
+test('an owner whose credential row is missing at completion gets no session and keeps the counter', async () => {
+  const f = await fixture(); await f.enroll(); await f.register(); const begun = await f.begin();
+  const users = f.deps.mfa.auth.repos.users;
+  const find = users.findByPrincipalId.bind(users);
+  users.findByPrincipalId = async scope => (scope.principalId === f.scope.principalId ? null : find(scope));
+  f.next('key', 9);
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
+  expect(f.credentials()[0]?.counter).toBe(0);
+  expect(await f.sessions()).toHaveLength(0);
+});
+
+test('an expired or attempt-exhausted password proof cannot begin a passkey login', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  const expired = await f.login(); if (!('pendingToken' in expired)) throw Error('missing MFA');
+  f.advance(300001);
+  await expect(beginOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'a', pendingToken: expired.pendingToken } })).rejects.toThrow(passkeyRefusal);
+  const exhausted = await f.login(); if (!('pendingToken' in exhausted)) throw Error('missing MFA');
+  for (let i = 0; i < 5; i++) {
+    await expect(completeOwnerLogin({ deps: f.deps.mfa, input: { workspaceId: 'a', pendingToken: exhausted.pendingToken, code: '000000' } })).rejects.toThrow('authenticator code');
+  }
+  expect(f.pending().find(p => p.purpose === 'login')?.attempts).toBe(5);
+  await expect(beginOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'a', pendingToken: exhausted.pendingToken } })).rejects.toThrow(passkeyRefusal);
+  expect(f.pending().filter(p => p.purpose === 'passkey-login')).toHaveLength(0);
+});
