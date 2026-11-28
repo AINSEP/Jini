@@ -163,3 +163,12 @@ test("decode admits error text at the exact payload ceiling but omits it above t
   assert.deepEqual(read(4000), { kind: "validation", slug: "contact", fieldErrors: [{ field: "date", reason: "Choose an available date" }] });
   assert.deepEqual(read(4001), { kind: "validation", slug: "contact", fieldErrors: [] });
 });
+
+test("decode: a rate-limited retry-after that is not a whole positive number reads as 0", () => {
+  const decode = (retry: unknown) => decodeFormSubmissionResultFromQuery({ query: { form: "contact", form_status: "rate_limited", form_retry_after: retry }, keys });
+  for (const retry of ["0", "-3", "soon", "", undefined]) {
+    assert.deepEqual(decode(retry), { kind: "rate-limited", slug: "contact", retryAfterSeconds: 0 }, String(retry));
+  }
+  assert.deepEqual(decode("1"), { kind: "rate-limited", slug: "contact", retryAfterSeconds: 1 });
+  assert.deepEqual(decode("45s"), { kind: "rate-limited", slug: "contact", retryAfterSeconds: 45 });
+});

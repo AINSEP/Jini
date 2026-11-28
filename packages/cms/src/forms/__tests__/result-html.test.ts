@@ -56,3 +56,9 @@ test("timing, rate-limit and error outcomes use the supplied copy without distur
   ] as const) assert.equal(injectFormSubmissionResultIntoHtml({ html: authored, result, markup, feedback }),
     `<div data-host-success data-form-slug="s" hidden>Thanks</div><form data-host-form="s" data-form-slug="s"><div data-host-error data-form-slug="s">${message}</div><input name="name"></form>`);
 });
+
+test("restoration appends a value to a plain, unclosed input without one, dropping trailing spaces", () => {
+  const form = `<form data-form-slug="s"><input name="e" type="text"><input name="f" ></form>`;
+  assert.equal(injectFormSubmissionResultIntoHtml({ html: form, result: { kind: "too-fast", slug: "s", values: { e: "Ann", f: "B&B" } }, markup, feedback }),
+    '<form data-form-slug="s"><input name="e" type="text" value="Ann"><input name="f" value="B&amp;B"></form>');
+});
