@@ -163,6 +163,23 @@ describe('reasoningModelGroups over the real agy catalog', () => {
     expect(groupFor('claude-opus-4-6-thinking').label).toBe('Claude Opus 4.6 (Thinking)');
   });
 
+  // A garbled CLI label must never be cut: the stripper only removes one well-formed terminal
+  // `(qualifier)` group, and the qualifier holds no parentheses of its own.
+  it('keeps a suffixed label whole when its closing parenthesis has no opener, or its qualifier holds another one', () => {
+    const levels: readonly AgentModelOption[] = [{ id: 'high', label: 'High)' }];
+    const groups = reasoningModelGroups({
+      models: [
+        { id: 'solo-high', label: 'High)' },
+        { id: 'nova-high', label: 'Nova (High))' },
+      ],
+      levels,
+    });
+    expect(groups.map((group) => [group.baseId, group.label])).toEqual([
+      ['solo', 'High)'],
+      ['nova', 'Nova (High))'],
+    ]);
+  });
+
   it('derives nothing when the declared vocabulary is empty, leaving every id its own base', () => {
     expect(reasoningModelGroups({ models: AGY_MODELS, levels: [] }).map((group) => group.baseId)).toEqual(
       AGY_MODELS.map((model) => model.id),

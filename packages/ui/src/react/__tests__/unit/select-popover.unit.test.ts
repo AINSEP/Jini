@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applySelectNavigationKey,
   repositionSelectPopover,
+  resolveSelectPortalContainer,
   resolveTabTarget,
   useSelectPopover,
 } from '../../components/select-popover.js';
@@ -273,5 +274,39 @@ describe('useSelectPopover portal lifecycle', () => {
     expect(result.current.open).toBe(false);
     expect(result.current.position).toBeNull();
     expect(document.activeElement).not.toBe(trigger);
+  });
+});
+
+describe('resolveSelectPortalContainer', () => {
+  afterEach(() => { document.body.innerHTML = ''; });
+
+  it('portals into an explicit container even when the trigger sits inside a dialog', () => {
+    const dialog = document.createElement('dialog');
+    const trigger = document.createElement('button');
+    dialog.append(trigger);
+    const explicit = document.createElement('div');
+    document.body.append(dialog, explicit);
+    expect(resolveSelectPortalContainer({ trigger }, { container: explicit, fallbackContainer: document.createElement('div') })).toBe(explicit);
+  });
+
+  it('keeps native-dialog ownership ahead of the host fallback container', () => {
+    const dialog = document.createElement('dialog');
+    const trigger = document.createElement('button');
+    dialog.append(trigger);
+    document.body.append(dialog);
+    expect(resolveSelectPortalContainer({ trigger }, { fallbackContainer: document.createElement('div') })).toBe(dialog);
+  });
+
+  it('uses the host fallback when there is no trigger or it is outside any dialog', () => {
+    const fallback = document.createElement('div');
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    expect(resolveSelectPortalContainer({ trigger: null }, { fallbackContainer: fallback })).toBe(fallback);
+    expect(resolveSelectPortalContainer({ trigger }, { container: null, fallbackContainer: fallback })).toBe(fallback);
+  });
+
+  it('falls back to document.body with nothing else to go on', () => {
+    expect(resolveSelectPortalContainer({ trigger: null })).toBe(document.body);
+    expect(resolveSelectPortalContainer({ trigger: null }, { container: null, fallbackContainer: null })).toBe(document.body);
   });
 });

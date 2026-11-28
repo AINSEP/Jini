@@ -51,6 +51,13 @@ describe('scriptblocks detector — trimmed 2026-10-11 contract', () => {
   it('handles composed decorations and quoted selectors without treating parameters as effects', () => {
     expect(tags(`<div data-kui="zoom-in 600ms ease:linear(0, 1) target:'h2, p', shine-sweep, lift"><h2>Title</h2><p>Text</p></div><li data-kui="fade-up, border-glow"><p>Text</p></li>`)).toEqual([]);
   });
+  it('treats a double-quoted selector, and a single-quoted one holding an escaped quote, as one argument each', () => {
+    expect(tags(`<div data-kui='fade-up target:"h2, p"'><p>Text</p></div>`)).toEqual([]);
+    expect(tags(`<div data-kui="fade-up target:'it\\'s, p'"><p>Text</p></div>`)).toEqual([]);
+  });
+  it('a backslash line break ends a quoted argument unterminated, so its comma still separates an unknown effect', () => {
+    expect(tags(`<div data-kui="fade-up target:'h2\\\n, p'"><p>Text</p></div>`)).toEqual(['div']);
+  });
   it.each(['future-effect', 'fade-up-future', 'carousel-future', 'fade-up, future-effect'])('retains the structural fallback for unknown %s, even with stagger', effect => {
     expect(tags(`<div data-kui="${effect}" data-kui-stagger="45ms"><p>Text</p></div><p data-kui="${effect}">Text</p>`)).toEqual(['div']);
   });
