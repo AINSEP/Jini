@@ -219,4 +219,15 @@ describe("buildCustomCredentialUpdatePatch", () => {
     const patch = buildCustomCredentialUpdatePatch({ fields: blankCustomRowFields({ name: "New Name", username: "new-user", token: "tok" }), nameChanged: true, hasToken: true, currentUsername: "old-user" });
     expect(patch).toEqual({ label: "New Name", connection: { token: "tok", username: "new-user" }, username: "new-user" });
   });
+
+  it("sends the Works for list only when it differs from the saved one", () => {
+    const base = { nameChanged: false, hasToken: false, currentUsername: "" };
+    expect(buildCustomCredentialUpdatePatch({ ...base, fields: blankCustomRowFields({ name: "name.com", worksFor: ["blog", "shop"] }) }, { currentWorksFor: ["blog"] }))
+      .toEqual({ worksFor: ["blog", "shop"] });
+    expect(buildCustomCredentialUpdatePatch({ ...base, fields: blankCustomRowFields({ name: "name.com", worksFor: ["shop", "blog"] }) }, { currentWorksFor: ["blog", "shop"] }))
+      .toEqual({});
+    // No saved list: an emptied draft list is unchanged, a chosen plugin is a change.
+    expect(buildCustomCredentialUpdatePatch({ ...base, fields: blankCustomRowFields({ name: "name.com", worksFor: [] }) })).toEqual({});
+    expect(buildCustomCredentialUpdatePatch({ ...base, fields: blankCustomRowFields({ name: "name.com", worksFor: ["blog"] }) })).toEqual({ worksFor: ["blog"] });
+  });
 });
