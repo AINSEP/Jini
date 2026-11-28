@@ -20,3 +20,15 @@ it('kept items are named', () => {
   render(<ChatCleanupDialog useChatCleanup={useChatCleanup} kit={{ Button: 'button' }} copy={{ preview: 'Preview', confirm: 'Delete', expired: 'Expired', choose: 'Choose', partial: 'Partial', count: ({ count }) => String(count) }} onDone={vi.fn()} />);
   expect(screen.getByText('Pinned notes: pinned')).toBeTruthy();
 });
+it('an expired preview explains itself and offers only a fresh choice, never the delete action', async () => {
+  const choose = vi.fn(), preview = vi.fn(), apply = vi.fn();
+  const useChatCleanup = () => ({ state: 'expired' as const, count: 3, bytes: 9, kept: [], preview, apply, choose });
+  render(<ChatCleanupDialog useChatCleanup={useChatCleanup} kit={{ Button: 'button' }} copy={{ preview: 'Preview', confirm: 'Delete', expired: 'That preview expired', choose: 'Choose again', partial: 'Partial', count: ({ count }) => `${count} chats` }} onDone={vi.fn()} />);
+  expect(screen.getByText('That preview expired')).toBeTruthy();
+  expect(screen.getAllByRole('button').map(button => button.textContent)).toEqual(['Choose again']);
+  expect(screen.queryByText('3 chats')).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Choose again' }));
+  expect(choose).toHaveBeenCalledOnce();
+  expect(preview).not.toHaveBeenCalled();
+  expect(apply).not.toHaveBeenCalled();
+});
