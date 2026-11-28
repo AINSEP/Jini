@@ -37,14 +37,19 @@ describe('createPublicationFilter', () => {
   });
 
   it('drops a handle the publication lists twice, and never allows an element with no handle', () => {
-    const { root, filter, at } = filterFor('<section data-agent-element="panel">Text</section><p>untagged</p>',
-      [{ handle: 'panel', action: 'read' }, { handle: 'panel', action: 'menu' }]);
+    const { root, filter, at } = filterFor('<section data-agent-element="panel">Text</section><section data-agent-element="aside">Once</section><p>untagged</p>',
+      [{ handle: 'panel', action: 'read' }, { handle: 'panel', action: 'menu' }, { handle: 'aside', action: 'read' }]);
+    // Control: the same kind of element listed exactly once stays readable.
+    expect(filter.allows({ element: at('aside'), action: 'read' })).toBe(true);
     expect(filter.allows({ element: at('panel'), action: 'read' })).toBe(false);
     expect(filter.allows({ element: root.querySelector('p')!, action: 'read' })).toBe(false);
   });
 
   it('refuses to click a form submitter that was published as anything but submit', () => {
-    const { filter, at } = filterFor('<form action="/contact"><button data-agent-element="send">Send</button></form>', [{ handle: 'send', action: 'menu' }]);
+    const { filter, at } = filterFor('<form action="/contact"><button data-agent-element="send">Send</button><button data-agent-element="submit">Submit</button></form>',
+      [{ handle: 'send', action: 'menu' }, { handle: 'submit', action: 'submit', target: { action: '/contact', method: 'get' } }]);
+    // Control: the same kind of submitter published as submit with a matching target is clickable.
+    expect(filter.allows({ element: at('submit'), action: 'click' })).toBe(true);
     expect(filter.allows({ element: at('send'), action: 'click' })).toBe(false);
   });
 
