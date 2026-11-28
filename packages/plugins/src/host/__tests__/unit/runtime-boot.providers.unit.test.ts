@@ -2,7 +2,10 @@
  * the bounded wait, failure isolation, and the boot re-attach skip for providers. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { withFileLock } from '@jini-ai/platform/fs/file-lock';
-import { createPluginInvocationBinding, createPluginRuntimeCore, type PluginRuntimeSource } from '../../node/index.js';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createPluginInvocationBinding, createPluginRuntimeCore, type PluginRuntimeCoreOptional, type PluginRuntimeSource } from '../../node/index.js';
 import type { PluginManifest } from '../../manifest.js';
 import { InMemoryPluginActivationRepo } from '../../repo.memory.js';
 import { manifestHost, pluginSdkBinding } from '../support/fixture-bindings.js';
@@ -17,13 +20,13 @@ const manifestFor = (id: string, provides: boolean): PluginManifest => ({
 });
 type Setup = () => void | Promise<void>;
 
-function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean; setup?: Setup }>, options: { failListAllCall?: number } = {}) {
+function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean | null; setup?: Setup }>, options: { failListAllCall?: number; runtime?: PluginRuntimeCoreOptional } = {}) {
   const importModule = vi.fn(async (entryPath: string) => {
     const plugin = plugins.find((candidate) => `entry:${candidate.id}` === entryPath)!;
     return { default: { definition: { setup: plugin.setup ?? (() => {}) } } };
   });
   const sources: PluginRuntimeSource[] = plugins.map(({ id, provides }) => ({ source: 'built-in', manifest: manifestFor(id, provides), entryPath: `entry:${id}`, importModule }));
-  const repo = new InMemoryPluginActivationRepo({ initialRows: plugins.map(({ id, enabled }) => ({ pluginId: id, workspaceId: WS as never, version: '1.0.0', enabled, updatedAt: '2026-11-27T00:00:00.000Z' })) });
+  const repo = new InMemoryPluginActivationRepo({ initialRows: plugins.flatMap(({ id, enabled }) => enabled === null ? [] : [{ pluginId: id, workspaceId: WS as never, version: '1.0.0', enabled, updatedAt: '2026-11-27T00:00:00.000Z' }]) });
   let listAllCalls = 0;
   const listAll = repo.listAll.bind(repo);
   repo.listAll = async (...args: Parameters<typeof repo.listAll>) => {
@@ -48,7 +51,7 @@ function host(plugins: Array<{ id: string; provides: boolean; enabled: boolean; 
       async ({ modulePath }: { modulePath: string }) => ({ exported: (await optional.importModule(modulePath)).default })) as never,
     text: { scaffoldEntry: 'export default {};\n', reloadApprovalRequired: () => 'approve', restoreFailedReason: 'restore failed' },
     quarantineTelemetry: ({ pluginId }: { pluginId: string }) => ({ event: { kind: 'q', pluginId }, options: {} }),
-  }, {});
+  }, options.runtime ?? {});
   return { runtime, importModule, repo };
 }
 
@@ -138,6 +141,96 @@ describe('provider plugin admission', () => {
     await runtime.attachEnabledPluginsAtBoot();
     expect(importModule).not.toHaveBeenCalled();
     expect(spy.mock.calls.map((call) => String(call[0]))).toContainEqual(expect.stringContaining('[plugin-runtime] boot conflict check failed, no plugin attached'));
+    await runtime.dispose({}, {});
+  });
+  it('enabling a provider plugin after boot imports nothing: providers load only through provider admission', async () => {
+    const { runtime, importModule } = host([{ id: 'prov-a', provides: true, enabled: true }]);
+    await expect(runtime.onPluginEnabled('prov-a')).resolves.toBeUndefined();
+    expect(importModule).not.toHaveBeenCalled();
+    expect(runtime.pluginLoadedVersion({ id: 'prov-a' })).toBeUndefined();
+    await runtime.dispose({}, {});
+  });
+
+  it('leaves a disabled plugin that would clash at boot untouched: only enabled plugins are quarantined', async () => {
+    const spy = quietWarn();
+    const { runtime, repo } = host([
+      { id: 'prov-a', provides: true, enabled: true },
+      { id: 'prov-b', provides: true, enabled: false },
+    ]);
+    await runtime.attachEnabledPluginsAtBoot();
+    const rows = await repo.listAll();
+    expect(rows.map(({ pluginId, enabled, quarantineReason }) => ({ pluginId, enabled, quarantineReason }))).toEqual([
+      { pluginId: 'prov-a', enabled: true, quarantineReason: undefined },
+      { pluginId: 'prov-b', enabled: false, quarantineReason: undefined },
+    ]);
+    expect(spy.mock.calls.map((call) => String(call[0])).filter((line) => line.includes('quarantined at boot'))).toEqual([]);
+    await runtime.dispose({}, {});
+  });
+
+  it('first boot enables a bundled plugin that has no row, attaches it once, and skips ids that are not bundled', async () => {
+    const { runtime, importModule, repo } = host([{ id: 'plain', provides: false, enabled: null }], { runtime: { bundledEnabledIds: ['plain', 'ghost'] } });
+    await runtime.attachEnabledPluginsAtBoot();
+    expect(await repo.getActivation({ workspaceId: WS as never, pluginId: 'plain' })).toMatchObject({ version: '1.0.0', enabled: true });
+    expect(await repo.getActivation({ workspaceId: WS as never, pluginId: 'ghost' })).toBeNull();
+    // Enabled by the initializer, so the re-attach loop must not import it a second time.
+    expect(importModule.mock.calls).toEqual([['entry:plain']]);
+    expect(runtime.pluginLoadedVersion({ id: 'plain' })).toBe('1.0.0');
+    await runtime.dispose({}, {});
+  });
+
+  it('reports a bundled plugin whose first enable fails by id, leaves it without a row and attaches nothing', async () => {
+    const spy = quietWarn();
+    const { runtime, repo } = host([{ id: 'plain', provides: false, enabled: null, setup: () => { throw new Error('setup exploded'); } }], { runtime: { bundledEnabledIds: ['plain'] } });
+    await runtime.attachEnabledPluginsAtBoot();
+    expect(spy.mock.calls.map((call) => call[0])).toContain("[plugin-runtime] bundled initialization failed for 'plain'");
+    expect(await repo.getActivation({ workspaceId: WS as never, pluginId: 'plain' })).toBeNull();
+    expect(runtime.pluginLoadedVersion({ id: 'plain' })).toBeUndefined();
+    await runtime.dispose({}, {});
+  });
+
+  it('logs and carries on with no bundled defaults when bundled discovery fails', async () => {
+    const spy = quietWarn();
+    const root = await mkdtemp(path.join(os.tmpdir(), 'prov-boot-'));
+    // A file where the install directory should be: listing it fails with ENOTDIR, not ENOENT.
+    const installDir = path.join(root, 'plugins');
+    await writeFile(installDir, 'not a directory');
+    try {
+      const { runtime, importModule, repo } = host([{ id: 'plain', provides: false, enabled: null }], { runtime: { bundledEnabledIds: ['plain'], installDir } });
+      await runtime.attachEnabledPluginsAtBoot();
+      expect(spy.mock.calls.map((call) => call[0])).toContain('[plugin-runtime] bundled discovery failed; chart providers remain unavailable');
+      expect(await repo.getActivation({ workspaceId: WS as never, pluginId: 'plain' })).toBeNull();
+      expect(importModule).not.toHaveBeenCalled();
+      await runtime.dispose({}, {});
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not re-attach at boot while an install holds the lock, and logs the refusal by id', async () => {
+    const spy = quietWarn();
+    const root = await mkdtemp(path.join(os.tmpdir(), 'prov-boot-'));
+    const installDir = path.join(root, 'plugins');
+    await mkdir(`${installDir}-install-lock`, { recursive: true });
+    try {
+      const { runtime, importModule } = host([{ id: 'plain', provides: false, enabled: true }], { runtime: { installDir } });
+      await runtime.attachEnabledPluginsAtBoot();
+      expect(importModule).not.toHaveBeenCalled();
+      expect(runtime.pluginLoadedVersion({ id: 'plain' })).toBeUndefined();
+      expect(spy.mock.calls.map((call) => String(call[0]))).toContain("[plugin-runtime] boot re-attach failed for 'plain'");
+      await runtime.dispose({}, {});
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('logs an enabled row whose plugin discovery no longer finds and still attaches the others', async () => {
+    const spy = quietWarn();
+    const { runtime, importModule, repo } = host([{ id: 'plain', provides: false, enabled: true }]);
+    await repo.save({ pluginId: 'gone', workspaceId: WS as never, version: '1.0.0', enabled: true, updatedAt: '2026-11-27T00:00:00.000Z' });
+    await runtime.attachEnabledPluginsAtBoot();
+    expect(importModule.mock.calls).toEqual([['entry:plain']]);
+    expect(runtime.pluginLoadedVersion({ id: 'plain' })).toBe('1.0.0');
+    expect(spy.mock.calls.map((call) => String(call[0]))).toContain("[plugin-runtime] boot re-attach failed for 'gone'");
     await runtime.dispose({}, {});
   });
 });
