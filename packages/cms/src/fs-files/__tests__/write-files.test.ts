@@ -123,3 +123,46 @@ test("a refused atomic rename removes its staging file, preserves the approved t
     syncBuiltinESMExports();
   }
 });
+
+test("the filesystem root is refused as a picked folder because it contains home and the site", () => {
+  const { site } = folderFixture();
+  assert.throws(() => requirePickedFolder({ dir: path.parse(site).root, siteDir: site }, { homeDir: site }), (error: unknown) =>
+    error instanceof FsWriteInputError && error.message === "The picked folder must not contain your home folder or this site, nor lie inside the site");
+});
+
+test("malformed entries and over-size files or batches are refused before any write", () => {
+  const { folder } = folderFixture();
+  const shape = "each file needs a string 'path' and 'content'";
+  for (const entry of [null, { path: "a.txt" }, { path: "a.txt", content: 7 }, { content: "x" }]) {
+    assert.throws(() => prepareFileWrites({ folder, resolveFsFilePath, files: [entry] }), (error: unknown) =>
+      error instanceof FsWriteInputError && error.message === shape, JSON.stringify(entry));
+  }
+  assert.throws(() => prepareFileWrites({ folder, resolveFsFilePath, files: [{ path: "a.txt", content: "x", encoding: "latin1" }] }), (error: unknown) =>
+    error instanceof FsWriteInputError && error.message === "a.txt: encoding must be 'utf8', or 'base64' with valid base64 content");
+  const atCap = "x".repeat(FS_WRITE_LIMITS.maxFileBytes);
+  assert.equal(prepareFileWrites({ folder, resolveFsFilePath, files: [utf8("cap.txt", atCap)] })[0]?.bytes.length, FS_WRITE_LIMITS.maxFileBytes);
+  assert.throws(() => prepareFileWrites({ folder, resolveFsFilePath, files: [utf8("big.txt", `${atCap}y`)] }), (error: unknown) =>
+    error instanceof FsWriteInputError && error.message === "each file may be at most 2 MiB");
+  const fiveAtCap = Array.from({ length: 5 }, (_, i) => utf8(`p${i}.txt`, atCap));
+  assert.equal(prepareFileWrites({ folder, resolveFsFilePath, files: fiveAtCap }).length, 5);
+  assert.throws(() => prepareFileWrites({ folder, resolveFsFilePath, files: [...fiveAtCap, utf8("one-more.txt", "z")] }), (error: unknown) =>
+    error instanceof FsWriteInputError && error.message === "one call may write at most 10 MiB; split the change");
+  assert.deepEqual(fs.readdirSync(folder), []);
+});
+
+test("a target that appeared or vanished since approval is refused and the original disk state kept", () => {
+  const { folder } = folderFixture();
+  fs.writeFileSync(path.join(folder, "existing.txt"), "keep-me");
+  const [appearing] = prepareFileWrites({ folder, resolveFsFilePath, files: [utf8("fresh.txt", "new")] });
+  const [vanishing] = prepareFileWrites({ folder, resolveFsFilePath, files: [utf8("existing.txt", "replaced")] });
+  fs.writeFileSync(path.join(folder, "fresh.txt"), "someone else");
+  fs.rmSync(path.join(folder, "existing.txt"));
+  assert.deepEqual(writePreparedFiles({ folder, writes: [appearing!], resolveFsFilePath }), {
+    written: [], failed: { path: "fresh.txt", reason: "a file appeared here since approval" }, notWritten: [],
+  });
+  assert.deepEqual(writePreparedFiles({ folder, writes: [vanishing!, appearing!], resolveFsFilePath }), {
+    written: [], failed: { path: "existing.txt", reason: "the file was removed since approval" }, notWritten: ["fresh.txt"],
+  });
+  assert.equal(fs.readFileSync(path.join(folder, "fresh.txt"), "utf8"), "someone else");
+  assert.deepEqual(fs.readdirSync(folder), ["fresh.txt"]);
+});
